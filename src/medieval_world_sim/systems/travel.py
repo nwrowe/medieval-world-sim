@@ -61,6 +61,10 @@ class TravelSystem:
         boundaries.update(time for time, _ in arrivals)
         for moment in sorted(boundaries):
             self.world.minute = moment
+            if moment % 1440 == 0:
+                for actor in self.world.actors.values():
+                    actor.vitals.hunger = min(3, actor.vitals.hunger + 1)
+                self.world.city_demand.settle_day(moment // 1440)
             if moment % HOUR == 0:
                 for city, spec in CITIES.items():
                     for item, rate in spec.deposits.items():

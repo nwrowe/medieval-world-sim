@@ -29,6 +29,9 @@ from ..systems.resources import ResourceSystem
 from ..systems.companies import CompanySystem
 from ..systems.market import MarketSystem
 from ..systems.combat import CombatSystem, CombatOutcome
+from ..systems.consumables import ConsumableSystem
+from ..systems.city_demand import CityDemandSystem
+from .quality import CompanyQuality
 
 class WorldEngine:
     """In-memory simulation. Domain actions validate then mutate atomically."""
@@ -64,6 +67,8 @@ class WorldEngine:
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
         self.combat = CombatSystem(self)
+        self.consumables = ConsumableSystem(self)
+        self.city_demand = CityDemandSystem(self)
 
     @property
     def actors(self) -> dict[str, Actor]:
@@ -140,7 +145,9 @@ class WorldEngine:
 
     @property
     def total_gold(self) -> int:
-        return self.crown_gold + sum(a.gold for a in self.actors.values()) + sum(c.gold for c in self.companies.values())
+        return (self.crown_gold + sum(a.gold for a in self.actors.values())
+                + sum(c.gold for c in self.companies.values())
+                + sum(city.household_gold for city in self.cities.values()))
 
     def _emit(self, kind: str, *details: object) -> None:
         self.events.append(WorldEvent(
@@ -229,6 +236,36 @@ class WorldEngine:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
 
     @atomic_action
+    def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
+        return self.companies_system.propose_job(owner_id, company_id, worker_id, wage)
+
+    @atomic_action
+    def accept_job(self, worker_id: str, company_id: str) -> None:
+        return self.companies_system.accept_job(worker_id, company_id)
+
+    @atomic_action
+    def set_wage(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
+        return self.companies_system.set_wage(owner_id, company_id, worker_id, wage)
+
+    @atomic_action
+    def leave_job(self, worker_id: str, company_id: str) -> None:
+        return self.companies_system.leave_job(worker_id, company_id)
+
+    @atomic_action
+    def set_perks(self, owner_id: str, company_id: str, perks: tuple[str, ...]) -> None:
+        return self.companies_system.set_perks(owner_id, company_id, perks)
+
+    @atomic_action
+    def upgrade_facility(self, owner_id: str, company_id: str) -> int:
+        return self.companies_system.upgrade_facility(owner_id, company_id)
+
+    def company_quality(self, company_id: str) -> CompanyQuality:
+        return self.companies_system.quality(company_id)
+
+    def suggested_wage(self, worker_id: str, company_id: str) -> int:
+        return self.companies_system.suggested_wage(worker_id, company_id)
+
+    @atomic_action
     def shift(self, worker_id: str, company_id: str) -> None:
         return self.companies_system.shift(worker_id, company_id)
 
@@ -264,6 +301,10 @@ class WorldEngine:
     def attack(self, attacker_id: str, defender_id: str) -> CombatOutcome:
         return self.combat.attack(attacker_id, defender_id)
 
+    @atomic_action
+    def consume(self, actor_id: str, item: str) -> tuple[int, int, int]:
+        return self.consumables.consume(actor_id, item)
+
     def execute(self, principal_id: str, action: str, params: dict, action_id: str):
         """Trusted-adapter command entrypoint with caller-bound identity and retry safety.
 
@@ -280,7 +321,6 @@ class WorldEngine:
                 "travel": ("start_travel", ("destination",)),
                 "gather": ("gather", ("item", "quantity")),
                 "found_company": ("found_company", ("company_id", "industry", "investment")),
-                "hire": ("hire", ("company_id", "worker_id", "wage")),
                 "shift": ("shift", ("company_id",)),
                 "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
                 "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
@@ -290,6 +330,13 @@ class WorldEngine:
                 "equip": ("equip", ("gear_id",)),
                 "unequip": ("unequip", ("slot",)),
                 "attack": ("attack", ("defender_id",)),
+                "consume": ("consume", ("item",)),
+                "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
+                "accept_job": ("accept_job", ("company_id",)),
+                "leave_job": ("leave_job", ("company_id",)),
+                "set_wage": ("set_wage", ("company_id", "worker_id", "wage")),
+                "set_perks": ("set_perks", ("company_id", "perks")),
+                "upgrade_facility": ("upgrade_facility", ("company_id",)),
             }
             if action not in command_specs:
                 raise ActionError("Unknown or forbidden command")
@@ -327,6 +374,11 @@ class WorldEngine:
                     raise AssertionError("Inconsistent travel")
                 if not (0 <= account.hp <= account.max_hp and
                         0 <= account.stamina <= account.max_stamina and
+                        0 <= account.vitals.hunger <= 3 and
+                        account.work.manual >= 0 and account.work.intelligence >= 0 and
+                        account.work.endurance >= 0 and account.work.shifts >= 0 and
+                        all(isinstance(v, int) and 0 <= v <= 100
+                            for v in account.work.experience.values()) and
                         account.max_hp == 24 + 4 * (account.level - 1) and
                         account.max_stamina == MAX_STAMINA and
                         account.strength == account.level and account.defense == account.level and
@@ -335,6 +387,12 @@ class WorldEngine:
                 for slot, gear_id in account.equipped.items():
                     if gear_id not in account.gear_ids or GEAR[self.gear[gear_id].kind].slot != slot:
                         raise AssertionError("Equipped item is not owned or is in wrong slot")
+        for company in self.companies.values():
+            if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
+                raise AssertionError("Invalid company quality state")
+        for city in self.cities.values():
+            if city.household_gold < 0 or city.population < 0:
+                raise AssertionError("Invalid city household budget")
         for city, stock in self.deposits.items():
             if city not in CITIES or any(quantity < 0 or quantity > DEPOSIT_CAP for quantity in stock.values()):
                 raise AssertionError("Invalid regional deposits")

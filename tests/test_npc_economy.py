@@ -15,7 +15,7 @@ class NpcSystemTests(unittest.TestCase):
         self.assertTrue(all(a.kind == "npc" for a in simulation.world.actors.values()))
         roles = {p.role for p in simulation.profiles}
         self.assertEqual(roles, {"manager", "worker", "hauler", "gatherer", "adventurer"})
-        self.assertEqual(len(simulation.world.companies), 4)
+        self.assertEqual(len(simulation.world.companies), 6)
         self.assertEqual(len(simulation.world.cities), 5)
         self.assertEqual(simulation.world.total_gold, simulation.world.initial_gold)
 

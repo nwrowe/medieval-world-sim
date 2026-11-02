@@ -10,13 +10,15 @@ from dataclasses import dataclass, field
 import random
 
 from ..catalog import CAPITAL, RECIPES
+from ..core.entities import Wage
 from .observation import NPCView
 
 
 BASE_PRICES = {
     "iron_ore": 7, "coal": 6, "timber": 5, "hides": 6,
-    "grain": 3, "herbs": 5, "stone": 3,
+    "grain": 3, "herbs": 5, "stone": 3, "vegetables": 4, "meat": 5,
     "steel": 29, "leather": 20, "planks": 12,
+    "bread": 5, "meal": 9, "healing_potion": 18,
     "sword": 58, "axe": 55, "leather_armor": 51, "plate_armor": 90,
     "shield": 49, "bow": 54,
 }
@@ -59,6 +61,30 @@ class RuleBasedPolicy:
         """Observe, score, select. Gaussian perturbations avoid identical NPCs."""
         if view.hp <= 0 or view.destination is not None:
             return None
+        # Urgent survival decisions take precedence over profession.
+        if view.hp <= view.max_hp - 8:
+            if view.stock("healing_potion"):
+                return NPCAction("consume", {"item": "healing_potion"})
+            potions = sorted(
+                (o for o in view.local_offers("healing_potion")
+                 if o.seller_id != view.id and o.price <= view.gold // 3
+                 and o.price <= 2 * BASE_PRICES["healing_potion"]),
+                key=lambda o: (o.price, o.id))
+            if potions:
+                return NPCAction("accept_offer", {
+                    "buyer_id": view.id, "offer_id": potions[0].id, "quantity": 1})
+        if view.hunger >= 2:
+            food = next((kind for kind in ("meal", "bread") if view.stock(kind)), None)
+            if food is not None:
+                return NPCAction("consume", {"item": food})
+            affordable = sorted(
+                (o for o in view.local_offers() if o.item in ("bread", "meal")
+                 and o.seller_id != view.id and o.price <= view.gold // 8
+                 and o.price <= BASE_PRICES[o.item] * 2),
+                key=lambda x: (x.price, x.id))
+            if affordable:
+                return NPCAction("accept_offer", {
+                    "buyer_id": view.id, "offer_id": affordable[0].id, "quantity": 1})
         method = {
             "gatherer": self._gatherer,
             "hauler": self._hauler,
@@ -153,6 +179,14 @@ class RuleBasedPolicy:
             return [self._action(18, "travel", destination=company.city)]
         recipe = RECIPES[company.industry]
         proposed: list[Candidate] = []
+        # Owners adjust pay to each employee's earned professional skill.
+        for worker_id, actual, recommended in company.employee_pay:
+            if actual != recommended and company.gold >= recommended * 3:
+                proposed.append(self._action(9, "set_wage", company_id=company.id,
+                                             worker_id=worker_id,
+                                             wage=Wage(gold=recommended)))
+        if company.facility_level < 3 and company.gold >= 280:
+            proposed.append(self._action(7, "upgrade_facility", company_id=company.id))
         for item, minimum in recipe.inputs.items():
             if company.stock(item) >= minimum * 2:
                 continue

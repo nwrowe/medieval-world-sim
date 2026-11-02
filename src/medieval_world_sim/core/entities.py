@@ -15,6 +15,7 @@ class Vitals:
     stamina: int = MAX_STAMINA
     max_stamina: int = MAX_STAMINA
     defeated_until: int | None = None
+    hunger: int = 0  # 0=well fed; 3=hungry, no lethal starvation in prototype
 
 
 @dataclass
@@ -24,6 +25,15 @@ class Progression:
     combat_xp: int = 0
     strength: int = 1
     defense: int = 1
+
+
+@dataclass
+class WorkStats:
+    manual: int = 10
+    intelligence: int = 10
+    endurance: int = 10
+    shifts: int = 0
+    experience: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -52,6 +62,7 @@ class Actor:
     vitals: Vitals = field(default_factory=Vitals)
     progression: Progression = field(default_factory=Progression)
     travel: TravelState = field(default_factory=TravelState)
+    work: WorkStats = field(default_factory=WorkStats)
 
     @property
     def hp(self) -> int:
@@ -175,6 +186,12 @@ class Company:
     inventory: dict[str, int] = field(default_factory=dict)
     employees: dict[str, Wage] = field(default_factory=dict)
     gear_ids: list[int] = field(default_factory=list)
+    facility_level: int = 1
+    shifts_completed: int = 0
+    perks: tuple[str, ...] = ()
+    job_offers: dict[str, Wage] = field(default_factory=dict)
+    daily_units_sold: int = 0
+    daily_revenue: int = 0
 
 
 @dataclass

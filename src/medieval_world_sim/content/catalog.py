@@ -17,8 +17,8 @@ CITIES = {
     "crownreach": CitySpec("Crownreach (capital)", {}),
     "ironvale": CitySpec("Ironvale", {"iron_ore": 3}),
     "emberfall": CitySpec("Emberfall", {"coal": 3, "stone": 2}),
-    "greenhollow": CitySpec("Greenhollow", {"timber": 3, "herbs": 2}),
-    "goldmeadow": CitySpec("Goldmeadow", {"grain": 3, "hides": 2}),
+    "greenhollow": CitySpec("Greenhollow", {"timber": 3, "herbs": 2, "vegetables": 2}),
+    "goldmeadow": CitySpec("Goldmeadow", {"grain": 3, "hides": 2, "meat": 2}),
 }
 
 # Roads are undirected; other-city journeys connect through the capital.
@@ -30,14 +30,14 @@ ROADS = {
 }
 
 RAW_RESOURCES = (
-    "iron_ore", "coal", "stone", "timber", "herbs", "grain", "hides",
+    "iron_ore", "coal", "stone", "timber", "herbs", "grain", "hides", "vegetables", "meat",
 )
 PROCESSED_RESOURCES = ("steel", "leather", "planks")
 EQUIPMENT = (
     "sword", "axe", "shield", "plate_armor", "leather_armor",
     "bow", "pickaxe",
 )
-CONSUMABLES = ("healing_potion",)
+CONSUMABLES = ("bread", "meal", "healing_potion")
 GOODS = frozenset(RAW_RESOURCES + PROCESSED_RESOURCES + CONSUMABLES)  # Stackable goods only
 
 
@@ -60,4 +60,6 @@ RECIPES = {
     "bowyer": Recipe({"planks": 2}, {"bow": 1}),
     "toolmaker": Recipe({"steel": 1, "timber": 1}, {"pickaxe": 1}),
     "apothecary": Recipe({"herbs": 2}, {"healing_potion": 1}),
+    "bakery": Recipe({"grain": 2}, {"bread": 3}),
+    "tavern": Recipe({"bread": 1, "meat": 1, "vegetables": 1}, {"meal": 2}),
 }

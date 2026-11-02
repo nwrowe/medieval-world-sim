@@ -1,5 +1,6 @@
 """Detached, read-only observations for unprivileged NPC decision policies."""
 from dataclasses import dataclass
+from ..core.quality import suggested_wage
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,8 @@ class CompanyView:
     inventory: tuple[tuple[str, int], ...]
     gear: tuple[tuple[int, str, int], ...]
     employees: tuple[str, ...]
+    employee_pay: tuple[tuple[str, int, int], ...]
+    facility_level: int
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
@@ -39,6 +42,8 @@ class NPCView:
     gear: tuple[tuple[int, str, int], ...]
     equipped: tuple[tuple[str, int], ...]
     hp: int
+    max_hp: int
+    hunger: int
     stamina: int
     ready_minute: int
     minute: int
@@ -70,7 +75,10 @@ def observe(world, actor_id: str) -> NPCView:
         tuple(sorted(c.inventory.items())),
         tuple((gid, world.gear[gid].kind, world.gear[gid].quality)
               for gid in sorted(c.gear_ids)),
-        tuple(sorted(c.employees))
+        tuple(sorted(c.employees)),
+        tuple((aid, wage.gold, suggested_wage(world.actors[aid], c.industry))
+              for aid, wage in sorted(c.employees.items())),
+        c.facility_level
     ) for c in sorted(world.companies.values(), key=lambda c: c.id))
     opponents = tuple(sorted(a.id for a in world.actors.values()
                              if a.id != actor.id and a.city == actor.city
@@ -80,7 +88,8 @@ def observe(world, actor_id: str) -> NPCView:
         tuple(sorted(actor.inventory.items())),
         tuple((gid, world.gear[gid].kind, world.gear[gid].quality)
               for gid in sorted(actor.gear_ids)),
-        tuple(sorted(actor.equipped.items())), actor.hp, actor.stamina,
+        tuple(sorted(actor.equipped.items())), actor.hp, actor.max_hp,
+        actor.vitals.hunger, actor.stamina,
         actor.ready_minute, world.minute,
         tuple(sorted(world.cities[actor.city].deposits.items())),
         offers, companies, opponents

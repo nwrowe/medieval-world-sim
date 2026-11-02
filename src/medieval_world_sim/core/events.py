@@ -98,6 +98,15 @@ EVENT_FIELDS = {
         "level",
         "max_life"
     ],
+    "job_offered": ["company_id", "worker_id", "gold", "item", "quantity"],
+    "wage_changed": ["company_id", "worker_id", "gold", "item", "quantity"],
+    "worker_left": ["company_id", "worker_id"],
+    "perks_changed": ["company_id", "perks"],
+    "facility_upgraded": ["company_id", "level", "cost"],
+    "training_paid": ["company_id", "worker_id", "gold"],
+    "perk_awarded": ["company_id", "worker_id", "item"],
+    "city_sale": ["city_id", "company_id", "item", "price", "quality_stars", "day"],
+    "consumed": ["actor_id", "item", "health_restored", "stamina_restored", "hunger_relieved"],
     "combat": [
         "attacker_id",
         "defender_id",

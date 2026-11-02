@@ -115,3 +115,13 @@ python -m medieval_world_sim.agents.demo --npcs 50 --days 30 --seed 42 --json
 ```
 
 See [autonomous NPC design](docs/AUTONOMOUS_NPCS.md) and [the 30-day economic experiment](docs/NPC_30DAY_RESULTS.md). The experiment exposes genuine shortages and financing failures; it is **not** proof of a balanced, self-sustaining economy.
+
+## Company economy, food and city household sales (proposed PR)
+
+The five-city engine now has **bread, prepared meals and healing potions** with validated recovery actions and a small nonlethal daily hunger meter. Bakery and tavern recipes join the existing apothecary, blacksmith and industrial production chains.
+
+Characters gain industry-specific work experience, and companies calculate a **1–5-star effectiveness rating** from active worker attributes, facilities and completed shifts. Owners can offer employment for voluntary acceptance, set individual wages and perks, and pay for facility upgrades.
+
+Once per simulated day, non-agent **city household buyers** purchase actual finished company inventory or market escrow up to both population-based demand and their finite seeded budgets. Household gold transfers to companies; items leave inventory; no passive gold is minted. The opening household endowment is included in total money and may run out, so economic sustainability still needs long-run testing.
+
+See [company economy design and accounting](docs/COMPANY_ECONOMY.md) for recipes, pay, quality, nutrition and household-budget limits.
