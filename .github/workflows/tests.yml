@@ -1,0 +1,21 @@
+name: Test simulation
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Run standard-library unit tests
+        env:
+          PYTHONPATH: src
+        run: python -m unittest discover -s tests -v
+      - name: Smoke test CLI
+        env:
+          PYTHONPATH: src
+        run: python -m medieval_world_sim --citizens 200 --days 30 --seed 42 --json > /tmp/sim-results.json
