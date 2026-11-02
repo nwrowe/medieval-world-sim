@@ -14,7 +14,9 @@ from ..combat import MAX_STAMINA
 from .entities import Actor, Company, Offer, Wage, WorldEvent
 from .cities import CityState
 from .state import WorldState
-from .transactions import atomic_action, transfer_gold
+from .transactions import atomic_action
+from .events import event_payload
+from threading import RLock
 
 HOUR = 60
 CARRY_LIMIT = 20
@@ -56,6 +58,7 @@ class WorldEngine:
         )
         self.state.initial_gold = self.total_gold
         self._current_action_id: str | None = None
+        self._action_lock = RLock()
         self.travel = TravelSystem(self)
         self.resources = ResourceSystem(self)
         self.companies_system = CompanySystem(self)
@@ -141,7 +144,8 @@ class WorldEngine:
 
     def _emit(self, kind: str, *details: object) -> None:
         self.events.append(WorldEvent(
-            self.minute, kind, tuple(details), len(self.events) + 1, self._current_action_id
+            self.minute, kind, tuple(details), len(self.events) + 1,
+            self._current_action_id, 1, event_payload(kind, tuple(details))
         ))
 
     def _actor(self, actor_id: str) -> Actor:
@@ -266,45 +270,46 @@ class WorldEngine:
         A production API must derive principal_id from authentication, never from
         an untrusted body field. Command receipts are currently in-memory only.
         """
-        if not isinstance(action_id, str) or not action_id:
-            raise ActionError("Nonempty action ID required")
-        if not isinstance(params, dict):
-            raise ActionError("Command parameters must be a mapping")
-        self._actor(principal_id)
-        command_specs = {
-            "travel": ("start_travel", ("destination",)),
-            "gather": ("gather", ("item", "quantity")),
-            "found_company": ("found_company", ("company_id", "industry", "investment")),
-            "hire": ("hire", ("company_id", "worker_id", "wage")),
-            "shift": ("shift", ("company_id",)),
-            "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
-            "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
-            "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
-            "cancel_offer": ("cancel_offer", ("offer_id",)),
-            "buy_starter_gear": ("buy_starter_gear", ("kind",)),
-            "equip": ("equip", ("gear_id",)),
-            "unequip": ("unequip", ("slot",)),
-            "attack": ("attack", ("defender_id",)),
-        }
-        if action not in command_specs:
-            raise ActionError("Unknown or forbidden command")
-        method_name, fields = command_specs[action]
-        if set(params) != set(fields):
-            raise ActionError("Command parameter mismatch")
-        signature = (principal_id, action, tuple((field, repr(params[field])) for field in fields))
-        existing = self.state.command_receipts.get(action_id)
-        if existing is not None:
-            if existing[0] != signature:
-                raise ActionError("Action ID reused for a different command")
-            return existing[1]
-        previous_id = self._current_action_id
-        self._current_action_id = action_id
-        try:
-            result = getattr(self, method_name)(principal_id, *(params[field] for field in fields))
-            self.state.command_receipts[action_id] = (signature, result)
-            return result
-        finally:
-            self._current_action_id = previous_id
+        with self._action_lock:
+            if not isinstance(action_id, str) or not action_id:
+                raise ActionError("Nonempty action ID required")
+            if not isinstance(params, dict):
+                raise ActionError("Command parameters must be a mapping")
+            self._actor(principal_id)
+            command_specs = {
+                "travel": ("start_travel", ("destination",)),
+                "gather": ("gather", ("item", "quantity")),
+                "found_company": ("found_company", ("company_id", "industry", "investment")),
+                "hire": ("hire", ("company_id", "worker_id", "wage")),
+                "shift": ("shift", ("company_id",)),
+                "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
+                "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
+                "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
+                "cancel_offer": ("cancel_offer", ("offer_id",)),
+                "buy_starter_gear": ("buy_starter_gear", ("kind",)),
+                "equip": ("equip", ("gear_id",)),
+                "unequip": ("unequip", ("slot",)),
+                "attack": ("attack", ("defender_id",)),
+            }
+            if action not in command_specs:
+                raise ActionError("Unknown or forbidden command")
+            method_name, fields = command_specs[action]
+            if set(params) != set(fields):
+                raise ActionError("Command parameter mismatch")
+            signature = (principal_id, action, tuple((field, repr(params[field])) for field in fields))
+            existing = self.state.command_receipts.get(action_id)
+            if existing is not None:
+                if existing[0] != signature:
+                    raise ActionError("Action ID reused for a different command")
+                return existing[1]
+            previous_id = self._current_action_id
+            self._current_action_id = action_id
+            try:
+                result = getattr(self, method_name)(principal_id, *(params[field] for field in fields))
+                self.state.command_receipts[action_id] = (signature, result)
+                return result
+            finally:
+                self._current_action_id = previous_id
 
     def assert_invariants(self) -> None:
         if self.total_gold != self.initial_gold:

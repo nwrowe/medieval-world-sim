@@ -64,6 +64,8 @@ class ArchitecturalTests(unittest.TestCase):
         self.assertEqual(first, same)
         self.assertEqual(before, (w.total_gold, w.actors["alice"].gold, len(w.gear), len(w.events)))
         self.assertTrue(any(e.action_id == "buy-001" for e in w.events))
+        self.assertEqual(w.events[-1].data["buyer_id"], "alice")
+        self.assertEqual(w.events[-1].schema_version, 1)
         self.assertEqual(list(range(1, len(w.events) + 1)), [e.event_id for e in w.events])
         with self.assertRaises(ActionError):
             w.execute("alice", "buy_starter_gear", {"kind": "shield"}, "buy-001")
@@ -84,6 +86,17 @@ class ArchitecturalTests(unittest.TestCase):
             w.execute("alice", "__dict__", {}, "bad")
         with self.assertRaises(ActionError):
             w.execute("alice", "attack", {"defender_id": "bob", "extra": 1}, "extra")
+
+    def test_concurrent_retries_make_one_purchase(self):
+        from concurrent.futures import ThreadPoolExecutor
+        w = self.world()
+        command = lambda _: w.execute("alice", "buy_starter_gear", {"kind": "sword"}, "same-key")
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results = list(pool.map(command, range(20)))
+        self.assertEqual(set(results), {1})
+        self.assertEqual(len(w.gear), 1)
+        self.assertEqual(w.actors["alice"].gold, 134)
+        self.assertEqual(w.total_gold, w.initial_gold)
 
     def test_company_gold_uses_transaction_path(self):
         w = self.world()

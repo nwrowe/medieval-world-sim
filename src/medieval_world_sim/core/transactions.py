@@ -11,14 +11,15 @@ from ..errors import ActionError
 def atomic_action(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
-        original = deepcopy(self.state)
-        try:
-            result = method(self, *args, **kwargs)
-            self.assert_invariants()
-            return result
-        except Exception:
-            self.state = original
-            raise
+        with self._action_lock:
+            original = deepcopy(self.state)
+            try:
+                result = method(self, *args, **kwargs)
+                self.assert_invariants()
+                return result
+            except Exception:
+                self.state = original
+                raise
     return wrapped
 
 

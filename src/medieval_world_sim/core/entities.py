@@ -196,5 +196,6 @@ class WorldEvent:
     event_id: int = 0
     action_id: str | None = None
     schema_version: int = 1
+    data: dict[str, object] = field(default_factory=dict)
 
 
