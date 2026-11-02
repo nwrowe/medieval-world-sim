@@ -1,5 +1,6 @@
-"""Exploratory world economy simulation."""
+"""Medieval World Sim: five-city world engine and optional baseline experiment."""
+from .core.engine import WorldEngine
+from .core.entities import Actor, Company, Wage
+from .simulation import World  # Legacy compatibility only
 
-from .simulation import World
-
-__all__ = ["World"]
+__all__ = ["WorldEngine", "Actor", "Company", "Wage", "World"]

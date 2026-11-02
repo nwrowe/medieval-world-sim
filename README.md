@@ -28,14 +28,14 @@ Requires Python 3.11 or newer; no third-party dependencies.
 
 ```bash
 python -m pip install -e .
-python -m medieval_world_sim --citizens 200 --days 30 --seed 42
+python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42
 python -m unittest discover -s tests -v
 ```
 
 For machine-readable results:
 
 ```bash
-python -m medieval_world_sim --citizens 200 --days 30 --seed 42 --json
+python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
 ```
 
 ## Read next
@@ -86,3 +86,15 @@ python -m unittest discover -s tests -v
 ```
 
 The original one-town simulator remains a separate baseline; these features extend the regional simulator only.
+
+## Code organization
+
+The **five-city WorldEngine** in `core/engine.py` is the primary model, using composed actor vitals/progression/travel components and mutable city state. Gameplay rules live in `systems/` (travel, resource extraction, companies, markets, combat), which operate on the authoritative world state. `regional_world.py` remains a compatibility import for existing scripts. The original toy economy is preserved in `experiments/legacy_economy.py`, with `simulation.py` as a compatibility module.
+
+```bash
+python -m medieval_world_sim             # five-city resource/manufacturing demonstration
+python -m medieval_world_sim --scenario combat
+python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
+```
+
+See [Architecture](docs/ARCHITECTURE.md) for module boundaries and the in-memory transaction trade-offs.
