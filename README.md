@@ -71,7 +71,7 @@ A separate [five-city regional domain model](docs/FIVE_CITY_ECONOMY.md) now expl
 Run the regional tests with:
 
 ```bash
-PYTHONPATH=src python -m unittest tests.test_regional_world -v
+PYTHONPATH=src python -m unittest discover -s tests -p 'test_regional_world.py' -v
 ```
 
 Or run all tests via `python -m unittest discover -s tests -v`.
