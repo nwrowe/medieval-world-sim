@@ -10,15 +10,14 @@ from dataclasses import dataclass, field
 import heapq
 
 from .catalog import CAPITAL, CITIES, ROADS, GOODS, RECIPES
+from .errors import ActionError
+from .equipment import GEAR, GearItem, crafted_quality
+from .combat import CombatMixin
 
 HOUR = 60
 CARRY_LIMIT = 20
 HARVEST_LIMIT = 2
 DEPOSIT_CAP = 24
-
-
-class ActionError(ValueError):
-    """An invalid or unaffordable action leaves state unchanged."""
 
 
 @dataclass
@@ -31,6 +30,14 @@ class Actor:
     destination: str | None = None
     arrival_minute: int | None = None
     ready_minute: int = 0
+    gear_ids: list[int] = field(default_factory=list)
+    equipped: dict[str, int] = field(default_factory=dict)
+    hp: int = 24
+    combat_xp: int = 0
+    attack_ready_minute: int = 0
+    defeated_until: int | None = None
+    hostile: bool = False  # Only hostile NPCs are attackable in PvE.
+    pvp_opt_in: bool = False  # Both humans must opt in.
 
 
 @dataclass(frozen=True)
@@ -49,6 +56,7 @@ class Company:
     gold: int = 0
     inventory: dict[str, int] = field(default_factory=dict)
     employees: dict[str, Wage] = field(default_factory=dict)
+    gear_ids: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -59,6 +67,7 @@ class Offer:
     item: str
     quantity: int  # resources held in escrow, not in seller inventory
     unit_price: int
+    gear_id: int | None = None  # exact non-fungible item, if equipment offer
 
 
 @dataclass(frozen=True)
@@ -68,10 +77,10 @@ class WorldEvent:
     details: tuple
 
 
-class RegionalWorld:
+class RegionalWorld(CombatMixin):
     """In-memory simulation. Domain actions validate then mutate atomically."""
 
-    def __init__(self, actors: list[Actor]):
+    def __init__(self, actors: list[Actor], seed: int = 42):
         if not actors or len({a.id for a in actors}) != len(actors):
             raise ValueError("Actor IDs must be unique and world nonempty")
         for a in actors:
@@ -81,11 +90,17 @@ class RegionalWorld:
                 raise ValueError("Invalid starting assets")
             if not a.id:
                 raise ValueError("Empty actor ID")
-            if a.destination is not None or a.arrival_minute is not None:
-                raise ValueError("Actors must start stationary")
+            if a.destination is not None or a.arrival_minute is not None or a.gear_ids or a.equipped:
+                raise ValueError("Actors must start stationary without externally minted equipment")
+            if a.hp != 24 or a.combat_xp != 0 or a.defeated_until is not None:
+                raise ValueError("Actors must start healthy")
         self.actors = {a.id: a for a in actors}
         self.companies: dict[str, Company] = {}
         self.offers: dict[int, Offer] = {}
+        self.gear: dict[int, GearItem] = {}
+        self.next_gear_id = 1
+        self.crown_gold = 0  # Audited starter vendor gold sink.
+        self.seed = seed
         self.minute = 0
         self.next_offer_id = 1
         self.events: list[WorldEvent] = []
@@ -98,7 +113,7 @@ class RegionalWorld:
 
     @property
     def total_gold(self) -> int:
-        return sum(a.gold for a in self.actors.values()) + sum(c.gold for c in self.companies.values())
+        return self.crown_gold + sum(a.gold for a in self.actors.values()) + sum(c.gold for c in self.companies.values())
 
     def _emit(self, kind: str, *details: object) -> None:
         self.events.append(WorldEvent(self.minute, kind, tuple(details)))
@@ -123,12 +138,28 @@ class RegionalWorld:
             raise ActionError("Not authorized to control that account")
 
     def _at_city(self, account: Actor | Company) -> str:
-        if isinstance(account, Actor) and account.destination is not None:
-            raise ActionError("Cannot act while traveling")
+        if isinstance(account, Actor):
+            if account.destination is not None:
+                raise ActionError("Cannot act while traveling")
+            if account.hp <= 0:
+                raise ActionError("Cannot act while recovering from defeat")
         return account.city
 
     def _space_for(self, actor: Actor | Company, item: str, quantity: int) -> bool:
-        return not isinstance(actor, Actor) or sum(actor.inventory.values()) + quantity <= CARRY_LIMIT
+        return not isinstance(actor, Actor) or (
+            sum(actor.inventory.values()) + len(actor.gear_ids) + quantity <= CARRY_LIMIT
+        )
+
+    def _mint_gear(self, holder: Actor | Company, kind: str, quality: int, origin: str) -> GearItem:
+        """Only called after authorized crafting or a paid capital starter purchase."""
+        spec = GEAR[kind]
+        maximum = spec.max_durability if origin == "crafted" else max(5, spec.max_durability // 2)
+        item = GearItem(self.next_gear_id, kind, quality, maximum, maximum, origin)
+        self.next_gear_id += 1
+        self.gear[item.id] = item
+        holder.gear_ids.append(item.id)
+        self._emit("gear_created", holder.id, item.id, kind, quality, origin)
+        return item
 
     @staticmethod
     def _positive(value: int, name: str) -> None:
@@ -203,6 +234,11 @@ class RegionalWorld:
                     a.arrival_minute = None
                     self._emit("arrived", actor_id, a.city)
         self.minute = end
+        for actor in self.actors.values():
+            if actor.defeated_until is not None and actor.defeated_until <= end:
+                actor.hp = 24
+                actor.defeated_until = None
+                self._emit("recovered", actor.id)
         self.assert_invariants()
 
     def gather(self, actor_id: str, item: str, quantity: int = 1) -> None:
@@ -264,17 +300,39 @@ class RegionalWorld:
                 raise ActionError(f"Company lacks {item}")
         if company.gold < wage.gold:
             raise ActionError("Company cannot pay wages")
+
+        # Preview the transaction before any state is changed.
         future = dict(company.inventory)
         for item, amount in recipe.inputs.items():
             future[item] -= amount
+        produced_gear: list[str] = []
         for item, amount in recipe.outputs.items():
-            future[item] = future.get(item, 0) + amount
-        if wage.item and future.get(wage.item, 0) < wage.quantity:
-            raise ActionError("Company cannot pay item wages")
+            if item in GEAR:
+                produced_gear.extend([item] * amount)
+            else:
+                future[item] = future.get(item, 0) + amount
+        if wage.item in GEAR:
+            owned = sum(self.gear[g].kind == wage.item for g in company.gear_ids)
+            available = owned + produced_gear.count(wage.item)
+            if available < wage.quantity:
+                raise ActionError("Company cannot pay equipment wage")
+        elif wage.item and future.get(wage.item, 0) < wage.quantity:
+            raise ActionError("Company cannot pay material wage")
         if wage.item and not self._space_for(worker, wage.item, wage.quantity):
             raise ActionError("Worker carrying capacity exceeded")
+
         company.inventory = future
-        if wage.item:
+        for kind in produced_gear:
+            quality = crafted_quality(self.seed, worker_id, company_id, self.minute, self.next_gear_id)
+            self._mint_gear(company, kind, quality, "crafted")
+        if wage.item in GEAR:
+            # Prefer lower-quality gear to avoid silently taking a masterwork as wages.
+            available = sorted((g for g in company.gear_ids if self.gear[g].kind == wage.item),
+                               key=lambda g: (self.gear[g].quality, g))
+            for gear_id in available[:wage.quantity]:
+                company.gear_ids.remove(gear_id)
+                worker.gear_ids.append(gear_id)
+        elif wage.item:
             company.inventory[wage.item] -= wage.quantity
             self._add(worker, wage.item, wage.quantity)
         company.gold -= wage.gold
@@ -299,6 +357,27 @@ class RegionalWorld:
         self.assert_invariants()
         return offer_id
 
+    def post_equipment_offer(self, initiator_id: str, seller_id: str, gear_id: int, unit_price: int) -> int:
+        """A specific quality/durability-bearing item is escrowed by unique ID."""
+        seller = self._account(seller_id)
+        self._authorize(initiator_id, seller)
+        city = self._at_city(seller)
+        self._nonnegative(unit_price, "unit_price")
+        if gear_id not in seller.gear_ids:
+            raise ActionError("Seller does not own this equipment")
+        seller.gear_ids.remove(gear_id)
+        if isinstance(seller, Actor):
+            for slot, equipped in list(seller.equipped.items()):
+                if equipped == gear_id:
+                    del seller.equipped[slot]
+        item = self.gear[gear_id]
+        offer_id = self.next_offer_id
+        self.next_offer_id += 1
+        self.offers[offer_id] = Offer(offer_id, seller_id, city, item.kind, 1, unit_price, gear_id)
+        self._emit("equipment_offered", offer_id, seller_id, gear_id, item.quality, unit_price)
+        self.assert_invariants()
+        return offer_id
+
     def accept_offer(self, initiator_id: str, buyer_id: str, offer_id: int, quantity: int) -> None:
         buyer = self._account(buyer_id)
         self._authorize(initiator_id, buyer)
@@ -308,7 +387,8 @@ class RegionalWorld:
         self._positive(quantity, "quantity")
         if buyer_id == offer.seller_id or self._at_city(buyer) != offer.city:
             raise ActionError("Cannot accept your own offer or trade remotely")
-        if quantity > offer.quantity or not self._space_for(buyer, offer.item, quantity):
+        if (quantity > offer.quantity or (offer.gear_id is not None and quantity != 1)
+                or not self._space_for(buyer, offer.item, quantity)):
             raise ActionError("Insufficient stock or carrying capacity")
         total = quantity * offer.unit_price
         if buyer.gold < total:
@@ -316,7 +396,10 @@ class RegionalWorld:
         seller = self._account(offer.seller_id)
         buyer.gold -= total
         seller.gold += total
-        self._add(buyer, offer.item, quantity)
+        if offer.gear_id is not None:
+            buyer.gear_ids.append(offer.gear_id)
+        else:
+            self._add(buyer, offer.item, quantity)
         offer.quantity -= quantity
         if offer.quantity == 0:
             del self.offers[offer_id]
@@ -333,7 +416,10 @@ class RegionalWorld:
             raise ActionError("Return to listing city to withdraw escrowed goods")
         if not self._space_for(seller, offer.item, offer.quantity):
             raise ActionError("Not enough space to reclaim goods")
-        self._add(seller, offer.item, offer.quantity)
+        if offer.gear_id is not None:
+            seller.gear_ids.append(offer.gear_id)
+        else:
+            self._add(seller, offer.item, offer.quantity)
         del self.offers[offer_id]
         self._emit("offer_canceled", offer_id)
         self.assert_invariants()
@@ -348,12 +434,32 @@ class RegionalWorld:
             if account.gold < 0 or any(k not in GOODS or v < 0 for k, v in account.inventory.items()):
                 raise AssertionError("Negative or invalid asset")
             if isinstance(account, Actor):
-                if sum(account.inventory.values()) > CARRY_LIMIT:
+                if sum(account.inventory.values()) + len(account.gear_ids) > CARRY_LIMIT:
                     raise AssertionError("Carrying limit exceeded")
                 if (account.destination is None) != (account.arrival_minute is None):
                     raise AssertionError("Inconsistent travel")
+                if not 0 <= account.hp <= 24 or account.combat_xp < 0:
+                    raise AssertionError("Invalid combat state")
+                for slot, gear_id in account.equipped.items():
+                    if gear_id not in account.gear_ids or GEAR[self.gear[gear_id].kind].slot != slot:
+                        raise AssertionError("Equipped item is not owned or is in wrong slot")
         for city, stock in self.deposits.items():
             if city not in CITIES or any(quantity < 0 or quantity > DEPOSIT_CAP for quantity in stock.values()):
                 raise AssertionError("Invalid regional deposits")
-        if any(o.quantity <= 0 or o.item not in GOODS for o in self.offers.values()):
-            raise AssertionError("Invalid market escrow")
+        holdings = [gear_id for a in self.actors.values() for gear_id in a.gear_ids]
+        holdings += [gear_id for company in self.companies.values() for gear_id in company.gear_ids]
+        for offer in self.offers.values():
+            if offer.quantity <= 0:
+                raise AssertionError("Invalid market escrow")
+            if offer.gear_id is None:
+                if offer.item not in GOODS:
+                    raise AssertionError("Unknown offered resource")
+            else:
+                if offer.quantity != 1 or offer.item != self.gear[offer.gear_id].kind:
+                    raise AssertionError("Invalid equipment offer")
+                holdings.append(offer.gear_id)
+        if len(holdings) != len(set(holdings)) or set(holdings) != set(self.gear):
+            raise AssertionError("Equipment ownership / escrow mismatch")
+        for gear_id, gear in self.gear.items():
+            if gear.id != gear_id or not 1 <= gear.quality <= 100 or not 0 < gear.durability <= gear.max_durability:
+                raise AssertionError("Corrupted equipment")
