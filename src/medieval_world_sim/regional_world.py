@@ -12,7 +12,7 @@ import heapq
 from .catalog import CAPITAL, CITIES, ROADS, GOODS, RECIPES
 from .errors import ActionError
 from .equipment import GEAR, GearItem, crafted_quality
-from .combat import CombatMixin
+from .combat import CombatMixin, MAX_STAMINA, STAMINA_REGEN_MINUTES
 
 HOUR = 60
 CARRY_LIMIT = 20
@@ -33,11 +33,17 @@ class Actor:
     gear_ids: list[int] = field(default_factory=list)
     equipped: dict[str, int] = field(default_factory=dict)
     hp: int = 24
+    max_hp: int = 24
+    stamina: int = MAX_STAMINA
+    max_stamina: int = MAX_STAMINA
+    level: int = 1
+    level_xp: int = 0
     combat_xp: int = 0
-    attack_ready_minute: int = 0
+    strength: int = 1
+    defense: int = 1
     defeated_until: int | None = None
-    hostile: bool = False  # Only hostile NPCs are attackable in PvE.
-    pvp_opt_in: bool = False  # Both humans must opt in.
+    hostile: bool = False  # Preserved for later NPC behavior, not attack permissions.
+    pvp_opt_in: bool = False  # Legacy field; not used to gate combat.
 
 
 @dataclass(frozen=True)
@@ -92,8 +98,11 @@ class RegionalWorld(CombatMixin):
                 raise ValueError("Empty actor ID")
             if a.destination is not None or a.arrival_minute is not None or a.gear_ids or a.equipped:
                 raise ValueError("Actors must start stationary without externally minted equipment")
-            if a.hp != 24 or a.combat_xp != 0 or a.defeated_until is not None:
-                raise ValueError("Actors must start healthy")
+            if (a.hp != 24 or a.max_hp != 24 or a.stamina != MAX_STAMINA or
+                a.max_stamina != MAX_STAMINA or a.level != 1 or a.level_xp != 0 or
+                a.combat_xp != 0 or a.strength != 1 or a.defense != 1 or
+                a.defeated_until is not None):
+                raise ValueError("Actors must start with baseline combat attributes")
         self.actors = {a.id: a for a in actors}
         self.companies: dict[str, Company] = {}
         self.offers: dict[int, Offer] = {}
@@ -212,6 +221,7 @@ class RegionalWorld(CombatMixin):
 
     def advance(self, minutes: int) -> None:
         self._nonnegative(minutes, "minutes")
+        start_minute = self.minute
         end = self.minute + minutes
         # Refill each hourly boundary; record arrivals at their actual times.
         arrivals = sorted(
@@ -233,10 +243,14 @@ class RegionalWorld(CombatMixin):
                     a.destination = None
                     a.arrival_minute = None
                     self._emit("arrived", actor_id, a.city)
+        # Regeneration is computed from elapsed discrete world-minute boundaries
+        # and is independent of whether time is advanced in one or many steps.
+        regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
         self.minute = end
         for actor in self.actors.values():
+            actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
             if actor.defeated_until is not None and actor.defeated_until <= end:
-                actor.hp = 24
+                actor.hp = actor.max_hp
                 actor.defeated_until = None
                 self._emit("recovered", actor.id)
         self.assert_invariants()
@@ -438,7 +452,12 @@ class RegionalWorld(CombatMixin):
                     raise AssertionError("Carrying limit exceeded")
                 if (account.destination is None) != (account.arrival_minute is None):
                     raise AssertionError("Inconsistent travel")
-                if not 0 <= account.hp <= 24 or account.combat_xp < 0:
+                if not (0 <= account.hp <= account.max_hp and
+                        0 <= account.stamina <= account.max_stamina and
+                        account.max_hp == 24 + 4 * (account.level - 1) and
+                        account.max_stamina == MAX_STAMINA and
+                        account.strength == account.level and account.defense == account.level and
+                        account.level_xp >= 0 and account.combat_xp >= 0):
                     raise AssertionError("Invalid combat state")
                 for slot, gear_id in account.equipped.items():
                     if gear_id not in account.gear_ids or GEAR[self.gear[gear_id].kind].slot != slot:
