@@ -54,12 +54,18 @@ class RegionalWorldTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.accept_offer("owner", "owner", offer, 1)
         self.assertEqual(w.offers[offer].quantity, 2)
+        # Seller can depart, but the listing remains escrowed in Ironvale.
         w.start_travel("miner", CAPITAL)
+        w.start_travel("owner", "ironvale")
         w.advance(90)
         w.accept_offer("owner", "owner", offer, 1)
         self.assertEqual(w.actors["owner"].inventory["iron_ore"], 1)
         self.assertEqual(w.offers[offer].quantity, 1)
         self.assertEqual(w.total_gold, gold_before)
+        with self.assertRaises(ActionError):
+            w.cancel_offer("miner", offer)  # cannot teleport escrow home
+        w.start_travel("miner", "ironvale")
+        w.advance(90)
         w.cancel_offer("miner", offer)
         self.assertEqual(w.actors["miner"].inventory["iron_ore"], 1)
 
