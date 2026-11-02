@@ -125,3 +125,16 @@ Characters gain industry-specific work experience, and companies calculate a **1
 Once per simulated day, non-agent **city household buyers** purchase actual finished company inventory or market escrow up to both population-based demand and their finite seeded budgets. Household gold transfers to companies; items leave inventory; no passive gold is minted. The opening household endowment is included in total money and may run out, so economic sustainability still needs long-run testing.
 
 See [company economy design and accounting](docs/COMPANY_ECONOMY.md) for recipes, pay, quality, nutrition and household-budget limits.
+
+## Regional trading and physical travel cargo
+
+Each city now has a funded merchant with a visible bid/ask for raw materials. Regional origin prices are deliberately lower than Crownreach's purchase bids, so players and autonomous haulers can **buy low, travel, and sell high**. Merchant purchases draw real goods from finite city stock; sales return goods to the city and draw gold from the existing city household account. Daily trading quotas and stock capacity prevent unlimited arbitrage.
+
+Travel requires carrying **12 units or fewer**, including equipped gear; the existing **20-unit in-city** inventory limit still applies. Stocking goods into market escrow, selling them, or consuming food can free cargo space.
+
+```bash
+python -m medieval_world_sim --scenario trade
+python -m medieval_world_sim.agents.demo --npcs 50 --days 30 --seed 42 --json
+```
+
+See [regional trading and cargo](docs/REGIONAL_TRADING.md). The **next planned system** is [mana and magical progression](docs/MAGIC_PROGRESSION_PLAN.md), with multiple skill paths, funded magic jobs, and useful combat/utility spells—not implemented yet.
