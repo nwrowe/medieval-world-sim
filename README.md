@@ -75,3 +75,14 @@ PYTHONPATH=src python -m unittest discover -s tests -p 'test_regional_world.py' 
 ```
 
 To see a complete ore + coal → steel → sword transaction with travel and gold accounting:\n\n```bash\npython -m medieval_world_sim.regional_demo\n```\n\nOr run all tests via `python -m unittest discover -s tests -v`.
+
+## Equipment quality and combat prototype (stacked branch)
+
+See [Equipment and Combat](docs/EQUIPMENT_AND_COMBAT.md). Durable weapons, armor, shields, and tools now have unique IDs, quality (1–100), durability, and owner/escrow accounting. Crownreach sells always-available rough starter gear for a fixed gold price. Players/NPCs may equip and trade gear; combat requires a weapon, uses armor for defense, wears equipment, grants combat XP, and transfers a capped amount of existing enemy gold on victory.
+
+```bash
+python -m medieval_world_sim.combat_demo
+python -m unittest discover -s tests -v
+```
+
+The original one-town simulator remains a separate baseline; these features extend the regional simulator only.
