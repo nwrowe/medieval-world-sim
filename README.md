@@ -20,7 +20,7 @@ The NPC system is **hybrid**:
 
 The **five-city world engine** is the active development target, modeling region-specific resources, asynchronous travel, companies, manufacturing, markets, quality equipment, combat, stamina, and progression. Gameplay rules are composed as independent systems using one shared domain world state. The original simple 200-citizen economy remains a reproducible baseline for comparison, not the foundation for future game features.
 
-Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. No online server or autonomous agent loop exists yet.
+Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. A seeded rules-based autonomous NPC experiment is now available; there is still no online server or persistent multiplayer world.
 
 ## Original single-settlement baseline (retained experiment)
 
@@ -72,7 +72,7 @@ No license is granted by this repository until one is explicitly selected.
 
 ## Experimental five-city economy (new)
 
-A separate [five-city regional domain model](docs/FIVE_CITY_ECONOMY.md) now explores travel, finite resource deposits, local escrowed markets, NPC/human workers, company ownership, and company-funded wages. It does **not** yet replace the original one-town CLI.
+A separate [five-city regional domain model](docs/FIVE_CITY_ECONOMY.md) now explores travel, finite resource deposits, local escrowed markets, NPC/human workers, company ownership, and company-funded wages. It powers the primary five-city demonstration; the original one-town economy remains a separate legacy experiment.
 
 Run the regional tests with:
 
@@ -82,9 +82,9 @@ PYTHONPATH=src python -m unittest discover -s tests -p 'test_regional_world.py' 
 
 To see a complete ore + coal → steel → sword transaction with travel and gold accounting:\n\n```bash\npython -m medieval_world_sim.regional_demo\n```\n\nOr run all tests via `python -m unittest discover -s tests -v`.
 
-## Equipment quality and combat prototype (stacked branch)
+## Equipment quality and combat prototype
 
-See [Equipment and Combat](docs/EQUIPMENT_AND_COMBAT.md). Durable weapons, armor, shields, and tools now have unique IDs, quality (1–100), durability, and owner/escrow accounting. Crownreach sells always-available rough starter gear for a fixed gold price. Players/NPCs may equip and trade gear; combat requires a weapon, uses armor for defense, wears equipment, grants combat XP, and transfers a capped amount of existing enemy gold on victory.
+See [Equipment and Combat](docs/EQUIPMENT_AND_COMBAT.md). Durable weapons, armor, shields, and tools now have unique IDs, quality (1–100), durability, and owner/escrow accounting. Crownreach sells always-available rough starter gear for a fixed gold price. Players/NPCs may equip and trade gear; combat permits unarmed attacks, uses armor for defense, wears equipment, grants combat XP, and transfers a capped amount of existing enemy gold on victory.
 
 ```bash
 python -m medieval_world_sim.combat_demo
@@ -104,3 +104,14 @@ python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) for module boundaries and the in-memory transaction trade-offs.
+
+## Autonomous NPC economy (rules-driven experiment)
+
+Independent NPCs gather regional resources, carry or trade materials, manage capital companies, earn wages, craft quality-bearing gear, buy equipment, and sometimes fight. Each NPC receives a seeded personality (greed, curiosity, risk, Gaussian decision noise); the policy returns **action proposals**, not state changes. Every proposal executes through the authoritative game command interface. This is intentionally not yet reinforcement learning.
+
+```bash
+python -m medieval_world_sim.agents.demo --npcs 28 --days 6 --seed 42
+python -m medieval_world_sim.agents.demo --npcs 50 --days 30 --seed 42 --json
+```
+
+See [autonomous NPC design](docs/AUTONOMOUS_NPCS.md) and [the 30-day economic experiment](docs/NPC_30DAY_RESULTS.md). The experiment exposes genuine shortages and financing failures; it is **not** proof of a balanced, self-sustaining economy.
