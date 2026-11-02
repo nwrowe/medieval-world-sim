@@ -37,7 +37,7 @@ EQUIPMENT = (
     "sword", "axe", "shield", "plate_armor", "leather_armor",
     "bow", "pickaxe", "healing_potion",
 )
-GOODS = frozenset(RAW_RESOURCES + PROCESSED_RESOURCES + EQUIPMENT)
+GOODS = frozenset(RAW_RESOURCES + PROCESSED_RESOURCES + ("healing_potion",))  # Stackable goods only
 
 
 @dataclass(frozen=True)
