@@ -41,3 +41,9 @@ Invite a limited cohort. Expand guild contracts, resource geography, rivalries, 
 ## Explicitly out of scope for now
 
 Full lore production, procedural dialogue everywhere, native mobile apps, large combat inventory, world-spanning politics, cash shop, and production hosting optimization.
+
+## M1c — Housing and transportation
+
+Progressively priced homes support local training XP bonuses while stable and carriage-house improvements unlock faster road journeys and expanded but bounded travel cargo. The house and vehicle economy is funded and subject to the same command authorization and conservation rules as regional trading. Docks require new physical sea routes.
+
+See [housing and transport](HOUSING_AND_TRANSPORT.md).
