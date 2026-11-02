@@ -124,8 +124,11 @@ class RegionalWorldTests(unittest.TestCase):
         # Finished sword is a valid wages-in-kind alternative.
         w.hire("owner", "forgeco", "logger", Wage(item="sword", quantity=1))
         w.shift("logger", "forgeco")
-        self.assertEqual(w.actors["logger"].inventory["sword"], 1)
-        self.assertEqual(w.companies["forgeco"].inventory["sword"], 0)
+        self.assertEqual(len(w.actors["logger"].gear_ids), 1)
+        gear_id = w.actors["logger"].gear_ids[0]
+        self.assertEqual(w.gear[gear_id].kind, "sword")
+        self.assertGreaterEqual(w.gear[gear_id].quality, 20)
+        self.assertEqual(w.companies["forgeco"].gear_ids, [])
         self.assertEqual(w.total_gold, starting_gold)
         self.assertTrue(any(e.kind == "shift_completed" for e in w.events))
         w.assert_invariants()
