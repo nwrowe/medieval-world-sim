@@ -279,7 +279,7 @@ class RegionalWorld(CombatMixin):
             raise ActionError("Only an owner can hire")
         self._nonnegative(wage.gold, "wage gold")
         self._nonnegative(wage.quantity, "wage item quantity")
-        if wage.item is not None and wage.item not in GOODS:
+        if wage.item is not None and wage.item not in GOODS and wage.item not in GEAR:
             raise ActionError("Unknown wage item")
         if bool(wage.item) != bool(wage.quantity) or (wage.gold == 0 and wage.quantity == 0):
             raise ActionError("Choose gold, goods, or both as a positive wage")
