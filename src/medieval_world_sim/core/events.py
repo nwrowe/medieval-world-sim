@@ -105,6 +105,8 @@ EVENT_FIELDS = {
     "facility_upgraded": ["company_id", "level", "cost"],
     "training_paid": ["company_id", "worker_id", "gold"],
     "perk_awarded": ["company_id", "worker_id", "item"],
+    "regional_bought": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
+    "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "city_sale": ["city_id", "company_id", "item", "price", "quality_stars", "day"],
     "consumed": ["actor_id", "item", "health_restored", "stamina_restored", "hunger_relieved"],
     "combat": [
