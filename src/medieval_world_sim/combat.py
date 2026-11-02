@@ -1,18 +1,16 @@
-"""Combat actions share the regional world's authoritative state and gear.
-
-No randomness or opponent-created gold. The defending combatant can counterstrike.
-This intentionally small ruleset is designed to expose equipment utility and wear.
-"""
+"""Stamina-based, open-world combat with unarmed attacks and progression."""
 from dataclasses import dataclass
-
 from .equipment import GEAR, effective_attack, effective_defense
 from .errors import ActionError
 
-
-ATTACK_COOLDOWN_MINUTES = 5
+ATTACK_STAMINA_COST = 20
+STAMINA_REGEN_MINUTES = 5
+MAX_STAMINA = 100
 DEFEAT_RECOVERY_MINUTES = 60
 MAX_GOLD_LOOT = 10
 
+def xp_to_next_level(level: int) -> int:
+    return 10 * level * level
 
 @dataclass(frozen=True)
 class CombatOutcome:
@@ -22,7 +20,7 @@ class CombatOutcome:
     gold_looted: int
     opponent_defeated: bool
     attacker_defeated: bool
-
+    levels_gained: int = 0
 
 class CombatMixin:
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
@@ -65,17 +63,16 @@ class CombatMixin:
 
     def _strike(self, attacker, defender) -> int:
         weapon_id = attacker.equipped.get("weapon")
-        if weapon_id is None:
-            raise ActionError("Attacker must equip a weapon")
-        weapon = self.gear[weapon_id]
+        # Fists are always available; even an unarmed defender counterattacks.
+        base_attack = effective_attack(self.gear[weapon_id]) if weapon_id is not None else 3
         armor_ids = [defender.equipped.get("body"), defender.equipped.get("offhand")]
-        defense = sum(
-            effective_defense(self.gear[g_id])
-            for g_id in armor_ids if g_id is not None
+        defense = defender.defense + sum(
+            effective_defense(self.gear[g_id]) for g_id in armor_ids if g_id is not None
         )
-        damage = max(1, effective_attack(weapon) - defense // 2)
+        damage = max(1, base_attack + attacker.strength - 1 - defense // 2)
         defender.hp = max(0, defender.hp - damage)
-        self._wear(attacker, weapon_id)
+        if weapon_id is not None:
+            self._wear(attacker, weapon_id)
         for g_id in armor_ids:
             if g_id is not None:
                 self._wear(defender, g_id)
@@ -92,6 +89,21 @@ class CombatMixin:
             del self.gear[gear_id]
             self._emit("gear_broken", owner.id, gear_id, item.kind)
 
+    def _award_xp(self, actor, amount: int) -> int:
+        actor.combat_xp += amount
+        actor.level_xp += amount
+        levels = 0
+        while actor.level_xp >= xp_to_next_level(actor.level):
+            actor.level_xp -= xp_to_next_level(actor.level)
+            actor.level += 1
+            actor.strength += 1
+            actor.defense += 1
+            actor.max_hp += 4
+            actor.hp += 4
+            levels += 1
+            self._emit("level_up", actor.id, actor.level, actor.max_hp)
+        return levels
+
     def attack(self, attacker_id: str, defender_id: str) -> CombatOutcome:
         attacker = self._actor(attacker_id)
         defender = self._actor(defender_id)
@@ -101,34 +113,30 @@ class CombatMixin:
             raise ActionError("Both participants must be in the same city")
         if attacker.hp <= 0 or defender.hp <= 0:
             raise ActionError("Cannot fight while defeated")
-        if self.minute < attacker.attack_ready_minute:
-            raise ActionError("Attack cooldown active")
-        if attacker.equipped.get("weapon") is None:
-            raise ActionError("Equip a weapon first")
-        if defender.kind == "npc":
-            if not defender.hostile:
-                raise ActionError("This NPC is not an enemy")
-        elif not (attacker.pvp_opt_in and defender.pvp_opt_in):
-            raise ActionError("Both players must opt into PvP")
-
+        if attacker.stamina < ATTACK_STAMINA_COST:
+            raise ActionError("Insufficient stamina")
+        # Attacking anyone is permitted: neither NPC hostility nor PvP consent required.
+        attacker.stamina -= ATTACK_STAMINA_COST
         damage = self._strike(attacker, defender)
-        attacker.attack_ready_minute = self.minute + ATTACK_COOLDOWN_MINUTES
         xp = 1 + damage // 4
-        attacker.combat_xp += xp
         counter = 0
         looted = 0
         defender_dead = defender.hp == 0
         if defender_dead:
             defender.defeated_until = self.minute + DEFEAT_RECOVERY_MINUTES
-            # Explicit transfer of the defender's money, never minting rewards.
             looted = min(MAX_GOLD_LOOT, defender.gold)
             defender.gold -= looted
             attacker.gold += looted
-        elif defender.equipped.get("weapon") is not None:
+            xp += 5  # Victory bonus, but no repeated reward while target is defeated.
+        else:
             counter = self._strike(defender, attacker)
             if attacker.hp == 0:
                 attacker.defeated_until = self.minute + DEFEAT_RECOVERY_MINUTES
-        outcome = CombatOutcome(damage, counter, xp, looted, defender_dead, attacker.hp == 0)
+        # A defeated attacker does not level up into an instant resurrection.
+        levels = self._award_xp(attacker, xp)
+        if attacker.defeated_until is not None:
+            attacker.hp = 0
+        outcome = CombatOutcome(damage, counter, xp, looted, defender_dead, attacker.hp == 0, levels)
         self._emit("combat", attacker_id, defender_id, damage, counter, xp, looted, defender_dead)
         self.assert_invariants()
         return outcome
