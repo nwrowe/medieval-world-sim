@@ -42,6 +42,7 @@ class NPCView:
     stamina: int
     ready_minute: int
     minute: int
+    deposits: tuple[tuple[str, int], ...]
     offers: tuple[OfferView, ...]
     companies: tuple[CompanyView, ...]
     opponents: tuple[str, ...]
@@ -80,5 +81,7 @@ def observe(world, actor_id: str) -> NPCView:
         tuple((gid, world.gear[gid].kind, world.gear[gid].quality)
               for gid in sorted(actor.gear_ids)),
         tuple(sorted(actor.equipped.items())), actor.hp, actor.stamina,
-        actor.ready_minute, world.minute, offers, companies, opponents
+        actor.ready_minute, world.minute,
+        tuple(sorted(world.cities[actor.city].deposits.items())),
+        offers, companies, opponents
     )

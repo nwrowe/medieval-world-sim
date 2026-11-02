@@ -102,9 +102,11 @@ class RuleBasedPolicy:
                         11 + p.curiosity, "post_offer", seller_id=v.id,
                         item=p.resource, quantity=stock, unit_price=ask_home))
                 return results
-            if (v.minute >= v.ready_minute and carrying <= 18
+            available = dict(v.deposits).get(p.resource, 0)
+            quantity = min(2, available, max(0, 20 - carrying))
+            if (v.minute >= v.ready_minute and quantity > 0
                     and market_supply < 40):
-                return [self._action(12, "gather", item=p.resource, quantity=2)]
+                return [self._action(12, "gather", item=p.resource, quantity=quantity)]
             return []
         if v.city == CAPITAL:
             if stock:
