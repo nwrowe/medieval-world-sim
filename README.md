@@ -74,4 +74,4 @@ Run the regional tests with:
 PYTHONPATH=src python -m unittest discover -s tests -p 'test_regional_world.py' -v
 ```
 
-Or run all tests via `python -m unittest discover -s tests -v`.
+To see a complete ore + coal → steel → sword transaction with travel and gold accounting:\n\n```bash\npython -m medieval_world_sim.regional_demo\n```\n\nOr run all tests via `python -m unittest discover -s tests -v`.
