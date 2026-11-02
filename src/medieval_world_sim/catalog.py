@@ -35,9 +35,10 @@ RAW_RESOURCES = (
 PROCESSED_RESOURCES = ("steel", "leather", "planks")
 EQUIPMENT = (
     "sword", "axe", "shield", "plate_armor", "leather_armor",
-    "bow", "pickaxe", "healing_potion",
+    "bow", "pickaxe",
 )
-GOODS = frozenset(RAW_RESOURCES + PROCESSED_RESOURCES + ("healing_potion",))  # Stackable goods only
+CONSUMABLES = ("healing_potion",)
+GOODS = frozenset(RAW_RESOURCES + PROCESSED_RESOURCES + CONSUMABLES)  # Stackable goods only
 
 
 @dataclass(frozen=True)
