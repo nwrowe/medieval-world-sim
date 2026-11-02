@@ -29,7 +29,12 @@ class StaminaProgressionTests(unittest.TestCase):
 
     def test_leveling_increases_health_and_stats(self):
         w = self.world()
-        for _ in range(4):
+        for _ in range(5):
+            w.attack("a", "b")
+        w.advance(100)
+        for _ in range(3):
+            if w.actors["b"].hp == 0:
+                break
             w.attack("a", "b")
         player = w.actors["a"]
         self.assertGreaterEqual(player.level, 2)
