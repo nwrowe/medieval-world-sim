@@ -105,6 +105,11 @@ EVENT_FIELDS = {
     "facility_upgraded": ["company_id", "level", "cost"],
     "training_paid": ["company_id", "worker_id", "gold"],
     "perk_awarded": ["company_id", "worker_id", "item"],
+    "home_purchased": ["actor_id", "city", "tier", "gold"],
+    "home_upgraded": ["actor_id", "city", "previous_tier", "tier", "gold"],
+    "home_facility_built": ["actor_id", "facility", "gold"],
+    "vehicle_purchased": ["actor_id", "vehicle", "gold"],
+    "vehicle_selected": ["actor_id", "vehicle"],
     "magic_unlocked": ["actor_id", "node_id", "school", "tier", "insight_spent"],
     "magic_attuned": ["actor_id", "paths"],
     "magic_practiced": [

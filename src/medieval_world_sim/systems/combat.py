@@ -135,6 +135,7 @@ class CombatSystem:
             if attacker.hp == 0:
                 attacker.defeated_until = self.world.minute + DEFEAT_RECOVERY_MINUTES
         # A defeated attacker does not level up into an instant resurrection.
+        xp = self.world.housing_system.training_xp(attacker, xp, "combat")
         levels = self._award_xp(attacker, xp)
         if attacker.defeated_until is not None:
             attacker.hp = 0

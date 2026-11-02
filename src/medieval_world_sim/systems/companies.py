@@ -177,6 +177,7 @@ class CompanySystem:
             self.world._emit("training_paid", company_id, worker_id, training_fee)
         # Each actual paid shift improves specialized experience; no idle XP farming.
         growth = 2 if "training" in company.perks else 1
+        growth = self.world.housing_system.training_xp(worker, growth, f"work:{company.industry}")
         worker.work.experience[company.industry] = min(
             100, worker.work.experience.get(company.industry, 0) + growth
         )
