@@ -37,6 +37,20 @@ class WorkStats:
 
 
 @dataclass
+class MagicState:
+    # Magical ability and progression are distinct from combat and work stats.
+    mana: int = 100
+    max_mana: int = 100
+    school_xp: dict[str, int] = field(default_factory=dict)
+    unlocked: set[str] = field(default_factory=lambda: {"arcane_fundamentals"})
+    insight: int = 0
+    insight_earned: int = 0
+    attempts: int = 0
+    attuned_paths: tuple[str, ...] = ()
+    last_attunement_minute: int | None = None
+
+
+@dataclass
 class TravelState:
     destination: str | None = None
     arrival_minute: int | None = None
@@ -63,6 +77,7 @@ class Actor:
     progression: Progression = field(default_factory=Progression)
     travel: TravelState = field(default_factory=TravelState)
     work: WorkStats = field(default_factory=WorkStats)
+    magic: MagicState = field(default_factory=MagicState)
 
     @property
     def hp(self) -> int:

@@ -3,6 +3,7 @@ from __future__ import annotations
 import heapq
 from ..catalog import CITIES, ROADS
 from ..combat import STAMINA_REGEN_MINUTES
+from ..content.magic_tree import MANA_REGEN_MINUTES
 from ..errors import ActionError
 
 HOUR = 60
@@ -84,9 +85,11 @@ class TravelSystem:
         # Regeneration is computed from elapsed discrete world-minute boundaries
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
+        mana_ticks = end // MANA_REGEN_MINUTES - start_minute // MANA_REGEN_MINUTES
         self.world.minute = end
         for actor in self.world.actors.values():
             actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
+            actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)
             if actor.defeated_until is not None and actor.defeated_until <= end:
                 actor.hp = actor.max_hp
                 actor.defeated_until = None

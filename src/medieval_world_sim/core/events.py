@@ -105,6 +105,12 @@ EVENT_FIELDS = {
     "facility_upgraded": ["company_id", "level", "cost"],
     "training_paid": ["company_id", "worker_id", "gold"],
     "perk_awarded": ["company_id", "worker_id", "item"],
+    "magic_unlocked": ["actor_id", "node_id", "school", "tier", "insight_spent"],
+    "magic_attuned": ["actor_id", "paths"],
+    "magic_practiced": [
+        "actor_id", "node_id", "school", "success", "roll", "chance",
+        "mana_spent", "xp_gained", "school_xp", "insight_gained"
+    ],
     "regional_bought": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "city_sale": ["city_id", "company_id", "item", "price", "quality_stars", "day"],

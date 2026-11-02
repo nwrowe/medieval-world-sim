@@ -11,7 +11,7 @@ from ..catalog import CAPITAL, CITIES, GOODS
 from ..errors import ActionError
 from ..equipment import GEAR, GearItem
 from ..combat import MAX_STAMINA
-from .entities import Actor, Company, Offer, Wage, WorldEvent
+from .entities import Actor, Company, Offer, Wage, WorldEvent, MagicState
 from .cities import CityState
 from .state import WorldState
 from .transactions import atomic_action
@@ -32,6 +32,7 @@ from ..systems.combat import CombatSystem, CombatOutcome
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
+from ..systems.magic import MagicSystem, MagicNodeStatus, MagicPracticeResult
 from .quality import CompanyQuality
 
 class WorldEngine:
@@ -54,6 +55,8 @@ class WorldEngine:
                 a.combat_xp != 0 or a.strength != 1 or a.defense != 1 or
                 a.defeated_until is not None):
                 raise ValueError("Actors must start with baseline combat attributes")
+            if a.magic != MagicState():
+                raise ValueError("Actors must start with baseline magic attributes")
         self.state = WorldState(
             actors={a.id: a for a in actors},
             cities={city_id: CityState.create(city_id, definition)
@@ -71,6 +74,7 @@ class WorldEngine:
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
+        self.magic_system = MagicSystem(self)
 
     @property
     def actors(self) -> dict[str, Actor]:
@@ -300,6 +304,23 @@ class WorldEngine:
         """Sell carried resources to a city; return gold earned."""
         return self.regional_trade.sell(actor_id, item, quantity)
 
+    def magic_tree(self, actor_id: str, school: str | None = None) -> tuple[MagicNodeStatus, ...]:
+        """UI-friendly, immutable progression tree including lock/attunement flags."""
+        return self.magic_system.tree(actor_id, school)
+
+    @atomic_action
+    def unlock_magic(self, actor_id: str, node_id: str) -> None:
+        return self.magic_system.unlock(actor_id, node_id)
+
+    @atomic_action
+    def attune_magic(self, actor_id: str, paths: tuple[str, ...]) -> None:
+        return self.magic_system.attune(actor_id, paths)
+
+    @atomic_action
+    def practice_magic(self, actor_id: str, node_id: str) -> MagicPracticeResult:
+        """Spend mana and learn a node; paid work/spell effects come later."""
+        return self.magic_system.practice(actor_id, node_id)
+
     @atomic_action
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
@@ -337,6 +358,9 @@ class WorldEngine:
                 "gather": ("gather", ("item", "quantity")),
                 "regional_buy": ("regional_buy", ("item", "quantity")),
                 "regional_sell": ("regional_sell", ("item", "quantity")),
+                "unlock_magic": ("unlock_magic", ("node_id",)),
+                "attune_magic": ("attune_magic", ("paths",)),
+                "practice_magic": ("practice_magic", ("node_id",)),
                 "found_company": ("found_company", ("company_id", "industry", "investment")),
                 "shift": ("shift", ("company_id",)),
                 "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
@@ -385,6 +409,7 @@ class WorldEngine:
             if account.gold < 0 or any(k not in GOODS or v < 0 for k, v in account.inventory.items()):
                 raise AssertionError("Negative or invalid asset")
             if isinstance(account, Actor):
+                self.magic_system.assert_valid(account, self.minute)
                 if sum(account.inventory.values()) + len(account.gear_ids) > CARRY_LIMIT:
                     raise AssertionError("Carrying limit exceeded")
                 if (account.destination is None) != (account.arrival_minute is None):
