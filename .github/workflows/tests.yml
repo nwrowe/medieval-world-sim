@@ -18,7 +18,7 @@ jobs:
       - name: Smoke test CLI
         env:
           PYTHONPATH: src
-        run: python -m medieval_world_sim --citizens 200 --days 30 --seed 42 --json > /tmp/sim-results.json
+        run: python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json > /tmp/sim-results.json
       - name: Smoke test five-city supply chain
         env:
           PYTHONPATH: src

@@ -1,0 +1,116 @@
+"""Schema v1: named event payloads suitable for audit and future persistence.
+
+No persistent event store or replay executor exists yet.
+"""
+EVENT_FIELDS = {
+    "gear_created": [
+        "holder_id",
+        "gear_id",
+        "item",
+        "quality",
+        "origin"
+    ],
+    "travel_started": [
+        "actor_id",
+        "origin",
+        "destination",
+        "arrival_minute"
+    ],
+    "arrived": [
+        "actor_id",
+        "city"
+    ],
+    "recovered": [
+        "actor_id"
+    ],
+    "gathered": [
+        "actor_id",
+        "city",
+        "item",
+        "quantity"
+    ],
+    "company_founded": [
+        "owner_id",
+        "company_id",
+        "industry",
+        "investment"
+    ],
+    "hired": [
+        "company_id",
+        "worker_id",
+        "gold",
+        "item",
+        "quantity"
+    ],
+    "shift_completed": [
+        "company_id",
+        "worker_id",
+        "gold",
+        "item",
+        "quantity"
+    ],
+    "offer_posted": [
+        "offer_id",
+        "seller_id",
+        "city",
+        "item",
+        "quantity",
+        "unit_price"
+    ],
+    "equipment_offered": [
+        "offer_id",
+        "seller_id",
+        "gear_id",
+        "quality",
+        "unit_price"
+    ],
+    "offer_filled": [
+        "offer_id",
+        "buyer_id",
+        "quantity",
+        "total_price"
+    ],
+    "offer_canceled": [
+        "offer_id"
+    ],
+    "starter_purchase": [
+        "buyer_id",
+        "gear_id",
+        "item",
+        "price"
+    ],
+    "equipped": [
+        "actor_id",
+        "gear_id",
+        "slot"
+    ],
+    "unequipped": [
+        "actor_id",
+        "slot"
+    ],
+    "gear_broken": [
+        "actor_id",
+        "gear_id",
+        "item"
+    ],
+    "level_up": [
+        "actor_id",
+        "level",
+        "max_life"
+    ],
+    "combat": [
+        "attacker_id",
+        "defender_id",
+        "damage",
+        "retaliation",
+        "xp",
+        "loot",
+        "defender_defeated"
+    ]
+}
+
+def event_payload(kind: str, details: tuple) -> dict[str, object]:
+    labels = EVENT_FIELDS.get(kind)
+    if labels is None or len(labels) != len(details):
+        raise ValueError(f"Missing or incorrect event schema: {kind}")
+    return dict(zip(labels, details))

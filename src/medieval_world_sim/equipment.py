@@ -1,31 +1,8 @@
-"""Quality-bearing, individually owned gear. Every durable item has its own ID.
-
-Stackable resources and potions remain in the material inventory.
-"""
+"""Quality-bearing gear instances and equipment value/formula utilities."""
 from __future__ import annotations
-
 from dataclasses import dataclass
 from hashlib import sha256
-
-
-@dataclass(frozen=True)
-class GearSpec:
-    slot: str
-    attack: int
-    defense: int
-    base_value: int
-    max_durability: int
-
-
-GEAR: dict[str, GearSpec] = {
-    "sword": GearSpec("weapon", 7, 0, 16, 35),
-    "axe": GearSpec("weapon", 8, 0, 18, 32),
-    "bow": GearSpec("weapon", 6, 0, 15, 30),
-    "shield": GearSpec("offhand", 0, 5, 14, 50),
-    "plate_armor": GearSpec("body", 0, 10, 45, 65),
-    "leather_armor": GearSpec("body", 0, 5, 20, 40),
-    "pickaxe": GearSpec("tool", 0, 1, 12, 35),
-}
+from .content.equipment_specs import GearSpec, GEAR
 
 # Every durable gear type is always purchasable as a weak quality-10 version
 # in the capital. Gold goes to an explicit sink; gear creation is logged.
