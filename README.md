@@ -63,3 +63,15 @@ python -m medieval_world_sim --citizens 200 --days 30 --seed 42 --json
 This is an exploratory, initially private project. We should validate the core premise with small simulations and real player tests before investing heavily in lore, a large game world, or infrastructure.
 
 No license is granted by this repository until one is explicitly selected.
+
+## Experimental five-city economy (new)
+
+A separate [five-city regional domain model](docs/FIVE_CITY_ECONOMY.md) now explores travel, finite resource deposits, local escrowed markets, NPC/human workers, company ownership, and company-funded wages. It does **not** yet replace the original one-town CLI.
+
+Run the regional tests with:
+
+```bash
+PYTHONPATH=src python -m unittest tests.test_regional_world -v
+```
+
+Or run all tests via `python -m unittest discover -s tests -v`.
