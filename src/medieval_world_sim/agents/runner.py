@@ -18,18 +18,18 @@ from .observation import observe
 from .policy import NPCProfile, RuleBasedPolicy, NPCAction
 
 
-INDUSTRIES = ("steelworks", "forge", "tannery", "leatherworker")
+INDUSTRIES = ("steelworks", "forge", "tannery", "leatherworker", "bakery", "apothecary")
 RESOURCES = (
-    ("ironvale", "iron_ore"),
-    ("emberfall", "coal"),
-    ("greenhollow", "timber"),
-    ("goldmeadow", "hides"),
     ("ironvale", "iron_ore"),
     ("emberfall", "coal"),
     ("greenhollow", "timber"),
     ("goldmeadow", "hides"),
     ("goldmeadow", "grain"),
     ("greenhollow", "herbs"),
+    ("ironvale", "iron_ore"),
+    ("emberfall", "coal"),
+    ("greenhollow", "timber"),
+    ("goldmeadow", "hides"),
 )
 
 
@@ -87,6 +87,7 @@ class AutonomousSimulation:
         gold = [a.gold for a in self.world.actors.values()]
         holdings = {c.id: c.gold for c in self.world.companies.values()}
         trades = [e for e in events if e.kind == "offer_filled"]
+        city_sales = [e for e in events if e.kind == "city_sale"]
         equipment_listing_ids = {
             e.data["offer_id"] for e in events if e.kind == "equipment_offered"
         }
@@ -106,6 +107,13 @@ class AutonomousSimulation:
             "initial_gold": self.world.initial_gold,
             "gold_conserved": self.world.total_gold == self.world.initial_gold,
             "market_trades": len(trades),
+            "background_sales": len(city_sales),
+            "background_sales_gold": sum(e.data["price"] for e in city_sales),
+            "meals_consumed": sum(e.kind == "consumed" and e.data["item"] in ("bread", "meal")
+                                  for e in events),
+            "potions_consumed": sum(e.kind == "consumed" and e.data["item"] == "healing_potion"
+                                    for e in events),
+            "total_city_household_gold": sum(c.household_gold for c in self.world.cities.values()),
             "market_gold_volume": sum(int(e.data["total_price"]) for e in trades),
             "resources_gathered": ore,
             "shifts_completed": counts["shift_completed"],
