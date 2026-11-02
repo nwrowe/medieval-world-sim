@@ -1,7 +1,7 @@
 """Stamina-based, open-world combat with unarmed attacks and progression."""
 from dataclasses import dataclass
-from .equipment import GEAR, effective_attack, effective_defense
-from .errors import ActionError
+from ..equipment import GEAR, effective_attack, effective_defense
+from ..errors import ActionError
 
 ATTACK_STAMINA_COST = 20
 STAMINA_REGEN_MINUTES = 5
@@ -24,7 +24,7 @@ class CombatOutcome:
 
 class CombatSystem:
     def __init__(self, world):
-        self.world.world = world
+        self.world = world
 
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         actor = self.world._actor(actor_id)

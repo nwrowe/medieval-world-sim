@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ..catalog import CAPITAL, RECIPES
+from ..catalog import CAPITAL, RECIPES, GOODS
 from ..equipment import GEAR, crafted_quality
 from ..core.entities import Company, Wage
 from ..errors import ActionError
