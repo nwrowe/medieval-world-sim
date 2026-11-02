@@ -74,8 +74,9 @@ class AutonomousSimulation:
     def run(self, days: int, step_minutes: int = 360) -> dict:
         if not isinstance(days, int) or days < 0:
             raise ValueError("days must be a nonnegative integer")
-        if 1440 % step_minutes:
-            raise ValueError("step_minutes must evenly divide 1440")
+        if (not isinstance(step_minutes, int) or isinstance(step_minutes, bool)
+                or step_minutes <= 0 or 1440 % step_minutes):
+            raise ValueError("step_minutes must be a positive divisor of 1440")
         for _ in range(days * 1440 // step_minutes):
             self.step(step_minutes)
         return self.report()

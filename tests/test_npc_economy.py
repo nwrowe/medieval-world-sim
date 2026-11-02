@@ -48,6 +48,9 @@ class NpcSystemTests(unittest.TestCase):
         self.assertGreater(report["market_trades"], 0)
         self.assertGreater(report["resources_gathered"], 0)
         self.assertGreater(report["shifts_completed"], 0)
+        self.assertGreater(report["crafted_equipment"], 0)
+        self.assertGreater(report["equipment_purchases"], 0)
+        self.assertEqual(report["rejections"], {})
         self.assertGreater(report["market_gold_volume"], 0)
         self.assertEqual(report["npcs"], 28)
         self.assertGreater(report["actions"].get("travel", 0), 0)
@@ -85,6 +88,8 @@ class NpcSystemTests(unittest.TestCase):
             sim.run(days=-1)
         with self.assertRaises(ValueError):
             sim.run(days=1, step_minutes=125)
+        with self.assertRaises(ValueError):
+            sim.run(days=1, step_minutes=0)
 
 
 if __name__ == "__main__":
