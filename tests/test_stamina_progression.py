@@ -10,13 +10,13 @@ class StaminaProgressionTests(unittest.TestCase):
 
     def test_stamina_spent_no_attack_timer_and_regenerates(self):
         w = self.world()
-        for _ in range(4):
+        for _ in range(5):
             w.attack("a", "b")
-        self.assertEqual(w.actors["a"].stamina, 100 - 4 * ATTACK_STAMINA_COST)
+        self.assertEqual(w.actors["a"].stamina, 100 - 5 * ATTACK_STAMINA_COST)
         with self.assertRaises(ActionError):
             w.attack("a", "b")
         w.advance(15)
-        self.assertEqual(w.actors["a"].stamina, 23)
+        self.assertEqual(w.actors["a"].stamina, 3)
 
     def test_regeneration_works_across_separate_advances(self):
         w1, w2 = self.world(), self.world()
