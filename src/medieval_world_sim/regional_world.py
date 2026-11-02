@@ -13,6 +13,8 @@ from .errors import ActionError
 from .equipment import GEAR, GearItem, crafted_quality
 from .combat import CombatMixin, MAX_STAMINA, STAMINA_REGEN_MINUTES
 from .core.entities import Actor, Company, Offer, Wage, WorldEvent
+from .core.cities import CityState
+from .core.state import WorldState
 
 HOUR = 60
 CARRY_LIMIT = 20
@@ -40,22 +42,86 @@ class RegionalWorld(CombatMixin):
                 a.combat_xp != 0 or a.strength != 1 or a.defense != 1 or
                 a.defeated_until is not None):
                 raise ValueError("Actors must start with baseline combat attributes")
-        self.actors = {a.id: a for a in actors}
-        self.companies: dict[str, Company] = {}
-        self.offers: dict[int, Offer] = {}
-        self.gear: dict[int, GearItem] = {}
-        self.next_gear_id = 1
-        self.crown_gold = 0  # Audited starter vendor gold sink.
-        self.seed = seed
-        self.minute = 0
-        self.next_offer_id = 1
-        self.events: list[WorldEvent] = []
-        # Deposits are physical stock, not endlessly generated on demand.
-        self.deposits = {
-            city: {resource: 8 for resource in spec.deposits}
-            for city, spec in CITIES.items()
-        }
-        self.initial_gold = self.total_gold
+        self.state = WorldState(
+            actors={a.id: a for a in actors},
+            cities={city_id: CityState.create(city_id, definition)
+                    for city_id, definition in CITIES.items()},
+            seed=seed,
+        )
+        self.state.initial_gold = self.total_gold
+
+    @property
+    def actors(self) -> dict[str, Actor]:
+        return self.state.actors
+
+    @property
+    def companies(self) -> dict[str, Company]:
+        return self.state.companies
+
+    @property
+    def offers(self) -> dict[int, Offer]:
+        return self.state.offers
+
+    @property
+    def gear(self) -> dict[int, GearItem]:
+        return self.state.gear
+
+    @property
+    def cities(self) -> dict[str, CityState]:
+        return self.state.cities
+
+    @property
+    def events(self) -> list[WorldEvent]:
+        return self.state.events
+
+    @property
+    def minute(self) -> int:
+        return self.state.minute
+
+    @minute.setter
+    def minute(self, value: int) -> None:
+        self.state.minute = value
+
+    @property
+    def seed(self) -> int:
+        return self.state.seed
+
+    @property
+    def next_offer_id(self) -> int:
+        return self.state.next_offer_id
+
+    @next_offer_id.setter
+    def next_offer_id(self, value: int) -> None:
+        self.state.next_offer_id = value
+
+    @property
+    def next_gear_id(self) -> int:
+        return self.state.next_gear_id
+
+    @next_gear_id.setter
+    def next_gear_id(self, value: int) -> None:
+        self.state.next_gear_id = value
+
+    @property
+    def crown_gold(self) -> int:
+        return self.state.crown_gold
+
+    @crown_gold.setter
+    def crown_gold(self, value: int) -> None:
+        self.state.crown_gold = value
+
+    @property
+    def initial_gold(self) -> int:
+        return self.state.initial_gold
+
+    @initial_gold.setter
+    def initial_gold(self, value: int) -> None:
+        self.state.initial_gold = value
+
+    @property
+    def deposits(self) -> dict[str, dict[str, int]]:
+        """Compatibility view; authoritative stocks live on CityState."""
+        return {city_id: city.deposits for city_id, city in self.cities.items()}
 
     @property
     def total_gold(self) -> int:
