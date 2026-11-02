@@ -16,7 +16,13 @@ The NPC system is **hybrid**:
 - **Goal-directed agents:** strategic leaders, merchants, and notable characters who may later use language models for intermittent planning and dialogue.
 - **Authoritative engine:** all economic transfers, inventory, combat, and territory changes are validated by the same game rules for humans and NPCs.
 
-## First experiment
+## Current active prototype
+
+The **five-city world engine** is the active development target, modeling region-specific resources, asynchronous travel, companies, manufacturing, markets, quality equipment, combat, stamina, and progression. Gameplay rules are composed as independent systems using one shared domain world state. The original simple 200-citizen economy remains a reproducible baseline for comparison, not the foundation for future game features.
+
+Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. No online server or autonomous agent loop exists yet.
+
+## Original single-settlement baseline (retained experiment)
 
 This repository includes a **small, runnable, deterministic economy simulation** with farmers, woodcutters, miners, blacksmiths, and guards. It has fixed-price trading, a finite royal treasury, production, food consumption, daily summaries, and tests for core accounting invariants.
 
