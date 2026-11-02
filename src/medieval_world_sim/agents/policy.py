@@ -143,29 +143,53 @@ class RuleBasedPolicy:
         return [self._action(10, "travel", destination=p.home)]
 
     def _hauler(self, p: NPCProfile, v: NPCView) -> list[Candidate]:
+        """Buy source-city goods when their published capital bid clears costs."""
         if p.resource is None:
             return []
         stock = v.stock(p.resource)
+        load = sum(q for _, q in v.inventory) + len(v.gear)
+        capital_quote = v.regional_quote(p.resource, capital=True)
         if v.city == CAPITAL:
             if stock:
+                if capital_quote is not None:
+                    qty = min(stock, capital_quote.buy_capacity,
+                              capital_quote.city_gold // capital_quote.player_sell_price)
+                    if qty > 0:
+                        return [self._action(20, "regional_sell", item=p.resource, quantity=qty)]
+                # Household liquidity may have dried up; try a real market sale.
                 ask = max(1, round(BASE_PRICES[p.resource] * 1.15 * p.greed))
-                return [self._action(17, "post_offer", seller_id=v.id, item=p.resource,
-                                     quantity=stock, unit_price=ask)]
+                if not any(o.seller_id == v.id and o.item == p.resource
+                           for o in v.local_offers(p.resource)):
+                    return [self._action(12, "post_offer", seller_id=v.id, item=p.resource,
+                                         quantity=stock, unit_price=ask)]
+                return []
             return [self._action(12, "travel", destination=p.home)]
         if v.city == p.home:
-            if stock >= 3:
-                return [self._action(16, "travel", destination=CAPITAL)]
+            if stock >= 3 or load >= 12:
+                return [self._action(16, "travel", destination=CAPITAL)] if load <= 12 else []
+            source_quote = v.regional_quote(p.resource)
+            remaining = min(3 - stock, max(0, 12 - load))
+            profitable = (source_quote is not None and capital_quote is not None
+                          and capital_quote.player_sell_price > source_quote.player_buy_price
+                          and capital_quote.buy_capacity > 0
+                          and capital_quote.city_gold >= capital_quote.player_sell_price)
+            if profitable and remaining > 0:
+                qty = min(remaining, source_quote.sell_capacity,
+                          v.gold // source_quote.player_buy_price)
+                if qty > 0:
+                    return [self._action(20, "regional_buy", item=p.resource, quantity=qty)]
             offers = sorted((o for o in v.local_offers(p.resource)
                              if o.seller_id != v.id and
                              o.price <= HAULER_BUY_CEILINGS[p.resource] and
-                             o.price <= max(1, v.gold // 3)),
-                            key=lambda o: (o.price, o.id))
-            if offers:
+                             o.price <= max(1, v.gold // 3)), key=lambda o: (o.price, o.id))
+            if offers and remaining > 0 and capital_quote is not None:
                 offer = offers[0]
-                qty = min(3 - stock, offer.quantity, v.gold // max(1, offer.price))
-                if qty > 0:
-                    return [self._action(15, "accept_offer", buyer_id=v.id,
-                                         offer_id=offer.id, quantity=qty)]
+                if offer.price < capital_quote.player_sell_price:
+                    qty = min(remaining, offer.quantity,
+                              v.gold // max(1, offer.price))
+                    if qty:
+                        return [self._action(15, "accept_offer", buyer_id=v.id,
+                                             offer_id=offer.id, quantity=qty)]
             if stock:
                 return [self._action(11, "travel", destination=CAPITAL)]
             return []
