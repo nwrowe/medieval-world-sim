@@ -23,3 +23,7 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim.regional_demo > /tmp/regional-demo.txt
+      - name: Smoke test equipped combat, XP and finite loot
+        env:
+          PYTHONPATH: src
+        run: python -m medieval_world_sim.combat_demo > /tmp/combat-demo.txt
