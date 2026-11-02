@@ -31,6 +31,7 @@ from ..systems.market import MarketSystem
 from ..systems.combat import CombatSystem, CombatOutcome
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
+from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
 from .quality import CompanyQuality
 
 class WorldEngine:
@@ -69,6 +70,7 @@ class WorldEngine:
         self.combat = CombatSystem(self)
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
+        self.regional_trade = RegionalTradeSystem(self)
 
     @property
     def actors(self) -> dict[str, Actor]:
@@ -285,6 +287,19 @@ class WorldEngine:
     def cancel_offer(self, initiator_id: str, offer_id: int) -> None:
         return self.market.cancel_offer(initiator_id, offer_id)
 
+    def regional_quote(self, city_id: str, item: str) -> RegionalQuote:
+        return self.regional_trade.quote(city_id, item)
+
+    @atomic_action
+    def regional_buy(self, actor_id: str, item: str, quantity: int) -> int:
+        """Pay a city merchant and receive goods; return gold paid."""
+        return self.regional_trade.buy(actor_id, item, quantity)
+
+    @atomic_action
+    def regional_sell(self, actor_id: str, item: str, quantity: int) -> int:
+        """Sell carried resources to a city; return gold earned."""
+        return self.regional_trade.sell(actor_id, item, quantity)
+
     @atomic_action
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
@@ -320,6 +335,8 @@ class WorldEngine:
             command_specs = {
                 "travel": ("start_travel", ("destination",)),
                 "gather": ("gather", ("item", "quantity")),
+                "regional_buy": ("regional_buy", ("item", "quantity")),
+                "regional_sell": ("regional_sell", ("item", "quantity")),
                 "found_company": ("found_company", ("company_id", "industry", "investment")),
                 "shift": ("shift", ("company_id",)),
                 "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
@@ -393,6 +410,12 @@ class WorldEngine:
         for city in self.cities.values():
             if city.household_gold < 0 or city.population < 0:
                 raise AssertionError("Invalid city household budget")
+            if any(item not in GOODS or qty < 0 or qty > MERCHANT_STOCK_CAP
+                   or not isinstance(qty, int) for item, qty in city.merchant_stock.items()):
+                raise AssertionError("Invalid merchant stock")
+            if not (0 <= city.merchant_purchases_today <= MERCHANT_DAILY_LIMIT and
+                    0 <= city.merchant_sales_today <= MERCHANT_DAILY_LIMIT):
+                raise AssertionError("Invalid daily merchant trading volume")
         for city, stock in self.deposits.items():
             if city not in CITIES or any(quantity < 0 or quantity > DEPOSIT_CAP for quantity in stock.values()):
                 raise AssertionError("Invalid regional deposits")

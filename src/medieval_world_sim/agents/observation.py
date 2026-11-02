@@ -1,6 +1,7 @@
 """Detached, read-only observations for unprivileged NPC decision policies."""
 from dataclasses import dataclass
 from ..core.quality import suggested_wage
+from ..systems.regional_trade import BASE_LOCAL_ASK, RegionalQuote
 
 
 @dataclass(frozen=True)
@@ -51,12 +52,18 @@ class NPCView:
     offers: tuple[OfferView, ...]
     companies: tuple[CompanyView, ...]
     opponents: tuple[str, ...]
+    regional_quotes: tuple[RegionalQuote, ...]
+    capital_quotes: tuple[RegionalQuote, ...]
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
 
     def company(self, company_id: str) -> CompanyView | None:
         return next((company for company in self.companies if company.id == company_id), None)
+
+    def regional_quote(self, item: str, capital: bool = False) -> RegionalQuote | None:
+        quotes = self.capital_quotes if capital else self.regional_quotes
+        return next((q for q in quotes if q.item == item), None)
 
     def local_offers(self, item: str | None = None) -> tuple[OfferView, ...]:
         return tuple(o for o in self.offers if o.city == self.city
@@ -92,5 +99,7 @@ def observe(world, actor_id: str) -> NPCView:
         actor.vitals.hunger, actor.stamina,
         actor.ready_minute, world.minute,
         tuple(sorted(world.cities[actor.city].deposits.items())),
-        offers, companies, opponents
+        offers, companies, opponents,
+        tuple(world.regional_quote(actor.city, good) for good in sorted(BASE_LOCAL_ASK)),
+        tuple(world.regional_quote("crownreach", good) for good in sorted(BASE_LOCAL_ASK))
     )

@@ -10,6 +10,10 @@ class CityState:
     security_level: int = 0
     population: int = 120
     household_gold: int = 600
+    # Merchant stock represents tangible, collectively owned city inventory.
+    merchant_stock: dict[str, int] = field(default_factory=dict)
+    merchant_purchases_today: int = 0  # goods bought FROM players
+    merchant_sales_today: int = 0  # goods sold TO players
     # Aggregated households are not simulated as individual NPCs.
     # Funds exist in the opening ledger; sales transfer rather than mint gold.
 
@@ -18,7 +22,8 @@ class CityState:
         capital = city_id == "crownreach"
         return cls(city_id, definition, {resource: 8 for resource in definition.deposits},
                    population=500 if capital else 120,
-                   household_gold=3600 if capital else 600)
+                   household_gold=3600 if capital else 600,
+                   merchant_stock={item: 10 for item in definition.deposits})
 
     @property
     def gold(self) -> int:

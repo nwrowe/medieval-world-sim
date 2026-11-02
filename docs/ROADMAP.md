@@ -12,6 +12,14 @@ Implement order-driven local markets, balanced inflows/outflows, production/cons
 
 **Exit criteria:** economic conservation tests pass; major failure modes are visible and explainable rather than hidden in scripted adjustments.
 
+## M1b — Regional merchants and magic progression
+
+Introduce regional merchant bid/ask pricing, bounded city inventory, travel cargo limits and profitable hauler routes. Next, prototype a shared mana pool and multiple magical skills: low-level paid magical jobs, mana regeneration and advanced uses in healing, crafting, trading and combat.
+
+**Exit criteria:** merchant trading remains bounded by finite city funds and inventory; real NPCs complete profitable trade loops; spells earn gold only from funded clients and have measurable, skill-gated utility.
+
+See [regional trading](REGIONAL_TRADING.md) and [mana-based magic plan](MAGIC_PROGRESSION_PLAN.md).
+
 ## M2 — Hybrid NPC behavior
 
 Introduce policy interfaces, agent goals, memory/reputation, low-frequency strategic planning, bounded decision budgets, and guardrails. Compare baseline rule NPCs with model-assisted agents in the *same* scenarios.

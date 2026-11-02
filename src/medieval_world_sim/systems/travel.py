@@ -7,6 +7,7 @@ from ..errors import ActionError
 
 HOUR = 60
 DEPOSIT_CAP = 24
+TRAVEL_CARGO_LIMIT = 12  # Stricter than the 20-unit in-city inventory limit.
 
 
 class TravelSystem:
@@ -43,6 +44,9 @@ class TravelSystem:
         time = self.world.travel_minutes(city, destination)
         if time == 0:
             raise ActionError("Already in destination")
+        load = sum(actor.inventory.values()) + len(actor.gear_ids)
+        if load > TRAVEL_CARGO_LIMIT:
+            raise ActionError(f"Travel cargo limit is {TRAVEL_CARGO_LIMIT} units; carrying {load}")
         actor.destination = destination
         actor.arrival_minute = self.world.minute + time
         self.world._emit("travel_started", actor.id, city, destination, actor.arrival_minute)
@@ -65,6 +69,7 @@ class TravelSystem:
                 for actor in self.world.actors.values():
                     actor.vitals.hunger = min(3, actor.vitals.hunger + 1)
                 self.world.city_demand.settle_day(moment // 1440)
+                self.world.regional_trade.replenish_daily()
             if moment % HOUR == 0:
                 for city, spec in CITIES.items():
                     for item, rate in spec.deposits.items():

@@ -39,3 +39,7 @@ jobs:
         run: |
           python -m medieval_world_sim.agents.demo --npcs 50 --days 30 --seed 42 --json > /tmp/npc-economy-30d.json
           cat /tmp/npc-economy-30d.json
+      - name: Smoke test regional merchant arbitrage
+        env:
+          PYTHONPATH: src
+        run: python -m medieval_world_sim --scenario trade

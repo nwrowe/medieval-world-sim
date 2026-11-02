@@ -88,6 +88,8 @@ class AutonomousSimulation:
         holdings = {c.id: c.gold for c in self.world.companies.values()}
         trades = [e for e in events if e.kind == "offer_filled"]
         city_sales = [e for e in events if e.kind == "city_sale"]
+        regional_buys = [e for e in events if e.kind == "regional_bought"]
+        regional_sells = [e for e in events if e.kind == "regional_sold"]
         equipment_listing_ids = {
             e.data["offer_id"] for e in events if e.kind == "equipment_offered"
         }
@@ -107,6 +109,12 @@ class AutonomousSimulation:
             "initial_gold": self.world.initial_gold,
             "gold_conserved": self.world.total_gold == self.world.initial_gold,
             "market_trades": len(trades),
+            "regional_purchases": len(regional_buys),
+            "regional_sales": len(regional_sells),
+            "regional_buy_spend": sum(e.data["total"] for e in regional_buys),
+            "regional_sale_revenue": sum(e.data["total"] for e in regional_sells),
+            "hauler_cash_change": sum(self.world.actors[p.id].gold - 160
+                                      for p in self.profiles if p.role == "hauler"),
             "background_sales": len(city_sales),
             "background_sales_gold": sum(e.data["price"] for e in city_sales),
             "meals_consumed": sum(e.kind == "consumed" and e.data["item"] in ("bread", "meal")
