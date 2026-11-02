@@ -94,8 +94,10 @@ class HousingTests(unittest.TestCase):
         gear = w._mint_gear(actor, "sword", 60, "crafted")
         with self.assertRaises(ActionError):
             w.start_travel("owner", "ironvale")
-        self.assertIsNone(actor.destination)
-        actor.inventory["iron_ore"] = 15
+        self.assertIsNone(w.actors["owner"].destination)
+        # Atomic rollback replaces world state: use the current actor, not a
+        # stale reference to the pre-rollback snapshot.
+        w.actors["owner"].inventory["iron_ore"] = 15
         w.equip("owner", gear.id)
         self.assertEqual(w.start_travel("owner", "ironvale"), 72)
         w.assert_invariants()

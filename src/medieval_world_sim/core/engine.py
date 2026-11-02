@@ -330,8 +330,9 @@ class WorldEngine:
 
     def estimated_travel_minutes(self, actor_id: str, destination: str) -> int:
         actor = self._actor(actor_id)
-        return self.housing_system.road_minutes(
-            actor, self.travel_minutes(actor.city, destination))
+        self._at_city(actor)
+        base = self.travel_minutes(actor.city, destination)
+        return self.housing_system.road_minutes(actor, base) if base else 0
 
     @atomic_action
     def buy_home(self, actor_id: str, tier: str) -> int:
