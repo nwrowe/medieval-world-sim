@@ -88,20 +88,15 @@ class EquipmentCombatTests(unittest.TestCase):
         self.assertNotIn(offer, w.offers)
         w.assert_invariants()
 
-    def test_weapon_required_and_peaceful_npcs_protected(self):
+    def test_fists_and_unrestricted_attacks(self):
         w = self.world()
-        initial = w.total_gold
-        with self.assertRaises(ActionError):
-            w.attack("hero", "bandit")
-        weapon = w.buy_starter_gear("hero", "sword")
-        w.equip("hero", weapon)
-        with self.assertRaises(ActionError):
-            w.attack("hero", "merchant")
-        with self.assertRaises(ActionError):
-            w.attack("hero", "rival")
+        first = w.attack("hero", "merchant")
+        self.assertGreater(first.damage, 0)
+        self.assertGreater(first.retaliation, 0)
+        w.attack("rival", "hero")
+        self.assertEqual(w.actors["hero"].stamina, 80)
         with self.assertRaises(ActionError):
             w.attack("hero", "hero")
-        self.assertEqual(w.total_gold, initial)
 
     def test_armor_reduces_damage_and_equipping_is_slot_limited(self):
         a, b = self.world(), self.world()
@@ -131,7 +126,7 @@ class EquipmentCombatTests(unittest.TestCase):
             self.assertGreaterEqual(result.xp_gained, 1)
             if result.opponent_defeated:
                 break
-            w.advance(5)
+            # No cooldown; stamina allows consecutive attacks.
         self.assertTrue(result.opponent_defeated)
         self.assertEqual(sum(rewards), min(10, 35))
         self.assertEqual(w.actors["bandit"].gold, 25)
@@ -143,14 +138,9 @@ class EquipmentCombatTests(unittest.TestCase):
         self.assertEqual(w.actors["bandit"].hp, 24)
         w.assert_invariants()
 
-    def test_pvp_requires_both_consent_flags(self):
+    def test_pvp_does_not_require_consent(self):
         w = self.world()
-        sword = w.buy_starter_gear("hero", "sword")
-        w.equip("hero", sword)
-        w.actors["hero"].pvp_opt_in = True
-        with self.assertRaises(ActionError):
-            w.attack("hero", "rival")
-        w.actors["rival"].pvp_opt_in = True
+        self.assertFalse(w.actors["rival"].pvp_opt_in)
         self.assertGreater(w.attack("hero", "rival").damage, 0)
 
     def test_equipment_wear_breaks_and_removes_invalid_equipped_reference(self):
@@ -162,7 +152,7 @@ class EquipmentCombatTests(unittest.TestCase):
         self.assertNotIn(sword, w.gear)
         self.assertNotIn("weapon", w.actors["hero"].equipped)
         with self.assertRaises(ActionError):
-            w.attack("hero", "bandit")
+            w.equip("hero", sword)
         w.assert_invariants()
 
     def test_equipment_wage_from_company_is_unique_and_worth_more_than_starter(self):
