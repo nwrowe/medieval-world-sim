@@ -31,7 +31,7 @@ class StaminaProgressionTests(unittest.TestCase):
         w = self.world()
         for _ in range(5):
             w.attack("a", "b")
-        w.advance(100)
+        w.advance(300)
         for _ in range(3):
             if w.actors["b"].hp == 0:
                 break
