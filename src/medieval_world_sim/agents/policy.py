@@ -7,11 +7,10 @@ through WorldEngine.execute with a unique action ID.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-import math
 import random
 
-from ..catalog import CAPITAL, RECIPES, CITIES
-from .observation import NPCView, OfferView
+from ..catalog import CAPITAL, RECIPES
+from .observation import NPCView
 
 
 BASE_PRICES = {

@@ -86,6 +86,13 @@ class AutonomousSimulation:
         gold = [a.gold for a in self.world.actors.values()]
         holdings = {c.id: c.gold for c in self.world.companies.values()}
         trades = [e for e in events if e.kind == "offer_filled"]
+        equipment_listing_ids = {
+            e.data["offer_id"] for e in events if e.kind == "equipment_offered"
+        }
+        by_role = {}
+        for role in sorted({p.role for p in self.profiles}):
+            actor_gold = [self.world.actors[p.id].gold for p in self.profiles if p.role == role]
+            by_role[role] = {"count": len(actor_gold), "median_gold": median(actor_gold)}
         ore = sum(e.data["quantity"] for e in events if e.kind == "gathered")
         minted = sum(e.kind == "gear_created" and e.data["origin"] == "crafted"
                      for e in events)
@@ -102,10 +109,13 @@ class AutonomousSimulation:
             "resources_gathered": ore,
             "shifts_completed": counts["shift_completed"],
             "crafted_equipment": minted,
-            "equipment_purchases": sum(e.kind == "offer_filled" and
-                                       self._was_equipment_sale(e) for e in trades),
+            "equipment_purchases": sum(e.data["offer_id"] in equipment_listing_ids
+                                       for e in trades),
             "combat_attacks": counts["combat"],
             "company_gold": holdings,
+            "company_profit_gold": {company: balance - 430 for company, balance in holdings.items()},
+            "roles": by_role,
+            "event_count": len(events),
             "npc_gold_min": min(gold),
             "npc_gold_median": median(gold),
             "npc_gold_max": max(gold),
@@ -114,12 +124,6 @@ class AutonomousSimulation:
             "idle_decisions": self.idle,
         }
 
-    def _was_equipment_sale(self, trade) -> bool:
-        # A sale references an offer_id. The original listing remains
-        # recorded in the event stream even after the escrow is exhausted.
-        offer_id = trade.data["offer_id"]
-        return any(e.kind == "equipment_offered" and e.data["offer_id"] == offer_id
-                   for e in self.world.events)
 
 
 def create_simulation(npcs: int = 50, seed: int = 42) -> AutonomousSimulation:
