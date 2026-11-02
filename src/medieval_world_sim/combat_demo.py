@@ -24,8 +24,9 @@ def main() -> None:
               f"+{result.xp_gained} XP, +{result.gold_looted} gold")
         if result.opponent_defeated or result.attacker_defeated:
             break
-        world.advance(5)
+        # No attack timer; stamina is spent per attack.
     print(f"Ending: hero gold={world.actors['hero'].gold}, XP={world.actors['hero'].combat_xp}, "
+          f"level={world.actors['hero'].level}, stamina={world.actors['hero'].stamina}, "
           f"world gold={world.total_gold} (was {total})")
     world.assert_invariants()
 
