@@ -43,3 +43,7 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim --scenario trade
+      - name: Smoke test six-school magic progression catalog
+        env:
+          PYTHONPATH: src
+        run: python -m medieval_world_sim --scenario magic

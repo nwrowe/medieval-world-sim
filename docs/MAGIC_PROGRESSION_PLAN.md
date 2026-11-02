@@ -1,39 +1,64 @@
-# Next milestone: Magic as a multi-activity progression system
+# Six-school magic progression — implemented tree architecture
 
-**Status:** Planned, not yet implemented. This is a design target for the next slice after regional trading.
+**Status:** The six-school skill-tree catalog, actor mana/skill state, progression commands, deterministic practice and attunement rules are implemented on the \`feat/six-school-magic-progression\` branch. **Paid jobs, world spell effects, magic NPC occupations, and economic balance have NOT been implemented.** This release supplies their stable domain foundation.
 
-The goal is the open-ended progression and income variety of a crime-like activity system, but with fantasy **magic schools** that also have genuine utility elsewhere in the game. It must not be a separate minigame disconnected from crafting, markets, travel, and combat.
+## Progression concept
 
-## Basic progression model
+Each actor has a separate \`MagicState\`: 100 starting/max mana, experience for each school, available Insight, total Insight earned, unlocked node IDs, a count of casting attempts, up to two concurrently attuned specialist branches, and an attunement-switch timestamp. It is independent of combat XP, stamina and working attributes.
 
-Every character begins with **100 maximum mana** (separate from stamina, life and employment stats). Mana replenishes over simulated time. Character expertise is **per magical discipline**, not a single universal magic score. Each attempted magical activity consumes mana; meaningful successful activity grants skill experience, with bounded practice credit on failure. Learning allows access to higher-tier spells.
+The single common root, \`arcane_fundamentals\`, is known by all new characters. All six schools can be studied by the same character; early entry nodes are free to unlock. A character unlocks an individual node only after learning its prerequisites, reaching its school-specific XP threshold, and spending sufficient Insight. **No early permanent class choice.**
 
-The initial prototype should use deterministic seeded rolls driven by spell difficulty, school skill, and a small luck term. Success chance should improve gradually, with a floor/ceiling and safeguards against unlimited practice XP and guaranteed money.
+| Tier | Role | School XP minimum | Insight to unlock | Mana for practice |
+|---|---|---:|---:|---:|
+| I | Novice practice | 0 | 0 | 8 |
+| II | Applied skill | 30 | 1 | 15 |
+| III | Specialization (choose branches) | 120 | 2 | 25 |
+| IV | Advanced mastery | 350 | 3 | 40 |
 
-Suggested discipline tracks:
+**Insight** is earned globally, one point for every 50 total magical XP across schools. Unlocking spends Insight but doesn't consume school XP. Practicing an eligible unlocked node grants school-specific XP, with skill-dependent, seeded success and small failure credit. Practice becomes trivial and stops granting XP beyond per-tier caps (Tier I 80, II 180, III 420, IV 1000); this encourages progression.
 
-| School | Low-tier activity | Earn gold how? | Utility elsewhere |
-|---|---|---|---|
-| Restoration | Cleanse water / mend small injuries | Paid medical contracts or direct patient payment | Heal allies, reduce recovery duration |
-| Enchantment | Minor equipment imbuement | Enchant customer gear for a fee | Boost gear efficiency, wear resistance |
-| Divination | Identify materials, read omens | Funded caravan forecasts, identification | Reveal trade demand, improve scouting |
-| Warding | Secure a store or caravan | Guard contracts | Protect traders, improve defense |
-| Elemental | Kindle furnaces, manage fires | Paid forge/sawmill work | Combat spells, faster production |
-| Alchemy | Purify reagents | Sell actual potions made with real ingredients | Potions, resistances and recovery |
+**Mana** replenishes +1 per 10 simulated minutes, whether time is advanced in one big chunk or several smaller chunks. It replenishes independently of stamina. Practicing consumes mana regardless of success. This is a prototype balance; numbers are content constants that can be adjusted after gameplay testing.
 
-A new player can specialize without mandatory combat; medical, merchant and artisan play all benefit from spells. Experience should not automatically pay coins: magic work earns income only when a funded beneficiary purchases a service or finished product.
+## Full six-school tree
 
-## Mechanics to implement in small PRs
+All schools have a novice node → applied node → **two tier-three specializations**, each with a distinct tier-four mastery. These are *node names and future integration hooks*; they are **not yet functional effects**.
 
-1. **Mana and schools:** a composed \`MagicState\` on Actor, validated mana spending, passive regeneration, school XP and tier gating, deterministic seeded probability/ability rolls. Avoid direct state mutations by NPCs.
-2. **Daily magical jobs:** city-funded requests with real budget, action cooldowns, school XP, and conservative pay caps. A few simple tasks per school suffice to test engagement; a failed job consumes mana but does not trigger a payout.
-3. **Useful spells:** restoration reduces injuries (subject to defeating/revive rules), enchanting consumes materials and modifies real gear, divination exposes limited market information, wards improve caravan safety; combat magic uses the same attack checks and cannot circumvent combat stamina/defeat rules.
-4. **NPC policies and testing:** add novice mage and specialized service NPCs, test economic conservation, mana/XP abuse, skill growth, spell effect caps, chance distributions and long-run balance across seeded 30/90-day runs.
+| School | Novice | Applied skill | Tier III A → Tier IV A | Tier III B → Tier IV B |
+|---|---|---|---|---|
+| Restoration | Soothe Wounds | Field Healing | Revival Arts → Master Healer | Battle Medic → Combat Restoration |
+| Divination | Read Omens | Trade Appraisal | Merchant Foresight → Oracle | Pathfinder → Wayfinder |
+| Enchantment | Etch a Rune | Tool Improvement | Smith's Runes → Runemaster | Combat Imbuement → Battle Enchanter |
+| Warding | Minor Shield | Ward Goods | Caravan Protector → Grand Warden | Combat Defender → Aegis Master |
+| Elemental | Kindle Flame | Furnace Assistance | Crafting Fire → Forge Elementalist | Battle Magic → Stormcaller |
+| Alchemy | Purify Reagents | Potion Enhancement | Apothecary's Art → Master Alchemist | Resistance Elixirs → Elixir Sage |
 
-## Balancing and safety criteria
+The immutable \`content/magic_tree.py\` registry provides one entry per node, including \`id\`, school, title, tier, prerequisite IDs, effect-domain role, XP gate, Insight cost, mana cost and difficulty. Content validation prevents broken prerequisites and missing branches when loaded.
 
-- Mana regenerates on its own clock, separately from physical stamina, and doesn't provide free gold.
-- Every paid spell has an **existing payer** (patient, company, city or contract escrow) and an explicit cap/limit; no spammable city payouts.
-- A spell cannot retroactively bypass completed travel, bank money, consume nonexistent materials, or mutate a target without the authoritative world rules.
-- The best magical careers should be viable alternatives to trading, business ownership and combat, not strictly better than all of them.
-- Random failures should create some variety but must never silently erase someone else's equipment or funds.
+### Two concurrent active specializations
+
+Characters can **eventually learn all branches**. Learning a Tier III branch or its Tier IV mastery does not automatically activate its advanced abilities. The character selects at most **two unlocked Tier III paths**, across all six schools, via \`attune_magic\`. Tier IV uses the corresponding Tier III attunement. Reattuning has a six-hour simulated-time cooldown; acquired skills remain learned, not discarded.
+
+Tier I and II nodes remain available without attunement. This preserves long-term completionist progression while differentiating active builds.
+
+## Authoritative API
+
+The shared player/NPC command allowlist now includes:
+- \`unlock_magic\` with \`node_id\`: purchase an eligible node using Insight.
+- \`practice_magic\` with \`node_id\`: pay mana, roll deterministic chance, earn school XP and possibly Insight; returns a detached result.
+- \`attune_magic\` with \`paths\`: switch the active Tier III specializations, with cooldown.
+- \`world.magic_tree(actor_id, school=None)\`: return detached read-only \`MagicNodeStatus\` records with the requirements, eligibility and active state for later UI integration.
+
+All mutating operations use \`WorldEngine.execute\` identity binding, idempotent action IDs, atomic rollback, typed world events, and engine invariants. Casting is disabled while traveling or defeated. Practice rolls are a cryptographic hash of the world seed, actor ID, node ID, actor's attempt count and world minute, making results deterministic and resistant to accidentally repeating the same random result at one timestamp.
+
+\`\`\`bash
+python -m medieval_world_sim --scenario magic
+python -m unittest discover -s tests -v
+\`\`\`
+
+## Scope boundaries / next work
+
+The \`practice_magic\` command is **training only**. It does not heal anyone, affect combat stats, increase merchant payouts, alter gear, grant items or mint gold. A combat or commercial spell must later be a separate validated action handler that checks ownership, target consent/eligibility, material input, attunement, mana, cooldowns and payer funds. Such an effect handler may reuse the catalog's \`role\` field and progression checks, but should never bypass current combat, trade, travel or accounting rules.
+
+Recommended next implementations: funded magical service contracts; bounded Restoration healing; useful Divination market information; reagent-consuming Enchantment; then Warding, Elemental and Alchemy effects. This intentionally separates **tree architecture** from economically sensitive gameplay effects, as requested.
+
+Cross-school abilities (e.g. Divination+Warding Safe Passage) are a *future extension*. They are not in this initial 37-node registry; explicit cross-school prerequisites will need deliberate catalog schema adjustments and balancing.

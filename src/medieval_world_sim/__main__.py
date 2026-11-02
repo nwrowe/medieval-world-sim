@@ -5,7 +5,7 @@ import json
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Medieval World Sim experiment runner")
-    parser.add_argument("--scenario", choices=("regional", "combat", "trade"), default="regional")
+    parser.add_argument("--scenario", choices=("regional", "combat", "trade", "magic"), default="regional")
     parser.add_argument("--legacy", action="store_true", help="Run the original one-town benchmark")
     parser.add_argument("--citizens", type=int, default=200)
     parser.add_argument("--days", type=int, default=30)
@@ -18,6 +18,8 @@ def main() -> None:
             from .combat_demo import main as scenario
         elif args.scenario == "trade":
             from .regional_trade_demo import main as scenario
+        elif args.scenario == "magic":
+            from .magic_demo import main as scenario
         else:
             from .regional_demo import main as scenario
         scenario()
