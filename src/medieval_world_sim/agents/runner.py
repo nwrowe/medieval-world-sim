@@ -113,7 +113,12 @@ class AutonomousSimulation:
                                        for e in trades),
             "combat_attacks": counts["combat"],
             "company_gold": holdings,
-            "company_profit_gold": {company: balance - 430 for company, balance in holdings.items()},
+            "company_cash_change": {company: balance - 430 for company, balance in holdings.items()},
+            "company_inventory_units": {company.id: sum(company.inventory.values()) +
+                                        len(company.gear_ids)
+                                        for company in self.world.companies.values()},
+            "unsold_gear_listings": sum(o.gear_id is not None
+                                        for o in self.world.offers.values()),
             "roles": by_role,
             "event_count": len(events),
             "npc_gold_min": min(gold),
