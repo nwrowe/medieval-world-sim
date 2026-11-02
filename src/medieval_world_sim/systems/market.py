@@ -4,6 +4,7 @@ from ..catalog import GOODS
 from ..equipment import GEAR
 from ..core.entities import Actor, Offer
 from ..errors import ActionError
+from ..core.transactions import transfer_gold
 
 
 class MarketSystem:
@@ -63,8 +64,7 @@ class MarketSystem:
         if buyer.gold < total:
             raise ActionError("Buyer lacks gold")
         seller = self.world._account(offer.seller_id)
-        buyer.gold -= total
-        seller.gold += total
+        transfer_gold(self.world, buyer, seller, total)
         if offer.gear_id is not None:
             buyer.gear_ids.append(offer.gear_id)
         else:

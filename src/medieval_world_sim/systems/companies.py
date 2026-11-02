@@ -4,6 +4,7 @@ from ..catalog import CAPITAL, RECIPES, GOODS
 from ..equipment import GEAR, crafted_quality
 from ..core.entities import Company, Wage
 from ..errors import ActionError
+from ..core.transactions import transfer_gold
 
 HOUR = 60
 
@@ -21,8 +22,9 @@ class CompanySystem:
             raise ActionError("Invalid company type or ID")
         if owner.gold < investment:
             raise ActionError("Insufficient gold to invest")
-        owner.gold -= investment
-        self.world.companies[company_id] = Company(company_id, owner_id, industry, gold=investment)
+        company = Company(company_id, owner_id, industry)
+        self.world.companies[company_id] = company
+        transfer_gold(self.world, owner, company, investment)
         self.world._emit("company_founded", owner_id, company_id, industry, investment)
         self.world.assert_invariants()
 
@@ -90,8 +92,7 @@ class CompanySystem:
         elif wage.item:
             company.inventory[wage.item] -= wage.quantity
             self.world._add(worker, wage.item, wage.quantity)
-        company.gold -= wage.gold
-        worker.gold += wage.gold
+        transfer_gold(self.world, company, worker, wage.gold)
         worker.ready_minute = self.world.minute + HOUR
         self.world._emit("shift_completed", company_id, worker_id, wage.gold, wage.item, wage.quantity)
         self.world.assert_invariants()

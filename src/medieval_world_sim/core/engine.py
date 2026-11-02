@@ -14,6 +14,7 @@ from ..combat import MAX_STAMINA
 from .entities import Actor, Company, Offer, Wage, WorldEvent
 from .cities import CityState
 from .state import WorldState
+from .transactions import atomic_action, transfer_gold
 
 HOUR = 60
 CARRY_LIMIT = 20
@@ -54,6 +55,7 @@ class WorldEngine:
             seed=seed,
         )
         self.state.initial_gold = self.total_gold
+        self._current_action_id: str | None = None
         self.travel = TravelSystem(self)
         self.resources = ResourceSystem(self)
         self.companies_system = CompanySystem(self)
@@ -138,7 +140,9 @@ class WorldEngine:
         return self.crown_gold + sum(a.gold for a in self.actors.values()) + sum(c.gold for c in self.companies.values())
 
     def _emit(self, kind: str, *details: object) -> None:
-        self.events.append(WorldEvent(self.minute, kind, tuple(details)))
+        self.events.append(WorldEvent(
+            self.minute, kind, tuple(details), len(self.events) + 1, self._current_action_id
+        ))
 
     def _actor(self, actor_id: str) -> Actor:
         try:
@@ -200,47 +204,107 @@ class WorldEngine:
     def travel_minutes(self, origin: str, destination: str) -> int:
         return self.travel.travel_minutes(origin, destination)
 
+    @atomic_action
     def start_travel(self, actor_id: str, destination: str) -> int:
         return self.travel.start_travel(actor_id, destination)
 
+    @atomic_action
     def advance(self, minutes: int) -> None:
         return self.travel.advance(minutes)
 
+    @atomic_action
     def gather(self, actor_id: str, item: str, quantity: int = 1) -> None:
         return self.resources.gather(actor_id, item, quantity)
 
+    @atomic_action
     def found_company(self, owner_id: str, company_id: str, industry: str, investment: int) -> None:
         return self.companies_system.found_company(owner_id, company_id, industry, investment)
 
+    @atomic_action
     def hire(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
 
+    @atomic_action
     def shift(self, worker_id: str, company_id: str) -> None:
         return self.companies_system.shift(worker_id, company_id)
 
+    @atomic_action
     def post_offer(self, initiator_id: str, seller_id: str, item: str, quantity: int, unit_price: int) -> int:
         return self.market.post_offer(initiator_id, seller_id, item, quantity, unit_price)
 
+    @atomic_action
     def post_equipment_offer(self, initiator_id: str, seller_id: str, gear_id: int, unit_price: int) -> int:
         return self.market.post_equipment_offer(initiator_id, seller_id, gear_id, unit_price)
 
+    @atomic_action
     def accept_offer(self, initiator_id: str, buyer_id: str, offer_id: int, quantity: int) -> None:
         return self.market.accept_offer(initiator_id, buyer_id, offer_id, quantity)
 
+    @atomic_action
     def cancel_offer(self, initiator_id: str, offer_id: int) -> None:
         return self.market.cancel_offer(initiator_id, offer_id)
 
+    @atomic_action
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
 
+    @atomic_action
     def equip(self, actor_id: str, gear_id: int) -> None:
         return self.combat.equip(actor_id, gear_id)
 
+    @atomic_action
     def unequip(self, actor_id: str, slot: str) -> None:
         return self.combat.unequip(actor_id, slot)
 
+    @atomic_action
     def attack(self, attacker_id: str, defender_id: str) -> CombatOutcome:
         return self.combat.attack(attacker_id, defender_id)
+
+    def execute(self, principal_id: str, action: str, params: dict, action_id: str):
+        """Trusted-adapter command entrypoint with caller-bound identity and retry safety.
+
+        A production API must derive principal_id from authentication, never from
+        an untrusted body field. Command receipts are currently in-memory only.
+        """
+        if not isinstance(action_id, str) or not action_id:
+            raise ActionError("Nonempty action ID required")
+        if not isinstance(params, dict):
+            raise ActionError("Command parameters must be a mapping")
+        self._actor(principal_id)
+        command_specs = {
+            "travel": ("start_travel", ("destination",)),
+            "gather": ("gather", ("item", "quantity")),
+            "found_company": ("found_company", ("company_id", "industry", "investment")),
+            "hire": ("hire", ("company_id", "worker_id", "wage")),
+            "shift": ("shift", ("company_id",)),
+            "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
+            "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
+            "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
+            "cancel_offer": ("cancel_offer", ("offer_id",)),
+            "buy_starter_gear": ("buy_starter_gear", ("kind",)),
+            "equip": ("equip", ("gear_id",)),
+            "unequip": ("unequip", ("slot",)),
+            "attack": ("attack", ("defender_id",)),
+        }
+        if action not in command_specs:
+            raise ActionError("Unknown or forbidden command")
+        method_name, fields = command_specs[action]
+        if set(params) != set(fields):
+            raise ActionError("Command parameter mismatch")
+        signature = (principal_id, action, tuple((field, repr(params[field])) for field in fields))
+        existing = self.state.command_receipts.get(action_id)
+        if existing is not None:
+            if existing[0] != signature:
+                raise ActionError("Action ID reused for a different command")
+            return existing[1]
+        previous_id = self._current_action_id
+        self._current_action_id = action_id
+        try:
+            result = getattr(self, method_name)(principal_id, *(params[field] for field in fields))
+            self.state.command_receipts[action_id] = (signature, result)
+            return result
+        finally:
+            self._current_action_id = previous_id
 
     def assert_invariants(self) -> None:
         if self.total_gold != self.initial_gold:

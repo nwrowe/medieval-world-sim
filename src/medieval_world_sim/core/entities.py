@@ -193,5 +193,8 @@ class WorldEvent:
     minute: int
     kind: str
     details: tuple
+    event_id: int = 0
+    action_id: str | None = None
+    schema_version: int = 1
 
 

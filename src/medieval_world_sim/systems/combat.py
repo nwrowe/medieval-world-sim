@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from ..equipment import GEAR, effective_attack, effective_defense
 from ..errors import ActionError
+from ..core.transactions import transfer_gold
 
 ATTACK_STAMINA_COST = 20
 STAMINA_REGEN_MINUTES = 5
@@ -35,8 +36,7 @@ class CombatSystem:
         price = GEAR[kind].base_value
         if actor.gold < price or not self.world._space_for(actor, kind, 1):
             raise ActionError("Insufficient gold or carrying capacity")
-        actor.gold -= price
-        self.world.crown_gold += price
+        transfer_gold(self.world, actor, None, price)
         gear = self.world._mint_gear(actor, kind, 10, "capital_starter_vendor")
         self.world._emit("starter_purchase", actor_id, gear.id, kind, price)
         self.world.assert_invariants()
@@ -128,8 +128,7 @@ class CombatSystem:
         if defender_dead:
             defender.defeated_until = self.world.minute + DEFEAT_RECOVERY_MINUTES
             looted = min(MAX_GOLD_LOOT, defender.gold)
-            defender.gold -= looted
-            attacker.gold += looted
+            transfer_gold(self.world, defender, attacker, looted)
             xp += 5  # Victory bonus, but no repeated reward while target is defeated.
         else:
             counter = self._strike(defender, attacker)

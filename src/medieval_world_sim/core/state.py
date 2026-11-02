@@ -20,3 +20,4 @@ class WorldState:
     crown_gold: int = 0
     initial_gold: int = 0
     events: list[WorldEvent] = field(default_factory=list)
+    command_receipts: dict[str, tuple] = field(default_factory=dict)
