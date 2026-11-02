@@ -27,3 +27,15 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim.combat_demo > /tmp/combat-demo.txt
+      - name: Smoke test deterministic NPC economy
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m medieval_world_sim.agents.demo --npcs 28 --days 6 --seed 42 --json > /tmp/npc-economy.json
+          cat /tmp/npc-economy.json
+      - name: Extended 30-day 50-NPC economy experiment
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m medieval_world_sim.agents.demo --npcs 50 --days 30 --seed 42 --json > /tmp/npc-economy-30d.json
+          cat /tmp/npc-economy-30d.json
