@@ -51,7 +51,9 @@ def run() -> RegionalWorld:
 
     world.assert_invariants()
     assert world.total_gold == starting_gold
-    assert world.actors["woodcutter"].inventory["sword"] == 1
+    assert len(world.actors["woodcutter"].gear_ids) == 1
+    sword = world.gear[world.actors["woodcutter"].gear_ids[0]]
+    assert sword.kind == "sword" and sword.quality >= 20
     return world
 
 
