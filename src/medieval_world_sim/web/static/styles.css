@@ -1,4 +1,4 @@
-/* Medieval World — responsive single-player client. No external assets required. */
+/* Oathmere — responsive single-player client. No external assets required. */
 :root {
   --deep: #152522;
   --forest: #1e3632;
@@ -502,4 +502,93 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .profile-hero { min-height:65px; padding:14px 17px; }
   .search-matches { padding:6px 13px 14px; }
   .search-results-panel .search-panel { padding:13px; }
+}
+
+
+/* Oathmere: direct city menu, compact cooldown cluster and spell progression UI. */
+.sidebar { padding-top:16px; }
+.sidebar-place { margin-bottom:14px; background:transparent; border:0; padding:8px 13px 13px; border-bottom:1px solid #cbd6c8; border-radius:0; }
+.sidebar-place strong { font-size:19px; }
+.side-nav { gap:2px; }
+.side-nav .nav-button { padding:10px 12px; min-height:40px; font-size:12.5px; }
+.nav-icon svg { width:20px; height:20px; display:block; margin:0 auto; }
+.cooldown-strip { border-left:1px solid rgba(255,255,255,.15); padding-left:10px; display:flex; gap:5px; align-items:center; min-width:0; }
+.cooldown-chip { display:flex; flex-direction:column; min-width:47px; align-items:center; justify-content:center; border:1px solid #456255; background:rgba(255,255,255,.035); color:#e5e9dc; border-radius:7px; padding:5px 6px; cursor:help; }
+.cooldown-chip span { color:#d7b979; font-size:17px; line-height:1; }
+.cooldown-chip strong { font-size:9px; line-height:1.35; margin-top:4px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.cooldown-chip.at-cap { border-color:#bb7458; }
+.cooldown-chip.at-cap span { color:#ffab82; }
+.cooldown-chip:focus-visible { outline:2px solid #e7c579; outline-offset:3px; }
+.school-overview { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:18px; }
+.school-tile { border:1px solid #d1d7cc; text-align:left; background:#fdfcf4; border-radius:11px; padding:15px 16px 14px; min-width:0; box-shadow:0 2px 8px rgba(26,51,37,.025); }
+.school-tile:hover { background:#f0f5ed; border-color:#99b4a2; }
+.school-tile.selected { border-color:#4f7e6c; background:#e6eee5; box-shadow:inset 0 0 0 1px #7fa890; }
+.school-tile-heading { display:flex; align-items:center; gap:10px; min-width:0; margin-bottom:11px; }
+.school-glyph { display:grid; place-items:center; width:32px; height:32px; flex-shrink:0; border-radius:8px; background:#e1eadd; color:#375c49; font:22px Georgia,serif; }
+.school-tile.selected .school-glyph { background:#305b4b; color:#ead7a7; }
+.school-tile-heading strong { font:600 17px Georgia,serif; color:#294638; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; }
+.school-tile-metrics { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 7px; color:#64776c; font-size:10px; }
+.school-tile-metrics strong { font-size:11px; font-variant-numeric:tabular-nums; }
+.school-tile .meter { height:6px; background:#dce3d7; }
+.school-tile .meter::-webkit-progress-value { background:#508b72; }
+.school-tile .meter::-moz-progress-bar { background:#508b72; }
+.magic-context { display:flex; justify-content:space-between; align-items:center; gap:15px; margin-bottom:9px; }
+.magic-context>div:first-child { display:flex; align-items:baseline; flex-wrap:wrap; gap:10px; }
+.magic-context strong { font:600 24px Georgia,serif; color:#314d3d; }
+.magic-context span { color:#78867b; font-size:12px; }
+.magic-context-stat { border:1px solid #d4c49a; background:#faf4e4; color:#8a6d3a; padding:7px 12px; border-radius:9px; font-weight:750; font-size:12px; }
+.magic-flow { color:#627466; font-size:11px; display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:17px; }
+.magic-flow>span:nth-child(even) { color:#b9a369; font-size:17px; }
+.magic-flow small { color:#a4835d; }
+.magic-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(215px,255px); gap:17px; align-items:start; }
+.magic-progression { display:flex; flex-direction:column; gap:13px; min-width:0; }
+.spell-tier-block { border:1px solid #d2dace; background:#fafaf5; border-radius:11px; overflow:hidden; }
+.spell-tier-heading { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#edf1e9; color:#536d5e; font-size:12px; font-weight:650; }
+.spell-tier-heading>strong { color:#3f6a52; font-size:11px; flex-shrink:0; }
+.tier-index { color:#6c5738; font-size:10px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.tier-inline-meter { flex:1; min-width:35px; margin-left:auto; max-width:155px; }
+.tier-inline-meter .meter { height:5px; }
+.spell-rows { padding:0 15px; }
+.spell-row { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid #e5e7de; }
+.spell-row:last-child { border-bottom:0; }
+.spell-symbol { display:grid; place-items:center; border-radius:50%; flex:0 0 30px; width:30px; height:30px; font:22px Georgia,serif; background:#ecede7; color:#8d967f; }
+.spell-row.is-learned .spell-symbol { background:#d9e8db; color:#4c7e5a; }
+.spell-description { flex:1; min-width:0; }
+.spell-description h4 { margin:0 0 5px; font:600 15px Georgia,serif; color:#314d3f; }
+.spell-meta { display:flex; gap:5px 11px; flex-wrap:wrap; font-size:10px; color:#849087; line-height:1.5; }
+.spell-status { color:#987c4b; font-weight:700; }
+.spell-status.learned { color:#437e58; }
+.spell-action .button { min-width:95px; font-size:11px; padding:8px 9px; }
+.magic-specialization .panel { padding:17px; }
+.magic-specialization .panel-head h3 { font-size:18px; }
+.attune-option { display:flex; align-items:center; gap:9px; border-top:1px solid #e3e5dc; padding:12px 0; cursor:pointer; font-size:12px; color:#345548; }
+.attune-option input { accent-color:#47765b; width:17px; height:17px; }
+.attune-option small { display:block; margin-top:3px; color:#85918b; font-size:10px; }
+@media (max-width:1300px) {
+  .topbar-inner>.statbar { max-width:none; }
+}
+@media (max-width:960px) {
+  .magic-layout { grid-template-columns:1fr; }
+  .magic-specialization .panel { padding:15px; }
+}
+@media (max-width:640px) {
+  .statbar { flex-wrap:wrap; }
+  .statbar>.vital { flex:1 1 0; }
+  .cooldown-strip { flex:1 0 100%; border-left:0; border-top:1px solid rgba(255,255,255,.1); padding:6px 0 1px; justify-content:flex-end; }
+  .cooldown-chip { flex-direction:row; gap:5px; padding:4px 9px; min-width:70px; }
+  .cooldown-chip strong { margin:0; }
+  .school-overview { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .school-tile { padding:11px 9px; }
+  .school-glyph { height:28px; width:28px; font-size:19px; }
+  .school-tile-heading { gap:6px; }
+  .school-tile-heading strong { font-size:14px; }
+  .school-tile-metrics { font-size:9px; }
+  .magic-context strong { font-size:21px; }
+  .spell-rows { padding:0 10px; }
+  .spell-row { gap:7px; }
+  .spell-symbol { width:23px; flex-basis:23px; height:23px; font-size:17px; }
+  .spell-description h4 { font-size:13px; }
+  .spell-action .button { min-width:68px; max-width:92px; font-size:10px; padding:7px 5px; }
+  .spell-tier-heading { padding:10px; gap:5px; }
+  .tier-inline-meter { max-width:65px; }
 }
