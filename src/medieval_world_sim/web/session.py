@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import random
 import secrets
 import threading
 import uuid
@@ -38,7 +39,17 @@ UI_ACTIONS = {
     "buy_vehicle", "select_vehicle", "unlock_magic", "practice_magic",
     "attune_magic", "buy_starter_gear", "equip", "unequip",
     "complete_city_contract", "store_goods", "retrieve_goods",
+    "start_duel", "duel_turn", "flee_duel", "cast_spell",
 }
+
+# Stable, seed-based test characters. They are NPCs, not authenticated users.
+NPC_NAMES = (
+    "Aldric Thorn", "Bryn Ashford", "Corin Vale", "Dara Flint",
+    "Elowen March", "Fenn Rowan", "Garrick Holt", "Hilda Moor",
+    "Ivor Stone", "Jessa Reed", "Kellan Frost", "Liora Fen",
+    "Marek Wolf", "Nessa Crow", "Orin Pike", "Petra Moss",
+    "Quinn Briar", "Rhea Flint", "Soren West", "Talia Brook",
+)
 
 
 class SaveError(Exception):
@@ -77,6 +88,17 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
         "goods_stored": f"Stored {info.get('quantity')} {str(info.get('item')).replace('_',' ')} in {info.get('city')}",
         "goods_retrieved": f"Retrieved {info.get('quantity')} {str(info.get('item')).replace('_',' ')} from {info.get('city')}",
+        "duel_started": f"Challenge begun against {info.get('defender_id')}",
+        "duel_round": (
+            f"Combat round {info.get('round')}: {info.get('move')} "
+            f"({info.get('damage')} damage, {info.get('retaliation')} returned)"
+        ),
+        "duel_finished": (
+            f"{info.get('winner_id')} defeated {info.get('loser_id')} "
+            f"and claimed {info.get('gold')} gold"
+        ),
+        "duel_fled": "Retreated from combat",
+        "spell_cast": f"Cast {info.get('node_id')}: {info.get('message')}",
         "city_contract_completed": (
             f"Completed {str(info.get('contract_id', '')).replace('_', ' ')} "
             f"(+{info.get('gold')}g, +{info.get('xp')} XP)"
@@ -97,6 +119,7 @@ class GameSession:
         self.world: WorldEngine | None = None
         self.name = ""
         self.seed = 42
+        self.npc_names: dict[str, str] = {}
         self.records: list[dict] = []
         self.event_times: dict[int, str] = {}
         if self.save_path.exists():
@@ -107,8 +130,17 @@ class GameSession:
         return self.world is not None
 
     def _new_world(self) -> WorldEngine:
-        return WorldEngine([Actor(PLAYER_ID, "human", city=START_CITY, gold=INITIAL_GOLD)],
-                           seed=self.seed)
+        rng = random.Random(self.seed)
+        names = list(NPC_NAMES)
+        rng.shuffle(names)
+        actors = [Actor(PLAYER_ID, "human", city=START_CITY, gold=INITIAL_GOLD)]
+        self.npc_names = {}
+        for city in CITIES:
+            for idx in range(3):
+                npc_id = f"npc:{city}:{idx}"
+                actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
+                self.npc_names[npc_id] = names.pop()
+        return WorldEngine(actors, seed=self.seed)
 
     def create(self, name: str) -> None:
         with self._lock:
@@ -186,7 +218,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self._advance_world(record["minutes"])
@@ -219,7 +251,12 @@ class GameSession:
             else:
                 result = self.world.execute(
                     PLAYER_ID, record["name"], record["params"], record["id"])
-            stored_record = {**record, "ruleset": 3,
+            # Retain ruleset 3 for established actions; old journal assertions and
+            # replay semantics must not shift when the new combat commands arrive.
+            ruleset = (4 if record["kind"] == "action" and
+                       record["name"] in {"start_duel", "duel_turn", "flee_duel", "cast_spell"}
+                       else 3)
+            stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
             try:
@@ -254,6 +291,8 @@ class GameSession:
     def _advance_world(self, minutes: int) -> None:
         if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
             raise ActionError("Time advancement must be 1–1440 minutes")
+        if self.world.state.duels:
+            raise ActionError("Finish or flee your duel before advancing world time")
         self.world.advance(minutes)
 
     def advance(self, minutes: int) -> None:
@@ -346,6 +385,33 @@ class GameSession:
                     if event.kind == "unequipped":
                         equipped_kinds.pop(info.get("slot"), None)
                 rendered_events.append(rendered)
+            duel = w.state.duels.get(PLAYER_ID)
+            active_duel = None
+            if duel:
+                foe = w.actors[duel.defender_id]
+                active_duel = {
+                    "opponent_id": foe.id, "opponent_name": self.npc_names.get(foe.id, foe.id),
+                    "opponent_hp": foe.hp, "opponent_max_hp": foe.max_hp,
+                    "round": duel.round, "log": list(duel.log),
+                    "pending_ward": duel.pending_ward,
+                }
+            characters = [{
+                "id": PLAYER_ID, "name": self.name, "city": actor.city, "level": actor.level,
+                "kind": "human", "hp": actor.hp, "max_hp": actor.max_hp,
+                "can_attack": False, "recovering_minutes": max(0, (actor.defeated_until or 0) - now),
+            }]
+            for npc_id, npc_name in self.npc_names.items():
+                npc = w.actors[npc_id]
+                characters.append({
+                    "id": npc.id, "name": npc_name, "city": npc.city,
+                    "level": npc.level, "kind": "npc", "hp": npc.hp, "max_hp": npc.max_hp,
+                    "can_attack": (
+                        npc.city == actor.city and npc.destination is None
+                        and npc.hp > 0 and actor.hp > 0 and not is_traveling
+                        and active_duel is None
+                    ),
+                    "recovering_minutes": max(0, (npc.defeated_until or 0) - now),
+                })
             return {
                 "started": True, "name": self.name,
                 "minute": now, "day": now // 1440 + 1,
@@ -399,6 +465,8 @@ class GameSession:
                         for item in (*FOOD_MINUTES, *POTION_MINUTES)
                     ],
                     "defeated_until": actor.defeated_until,
+                    "road_charm": actor.magic.road_charm,
+                    "ward_charge": actor.magic.ward_charge,
                     # Simulation seconds: the world currently advances on player actions,
                     # not elapsed real time. The client must label these honestly.
                     "stamina_next_sim_seconds": (
@@ -412,10 +480,11 @@ class GameSession:
                 },
                 "cities": places,
                 "contracts": w.city_contracts.view(PLAYER_ID),
-                # Single-player session: only this account is a playable user.
-                "users": [{"id": PLAYER_ID, "name": self.name,
-                           "city": actor.city, "level": actor.level}],
+                "users": characters,
                 "multiplayer": False,
+                "duel": active_duel,
+                "last_duel": w.state.last_duels.get(PLAYER_ID),
+                "combat_stamina_cost": 20,
                 "gatherable": dict(w.cities[actor.city].deposits),
                 "quotes": quote_list,
                 "housing": housing_data,

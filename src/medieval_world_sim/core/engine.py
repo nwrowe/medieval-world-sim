@@ -29,6 +29,8 @@ from ..systems.resources import ResourceSystem
 from ..systems.companies import CompanySystem
 from ..systems.market import MarketSystem
 from ..systems.combat import CombatSystem, CombatOutcome
+from ..systems.duels import DuelSystem
+from ..systems.spells import SpellSystem
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
@@ -75,6 +77,8 @@ class WorldEngine:
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
         self.combat = CombatSystem(self)
+        self.duel_system = DuelSystem(self)
+        self.spell_system = SpellSystem(self)
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
@@ -401,6 +405,22 @@ class WorldEngine:
         return self.combat.attack(attacker_id, defender_id)
 
     @atomic_action
+    def start_duel(self, attacker_id: str, defender_id: str) -> dict:
+        return self.duel_system.start(attacker_id, defender_id)
+
+    @atomic_action
+    def duel_turn(self, attacker_id: str, move: str, node_id: str) -> dict:
+        return self.duel_system.turn(attacker_id, move, node_id)
+
+    @atomic_action
+    def flee_duel(self, attacker_id: str) -> dict:
+        return self.duel_system.flee(attacker_id)
+
+    @atomic_action
+    def cast_spell(self, actor_id: str, node_id: str) -> dict:
+        return self.spell_system.field_cast(actor_id, node_id)
+
+    @atomic_action
     def consume(self, actor_id: str, item: str) -> tuple[int, int, int]:
         return self.consumables.consume(actor_id, item)
 
@@ -442,6 +462,10 @@ class WorldEngine:
                 "equip": ("equip", ("gear_id",)),
                 "unequip": ("unequip", ("slot",)),
                 "attack": ("attack", ("defender_id",)),
+                "start_duel": ("start_duel", ("defender_id",)),
+                "duel_turn": ("duel_turn", ("move", "node_id")),
+                "flee_duel": ("flee_duel", ()),
+                "cast_spell": ("cast_spell", ("node_id",)),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
                 "accept_job": ("accept_job", ("company_id",)),
@@ -461,6 +485,10 @@ class WorldEngine:
                 if existing[0] != signature:
                     raise ActionError("Action ID reused for a different command")
                 return existing[1]
+            # Duplicate requests must return their receipt even after a duel begins.
+            if (principal_id in self.state.duels
+                    and action not in ("duel_turn", "flee_duel")):
+                raise ActionError("Finish your current duel first")
             previous_id = self._current_action_id
             self._current_action_id = action_id
             try:
@@ -513,6 +541,19 @@ class WorldEngine:
                 for slot, gear_id in account.equipped.items():
                     if gear_id not in account.gear_ids or GEAR[self.gear[gear_id].kind].slot != slot:
                         raise AssertionError("Equipped item is not owned or is in wrong slot")
+        participants = []
+        for key, duel in self.state.duels.items():
+            if (key != duel.attacker_id or duel.attacker_id == duel.defender_id
+                    or duel.attacker_id not in self.actors or duel.defender_id not in self.actors
+                    or duel.round < 0 or duel.xp_earned < 0 or duel.pending_ward < 0):
+                raise AssertionError('Invalid active duel')
+            attacker, defender = self.actors[duel.attacker_id], self.actors[duel.defender_id]
+            if (attacker.city != defender.city or attacker.destination or defender.destination
+                    or attacker.hp <= 0 or defender.hp <= 0):
+                raise AssertionError('Invalid duel participants')
+            participants.extend((duel.attacker_id, duel.defender_id))
+        if len(participants) != len(set(participants)):
+            raise AssertionError('Actor participating in multiple duels')
         for company in self.companies.values():
             if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
                 raise AssertionError("Invalid company quality state")

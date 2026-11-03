@@ -1,4 +1,12 @@
 /* Oathmere — responsive single-player client. No external assets required. */
+.combat-vitals { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:20px; }
+.combat-vitals .meter { width:100%; }
+.combat-vitals p { margin:12px 0 0; font-size:13px; }
+.combat-actions { display:flex; flex-wrap:wrap; gap:9px; margin:12px 0 18px; }
+.combat-log { padding-left:22px; font-size:13px; line-height:1.8; color:var(--ink); }
+.combat-log li { padding:5px 0; border-bottom:1px solid var(--line); }
+@media (max-width:640px) { .combat-vitals { grid-template-columns:1fr; } }
+
 :root {
   --deep: #152522;
   --forest: #1e3632;

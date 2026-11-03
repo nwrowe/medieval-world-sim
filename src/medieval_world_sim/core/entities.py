@@ -48,6 +48,8 @@ class MagicState:
     attempts: int = 0
     attuned_paths: tuple[str, ...] = ()
     last_attunement_minute: int | None = None
+    road_charm: int = 0
+    ward_charge: int = 0
 
 
 @dataclass
@@ -205,6 +207,16 @@ class Actor:
     @ready_minute.setter
     def ready_minute(self, value: int) -> None:
         self.travel.ready_minute = value
+
+
+@dataclass
+class DuelState:
+    attacker_id: str
+    defender_id: str
+    round: int = 0
+    pending_ward: int = 0
+    xp_earned: int = 0
+    log: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
