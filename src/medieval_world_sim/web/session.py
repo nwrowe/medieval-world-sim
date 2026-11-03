@@ -286,6 +286,8 @@ class GameSession:
     def _advance_world(self, minutes: int) -> None:
         if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
             raise ActionError("Time advancement must be 1–1440 minutes")
+        if self.world.state.duels:
+            raise ActionError("Finish or flee your duel before advancing world time")
         self.world.advance(minutes)
 
     def advance(self, minutes: int) -> None:
