@@ -117,6 +117,8 @@ class SaveCompatibilityTests(unittest.TestCase):
             game.action("gather", {"item": "grain", "quantity": 2}, "gather")
             game.action("store_goods", {"item": "grain", "quantity": 2}, "store")
             self.assertEqual(game.snapshot()["player"]["stored_here"]["grain"], 2)
+            # Gathering has a cooldown; the employment hall respects it.
+            game.advance(60)
             game.action("complete_city_contract",
                 {"contract_id": "labor_shift"}, "job")
             self.assertEqual(game.snapshot()["player"]["work"]["shifts"], 1)
