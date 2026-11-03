@@ -100,6 +100,33 @@ class WebSessionTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.game.action("regional_buy", {"item": "grain", "quantity": 1}, "one-purchase")
 
+    def test_character_dashboard_equipment_and_persistence(self):
+        self.game.create("Riven Stone")
+        first = self.game.snapshot()
+        self.assertEqual(first["days_played"], 0)
+        self.assertEqual(first["net_worth_estimate"], 240)
+        self.assertEqual(first["player"]["strength"], 1)
+        self.assertEqual(first["player"]["defense"], 1)
+        self.assertEqual(first["player"]["work"]["manual"], 10)
+        self.assertEqual(first["gear"], [])
+        self.assertEqual(first["equipped"], {})
+        self.assertTrue(first["equipment_catalog"])
+
+        self.game.action("travel", {"destination": "crownreach"}, "trip-for-armory")
+        self.game.advance(60)
+        sword_id = self.game.action("buy_starter_gear", {"kind": "sword"}, "buy-sword")
+        self.assertIsInstance(sword_id, int)
+        self.game.action("equip", {"gear_id": sword_id}, "equip-sword")
+        view = self.game.snapshot()
+        self.assertEqual(view["equipped"]["weapon"], sword_id)
+        self.assertEqual(view["gear"][0]["id"], sword_id)
+        self.assertEqual(view["gear"][0]["kind"], "sword")
+        self.assertGreater(view["net_worth_estimate"], view["player"]["gold"])
+        self.assertEqual(GameSession(self.save).snapshot(), view)
+        self.game.action("unequip", {"slot": "weapon"}, "unequip-sword")
+        self.assertEqual(self.game.snapshot()["equipped"], {})
+        self.assertEqual(GameSession(self.save).snapshot(), self.game.snapshot())
+
     def test_forbidden_actions_and_invalid_time_do_not_modify_save(self):
         self.game.create("Ash Rowan")
         before = self.save.read_bytes()
