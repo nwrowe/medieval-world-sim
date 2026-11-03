@@ -123,6 +123,11 @@ class MagicSystem:
         state = actor.magic
         if node.tier == 0 or not self._active(actor, node):
             raise ActionError("Magic node is not unlocked or active")
+        # Advancing to a higher tier retires practice of lower-tier spells.
+        # It remains possible to use the nodes for effects once implemented.
+        if any(other.school == node.school and other.tier > node.tier
+               and other.id in state.unlocked for other in NODES.values()):
+            raise ActionError("This school tier is mastered; practice a higher tier")
         if state.mana < node.mana_cost:
             raise ActionError("Insufficient mana")
         # Hash-based roll has NO external RNG state to leak or desynchronize.
@@ -130,7 +135,7 @@ class MagicSystem:
         payload = f"{self.world.seed}|{actor_id}|{node_id}|{state.attempts}|{self.world.minute}"
         roll = (int.from_bytes(sha256(payload.encode()).digest()[:8], "big") % 100) + 1
         skill = state.school_xp.get(node.school, 0)
-        chance = max(5, min(95, 70 - node.difficulty + min(20, skill // 10)))
+        chance = max(90, min(98, 95 - node.difficulty // 12 + min(3, skill // 150)))
         success = roll <= chance
         state.attempts += 1
         state.mana -= node.mana_cost
