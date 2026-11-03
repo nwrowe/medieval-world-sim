@@ -916,8 +916,8 @@
     const p = state.player;
     const offers = (state.contracts || []).filter(contract => contract.venue === venue);
     const items = offers.map(contract => {
-      const ready = p.ready_minute <= state.minute;
-      const can = !isBusy() && ready && contract.can_pay && contract.has_material &&
+      const can = !isBusy() && contract.cooldown_available &&
+        contract.can_pay && contract.has_material &&
         p.stamina >= contract.stamina && p.mana >= contract.mana;
       const costs = [contract.stamina ? contract.stamina + ' stamina' : null,
         contract.mana ? contract.mana + ' mana' : null,
@@ -926,11 +926,11 @@
         '<p>' + esc(contract.description) + '</p>' +
         '<div class="contract-terms"><span>+' + contract.reward + ' gold</span>' +
         '<span>' + esc(costs.length ? costs.join(' · ') : 'No item cost') + '</span>' +
-        '<span>' + contract.cooldown_minutes + ' game-minute shift cooldown</span></div>' +
+        '<span>+' + contract.cooldown_minutes + 'm Job cooldown</span></div>' +
         (!contract.can_pay ? '<p class="small">The city cannot currently fund this offer.</p>' :
          !contract.has_material ? '<p class="small">You need ' + esc(pretty(contract.material)) + '.</p>' :
-         !ready ? '<p class="small">Available after ' +
-           (p.ready_minute - state.minute) + ' more game minutes.</p>' : '') +
+         !contract.cooldown_available ?
+           '<p class="small">Job cooldown limit: 24h. Pass game time to work again.</p>' : '') +
         '</div>' +
         button("Complete contract", 'data-ui="contract" data-contract="' +
           esc(contract.id) + '"' + disabled(!can), "secondary") + '</div>';
