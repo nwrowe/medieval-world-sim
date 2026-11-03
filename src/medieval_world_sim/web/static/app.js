@@ -6,51 +6,34 @@
   "use strict";
 
   const root = document.getElementById("app");
-  const tabs = [
-    { id: "world", icon: "⚑", title: "World Map" },
-    { id: "city", icon: "⌘", title: "City Map" },
+  const globeIcon = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" ' +
+    'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+    'stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/>' +
+    '<path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
+  const cityLinks = [
     { id: "market", icon: "⚖", title: "Market" },
-    { id: "magic", icon: "✧", title: "Magic" },
-    { id: "home", icon: "⌂", title: "Property" },
     { id: "job", icon: "▣", title: "Job" },
-    { id: "inventory", icon: "◫", title: "Inventory" },
+    { id: "warriors", icon: "⚔", title: "Warriors Guild" },
+    { id: "mageguild", icon: "✦", title: "Mage Guild" },
+    { id: "church", icon: "✝", title: "Church" },
+    { id: "armory", icon: "⚒", title: "Armory", onlyCity: "crownreach" },
+    { id: "healer", icon: "✚", title: "Healer" },
     { id: "training", icon: "✤", title: "Training Hall" },
+    { id: "tavern", icon: "♜", title: "Tavern" },
+    { id: "cityhall", icon: "♛", title: "City Hall" },
+    { id: "home", icon: "⌂", title: "Property" },
+    { id: "inventory", icon: "◫", title: "Inventory" },
+    { id: "magic", icon: "✧", title: "Magic" },
   ];
   const accountTabs = [
     { id: "character", icon: "♙", title: "Home" },
     { id: "equipment", icon: "⚔", title: "Equipment" },
+    { id: "world", icon: globeIcon, title: "World" },
     { id: "chronicle", icon: "▤", title: "Chronicle" },
     { id: "people", icon: "⌕", title: "Search" },
   ];
-  const cityLore = {
-    goldmeadow: {
-      title: "Where the road begins",
-      opening: "Morning bells drift across the grain fields of Goldmeadow. The gates stand open, traders argue over their loads, and a notice board promises honest pay to anyone brave enough to seek it.",
-      district: "Market lanes and farmsteads",
-    },
-    crownreach: {
-      title: "Under the royal banners",
-      opening: "The capital's stone gates open onto busy merchant streets. Armor rings from the smiths' quarter, and messengers hurry toward the guild halls with sealed contracts.",
-      district: "Royal market and guild quarter",
-    },
-    ironvale: {
-      title: "Where iron meets ambition",
-      opening: "Mine carts creak below Ironvale's steep walls. The forge smoke never settles, and a traveler can earn a name here as quickly as a wage.",
-      district: "The foundries and northern gates",
-    },
-    emberfall: {
-      title: "A city of fire and stone",
-      opening: "Orange light spills from Emberfall's furnaces long after sunset. Quarrymen and merchants share stories of dangerous roads beyond the city walls.",
-      district: "The quarry district",
-    },
-    greenhollow: {
-      title: "Between forest and stone",
-      opening: "In Greenhollow, timber wagons roll beneath ancient trees. Herbalists barter at the crossroads and the old paths invite both curiosity and caution.",
-      district: "Forest markets and herbal gardens",
-    },
-  };
   let state = null;
-  let tab = "city";
+  let tab = "world";
   let school = "restoration";
   let latestPractice = null;
   let latestContract = null;
@@ -251,7 +234,7 @@
     const place = p.destination ? ("En route to " + pretty(p.destination)) :
       (location ? placeName(location.name) : pretty(p.city));
     const renderers = {
-      city: renderCity, world: renderWorld, market: renderMarket,
+      world: renderWorld, market: renderMarket,
       magic: renderMagic, home: renderHome, job: renderJob,
       inventory: renderInventory, training: renderTraining,
       character: renderCharacter, equipment: renderEquipment,
@@ -260,9 +243,9 @@
       healer: renderHealer, cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
     };
-    const view = renderers[tab] || renderCity;
-    const worldLink = navButton(tabs[0], "world-first-link");
-    const sidebar = tabs.slice(1).map(t => navButton(t)).join('');
+    const view = renderers[tab] || renderWorld;
+    const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
+      .map(t => navButton(t)).join('');
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
@@ -280,15 +263,12 @@
       '</div></div></header>' +
       '<div class="workspace">' +
       '<aside class="sidebar" aria-label="Locations and services">' +
-      '<nav class="world-nav" aria-label="World map">' + worldLink + '</nav>' +
-      '<div class="sidebar-place"><small>Current location</small><strong>' +
-      esc(place) + '</strong><span>' + (p.destination ? "On the road" : "Inside the city walls") +
-      '</span></div><div class="sidebar-label">Places & services</div>' +
-      '<nav class="side-nav" aria-label="Location navigation">' + sidebar + '</nav>' +
-      '<div class="sidebar-foot">One world, five cities. Your choices make the story.</div>' +
+
+      '<div class="sidebar-place"><strong>' + esc(place) + '</strong></div>' +
+      '<nav class="side-nav" aria-label="City locations">' + sidebar + '</nav>' +
       '</aside><div class="main-column">' +
       '<details class="mobile-nav"><summary>☷ &nbsp; Locations & services · ' +
-      esc(place) + '</summary><nav aria-label="Mobile locations">' + worldLink + sidebar +
+      esc(place) + '</summary><nav aria-label="Mobile locations">' + sidebar +
       '</nav></details>' +
       '<main class="page" id="main-content">' + view() +
       '</main></div></div></div>';
