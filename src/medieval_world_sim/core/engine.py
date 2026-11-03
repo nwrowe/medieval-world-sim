@@ -193,9 +193,9 @@ class WorldEngine:
         return account.city
 
     def _space_for(self, actor: Actor | Company, item: str, quantity: int) -> bool:
-        return not isinstance(actor, Actor) or (
-            sum(actor.inventory.values()) + len(actor.gear_ids) + quantity <= CARRY_LIMIT
-        )
+        # City inventories are unbounded; road departures enforce the vehicle
+        # cargo limit instead. Preserve the signature for existing callers.
+        return True
 
     def _mint_gear(self, holder: Actor | Company, kind: str, quality: int, origin: str) -> GearItem:
         """Only called after authorized crafting or a paid capital starter purchase."""
@@ -453,8 +453,6 @@ class WorldEngine:
                     load = sum(account.inventory.values()) + len(account.gear_ids)
                     if load > self.housing_system.travel_cargo_limit(account):
                         raise AssertionError("Traveling actor over cargo limit")
-                if sum(account.inventory.values()) + len(account.gear_ids) > CARRY_LIMIT:
-                    raise AssertionError("Carrying limit exceeded")
                 if (account.destination is None) != (account.arrival_minute is None):
                     raise AssertionError("Inconsistent travel")
                 if not (0 <= account.hp <= account.max_hp and
