@@ -69,6 +69,14 @@ class TravelState:
 
 
 @dataclass
+class Cooldowns:
+    """Absolute simulation minute when each independent cooldown expires."""
+    job: int = 0
+    food: int = 0
+    potion: int = 0
+
+
+@dataclass
 class Actor:
     """One character model for human and NPC controllers.
 
@@ -92,6 +100,7 @@ class Actor:
     housing: HousingState = field(default_factory=HousingState)
     # Keep new fields at the end to preserve historical positional constructor calls.
     storage: dict[str, dict[str, int]] = field(default_factory=dict)
+    cooldowns: Cooldowns = field(default_factory=Cooldowns)
 
     @property
     def hp(self) -> int:
