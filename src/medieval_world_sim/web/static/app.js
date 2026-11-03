@@ -283,9 +283,9 @@
       '<div class="inventory-row"><span>' + esc(pretty(item)) +
       '</span><strong>× ' + qty + '</strong></div>'
     )).join("") : '<div class="empty">No items yet. Gather resources or visit a market.</div>';
-    body += '<div class="divider"></div><div class="small">Inventory: ' +
-      p.cargo + ' / 20 units · Travel limit: ' + p.cargo_limit +
-      ' units. Equipment also occupies space.</div>';
+    body += '<div class="divider"></div><div class="small">No fixed inventory limit in town. ' +
+      'To travel, carry at most ' + p.cargo_limit +
+      ' units, including equipment.</div>';
     return panel("Carried inventory", "Goods and resources", body, chip(p.cargo + " items"));
   }
   function activityPanel() {
@@ -344,10 +344,10 @@
         disabled(isBusy()), "full secondary") + '</div>'
     ).join("");
     const gathering = Object.entries(state.gatherable).map(([item, available]) => {
-      const quantity = Math.min(2, available, 20 - p.cargo);
+      const quantity = Math.min(2, available);
       return '<div class="resource-chip"><div><strong>' + esc(pretty(item)) +
         '</strong><div class="small">' + available + ' nearby</div></div>' +
-        button(quantity > 0 ? "Gather " + quantity : "Full", 'data-ui="gather" data-item="' +
+        button(quantity > 0 ? "Gather " + quantity : "Unavailable", 'data-ui="gather" data-item="' +
           esc(item) + '" data-qty="' + quantity + '"' +
           disabled(!ready || quantity < 1 || pending), "s secondary") + '</div>';
     }).join("") || '<p class="small">The capital has no natural resource deposits. ' +
@@ -387,13 +387,34 @@
       '</aside></div>';
   }
 
+  function sellOnlyGoods() {
+    const p = state.player;
+    const stock = state.quotes.filter(quote =>
+      !quote.locally_produced && quote.stock === 0 &&
+      (p.inventory[quote.item] || 0) > 0);
+    if (!stock.length) return "";
+    const rows = stock.map(q => {
+      const owned = p.inventory[q.item] || 0;
+      const amount = Math.min(owned, q.buy_capacity,
+        Math.floor(q.city_gold / q.player_sell_price));
+      return '<div class="inventory-row"><span>' + esc(pretty(q.item)) +
+        ' · owned ' + owned + ' · ' + q.player_sell_price + 'g each</span>' +
+        '<label class="sr" for="qty-' + esc(q.item) + '">Quantity</label>' +
+        '<input class="qty" id="qty-' + esc(q.item) +
+        '" type="number" min="1" max="20" value="1">' +
+        button("Sell", 'data-ui="sell" data-item="' + esc(q.item) + '"' +
+        disabled(!amount || isBusy()), "s secondary") + '</div>';
+    }).join("");
+    return panel("Sell carried imports", "Goods this city does not normally produce", rows);
+  }
+
   function renderMarket() {
     const p = state.player;
     const unavailable = isBusy();
-    const cards = state.quotes.map(quote => {
+    const localQuotes = state.quotes.filter(quote => quote.locally_produced || quote.stock > 0);
+    const cards = localQuotes.map(quote => {
       const owned = p.inventory[quote.item] || 0;
-      const maxBuy = Math.min(quote.sell_capacity, Math.floor(p.gold / quote.player_buy_price),
-        Math.max(0, 20 - p.cargo));
+      const maxBuy = Math.min(quote.sell_capacity, Math.floor(p.gold / quote.player_buy_price));
       const maxSell = Math.min(quote.buy_capacity, owned,
         Math.floor(quote.city_gold / quote.player_sell_price));
       return '<div class="market-card"><div class="mini-card-top">' +
@@ -416,12 +437,15 @@
         maxBuy + ', sell up to ' + maxSell + '</p></div>';
     }).join("");
     return heading("", "Market", "Trade using the current city's real stock and gold.") +
-      '<div class="callout mb-20"><strong>Merchant trading · ' + p.cargo +
-      '/20 inventory units · ' + p.cargo_limit + ' travel capacity</strong>' +
-      'Every sale is paid with the city’s existing gold and every purchase uses physical stock. ' +
-      'Travel to the producing cities to buy low, then sell at a higher bid elsewhere. ' +
-      'Daily limits and availability apply.</div>' +
-      '<div class="market-grid">' + cards + '</div>';
+      '<div class="callout mb-20"><strong>Local market · ' + p.cargo +
+      ' carried · Road limit ' + p.cargo_limit + '</strong>' +
+      'You can own any quantity of goods in a city. Travel requires loading no more ' +
+      'than your vehicle can carry. The city pays from its existing gold and ' +
+      'merchants only sell real stock.</div>' +
+      '<div class="market-grid">' +
+      (cards || '<p class="empty">No goods are stocked here yet. Sell locally acquired ' +
+      'materials to the merchants to seed the marketplace.</p>') + '</div>' +
+      '<div class="mt-13">' + sellOnlyGoods() + '</div>';
   }
 
   // Mastery tracks are a visual representation of existing school XP,
@@ -669,7 +693,7 @@
   }
   function renderInventory() {
     return heading("Belongings", "Inventory",
-      "Goods travel with you; there is no separate pack system.") +
+      "Own any amount in town; road travel has a cargo limit.") +
       '<div class="two-col"><div class="stack">' + inventoryPanel() +
       '</div><aside class="stack">' +
       panel("Trading & travel", "Inventory and vehicle limits",
@@ -765,7 +789,7 @@
       ' · ' + esc(pretty(item.slot)) + '</span>' +
       button("Buy · " + money(item.price),
         'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +
-        disabled(!inCapital || isBusy() || p.gold < item.price || p.cargo >= 20),
+        disabled(!inCapital || isBusy() || p.gold < item.price),
         "s secondary") + '</div>').join('');
     return heading("Armory", "Equipment",
       "Manage your character's real combat gear and active slots.") +
