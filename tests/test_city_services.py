@@ -129,10 +129,11 @@ class SaveCompatibilityTests(unittest.TestCase):
                 {"contract_id": "labor_shift"}, "job")
             self.assertEqual(result.reward, 9)
             self.assertEqual(len(game.records), record_count)
-            with self.assertRaises(ActionError):
-                game.action("complete_city_contract",
-                    {"contract_id": "labor_shift"}, "new-job-too-soon")
-            self.assertEqual(GameSession(path).snapshot(), view)
+            # New job cooldowns stack independently up to 24 simulated hours.
+            game.action("complete_city_contract",
+                {"contract_id": "labor_shift"}, "second-job")
+            self.assertEqual(game.snapshot()["player"]["cooldowns"]["job"]["remaining_minutes"], 120)
+            self.assertEqual(GameSession(path).snapshot(), game.snapshot())
 
 
 if __name__ == "__main__":
