@@ -40,9 +40,11 @@ class GameHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
-    def __init__(self, address, game: GameSession, token: str | None = None):
+    def __init__(self, address, game: GameSession, token: str | None = None,
+                 colab_preview: bool = False):
         self.game = game
         self.token = token
+        self.colab_preview = colab_preview
         super().__init__(address, GameHandler)
 
 
@@ -60,12 +62,18 @@ class GameHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("X-Frame-Options", "DENY")
+        if not self.server.colab_preview:
+            self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "no-referrer")
-        self.send_header("Content-Security-Policy",
-                         "default-src 'self'; style-src 'self'; script-src 'self'; "
-                         "connect-src 'self'; img-src 'self' data:; object-src 'none'; "
-                         "base-uri 'none'; frame-ancestors 'none'")
+        # Colab's port proxy is displayed inside a cross-origin notebook
+        # iframe. Its ancestor chain may include changing Google domains, so
+        # iframe support must be an explicit local-only opt-in.
+        csp = ("default-src 'self'; style-src 'self'; script-src 'self'; "
+               "connect-src 'self'; img-src 'self' data:; object-src 'none'; "
+               "base-uri 'none'")
+        if not self.server.colab_preview:
+            csp += "; frame-ancestors 'none'"
+        self.send_header("Content-Security-Policy", csp)
         self.end_headers()
         self.wfile.write(payload)
 
@@ -161,17 +169,22 @@ def main(argv=None):
                         help="Single-player JSON action journal")
     parser.add_argument("--access-token", default=None,
                         help="Optional access code; auto-generated for LAN binds")
+    parser.add_argument("--colab-preview", action="store_true",
+                        help="Permit Colab notebook iframe preview; localhost only")
     args = parser.parse_args(argv)
     # Deliberately no public TLS, hosting, or multiplayer support.
     if args.host not in ("127.0.0.1", "localhost", "0.0.0.0"):
         parser.error("Only localhost or explicitly trusted LAN binding is supported")
     if not 1 <= args.port <= 65535:
         parser.error("Port out of range")
+    if args.colab_preview and args.host not in ("127.0.0.1", "localhost"):
+        parser.error("--colab-preview must use localhost, not a LAN bind")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:
         token = secrets.token_urlsafe(18)
     session = GameSession(args.save)
-    with GameHTTPServer((args.host, args.port), session, token) as server:
+    with GameHTTPServer((args.host, args.port), session, token,
+                        colab_preview=args.colab_preview) as server:
         print(f"Medieval World web server: http://127.0.0.1:{server.server_port}", flush=True)
         print(f"Save: {Path(args.save).expanduser()}", flush=True)
         if args.host == "0.0.0.0":
@@ -179,6 +192,9 @@ def main(argv=None):
                   "from your phone", flush=True)
         if token:
             print(f"Game access code: {token}", flush=True)
+        if args.colab_preview:
+            print("Colab iframe preview enabled (local-only; do not expose publicly)",
+                  flush=True)
         print("Press Ctrl+C to stop.", flush=True)
         try:
             server.serve_forever()
