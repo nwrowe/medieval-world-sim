@@ -127,6 +127,38 @@ class WebSessionTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot()["equipped"], {})
         self.assertEqual(GameSession(self.save).snapshot(), self.game.snapshot())
 
+    def test_chronicle_records_real_action_times_and_exact_gear_names(self):
+        self.game.create("Chronicle Keeper")
+        self.game.action("travel", {"destination": "crownreach"}, "trip-to-crown")
+        self.game.advance(60)
+        sword_id = self.game.action("buy_starter_gear", {"kind": "sword"}, "buy-a-sword")
+        self.game.action("equip", {"gear_id": sword_id}, "equip-a-sword")
+        self.game.action("unequip", {"slot": "weapon"}, "remove-a-sword")
+        self.game.action("unlock_magic", {"node_id": "restoration.soothe_wounds"}, "learn-1")
+        self.game.action("practice_magic", {"node_id": "restoration.soothe_wounds"}, "practice-1")
+        chronicle = self.game.snapshot()["events"]
+        lines = [event["text"].lower() for event in chronicle]
+        self.assertTrue(any("purchased sword for 16g" in line for line in lines))
+        self.assertTrue(any("equipped sword" in line for line in lines))
+        self.assertTrue(any("unequipped sword" in line for line in lines))
+        self.assertTrue(any("soothe wounds" in line and "xp" in line for line in lines))
+        self.assertTrue(all("recorded_at" in event for event in chronicle))
+        self.assertTrue(all(event["recorded_at"] for event in chronicle))
+        self.assertEqual(GameSession(self.save).snapshot()["events"], chronicle)
+
+    def test_old_journal_without_wall_timestamps_remains_readable(self):
+        self.game.create("Old Chronicle")
+        self.game.action("gather", {"item": "grain", "quantity": 1}, "legacy-gather")
+        document = json.loads(self.save.read_text(encoding="utf-8"))
+        for record in document["records"]:
+            record.pop("recorded_at", None)
+        self.save.write_text(json.dumps(document), encoding="utf-8")
+        old = GameSession(self.save)
+        self.assertEqual(old.snapshot()["events"][0]["recorded_at"], None)
+        old.action("regional_sell", {"item": "grain", "quantity": 1}, "fresh-sale")
+        self.assertIsNotNone(old.snapshot()["events"][0]["recorded_at"])
+        self.assertEqual(GameSession(self.save).snapshot(), old.snapshot())
+
     def test_forbidden_actions_and_invalid_time_do_not_modify_save(self):
         self.game.create("Ash Rowan")
         before = self.save.read_bytes()
