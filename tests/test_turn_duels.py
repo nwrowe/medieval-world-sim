@@ -30,7 +30,8 @@ class DuelWebTests(unittest.TestCase):
         self.assertEqual(enemy["city"], "goldmeadow")
         starting_gold = self.game.world.actors[enemy["id"]].gold
         total = self.game.world.total_gold
-        self.do("start_duel", {"defender_id": enemy["id"]}, "start")
+        start = self.do("start_duel", {"defender_id": enemy["id"]}, "start")
+        self.assertEqual(self.do("start_duel", {"defender_id": enemy["id"]}, "start"), start)
         self.assertEqual(self.game.snapshot()["player"]["stamina"], 80)
         with self.assertRaises(ActionError):
             self.do("travel", {"destination": "crownreach"}, "no-travel")
@@ -58,6 +59,27 @@ class DuelWebTests(unittest.TestCase):
         self.assertIsNone(self.game.world.actors[enemy["id"]].defeated_until)
         self.assertEqual(self.game.world.actors[enemy["id"]].hp,
                          self.game.world.actors[enemy["id"]].max_hp)
+
+    def test_losing_hospitalizes_hero_and_transfers_five_percent(self):
+        foes = [p["id"] for p in self.game.snapshot()["users"] if p["can_attack"]]
+        self.do("start_duel", {"defender_id": foes[0]}, "first-start")
+        for turn in range(7):
+            self.do("duel_turn", {"move": "strike", "node_id": ""}, f"hurt-{turn}")
+        self.assertEqual(self.game.snapshot()["player"]["hp"], 3)
+        self.do("flee_duel", {}, "escape")
+        before = self.game.snapshot()["player"]["gold"]
+        self.do("start_duel", {"defender_id": foes[1]}, "second-start")
+        result = self.do("duel_turn", {"move": "strike", "node_id": ""}, "lose")
+        self.assertEqual(result["outcome"], "lost")
+        self.assertEqual(result["gold"], before * 5 // 100)
+        self.assertEqual(self.game.snapshot()["player"]["hp"], 0)
+        with self.assertRaises(ActionError):
+            self.do("start_duel", {"defender_id": foes[2]}, "hospital-attack")
+        self.assertEqual(GameSession(self.path).snapshot(), self.game.snapshot())
+        self.game.advance(60)
+        self.assertEqual(self.game.snapshot()["player"]["hp"],
+                         self.game.snapshot()["player"]["max_hp"])
+        self.assertIsNone(self.game.snapshot()["player"]["defeated_until"])
 
     def test_magic_in_duel_guard_and_field_healing(self):
         foe = self.enemy()["id"]
