@@ -481,3 +481,25 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .stash-row .qty { flex-basis:64px; }
   .stash-row .button { padding:7px 8px; }
 }
+
+/* Oathmere: map-first navigation, lean character overview, unified search. */
+.world-nav { margin-bottom:18px; }
+.world-nav .nav-button { width:100%; border-radius:10px; min-height:46px; padding:12px; background:#d3ddcf; color:#294c39; font-weight:750; font-size:13px; }
+.world-nav .nav-button:hover { background:#c3d5c5; }
+.world-nav .nav-button.active { background:#25493b; color:#f8dfae; }
+.profile-hero { justify-content:flex-start; min-height:85px; padding:18px 24px; }
+.profile-hero h3 { margin:0; }
+.chronicle-panel { padding:15px 20px; }
+.search-results-panel { padding:0; overflow:hidden; }
+.search-results-panel .search-panel { border:0; border-bottom:1px solid #d6d9cb; border-radius:0; margin:0; }
+.search-type { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:13px; }
+.search-type .button { min-width:108px; }
+.search-matches { padding:6px 20px 18px; }
+.search-matches .equipment-item:last-of-type { border-bottom:0; }
+.mobile-nav nav .world-first-link { font-weight:750; background:#dae5d8; }
+.mobile-nav nav .world-first-link.active { background:#27503d; }
+@media (max-width:640px) {
+  .profile-hero { min-height:65px; padding:14px 17px; }
+  .search-matches { padding:6px 13px 14px; }
+  .search-results-panel .search-panel { padding:13px; }
+}
