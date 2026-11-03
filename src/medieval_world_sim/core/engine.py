@@ -360,6 +360,7 @@ class WorldEngine:
     def complete_city_contract(self, actor_id: str, contract_id: str) -> CityContractResult:
         return self.city_contracts.complete(actor_id, contract_id)
 
+    @atomic_action
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
 
