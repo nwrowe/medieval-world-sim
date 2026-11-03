@@ -480,6 +480,11 @@ class WorldEngine:
             if account.gold < 0 or any(k not in GOODS or v < 0 for k, v in account.inventory.items()):
                 raise AssertionError("Negative or invalid asset")
             if isinstance(account, Actor):
+                if any(type(getattr(account.cooldowns, channel)) is not int
+                       or getattr(account.cooldowns, channel) < 0
+                       or max(0, getattr(account.cooldowns, channel) - self.minute) > 1440
+                       for channel in ("job", "food", "potion")):
+                    raise AssertionError("Cooldown exceeds 24-hour limit")
                 if any(city not in CITIES or not isinstance(goods, dict)
                        or any(item not in GOODS or type(qty) is not int or qty < 0
                               for item, qty in goods.items())
