@@ -255,14 +255,14 @@
         '<div class="card-grid">' + destinations + '</div>') +
       panel("Gather nearby resources", "Collect resources to sell locally or take to another city.",
         '<div class="resource-list">' + gathering + '</div>' +
-        (!ready && !traveling ? '<p class="small" class="mt-12">Gathering cooldown: ' +
+        (!ready && !traveling ? '<p class="small mt-12">Gathering cooldown: ' +
           Math.max(0, p.ready_minute - state.minute) + ' minutes remaining.</p>' : "")) +
       panel("Time and recovery", "World time advances when you choose to rest or travel.",
         '<div class="button-group">' +
         button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
         button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
         button("Next day", 'data-ui="advance" data-minutes="1440"' + disabled(pending), "ghost") +
-        '</div><p class="small" class="mt-12">Stamina and mana recover with time. ' +
+        '</div><p class="small mt-12">Stamina and mana recover with time. ' +
         'The world does not run in real time yet.</p>') +
       '</div><aside class="stack">' + inventoryPanel() + activityPanel() +
       '</aside></div>';
@@ -280,7 +280,7 @@
       return '<div class="market-card"><div class="mini-card-top">' +
         '<h3>' + esc(pretty(quote.item)) + '</h3>' +
         '<span class="inventory-pill">Owned: ' + owned + '</span></div>' +
-        '<p class="small" class="m-0">Merchant stock: ' + quote.stock +
+        '<p class="small m-0">Merchant stock: ' + quote.stock +
         ' · City gold: ' + money(quote.city_gold) + '</p>' +
         '<div class="prices"><div><small>Buy for</small><strong>' + quote.player_buy_price +
         'g</strong></div><div class="sell"><small>Sell for</small><strong>' +
@@ -293,13 +293,13 @@
           disabled(unavailable || !maxBuy), "secondary") +
         button("Sell", 'data-ui="sell" data-item="' + esc(quote.item) + '"' +
           disabled(unavailable || !maxSell), "") +
-        '</div><p class="small" class="m-0">Available: buy up to ' +
+        '</div><p class="small m-0">Available: buy up to ' +
         maxBuy + ', sell up to ' + maxSell + '</p></div>';
     }).join("");
     return '<div class="heading-row"><div><div class="section-kicker">Commerce & opportunity</div>' +
       '<h2>Regional marketplace</h2><p class="subheading">Buying prices differ by city. ' +
       'Carry goods where merchants pay more.</p></div>' + chip(money(p.gold)) + '</div>' +
-      '<div class="callout" class="mb-20"><strong>Merchant trading</strong>' +
+      '<div class="callout mb-20"><strong>Merchant trading</strong>' +
       'Every sale is paid with the city’s existing gold and every purchase uses physical stock. ' +
       'Travel to the producing cities to buy low, then sell at a higher bid elsewhere. ' +
       'Daily limits and availability apply.</div>' +
@@ -360,7 +360,7 @@
         '<div class="divider"></div><div class="mini-card-top"><strong>School experience</strong>' +
         '<strong>' + (p.school_xp[school] || 0) + ' XP</strong></div>' +
         progress(p.school_xp[school] || 0, 350) +
-        '<p class="small" class="mt-13">Basic practice eventually stops granting XP. ' +
+        '<p class="small mt-13">Basic practice eventually stops granting XP. ' +
         'Higher-tier studies unlock additional progression.</p>') +
       panel("Active specializations", "Select at most two advanced branches. Changing your " +
         "selection has a six-hour in-game cooldown.",
@@ -401,7 +401,7 @@
       const owns = h.vehicles.includes(v.id), active = h.active_vehicle === v.id;
       return '<div class="mini-card"><div class="mini-card-top"><div class="mini-card-title">' +
         esc(v.name) + '</div><span class="price">' + money(v.price) + '</span></div>' +
-        '<p class="small" class="m-0">Roads: ' + v.road_time_percent +
+        '<p class="small m-0">Roads: ' + v.road_time_percent +
         '% of walking time · ' + v.travel_cargo_limit +
         ' cargo units<br>Requires ' + esc(pretty(v.facility)) + '</p>' +
         (owns ? button(active ? "Park vehicle" : "Use vehicle",
@@ -415,13 +415,13 @@
     return '<div class="heading-row"><div><div class="section-kicker">A place to call your own</div>' +
       '<h2>Homes & transportation</h2><p class="subheading">Upgrade your home, train more ' +
       'efficiently, and travel faster.</p></div>' + chip(money(p.gold)) + '</div>' +
-      (h.tier ? '<div class="home-banner" class="mb-20">' +
+      (h.tier ? '<div class="home-banner mb-20">' +
         '<small>Your home · ' + esc(pretty(h.city)) + '</small>' +
         '<h3>' + esc(pretty(h.tier)) + '</h3>' +
         '<p>+' + h.training_bonus_pct + '% local training XP · ' +
         (h.active_vehicle ? esc(pretty(h.active_vehicle)) + ' ready' : "Traveling on foot") +
         '</p></div>' :
-        '<div class="callout" class="mb-20"><strong>Invest in your future</strong>' +
+        '<div class="callout mb-20"><strong>Invest in your future</strong>' +
         'Your first home unlocks a permanent local training bonus as you upgrade it. ' +
         'It also gives you somewhere to build transport facilities.</div>') +
       '<div class="stack">' +
