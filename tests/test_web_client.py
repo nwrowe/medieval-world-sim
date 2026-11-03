@@ -14,8 +14,9 @@ from medieval_world_sim.web.server import GameHTTPServer
 
 
 @contextmanager
-def running_server(session, token=None):
-    server = GameHTTPServer(("127.0.0.1", 0), session, token)
+def running_server(session, token=None, colab_preview=False):
+    server = GameHTTPServer(("127.0.0.1", 0), session, token,
+                            colab_preview=colab_preview)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -209,6 +210,29 @@ class WebHTTPTests(unittest.TestCase):
             self.assertEqual(status, 404)
             status, data, _ = api(port, "GET", "/../private.json")
             self.assertEqual(status, 404)
+
+    def test_frame_restrictions_default_and_opt_in_colab(self):
+        self.game.create("Colab Tester")
+        with running_server(self.game) as port:
+            status, headers, body = request(port, "GET", "/")
+            self.assertEqual(status, 200)
+            self.assertEqual(headers.get("X-Frame-Options"), "DENY")
+            self.assertIn("frame-ancestors 'none'",
+                          headers["Content-Security-Policy"])
+        with running_server(self.game, colab_preview=True) as port:
+            status, headers, body = request(port, "GET", "/")
+            self.assertEqual(status, 200)
+            self.assertNotIn("X-Frame-Options", headers)
+            self.assertNotIn("frame-ancestors",
+                             headers["Content-Security-Policy"])
+            self.assertIn("script-src 'self'",
+                          headers["Content-Security-Policy"])
+            # Preview mode does not relax the same-origin mutation barrier.
+            status, data, _ = api(port, "POST", "/api/advance",
+                                  {"minutes": 60},
+                                  headers={"Origin": "https://other.example"})
+            self.assertEqual(status, 403)
+            self.assertEqual(self.game.world.minute, 0)
 
     def test_rejected_actions_do_not_erase_existing_save(self):
         self.game.create("Flint Ford")
