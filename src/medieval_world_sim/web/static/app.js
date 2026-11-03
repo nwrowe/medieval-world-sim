@@ -714,29 +714,50 @@
         '<div class="location-grid">' + locations + '</div>');
   }
   function renderPeople() {
-    const users = (state.users || []).filter(person =>
-      person.name.toLowerCase().includes(peopleQuery.toLowerCase()));
-    const cards = users.map(person =>
-      '<div class="equipment-item"><div><h3>' + esc(person.name) +
-      '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
-      (person.id === "hero" ? ' · You' : '') + '</p></div>' +
-      button(person.id === "hero" ? "Your character" : "Attack",
-        'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
-        disabled(person.id === "hero" || !state.multiplayer || isBusy()),
-        "secondary") + '</div>').join("") || '<p class="empty">No matching players.</p>';
-    return heading("", "Find Players", "") +
-      '<div class="search-panel"><label for="people-query">Search player names</label>' +
-      '<div class="button-group"><input id="people-query" class="field" ' +
-      'type="search" maxlength="28" placeholder="Character name" value="' +
-      esc(peopleQuery) + '">' +
-      button("Search", 'data-ui="find-people"', "secondary") + '</div></div>' +
-      panel("Player directory", "Current server accounts", cards) +
-      '<p class="small mt-13">This server currently hosts one shared single-player character. ' +
-      'The player directory is genuine, but PvP will require persistent separate ' +
-      'user accounts, authenticated sessions and multiplayer combat. ' +
-      'No attack is possible against yourself.</p>';
+    const query = peopleQuery.trim().toLowerCase();
+    const players = (state.users || []).filter(person =>
+      person.name.toLowerCase().includes(query));
+    const market = (state.quotes || []).filter(quote =>
+      (quote.locally_produced || quote.stock > 0) &&
+      pretty(quote.item).toLowerCase().includes(query));
+    const rows = searchScope === "players" ?
+      players.map(person =>
+        '<div class="equipment-item"><div><h3>' + esc(person.name) +
+        '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
+        (person.id === "hero" ? ' · You' : '') + '</p></div>' +
+        button(person.id === "hero" ? "Your character" : "Attack",
+          'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
+          disabled(person.id === "hero" || !state.multiplayer || isBusy()),
+          "secondary") + '</div>').join('') :
+      market.map(quote =>
+        '<div class="equipment-item"><div><h3>' + esc(pretty(quote.item)) +
+        '</h3><p>Stock: ' + quote.stock + ' · Buy ' +
+        money(quote.player_buy_price) + ' · Sell ' +
+        money(quote.player_sell_price) + '</p></div>' +
+        button("View Market", 'data-tab="market"', "s secondary") +
+        '</div>').join('');
+    const hint = searchScope === "players" ?
+      'Only your character exists on this single-player server. Other player attacks require multiplayer accounts.' :
+      'Showing goods available in the current city market, including locally produced goods with zero stock.';
+    return heading("", "Search", "") +
+      '<section class="panel search-results-panel">' +
+      '<div class="search-panel">' +
+      '<label for="people-query">Find</label>' +
+      '<div class="search-type" role="group" aria-label="Search category">' +
+      button("Players", 'data-ui="search-type" data-scope="players" aria-pressed="' +
+        (searchScope === "players") + '"', searchScope === "players" ? "secondary" : "ghost") +
+      button("Market Items", 'data-ui="search-type" data-scope="market" aria-pressed="' +
+        (searchScope === "market") + '"', searchScope === "market" ? "secondary" : "ghost") +
+      '</div><div class="button-group"><input id="people-query" class="field" ' +
+      'type="search" maxlength="64" placeholder="' +
+      (searchScope === "players" ? "Character name" : "Item name") +
+      '" value="' + esc(peopleQuery) + '">' +
+      button("Search", 'data-ui="find-people"', "secondary") +
+      '</div></div><div class="search-matches">' +
+      (rows || '<p class="empty">No matches.</p>') +
+      '<p class="small mt-13">' + esc(hint) + '</p>' +
+      '</div></section>';
   }
-
   function renderInventory() {
     const p = state.player;
     const stash = p.stored_here || {};
@@ -1086,6 +1107,10 @@
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
       case "find-people":
         peopleQuery = document.getElementById("people-query").value.trim();
+        render(); break;
+      case "search-type":
+        peopleQuery = document.getElementById("people-query").value.trim();
+        searchScope = element.dataset.scope === "market" ? "market" : "players";
         render(); break;
       case "player-attack":
         notify("PvP requires multiple authenticated accounts; only this character exists.", true); break;
