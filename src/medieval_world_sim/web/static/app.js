@@ -20,6 +20,7 @@
     { id: "character", icon: "♙", title: "Home" },
     { id: "equipment", icon: "⚔", title: "Equipment" },
     { id: "chronicle", icon: "▤", title: "Chronicle" },
+    { id: "people", icon: "⌕", title: "Players" },
   ];
   const cityLore = {
     goldmeadow: {
@@ -52,6 +53,8 @@
   let tab = "city";
   let school = "restoration";
   let latestPractice = null;
+  let latestContract = null;
+  let peopleQuery = "";
   let pending = false;
   let authNeeded = false;
   let offline = false;
@@ -167,6 +170,9 @@
         latestPractice = { ...result.result, nodeId: body.params.node_id };
         tab = "magic";
       }
+      if (body && body.action === "complete_city_contract" && result.result) {
+        latestContract = result.result;
+      }
       notify(success);
     } catch (error) {
       notify(error.message, true);
@@ -212,10 +218,17 @@
       button("Reconnect", 'data-ui="reload"', "full") + '</div></div>';
   }
 
-  function meterStat(label, value, max, kind) {
+  function meterStat(label, value, max, kind, simSeconds) {
     const v = Number(value) || 0;
     const maximum = Math.max(1, Number(max) || 1);
-    return '<div class="vital vital-' + kind + '">' +
+    let hint = "Full";
+    if (v < maximum) hint = simSeconds == null ?
+      "No passive recovery available" :
+      "Next increase in " + simSeconds +
+      " simulated seconds — use Rest or advance world time";
+    return '<div class="vital vital-' + kind +
+      '" title="' + esc(hint) + '" tabindex="0" aria-label="' +
+      esc(label + ': ' + v + ' of ' + maximum + '. ' + hint) + '">' +
       '<div class="vital-caption"><span>' + esc(label) + '</span><strong>' +
       v + '/' + maximum + '</strong></div>' +
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
@@ -242,7 +255,7 @@
       chronicle: renderChronicle, warriors: renderWarriorsGuild,
       mageguild: renderMageGuild, tavern: renderTavern,
       healer: renderHealer, cityhall: renderCityHall,
-      church: renderChurch,
+      church: renderChurch, people: renderPeople,
     };
     const view = renderers[tab] || renderCity;
     const sidebar = tabs.map(t => navButton(t)).join('');
@@ -251,9 +264,9 @@
       '<header class="topbar"><div class="topbar-inner">' +
       '<div class="brand"><div class="brand-mark">✦</div><span>MEDIEVAL WORLD</span></div>' +
       '<div class="statbar" aria-label="Character vitals">' +
-      meterStat("Health", p.hp, p.max_hp, "health") +
-      meterStat("Stamina", p.stamina, p.max_stamina, "stamina") +
-      meterStat("Mana", p.mana, p.max_mana, "mana") +
+      meterStat("Health", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
+      meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
+      meterStat("Mana", p.mana, p.max_mana, "mana", p.mana_next_sim_seconds) +
       '<div class="gold-total"><small>Gold</small><strong>' +
       esc(money(p.gold)) + '</strong></div></div>' +
       '<div class="top-actions">' +
@@ -691,6 +704,30 @@
       panel("Streets & districts", lore.district,
         '<div class="location-grid">' + locations + '</div>');
   }
+  function renderPeople() {
+    const users = (state.users || []).filter(person =>
+      person.name.toLowerCase().includes(peopleQuery.toLowerCase()));
+    const cards = users.map(person =>
+      '<div class="equipment-item"><div><h3>' + esc(person.name) +
+      '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
+      (person.id === "hero" ? ' · You' : '') + '</p></div>' +
+      button(person.id === "hero" ? "Your character" : "Attack",
+        'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
+        disabled(person.id === "hero" || !state.multiplayer || isBusy()),
+        "secondary") + '</div>').join("") || '<p class="empty">No matching players.</p>';
+    return heading("", "Find Players", "") +
+      '<div class="search-panel"><label for="people-query">Search player names</label>' +
+      '<div class="button-group"><input id="people-query" class="field" ' +
+      'type="search" maxlength="28" placeholder="Character name" value="' +
+      esc(peopleQuery) + '">' +
+      button("Search", 'data-ui="find-people"', "secondary") + '</div></div>' +
+      panel("Player directory", "Current server accounts", cards) +
+      '<p class="small mt-13">This server currently hosts one shared single-player character. ' +
+      'The player directory is genuine, but PvP will require persistent separate ' +
+      'user accounts, authenticated sessions and multiplayer combat. ' +
+      'No attack is possible against yourself.</p>';
+  }
+
   function renderInventory() {
     return heading("Belongings", "Inventory",
       "Own any amount in town; road travel has a cargo limit.") +
@@ -956,6 +993,11 @@
         break;
       }
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
+      case "find-people":
+        peopleQuery = document.getElementById("people-query").value.trim();
+        render(); break;
+      case "player-attack":
+        notify("PvP requires multiple authenticated accounts; only this character exists.", true); break;
       case "study-restoration":
         school = "restoration"; tab = "magic"; render(); break;
       case "unlock": action("unlock_magic", { node_id: node }, "New magical ability unlocked"); break;
