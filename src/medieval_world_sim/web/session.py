@@ -22,6 +22,7 @@ from ..core.entities import Actor
 from ..content.housing import HOMES, HOME_ORDER, FACILITIES, VEHICLES
 from ..content.magic_tree import SCHOOLS
 from ..errors import ActionError
+from ..equipment import GEAR, suggested_value, effective_attack, effective_defense
 
 SAVE_VERSION = 1
 PLAYER_ID = "hero"
@@ -33,7 +34,7 @@ UI_ACTIONS = {
     "travel", "gather", "regional_buy", "regional_sell",
     "consume", "buy_home", "upgrade_home", "build_home_facility",
     "buy_vehicle", "select_vehicle", "unlock_magic", "practice_magic",
-    "attune_magic",
+    "attune_magic", "buy_starter_gear", "equip", "unequip",
 }
 
 
@@ -59,6 +60,9 @@ def _friendly_event(event):
         "magic_practiced": f"Practiced {info.get('node_id')} (+{info.get('xp_gained')} XP)",
         "magic_attuned": "Updated advanced magic specializations",
         "consumed": f"Used {info.get('item')}",
+        "starter_purchase": f"Purchased {info.get('kind', 'starter equipment')}",
+        "equipped": "Changed equipped gear",
+        "unequipped": "Unequipped gear",
     }
     return {"minute": event.minute, "text": readable.get(event.kind, event.kind)}
 
@@ -228,6 +232,33 @@ class GameSession:
                 {**asdict(node), "prerequisites": list(node.prerequisites)}
                 for node in w.magic_tree(PLAYER_ID)
             ]
+            owned_gear = [
+                {
+                    "id": gid, "kind": w.gear[gid].kind,
+                    "slot": GEAR[w.gear[gid].kind].slot,
+                    "quality": w.gear[gid].quality,
+                    "durability": w.gear[gid].durability,
+                    "max_durability": w.gear[gid].max_durability,
+                    "attack": effective_attack(w.gear[gid]),
+                    "defense": effective_defense(w.gear[gid]),
+                    "value": suggested_value(w.gear[gid]),
+                }
+                for gid in actor.gear_ids
+            ]
+            gear_catalog = [
+                {"kind": kind, "slot": spec.slot, "price": spec.base_value}
+                for kind, spec in GEAR.items()
+            ]
+            resale_prices = {q["item"]: q["player_sell_price"] for q in quote_list}
+            property_value = (HOMES[housing.tier].price if housing.tier else 0)
+            facility_value = sum(FACILITIES[k].price for k in housing.facilities)
+            vehicle_value = sum(VEHICLES[k].price for k in housing.vehicles)
+            trade_goods_value = sum(
+                quantity * resale_prices.get(item, 0)
+                for item, quantity in actor.inventory.items()
+            )
+            net_worth = (actor.gold + property_value + facility_value + vehicle_value
+                         + trade_goods_value + sum(item["value"] for item in owned_gear))
             housing_data = {
                 **asdict(housing),
                 "facilities": list(housing.facilities),
@@ -236,6 +267,13 @@ class GameSession:
             return {
                 "started": True, "name": self.name,
                 "minute": now, "day": now // 1440 + 1,
+                "days_played": now // 1440,
+                "net_worth_estimate": net_worth,
+                "net_worth_basis": "Gold plus purchase prices of property and vehicles, "
+                                   "local raw-goods resale quotes, and estimated equipment value",
+                "gear": owned_gear,
+                "equipment_catalog": gear_catalog,
+                "equipped": dict(actor.equipped),
                 "player": {
                     "city": actor.city, "destination": actor.destination,
                     "arrival_minute": actor.arrival_minute,
@@ -243,6 +281,15 @@ class GameSession:
                     "stamina": actor.stamina, "max_stamina": actor.max_stamina,
                     "hunger": actor.vitals.hunger, "level": actor.level,
                     "combat_xp": actor.combat_xp,
+                    "level_xp": actor.level_xp,
+                    "strength": actor.strength, "defense": actor.defense,
+                    "work": {
+                        "manual": actor.work.manual,
+                        "intelligence": actor.work.intelligence,
+                        "endurance": actor.work.endurance,
+                        "shifts": actor.work.shifts,
+                        "experience": dict(actor.work.experience),
+                    },
                     "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
                     "school_xp": dict(actor.magic.school_xp),
                     "insight": actor.magic.insight,
