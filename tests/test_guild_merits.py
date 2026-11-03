@@ -84,7 +84,7 @@ class MeritReplayTests(unittest.TestCase):
         self.assertEqual(self.session.snapshot()["merits"]["balance"], 0)
         self.assertEqual(self.session.snapshot()["merits"]["total_earned"], 2)
         self.assertIn("roadcraft", self.session.world.state.merit_upgrades["hero"])
-        after = self.session.world.start_travel("hero", "crownreach")
+        after = self.command("travel", {"destination": "crownreach"}, "travel-perk")
         self.assertLess(after, before)
         self.assertEqual(GameSession(self.path).snapshot(), self.session.snapshot())
         self.session.world.assert_invariants()
