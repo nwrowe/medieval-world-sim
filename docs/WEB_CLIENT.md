@@ -55,3 +55,33 @@ python -m medieval_world_sim.web --help
 \`\`\`
 
 The standard test suite covers end-to-end HTTP action handling, replay, idempotent purchase requests, auth and origin protection, static file boundaries, and genuine game economics as well as the pre-existing simulations.
+
+## Google Colab notebook preview
+
+The default web server protects against being embedded in other pages. Colab's \`output.serve_kernel_port_as_iframe\` needs an explicit opt-in **\`--colab-preview\`** to permit notebook framing while keeping the rest of the Content Security Policy and same-origin API checks in place. The option accepts **localhost only**; it will not run with \`--host 0.0.0.0\`.
+
+After cloning this branch and installing the project in Colab, mount Google Drive if you want to keep saves, then start the process:
+
+\`\`\`python
+import subprocess, sys, time, urllib.request
+from google.colab import drive, output
+
+drive.mount("/content/drive")
+server = subprocess.Popen([
+    sys.executable, "-m", "medieval_world_sim.web",
+    "--host", "127.0.0.1", "--port", "8765",
+    "--colab-preview",
+    "--save", "/content/drive/MyDrive/medieval-world-save.json",
+], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+time.sleep(2)
+if server.poll() is not None:
+    print("Server startup failed:", server.stderr.read().decode())
+else:
+    print(urllib.request.urlopen("http://127.0.0.1:8765/api/health").read().decode())
+    output.serve_kernel_port_as_iframe(8765, height=850)
+\`\`\`
+
+If a previous game process is still running on port 8765, stop it first (for example \`server.terminate(); server.wait()\` in the earlier notebook cell) before starting a new process with the flag. If you already installed the game from GitHub in an editable Colab checkout, run \`!git pull\` in the project directory first to receive the new option. The preview still depends on Colab's proxy and browser settings, so some browsers may prevent it even with this fix.
+
+**Security:** Colab preview relaxes *only framing* and should be used for a personal interactive notebook session. The temporary Colab proxy can have its own access restrictions; this mode is not designed for public hosting or sharing the game URL. Keep your notebook and save in your private Drive, and do not expose or forward port 8765 to the internet.

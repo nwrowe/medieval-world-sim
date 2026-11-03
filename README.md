@@ -181,3 +181,7 @@ python -m medieval_world_sim.web --host 0.0.0.0 --port 8765
 Then open `http://YOUR_COMPUTER_LAN_IP:8765` on the phone and enter the **game access code printed on the computer**. Keep the server running while using the phone. This LAN mode uses ordinary HTTP, so **do not expose it on the internet**; public hosting, HTTPS, accounts and multiplayer are not supported yet. Firewalls may need an inbound LAN rule.
 
 The default save location is `~/.medieval-world-sim/save.json`. To use another save, start the server with `--save /path/to/save.json`. This is a bounded single-player prototype; do not edit the journal by hand. See [web client instructions](docs/WEB_CLIENT.md) for features and limits.
+
+### Google Colab preview
+
+For a Colab notebook iframe, start the web server with `--colab-preview` on `127.0.0.1`, then call `output.serve_kernel_port_as_iframe(8765, height=850)`. The ordinary server still blocks framing by default. See [the Colab instructions](docs/WEB_CLIENT.md#google-colab-notebook-preview) for a complete setup, persistent Drive saves and security limitations.
