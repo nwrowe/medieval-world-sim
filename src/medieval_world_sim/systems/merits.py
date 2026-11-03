@@ -33,7 +33,7 @@ class MeritSystem:
         if key == "first_steps": return True
         if key == "apprentice": return actor.level >= 2
         if key == "roadfarer": return any(e.kind == "arrived" and e.data.get("actor_id") == actor_id for e in events)
-        if key == "spellbound": return bool(actor.magic.unlocked)
+        if key == "spellbound": return any(node != "arcane_fundamentals" for node in actor.magic.unlocked)
         if key == "challenger": return any(e.kind == "duel_finished" and e.data.get("winner_id") == actor_id for e in events)
         if key == "stablehand": return bool(self.world.state.horses.get(actor_id))
         if key == "rider": return self.world.state.riding_xp.get(actor_id, 0) > 0
