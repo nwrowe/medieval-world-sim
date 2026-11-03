@@ -4,12 +4,23 @@
 
 The responsive browser UI is backed directly by the \`WorldEngine\` and therefore inherits its item inventory and gold conservation, cooldowns, merchant stocks, regional prices, mana and house costs. The browser never directly edits gold, XP or city stock.
 
-**Screens**
+**Location-first screens**
 
-- **Explore:** Five-city travel, exact personalized trip durations, progress while traveling, resource harvesting and cooldowns, rest/day advancement, inventory and an activity chronicle.
-- **Market:** Local merchant bids and asks for each raw material, actual city stock/funds and buy/sell quantity controls. Travel with goods and sell at higher destination prices.
-- **Magic:** All six schools and their 36 nodes. See requirements, unlock nodes using Insight, practice with mana, and select up to two Tier III attunements. Magic effects and paid jobs are *not* available yet.
-- **Property:** Buy and upgrade a home; purchase stables or carriage houses, buy a horse or carriage, and choose transport. Homes add XP in their home city, and purchased vehicles affect road journey time and travel carrying capacity.
+- **City Map:** Character introduction and city-specific narrative, with working links to the market, Mage Guild studies, property, tavern and the city gates. Warriors Guild, employment hall and training hall have descriptive *planned-feature* views; they do not fabricate contracts, rewards, or training outcomes.
+- **World Map:** Five-city travel, personalized trip durations, gathering and cooldowns, manual time advancement and recovery. All current roads connect through Crownreach.
+- **Market:** Actual local bids, asks, inventory limits, merchant stock/funds, and buy/sell quantity controls.
+- **Magic:** Six schools and their unlockable practice-based nodes, Insight and at most two active Tier III specializations. Paid magic contracts and practical spell effects remain planned.
+- **Property:** Five housing tiers, facilities, and purchase/selectable horse and carriage transport.
+- **Job:** Existing work stats are displayed; browser employment and paid shift contracts remain planned.
+- **Inventory:** Your carried goods; there is no separate "Pack" status display.
+- **Training Hall:** Preview of future long-term combat/work-attribute training; no fake courses or payments.
+- **Character Home (top-right):** Name, health, level and progress, combat stats, work stats, money, estimated net worth, simulated days played, housing and magic experience.
+- **Equipment (top-right):** Actually own, buy, equip and unequip durable items through the engine. Basic stock is sold only in Crownreach; items occupy inventory capacity.
+- **Chronicle (top-right):** Recent game events with simulation-relative timestamps.
+
+The compact top header displays colored Health, Stamina and Mana progress meters, values, and Gold. The rightmost world clock uses **America/New_York** wall-clock time and automatically accounts for Eastern standard/daylight time. This is purely a display convention: the underlying simulation still progresses only on explicit player time advancement or travel. The Character Home reports *simulated days played*, not elapsed calendar days, and Chronicle uses simulation-relative timestamps. This separation avoids silently altering travel, cooldowns, or recovery rules.
+
+The **estimated net worth** consists of gold plus the acquisition values of owned property/facilities/vehicles, local resale estimates of raw goods, and appraised gear value. It is not a guarantee of cash liquidation value.
 
 The first player starts in Goldmeadow with 240 gold, and can trade, travel and gather to earn more. Resource deposits and hourly regeneration are part of the existing simulation. The clock is explicitly advanced by pressing **Rest 1 hour / Pass 6 hours / Next day**, or **Complete journey** after beginning travel. The world **does not continue advancing in real time while the app is closed**, nor do independent background NPCs run in this specific solo session. Those are future systems.
 
@@ -44,7 +55,7 @@ The journal is currently single-player and bounded to 20,000 records. Startup re
 
 \`GET /\`, \`GET /app.js\`, \`GET /styles.css\` and \`GET /favicon.svg\` serve a static responsive frontend. \`GET /api/state\` returns detached, read-only world views including property definitions, magic node eligibility, city information and market quotes. \`POST /api/new\` creates one character. \`POST /api/action\` invokes an explicitly allowlisted game command with an idempotent request ID. \`POST /api/advance\` advances world time by a bounded integer 1–1440 minutes. \`GET /api/health\` reports process health.
 
-The explicit web action allowlist is **travel, gather, buy/sell raw goods, consume, buy/upgrade homes, build facilities, purchase/select vehicles, unlock/practice/attune magic**. Company ownership, combat, player-versus-player markets, autonomous NPC simulation, world effects and higher-level trading contracts exist partially in the engine but are not yet in the web UI. The client does not pretend to expose those gameplay loops yet.
+**Equipment actions** are now also authorized: `buy_starter_gear`, `equip`, `unequip` (the engine still restricts starter purchases to Crownreach and validates equipment ownership). The explicit web action allowlist is **travel, gather, buy/sell raw goods, consume, buy/upgrade homes, build facilities, purchase/select vehicles, unlock/practice/attune magic**. Company ownership, combat, player-versus-player markets, autonomous NPC simulation, world effects and higher-level trading contracts exist partially in the engine but are not yet in the web UI. The client does not pretend to expose those gameplay loops yet.
 
 ## Developer commands
 
