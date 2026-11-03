@@ -192,9 +192,6 @@ class WorldEngine:
 
     def _at_city(self, account: Actor | Company) -> str:
         if isinstance(account, Actor):
-            if any(account.id in (d.attacker_id, d.defender_id)
-                   for d in self.state.duels.values()):
-                raise ActionError('Finish your current duel first')
             if account.destination is not None:
                 raise ActionError("Cannot act while traveling")
             if account.hp <= 0:
@@ -439,6 +436,9 @@ class WorldEngine:
             if not isinstance(params, dict):
                 raise ActionError("Command parameters must be a mapping")
             self._actor(principal_id)
+            if (principal_id in self.state.duels
+                    and action not in ("duel_turn", "flee_duel")):
+                raise ActionError("Finish your current duel first")
             command_specs = {
                 "travel": ("start_travel", ("destination",)),
                 "gather": ("gather", ("item", "quantity")),
