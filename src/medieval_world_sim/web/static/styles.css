@@ -353,3 +353,92 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .gold-total strong { font-size:10px; }
   .location-card .button { padding:8px 6px; }
 }
+
+
+/* Interactive illustrated atlas: map artwork remains decorative, marker buttons
+   are semantic controls with keyboard focus and hover/focus labels. */
+.world-atlas {
+  overflow:hidden; border:1px solid #bba87e; border-radius:16px;
+  background:#d6bf8e; box-shadow:0 12px 30px rgba(36,36,25,.12);
+  margin-bottom:22px;
+}
+.atlas-canvas { position:relative; width:100%; aspect-ratio:1000/620; background:#dac799; }
+.atlas-canvas>img { display:block; width:100%; height:100%; object-fit:cover; pointer-events:none; }
+.map-pin {
+  position:absolute; display:flex; flex-direction:column; align-items:center;
+  gap:3px; transform:translate(-50%,-50%); border:0; border-radius:9px;
+  padding:5px 7px; min-width:90px;
+  color:#3e3929; background:rgba(249,237,204,.82);
+  box-shadow:0 2px 7px rgba(30,37,26,.17);
+  font:600 clamp(9px,1.2vw,14px) Georgia,serif;
+  text-shadow:0 1px 1px rgba(255,253,224,.6);
+  transition:transform .14s ease,background .14s ease;
+  z-index:1;
+}
+.map-pin:disabled { cursor:default; opacity:1; }
+.map-pin:not(:disabled):hover,
+.map-pin:not(:disabled):focus-visible { transform:translate(-50%,-56%) scale(1.08); background:#fff1d1; z-index:5; }
+.map-pin-light { width:14px; height:14px; display:block; border-radius:50%;
+  background:#52cbff; border:2px solid #ddfbff;
+  box-shadow:0 0 0 3px rgba(25,112,193,.23),0 0 10px 4px #35bfff,0 0 21px #66d8ff;
+}
+.map-pin.is-here { background:#f7e5ad; border:1px solid #a17740; }
+.map-pin.is-here .map-pin-light {
+  background:#ffe08c; border-color:#fff5d5;
+  box-shadow:0 0 0 3px rgba(200,152,38,.35),0 0 11px 6px #ffca5c;
+}
+.map-pin small { color:#865b2f; font:800 9px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+.map-crownreach { left:50%;top:47.6%; }
+.map-ironvale { left:33.3%;top:27.6%; }
+.map-greenhollow { left:71.1%;top:33.2%; }
+.map-emberfall { left:65%;top:69.4%; }
+.map-goldmeadow { left:30.6%;top:78.5%; }
+.atlas-footer { display:flex; gap:10px; justify-content:space-between;
+  flex-wrap:wrap; padding:12px 17px; background:#ead8af;
+  color:#766448; font-size:11px; border-top:1px solid #bda979;
+}
+.school-banner {
+  display:flex; justify-content:space-between; align-items:center; gap:20px;
+  background:linear-gradient(115deg,#263e50,#192d41); color:#edf1f3;
+  border-radius:15px; padding:20px 26px; margin-bottom:13px;
+}
+.school-banner small { color:#9db8ca; font-size:9px; letter-spacing:.16em; }
+.school-banner h3 { font:500 26px Georgia,serif; margin:5px 0 7px; }
+.school-banner p { font-size:12px; color:#c5d7dd; margin:0; line-height:1.6; }
+.insight-badge { background:#3c5262; color:#e6d4a3; border-radius:99px; padding:10px 15px;
+  font-weight:750; font-size:12px; white-space:nowrap;
+}
+.tier-track { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:9px; margin-bottom:20px; }
+.tier-box { background:#f7f6ee; border:1px solid #d5d9d0; border-radius:11px; padding:13px; }
+.tier-box.active { background:#e6eee9; border-color:#779c91; }
+.tier-box small { font-size:10px; font-weight:750; text-transform:uppercase; letter-spacing:.08em; color:#6b817b; }
+.tier-box strong { float:right; font-size:13px; color:#244b48; font-variant-numeric:tabular-nums; }
+.tier-box .meter { clear:both; margin-top:11px; height:7px; }
+.tier-box .meter::-webkit-progress-value { background:#4c8f8d; }
+.tier-box .meter::-moz-progress-bar { background:#4c8f8d; }
+.practice-report { border:1px solid #a6b5a4; border-left:5px solid #497f75;
+  border-radius:12px; background:#f0f4ed; padding:21px 24px; margin:14px 0 22px; }
+.practice-report h3 { font:500 23px Georgia,serif; color:#26443d; margin:5px 0 12px; }
+.practice-report p { font-size:13px; color:#485e56; line-height:1.8; }
+.practice-rewards { display:flex; flex-wrap:wrap; gap:8px; margin:15px 0; }
+.practice-rewards span { font-size:11px; font-weight:750; color:#315f50; background:#dfeadf;
+  padding:7px 10px; border-radius:6px; }
+.practice-report .practice-note { font-size:11px; margin:0; color:#788579; }
+.heading-row .section-kicker:empty,.heading-row .subheading:empty { display:none; }
+
+@media (max-width:700px) {
+  .map-pin { min-width:60px; max-width:90px; padding:4px 3px; font-size:9px; }
+  .map-pin-light { width:11px; height:11px; }
+  .map-pin small { font-size:7px; }
+  .atlas-footer { font-size:10px; }
+  .tier-box { padding:9px 6px; }
+  .tier-box small { font-size:9px; }
+  .tier-box strong { float:none; display:block; margin-top:5px; font-size:11px; }
+  .school-banner { padding:17px 16px; }
+  .school-banner h3 { font-size:22px; }
+}
+@media (max-width:450px) {
+  .map-pin { min-width:53px; max-width:72px; font-size:8px; line-height:1.1; }
+  .map-pin-light { width:9px; height:9px; border-width:1px; }
+  .map-pin small { font-size:7px; }
+}
