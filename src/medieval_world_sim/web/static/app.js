@@ -201,45 +201,67 @@
       button("Reconnect", 'data-ui="reload"', "full") + '</div></div>';
   }
 
-  function stat(label, value, extra = "") {
-    return '<div class="stat ' + extra + '"><small>' + esc(label) + '</small><strong>' +
-      esc(value) + '</strong></div>';
+  function meterStat(label, value, max, kind) {
+    const v = Number(value) || 0;
+    const maximum = Math.max(1, Number(max) || 1);
+    return '<div class="vital vital-' + kind + '">' +
+      '<div class="vital-caption"><span>' + esc(label) + '</span><strong>' +
+      v + '/' + maximum + '</strong></div>' +
+      '<progress value="' + Math.max(0, Math.min(maximum, v)) +
+      '" max="' + maximum + '" aria-label="' + esc(label) + '"></progress></div>';
+  }
+  function navButton(entry, className = "") {
+    return '<button type="button" class="nav-button ' + className +
+      (tab === entry.id ? ' active' : '') +
+      '" data-tab="' + esc(entry.id) + '" aria-current="' +
+      (tab === entry.id ? 'page' : 'false') + '">' +
+      '<span class="nav-icon" aria-hidden="true">' + entry.icon + '</span>' +
+      '<span>' + esc(entry.title) + '</span></button>';
   }
   function shell() {
     const p = state.player;
     const location = state.cities.find(c => c.id === p.city);
     const place = p.destination ? ("En route to " + pretty(p.destination)) :
       (location ? location.name : pretty(p.city));
-    const tabsHTML = tabs.map(t => '<button class="tab ' + (tab === t.id ? "active" : "") +
-      '" data-tab="' + t.id + '" aria-current="' + (tab === t.id ? "page" : "false") +
-      '"><span class="tab-icon">' + t.icon + '</span>' + t.title + '</button>').join("");
-    const navHTML = tabs.map(t => '<button class="' + (tab === t.id ? "active" : "") +
-      '" data-tab="' + t.id + '" aria-label="' + t.title + '"><span>' + t.icon +
-      '</span>' + t.title + '</button>').join("");
-    const view = {
-      world: renderWorld,
-      market: renderMarket,
-      magic: renderMagic,
-      home: renderHome,
-    }[tab];
+    const renderers = {
+      city: renderCity, world: renderWorld, market: renderMarket,
+      magic: renderMagic, home: renderHome, job: renderJob,
+      inventory: renderInventory, training: renderTraining,
+      character: renderCharacter, equipment: renderEquipment,
+      chronicle: renderChronicle, warriors: renderWarriorsGuild,
+      mageguild: renderMageGuild, tavern: renderTavern,
+    };
+    const view = renderers[tab] || renderCity;
+    const sidebar = tabs.map(t => navButton(t)).join('');
+    const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
-      '<header class="topbar"><div class="topbar-inner"><div class="brand">' +
-      '<div class="brand-mark">✦</div> MEDIEVAL WORLD</div><div class="world-time">' +
-      'THE FIVE CITIES<strong>' + esc(clock(state.minute)) + '</strong></div></div>' +
-      '<nav class="tabs" aria-label="Main navigation">' + tabsHTML + '</nav></header>' +
-      '<div class="hero"><div class="hero-inner">' +
-      '<span class="eyebrow">A living world awaits</span><h1>' + esc(state.name) + '</h1>' +
-      '<p class="hero-desc">' + esc(place) +
-      ' · Explore the world, build your fortune, and master the arcane.</p>' +
-      '<span class="hero-badge">✧ &nbsp; Level ' + p.level +
-      ' Adventurer · ' + (p.destination ? "Traveling" : "Ready") + '</span>' +
-      '<div class="statbar">' +
-      stat("Gold", money(p.gold), "gold") + stat("Health", p.hp + " / " + p.max_hp) +
-      stat("Stamina", p.stamina + " / " + p.max_stamina) +
-      stat("Mana", p.mana + " / " + p.max_mana) +
-      stat("Pack", p.cargo + " / " + p.cargo_limit) + '</div></div></div>' +
-      '<main class="page">' + view() + '</main>' +
-      '<nav class="bottom-nav" aria-label="Mobile navigation">' + navHTML + '</nav></div>';
+      '<header class="topbar"><div class="topbar-inner">' +
+      '<div class="brand"><div class="brand-mark">✦</div><span>MEDIEVAL WORLD</span></div>' +
+      '<div class="statbar" aria-label="Character vitals">' +
+      meterStat("Health", p.hp, p.max_hp, "health") +
+      meterStat("Stamina", p.stamina, p.max_stamina, "stamina") +
+      meterStat("Mana", p.mana, p.max_mana, "mana") +
+      '<div class="gold-total"><small>Gold</small><strong>' +
+      esc(money(p.gold)) + '</strong></div></div>' +
+      '<div class="top-actions">' +
+      '<div class="world-time"><span>Medieval World · Eastern</span>' +
+      '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
+      '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
+      '</div></div></header>' +
+      '<div class="workspace">' +
+      '<aside class="sidebar" aria-label="Locations and services">' +
+      '<div class="sidebar-place"><small>Current location</small><strong>' +
+      esc(place) + '</strong><span>' + (p.destination ? "On the road" : "Inside the city walls") +
+      '</span></div><div class="sidebar-label">Places & services</div>' +
+      '<nav class="side-nav" aria-label="Location navigation">' + sidebar + '</nav>' +
+      '<div class="sidebar-foot">One world, five cities. Your choices make the story.</div>' +
+      '</aside><div class="main-column">' +
+      '<details class="mobile-nav"><summary>☷ &nbsp; Locations & services · ' +
+      esc(place) + '</summary><nav aria-label="Mobile locations">' + sidebar +
+      '</nav></details>' +
+      '<main class="page" id="main-content"><div class="page-location">' +
+      '<span class="location-dot"></span>' + esc(place) +
+      '</div>' + view() + '</main></div></div></div>';
   }
 
   function inventoryPanel() {
