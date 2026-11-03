@@ -419,8 +419,7 @@
       return '<div class="market-card"><div class="mini-card-top">' +
         '<h3>' + esc(pretty(quote.item)) + '</h3>' +
         '<span class="inventory-pill">Owned: ' + owned + '</span></div>' +
-        '<p class="small m-0">Merchant stock: ' + quote.stock +
-        ' · City gold: ' + money(quote.city_gold) + '</p>' +
+        '<p class="small m-0">Stock: ' + quote.stock + '</p>' +
         '<div class="prices"><div><small>Buy for</small><strong>' + quote.player_buy_price +
         'g</strong></div><div class="sell"><small>Sell for</small><strong>' +
         quote.player_sell_price + 'g</strong></div></div>' +
@@ -432,15 +431,10 @@
           disabled(unavailable || !maxBuy), "secondary") +
         button("Sell", 'data-ui="sell" data-item="' + esc(quote.item) + '"' +
           disabled(unavailable || !maxSell), "") +
-        '</div><p class="small m-0">Available: buy up to ' +
-        maxBuy + ', sell up to ' + maxSell + '</p></div>';
+        '</div><p class="small m-0">Available: ' +
+        quote.sell_capacity + '</p></div>';
     }).join("");
-    return heading("", "Market", "Trade using the current city's real stock and gold.") +
-      '<div class="callout mb-20"><strong>Local market · ' + p.cargo +
-      ' carried · Road limit ' + p.cargo_limit + '</strong>' +
-      'You can own any quantity of goods in a city. Travel requires loading no more ' +
-      'than your vehicle can carry. The city pays from its existing gold and ' +
-      'merchants only sell real stock.</div>' +
+    return heading("", "Market", "") +
       '<div class="market-grid">' +
       (cards || '<p class="empty">No goods are stocked here yet. Sell locally acquired ' +
       'materials to the merchants to seed the marketplace.</p>') + '</div>' +
@@ -888,8 +882,7 @@
         latestContract.reward + ' gold</span><span>+' + latestContract.xp_gained +
         ' XP</span></div></div>';
     }
-    return report + panel("Available paid work",
-      "Wages transfer from the current city's finite funds; no coins are created.",
+    return report + panel("Available Work", "",
       items || '<p class="empty">No contracts are posted here.</p>');
   }
   function renderWarriorsGuild() {
@@ -928,14 +921,11 @@
   }
   function renderJob() {
     const w = state.player.work;
-    return heading("", "Employment Hall", "") +
+    return heading("", "Job", "") +
       '<div class="two-col"><div class="stack">' +
-      '<section class="story-panel"><h3>The morning hiring board</h3>' +
-      '<p>A foreman needs hands for a merchant loading shift. It is tiring work, ' +
-      'but the pay is dependable while the city treasury can afford it.</p></section>' +
       contractBoard("job") +
       '</div><aside class="stack">' +
-      panel("Your work record", "Real progression from completed assignments",
+      panel("Work Stats", "",
         characterRow("Manual", w.manual) +
         characterRow("Intelligence", w.intelligence) +
         characterRow("Endurance", w.endurance) +
