@@ -220,6 +220,27 @@
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
       '" max="' + maximum + '" aria-label="' + esc(label) + '"></progress></div>';
   }
+  function cooldownClock(minutes) {
+    const total = Math.max(0, Number(minutes) || 0);
+    return String(Math.floor(total / 60)).padStart(2, "0") + ":" +
+      String(total % 60).padStart(2, "0");
+  }
+  function cooldownIcon(name) {
+    const config = {
+      job: { symbol: "▣", label: "Job" },
+      food: { symbol: "♨", label: "Food" },
+      potion: { symbol: "⚗", label: "Potion" },
+    }[name];
+    const data = state.player.cooldowns && state.player.cooldowns[name];
+    const remaining = data ? data.remaining_minutes : 0;
+    const max = data ? data.max_minutes : 1440;
+    const tip = config.label + " cooldown " + cooldownClock(remaining) +
+      " / 24:00. New actions cannot exceed 24h. Advances with game time.";
+    return '<div class="cooldown-chip ' + (remaining >= max ? 'at-cap' : '') +
+      '" title="' + esc(tip) + '" tabindex="0" aria-label="' + esc(tip) +
+      '"><span aria-hidden="true">' + config.symbol + '</span><strong>' +
+      (remaining ? cooldownClock(remaining) : 'Ready') + '</strong></div>';
+  }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
       (tab === entry.id ? ' active' : '') +
@@ -255,7 +276,10 @@
       meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
       meterStat("Mana", p.mana, p.max_mana, "mana", p.mana_next_sim_seconds) +
       '<div class="gold-total"><small>Gold</small><strong>' +
-      esc(money(p.gold)) + '</strong></div></div>' +
+      esc(money(p.gold)) + '</strong></div>' +
+      '<div class="cooldown-strip" aria-label="Job, food and potion cooldowns">' +
+      cooldownIcon("job") + cooldownIcon("food") + cooldownIcon("potion") +
+      '</div></div>' +
       '<div class="top-actions">' +
       '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
@@ -703,14 +727,24 @@
     const stash = p.stored_here || {};
     const carried = Object.entries(p.inventory).filter(([, qty]) => qty > 0).sort();
     const stored = Object.entries(stash).filter(([, qty]) => qty > 0).sort();
-    const carryRows = carried.map(([item, qty]) =>
-      '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
+    const carryRows = carried.map(([item, qty]) => {
+      const consumable = (p.consumables || []).find(c => c.item === item);
+      const track = consumable && p.cooldowns && p.cooldowns[consumable.channel];
+      const canUse = consumable && track &&
+        track.remaining_minutes + consumable.cooldown_minutes <= track.max_minutes &&
+        (consumable.channel === "food" ?
+          (p.hp < p.max_hp || p.stamina < p.max_stamina || p.hunger > 0) :
+          p.hp < p.max_hp);
+      return '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
       '</strong><p>' + qty + ' carried</p></div>' +
+      (consumable ? button("Use", 'data-ui="consume" data-item="' +
+        esc(item) + '"' + disabled(!canUse || isBusy()), "s secondary") : '') +
       '<label class="sr" for="store-' + esc(item) + '">Store quantity</label>' +
       '<input class="qty" id="store-' + esc(item) +
       '" type="number" min="1" max="' + qty + '" value="1">' +
       button("Store", 'data-ui="store" data-item="' + esc(item) + '"' +
-        disabled(isBusy()), "s secondary") + '</div>').join("") ||
+        disabled(isBusy()), "s secondary") + '</div>';
+    }).join("") ||
       '<p class="empty">No carried goods yet. Visit the market or gather resources.</p>';
     const stashRows = stored.map(([item, qty]) =>
       '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
@@ -1038,6 +1072,8 @@
           { item, quantity }, ui === "store" ? "Goods stored" : "Goods retrieved");
         break;
       }
+      case "consume":
+        action("consume", { item }, pretty(item) + " used"); break;
       case "contract": action("complete_city_contract",
         { contract_id: element.dataset.contract }, "Contract completed"); break;
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
