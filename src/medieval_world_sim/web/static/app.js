@@ -230,6 +230,7 @@
       character: renderCharacter, equipment: renderEquipment,
       chronicle: renderChronicle, warriors: renderWarriorsGuild,
       mageguild: renderMageGuild, tavern: renderTavern,
+      healer: renderHealer, cityhall: renderCityHall,
     };
     const view = renderers[tab] || renderCity;
     const sidebar = tabs.map(t => navButton(t)).join('');
@@ -534,6 +535,9 @@
       cityLocation("⚖", "Marketplace", "Buy and sell goods using the local city's real gold and stock.", "market", "Open"),
       cityLocation("⚔", "Warriors Guild", "Future: earn coin through escorted caravans, patrols, and bounty contracts.", "warriors", "Contracts planned"),
       cityLocation("✧", "Mage Guild", "Study six schools today. Arcane commissions and investigations are planned.", "mageguild", "Studies open"),
+      cityLocation("⚒", "Armory & Blacksmith", "Manage your weapons and armor. Crownreach stocks basic equipment.", "equipment", "Equipment open"),
+      cityLocation("✚", "Healer\'s Sanctuary", "Future: treatment, healing provisions, and restorative services.", "healer", "Healing planned"),
+      cityLocation("♛", "City Hall", "Future: civic standing, records, permits, and city affairs.", "cityhall", "Civic features planned"),
       cityLocation("▣", "Employment Hall", "Browse jobs, employers, and eventually shift-based work.", "job", "Jobs planned"),
       cityLocation("✤", "Training Hall", "Future: long-term discipline, scholarship, and stat training.", "training", "Training planned"),
       cityLocation("⌂", "Homes & Stables", "Purchase a residence, improve it, and select faster travel.", "home", "Open"),
@@ -685,6 +689,16 @@
       '<p class="small">School study is available now. Paid magical contracts and spell effects ' +
       'are planned for later.</p>' +
       button("Study magic", 'data-tab="magic"', "secondary") + '</section>';
+  }
+  function renderHealer() {
+    return futurePage("The temple district", "Healer's Sanctuary",
+      "Beneath a quiet stone arch, healers tend weary travelers. Treatment, restorative remedies, and related costs will eventually be real simulation systems.",
+      "city", "Return to City Map");
+  }
+  function renderCityHall() {
+    return futurePage("The civic quarter", "City Hall",
+      "A clerk maintains ledgers of the city's merchants, residents and obligations. Permits, civic reputation, and faction affairs may someday be managed here.",
+      "city", "Return to City Map");
   }
   function renderJob() {
     const w = state.player.work;
