@@ -362,8 +362,8 @@
         progress(p.school_xp[school] || 0, 350) +
         '<p class="small" style="margin:13px 0 0">Basic practice eventually stops granting XP. ' +
         'Higher-tier studies unlock additional progression.</p>') +
-      panel("Active specializations", "Select at most two advanced branches. Changing your ' +
-        'selection has a six-hour in-game cooldown.",
+      panel("Active specializations", "Select at most two advanced branches. Changing your " +
+        "selection has a six-hour in-game cooldown.",
         '<p class="small">Active: ' + p.attuned_paths.length + ' / 2</p>' +
         checkboxes + button("Apply specializations",
           'data-ui="apply-attune"' + disabled(isBusy() || !specialist.length),
