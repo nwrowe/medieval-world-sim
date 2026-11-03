@@ -505,6 +505,223 @@
       '</div>';
   }
 
+  function heading(kicker, title, subtitle) {
+    return '<div class="heading-row"><div><div class="section-kicker">' +
+      esc(kicker) + '</div><h2>' + esc(title) + '</h2><p class="subheading">' +
+      esc(subtitle) + '</p></div></div>';
+  }
+  function cityLocation(icon, title, description, target, badge = "") {
+    return '<div class="location-card"><span class="location-icon">' + icon + '</span>' +
+      '<div><h3>' + esc(title) + '</h3><p>' + esc(description) + '</p>' +
+      (badge ? '<span class="location-badge">' + esc(badge) + '</span>' : '') +
+      '</div>' + button("Enter", 'data-tab="' + esc(target) + '"', "s secondary") + '</div>';
+  }
+  function renderCity() {
+    const p = state.player;
+    const lore = cityLore[p.city] || cityLore.goldmeadow;
+    const city = state.cities.find(c => c.id === p.city);
+    const name = city ? city.name : pretty(p.city);
+    const locations = [
+      cityLocation("⚖", "Marketplace", "Buy and sell goods using the local city's real gold and stock.", "market", "Open"),
+      cityLocation("⚔", "Warriors Guild", "Future: earn coin through escorted caravans, patrols, and bounty contracts.", "warriors", "Contracts planned"),
+      cityLocation("✧", "Mage Guild", "Study six schools today. Arcane commissions and investigations are planned.", "mageguild", "Studies open"),
+      cityLocation("▣", "Employment Hall", "Browse jobs, employers, and eventually shift-based work.", "job", "Jobs planned"),
+      cityLocation("✤", "Training Hall", "Future: long-term discipline, scholarship, and stat training.", "training", "Training planned"),
+      cityLocation("⌂", "Homes & Stables", "Purchase a residence, improve it, and select faster travel.", "home", "Open"),
+      cityLocation("♜", "The Wayfarer's Tavern", "Rest to recover stamina and mana and let world time pass.", "tavern", "Open"),
+      cityLocation("⚑", "The City Gates", "Leave the walls to gather resources or choose a road to another city.", "world", "Open"),
+    ].join('');
+    return heading("The five cities · " + name, "City Map",
+      "Streets, guilds, services, and the beginning of your story.") +
+      '<section class="story-panel"><div class="section-kicker">Chapter I · A stranger at the gate</div>' +
+      '<h3>' + esc(lore.title) + '</h3><p>' + esc(lore.opening) + '</p>' +
+      '<p>You have a name, ' + esc(money(p.gold)) +
+      ', and few obligations. The city offers many doors; which one will you open?</p>' +
+      '<small>Story introduction · Narrative quests and choices are planned, not yet active.</small></section>' +
+      panel("Streets & districts", lore.district,
+        '<div class="location-grid">' + locations + '</div>');
+  }
+  function renderInventory() {
+    return heading("Belongings", "Inventory",
+      "Goods travel with you; there is no separate pack system.") +
+      '<div class="two-col"><div class="stack">' + inventoryPanel() +
+      '</div><aside class="stack">' +
+      panel("Trading & travel", "Inventory and vehicle limits",
+        '<p class="small">Carried goods have quantity and occupy inventory capacity. ' +
+        'A horse or carriage can increase your travel limit.</p>' +
+        button("Visit Market", 'data-tab="market"', "secondary") + ' ' +
+        button("Equipment", 'data-tab="equipment"', "ghost")) +
+      '</aside></div>';
+  }
+  function renderChronicle() {
+    return heading("Adventurer's record", "Chronicle",
+      "Your recent journey, transactions, training and milestones.") +
+      activityPanel() +
+      '<p class="small mt-13">Entries use elapsed simulation days and minutes. ' +
+      'The Eastern clock in the header reflects real-world time.</p>';
+  }
+  function characterRow(label, value) {
+    return '<div class="character-row"><span>' + esc(label) +
+      '</span><strong>' + esc(value) + '</strong></div>';
+  }
+  function renderCharacter() {
+    const p = state.player, w = p.work;
+    const xpNext = 10 * p.level * p.level;
+    const study = Object.entries(p.school_xp).map(([key, xp]) =>
+      characterRow(pretty(key) + " magic", xp + " XP")).join('');
+    const career = Object.entries(w.experience).map(([key, xp]) =>
+      characterRow(pretty(key), xp + " XP")).join('');
+    const homeName = state.housing.tier ? pretty(state.housing.tier) +
+      " · " + pretty(state.housing.city) : "No residence";
+    return heading("Character home", state.name,
+      "Your life, progression, wealth, work and accomplishments.") +
+      '<div class="profile-hero"><div><small>ADVENTURER</small><h3>' + esc(state.name) +
+      '</h3><p>Level ' + p.level + ' · ' + esc(pretty(p.city)) + '</p></div>' +
+      '<div><small>Estimated net worth</small><strong>' +
+      esc(money(state.net_worth_estimate)) + '</strong></div></div>' +
+      '<div class="profile-grid">' +
+      panel("Life & progress", "Current character state",
+        characterRow("Level", p.level) +
+        characterRow("Experience toward next level", p.level_xp + " / " + xpNext) +
+        characterRow("Health", p.hp + " / " + p.max_hp) +
+        characterRow("Stamina", p.stamina + " / " + p.max_stamina) +
+        characterRow("Mana", p.mana + " / " + p.max_mana) +
+        characterRow("Days played (simulated)", state.days_played) +
+        characterRow("Elapsed world time", clock(state.minute))) +
+      panel("Combat attributes", "Base fighter progression",
+        characterRow("Strength", p.strength) +
+        characterRow("Defense", p.defense) +
+        characterRow("Combat experience", p.combat_xp + " XP") +
+        button("Equipment", 'data-tab="equipment"', "secondary mt-13")) +
+      panel("Work attributes", "Experience from employment and future training",
+        characterRow("Manual", w.manual) +
+        characterRow("Intelligence", w.intelligence) +
+        characterRow("Endurance", w.endurance) +
+        characterRow("Completed shifts", w.shifts) +
+        (career || '<p class="small">No occupational experience yet.</p>') +
+        button("Job", 'data-tab="job"', "secondary mt-13")) +
+      panel("Assets & studies", "Personal wealth and growth",
+        characterRow("Gold", money(p.gold)) +
+        characterRow("Estimated net worth", money(state.net_worth_estimate)) +
+        characterRow("Residence", homeName) +
+        characterRow("Insight", p.insight) +
+        (study || '<p class="small">You have yet to practice magic.</p>') +
+        '<p class="small mt-13">Net worth estimates held assets; it is not liquid gold. ' +
+        'Raw goods use local resale bids, and equipment uses appraised value.</p>') +
+      '</div>';
+  }
+  function renderEquipment() {
+    const p = state.player;
+    const owned = state.gear || [];
+    const equipped = state.equipped || {};
+    const slots = ["weapon", "offhand", "body", "tool"];
+    const slotRows = slots.map(slot => {
+      const id = equipped[slot];
+      const gear = owned.find(g => g.id === id);
+      return '<div class="equipment-slot"><div><small>' + esc(pretty(slot)) +
+        '</small><strong>' + (gear ? esc(pretty(gear.kind)) + " #" + gear.id :
+          "Empty") + '</strong></div>' +
+        (gear ? button("Unequip", 'data-ui="unequip" data-slot="' + esc(slot) + '"' +
+          disabled(isBusy()), "s ghost") : '') + '</div>';
+    }).join('');
+    const gearRows = owned.map(gear => {
+      const inUse = equipped[gear.slot] === gear.id;
+      return '<div class="equipment-item"><div><h3>' + esc(pretty(gear.kind)) +
+        ' · #' + gear.id + '</h3><p>Slot: ' + esc(pretty(gear.slot)) +
+        ' · Quality ' + gear.quality + ' · Durability ' + gear.durability +
+        '/' + gear.max_durability +
+        ' · Attack +' + gear.attack + ' · Defense +' + gear.defense +
+        '</p></div>' +
+        button(inUse ? "Equipped" : "Equip", 'data-ui="equip" data-gear-id="' +
+          gear.id + '"' + disabled(inUse || isBusy()), "s secondary") + '</div>';
+    }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
+    const inCapital = p.city === "crownreach" && !p.destination;
+    const catalog = (state.equipment_catalog || []).map(item =>
+      '<div class="inventory-row"><span>' + esc(pretty(item.kind)) +
+      ' · ' + esc(pretty(item.slot)) + '</span>' +
+      button("Buy · " + money(item.price),
+        'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +
+        disabled(!inCapital || isBusy() || p.gold < item.price || p.cargo >= 20),
+        "s secondary") + '</div>').join('');
+    return heading("Armory", "Equipment",
+      "Manage your character's real combat gear and active slots.") +
+      '<div class="two-col"><div class="stack">' +
+      panel("Equipped gear", "Active slots", slotRows) +
+      panel("Owned equipment", "Switch equipment when in a city", gearRows) +
+      '</div><aside class="stack">' +
+      panel("Crownreach armory", "Basic equipment is sold only in the capital",
+        '<p class="small">' + (inCapital ? "Starter stock is available." :
+          "Travel to Crownreach to purchase starter equipment.") + '</p>' +
+        catalog) +
+      '</aside></div>';
+  }
+  function futurePage(kicker, title, narrative, next, label) {
+    return heading(kicker, title, "An institution of the Five Cities.") +
+      '<section class="story-panel"><div class="section-kicker">Coming chapter</div>' +
+      '<h3>' + esc(title) + '</h3><p>' + esc(narrative) + '</p>' +
+      '<p class="small">This location is planned. It cannot yet award gold, XP, ' +
+      'contracts, or equipment.</p>' + button(label, 'data-tab="' + esc(next) + '"',
+        "secondary") + '</section>';
+  }
+  function renderWarriorsGuild() {
+    return futurePage("Guild quarter", "Warriors Guild",
+      "The hall smells of worn leather and oiled steel. A contract board stands behind the steward: caravan escort, city patrol, and bounty work will eventually offer paid combat missions.",
+      "equipment", "Prepare equipment");
+  }
+  function renderMageGuild() {
+    return heading("Guild quarter", "Mage Guild", "Scholarship, spellcraft and future commissions.") +
+      '<section class="story-panel"><div class="section-kicker">The six schools</div>' +
+      '<h3>The keeper of the archives</h3><p>The archmage studies your arrival without surprise. ' +
+      'There is room for another apprentice, but first there are six disciplines to learn.</p>' +
+      '<p class="small">School study is available now. Paid magical contracts and spell effects ' +
+      'are planned for later.</p>' +
+      button("Study magic", 'data-tab="magic"', "secondary") + '</section>';
+  }
+  function renderJob() {
+    const w = state.player.work;
+    return heading("The city's livelihoods", "Job",
+      "Employment, wages and long-term professions.") +
+      '<div class="two-col"><div class="stack">' +
+      futurePage("Employment Hall", "Contracts & employers",
+        "Merchants seek porters, the foundries need laborers, and inns always need hands. A future jobs board will show real employers, wages, shift requirements and experience.",
+        "city", "Return to City Map") +
+      '</div><aside class="stack">' +
+      panel("Your work record", "Authoritative work attributes",
+        characterRow("Manual", w.manual) +
+        characterRow("Intelligence", w.intelligence) +
+        characterRow("Endurance", w.endurance) +
+        characterRow("Shifts completed", w.shifts)) +
+      '</aside></div>';
+  }
+  function renderTraining() {
+    const w = state.player.work;
+    return heading("Learning for a lifetime", "Training Hall",
+      "Planned courses will improve work and combat attributes over time.") +
+      '<div class="two-col"><div class="stack">' +
+      futurePage("The old university", "Training & scholarship",
+        "A hall for tutors, scholars and veteran soldiers. Future courses will take time and money, with clear progression rules and different paths for intellect, labor and warfare.",
+        "magic", "Practice magic now") +
+      '</div><aside class="stack">' +
+      panel("Current disciplines", "Baseline work attributes",
+        characterRow("Manual", w.manual) +
+        characterRow("Intelligence", w.intelligence) +
+        characterRow("Endurance", w.endurance)) +
+      '</aside></div>';
+  }
+  function renderTavern() {
+    return heading("A place to rest", "Wayfarer's Tavern",
+      "Take shelter, listen to rumors, or advance the simulation.") +
+      '<section class="story-panel"><div class="section-kicker">The common room</div>' +
+      '<h3>A seat by the hearth</h3><p>The innkeeper nods toward an empty bench. ' +
+      'Around you, travelers discuss the roads and the promise of work in distant cities.</p>' +
+      '<p class="small">Resting advances simulated world time and restores resources. ' +
+      'The clock in the header continues to show real Eastern time.</p>' +
+      '<div class="button-group">' +
+      button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
+      button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
+      '</div></section>';
+  }
+
   function render() {
     if (authNeeded) root.innerHTML = authPage();
     else if (offline) root.innerHTML = offlinePage();
