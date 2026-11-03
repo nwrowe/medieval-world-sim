@@ -914,7 +914,7 @@
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
     return '<div class="profile-hero"><h3>' + esc(state.name) +
-      '</h3><p class="home-lore">Goldmeadow's old bell sounds at dusk, though no hand has rung it in a generation. ' +
+      '</h3><p class="home-lore">The old Goldmeadow bell sounds at dusk, though no hand has rung it in a generation. ' +
       'The roads to Crownreach have grown restless; couriers whisper of missing caravans and a sealed royal ledger. ' +
       'You arrive with little more than a purse, an open road, and the chance to make a name in Oathmere.</p>' +
       '<p class="home-lore"><strong>Your first steps:</strong> earn coin in the Market, ' +
