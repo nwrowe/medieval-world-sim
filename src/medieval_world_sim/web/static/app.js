@@ -732,15 +732,46 @@
   }
 
   function renderInventory() {
-    return heading("Belongings", "Inventory",
-      "Own any amount in town; road travel has a cargo limit.") +
-      '<div class="two-col"><div class="stack">' + inventoryPanel() +
+    const p = state.player;
+    const stash = p.stored_here || {};
+    const carried = Object.entries(p.inventory).filter(([, qty]) => qty > 0).sort();
+    const stored = Object.entries(stash).filter(([, qty]) => qty > 0).sort();
+    const carryRows = carried.map(([item, qty]) =>
+      '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
+      '</strong><p>' + qty + ' carried</p></div>' +
+      '<label class="sr" for="store-' + esc(item) + '">Store quantity</label>' +
+      '<input class="qty" id="store-' + esc(item) +
+      '" type="number" min="1" max="' + qty + '" value="1">' +
+      button("Store", 'data-ui="store" data-item="' + esc(item) + '"' +
+        disabled(isBusy()), "s secondary") + '</div>').join("") ||
+      '<p class="empty">No carried goods yet. Visit the market or gather resources.</p>';
+    const stashRows = stored.map(([item, qty]) =>
+      '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
+      '</strong><p>' + qty + ' in this city</p></div>' +
+      '<label class="sr" for="retrieve-' + esc(item) + '">Retrieve quantity</label>' +
+      '<input class="qty" id="retrieve-' + esc(item) +
+      '" type="number" min="1" max="' + qty + '" value="1">' +
+      button("Retrieve", 'data-ui="retrieve" data-item="' + esc(item) + '"' +
+        disabled(isBusy()), "s secondary") + '</div>').join("") ||
+      '<p class="empty">Nothing stored in this city.</p>';
+    const stores = Object.entries(p.storage_cities || {}).filter(([, count]) => count > 0)
+      .map(([city, count]) => characterRow(pretty(city), count + " items")).join("");
+    return heading("", "Inventory", "") +
+      '<div class="callout mb-20"><strong>Carrying ' + p.cargo + ' items · Road limit ' +
+      p.cargo_limit + '</strong>Your carried inventory has no fixed city limit. ' +
+      'Store goods locally before traveling if your carried load exceeds ' +
+      'your road capacity. Stored goods stay in their city until you return.</div>' +
+      '<div class="two-col"><div class="stack">' +
+      panel("Carried goods", "Choose what to take on the road", carryRows) +
+      panel("City storage", "Available in " + pretty(p.city), stashRows) +
       '</div><aside class="stack">' +
-      panel("Trading & travel", "Inventory and vehicle limits",
-        '<p class="small">Carried goods have quantity and occupy inventory capacity. ' +
-        'A horse or carriage can increase your travel limit.</p>' +
-        button("Visit Market", 'data-tab="market"', "secondary") + ' ' +
-        button("Equipment", 'data-tab="equipment"', "ghost")) +
+      panel("Your stored goods", "Inventory in other settlements",
+        stores || '<p class="small">You have no city-stored goods.</p>') +
+      panel("Equipment & vehicles", "Equipment also uses road cargo capacity",
+        '<p class="small">Owned equipment is currently always carried. ' +
+        'The horse and carriage increase your road limit.</p>' +
+        button("Equipment", 'data-tab="equipment"', "secondary") + ' ' +
+        button("Property", 'data-tab="home"', "ghost")) +
       '</aside></div>';
   }
   function renderChronicle() {
@@ -1034,6 +1065,18 @@
         }
         action(ui === "buy" ? "regional_buy" : "regional_sell",
           { item, quantity }, ui === "buy" ? "Goods purchased" : "Goods sold");
+        break;
+      }
+      case "store":
+      case "retrieve": {
+        const id = (ui === "store" ? "store-" : "retrieve-") + item;
+        const input = document.getElementById(id);
+        const quantity = Number(input && input.value);
+        if (!Number.isSafeInteger(quantity) || quantity <= 0) {
+          notify("Enter a positive whole quantity", true); return;
+        }
+        action(ui === "store" ? "store_goods" : "retrieve_goods",
+          { item, quantity }, ui === "store" ? "Goods stored" : "Goods retrieved");
         break;
       }
       case "contract": action("complete_city_contract",
