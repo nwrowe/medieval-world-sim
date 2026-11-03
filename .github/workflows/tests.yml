@@ -47,3 +47,7 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim --scenario magic
+      - name: Smoke test housing and mounted road travel
+        env:
+          PYTHONPATH: src
+        run: python -m medieval_world_sim --scenario housing

@@ -137,6 +137,8 @@ class MagicSystem:
         # At trivial difficulty, repeated casting eventually stops granting XP.
         ceiling = PRACTICE_XP_CEILING[node.tier]
         awarded = min((3 * node.tier + 3 if success else 1), max(0, ceiling - skill))
+        awarded = min(self.world.housing_system.training_xp(
+            actor, awarded, f"magic:{node.school}"), max(0, ceiling - skill))
         state.school_xp[node.school] = skill + awarded
         earned_total = sum(state.school_xp.values()) // INSIGHT_XP_INTERVAL
         gained = earned_total - state.insight_earned

@@ -46,8 +46,10 @@ class TravelSystem:
         if time == 0:
             raise ActionError("Already in destination")
         load = sum(actor.inventory.values()) + len(actor.gear_ids)
-        if load > TRAVEL_CARGO_LIMIT:
-            raise ActionError(f"Travel cargo limit is {TRAVEL_CARGO_LIMIT} units; carrying {load}")
+        capacity = self.world.housing_system.travel_cargo_limit(actor)
+        if load > capacity:
+            raise ActionError(f"Travel cargo limit is {capacity} units; carrying {load}")
+        time = self.world.housing_system.road_minutes(actor, time)
         actor.destination = destination
         actor.arrival_minute = self.world.minute + time
         self.world._emit("travel_started", actor.id, city, destination, actor.arrival_minute)

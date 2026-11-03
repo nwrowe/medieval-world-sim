@@ -148,3 +148,15 @@ python -m medieval_world_sim --scenario magic
 ```
 
 Read the [magic progression architecture](docs/MAGIC_PROGRESSION_PLAN.md) for every branch, requirements and next integration steps.
+
+## Housing and mounted travel
+
+Characters can purchase and improve a city-based **room, cottage, townhouse, estate or manor**. Higher-tier homes provide up to **20% additional training XP** for magic, work shifts and combat performed in their home city, using fractional carryover so small XP rewards aren't rounded into runaway gains. Homes and upgrades have rising prices paid to the crown treasury.
+
+Build a **stable** (Cottage+) for a horse (80% road travel time; 16 travel cargo units), or a **carriage house** (Estate+) for a carriage (60% travel time; 20 travel units). Without a vehicle, travel cargo remains 12 units; the normal 20-unit city inventory limit remains. Vehicles must be purchased and selected at your home. Docks and ships await water routes.
+
+```bash
+python -m medieval_world_sim --scenario housing
+```
+
+See [property and travel rules](docs/HOUSING_AND_TRANSPORT.md).

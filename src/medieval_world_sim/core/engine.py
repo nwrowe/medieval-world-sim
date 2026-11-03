@@ -11,7 +11,7 @@ from ..catalog import CAPITAL, CITIES, GOODS
 from ..errors import ActionError
 from ..equipment import GEAR, GearItem
 from ..combat import MAX_STAMINA
-from .entities import Actor, Company, Offer, Wage, WorldEvent, MagicState
+from .entities import Actor, Company, Offer, Wage, WorldEvent, MagicState, HousingState
 from .cities import CityState
 from .state import WorldState
 from .transactions import atomic_action
@@ -33,6 +33,7 @@ from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
 from ..systems.magic import MagicSystem, MagicNodeStatus, MagicPracticeResult
+from ..systems.housing import HousingSystem, HousingView
 from .quality import CompanyQuality
 
 class WorldEngine:
@@ -57,6 +58,8 @@ class WorldEngine:
                 raise ValueError("Actors must start with baseline combat attributes")
             if a.magic != MagicState():
                 raise ValueError("Actors must start with baseline magic attributes")
+            if a.housing != HousingState():
+                raise ValueError("Housing assets must be purchased through the world")
         self.state = WorldState(
             actors={a.id: a for a in actors},
             cities={city_id: CityState.create(city_id, definition)
@@ -75,6 +78,7 @@ class WorldEngine:
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
         self.magic_system = MagicSystem(self)
+        self.housing_system = HousingSystem(self)
 
     @property
     def actors(self) -> dict[str, Actor]:
@@ -321,6 +325,35 @@ class WorldEngine:
         """Spend mana and learn a node; paid work/spell effects come later."""
         return self.magic_system.practice(actor_id, node_id)
 
+    def housing_view(self, actor_id: str) -> HousingView:
+        return self.housing_system.view(actor_id)
+
+    def estimated_travel_minutes(self, actor_id: str, destination: str) -> int:
+        actor = self._actor(actor_id)
+        self._at_city(actor)
+        base = self.travel_minutes(actor.city, destination)
+        return self.housing_system.road_minutes(actor, base) if base else 0
+
+    @atomic_action
+    def buy_home(self, actor_id: str, tier: str) -> int:
+        return self.housing_system.buy_home(actor_id, tier)
+
+    @atomic_action
+    def upgrade_home(self, actor_id: str, tier: str) -> int:
+        return self.housing_system.upgrade_home(actor_id, tier)
+
+    @atomic_action
+    def build_home_facility(self, actor_id: str, facility: str) -> int:
+        return self.housing_system.build_facility(actor_id, facility)
+
+    @atomic_action
+    def buy_vehicle(self, actor_id: str, vehicle: str) -> int:
+        return self.housing_system.buy_vehicle(actor_id, vehicle)
+
+    @atomic_action
+    def select_vehicle(self, actor_id: str, vehicle: str | None) -> None:
+        return self.housing_system.select_vehicle(actor_id, vehicle)
+
     @atomic_action
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
@@ -361,6 +394,11 @@ class WorldEngine:
                 "unlock_magic": ("unlock_magic", ("node_id",)),
                 "attune_magic": ("attune_magic", ("paths",)),
                 "practice_magic": ("practice_magic", ("node_id",)),
+                "buy_home": ("buy_home", ("tier",)),
+                "upgrade_home": ("upgrade_home", ("tier",)),
+                "build_home_facility": ("build_home_facility", ("facility",)),
+                "buy_vehicle": ("buy_vehicle", ("vehicle",)),
+                "select_vehicle": ("select_vehicle", ("vehicle",)),
                 "found_company": ("found_company", ("company_id", "industry", "investment")),
                 "shift": ("shift", ("company_id",)),
                 "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
@@ -410,6 +448,11 @@ class WorldEngine:
                 raise AssertionError("Negative or invalid asset")
             if isinstance(account, Actor):
                 self.magic_system.assert_valid(account, self.minute)
+                self.housing_system.assert_valid(account)
+                if account.destination is not None:
+                    load = sum(account.inventory.values()) + len(account.gear_ids)
+                    if load > self.housing_system.travel_cargo_limit(account):
+                        raise AssertionError("Traveling actor over cargo limit")
                 if sum(account.inventory.values()) + len(account.gear_ids) > CARRY_LIMIT:
                     raise AssertionError("Carrying limit exceeded")
                 if (account.destination is None) != (account.arrival_minute is None):

@@ -51,6 +51,17 @@ class MagicState:
 
 
 @dataclass
+class HousingState:
+    city: str | None = None
+    tier: str | None = None
+    facilities: set[str] = field(default_factory=set)
+    vehicles: set[str] = field(default_factory=set)
+    active_vehicle: str | None = None
+    # Fixed-point XP bonus residue per skill domain, always between 0 and 99.
+    xp_remainders: dict[str, int] = field(default_factory=dict)
+
+
+@dataclass
 class TravelState:
     destination: str | None = None
     arrival_minute: int | None = None
@@ -78,6 +89,7 @@ class Actor:
     travel: TravelState = field(default_factory=TravelState)
     work: WorkStats = field(default_factory=WorkStats)
     magic: MagicState = field(default_factory=MagicState)
+    housing: HousingState = field(default_factory=HousingState)
 
     @property
     def hp(self) -> int:
