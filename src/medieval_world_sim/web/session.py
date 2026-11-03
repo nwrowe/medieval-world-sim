@@ -36,6 +36,7 @@ UI_ACTIONS = {
     "consume", "buy_home", "upgrade_home", "build_home_facility",
     "buy_vehicle", "select_vehicle", "unlock_magic", "practice_magic",
     "attune_magic", "buy_starter_gear", "equip", "unequip",
+    "complete_city_contract",
 }
 
 
@@ -73,6 +74,10 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "starter_purchase": f"Purchased {str(info.get('item', 'equipment')).replace('_', ' ')} for {info.get('price', 0)}g",
         "equipped": f"Equipped {str(gear_kind or info.get('slot', 'gear')).replace('_', ' ')}",
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
+        "city_contract_completed": (
+            f"Completed {str(info.get('contract_id', '')).replace('_', ' ')} "
+            f"(+{info.get('gold')}g, +{info.get('xp')} XP)"
+        ),
     }
     return {
         "minute": event.minute,
@@ -261,7 +266,9 @@ class GameSession:
                                 else w.estimated_travel_minutes(PLAYER_ID, city_id)),
                 })
             quote_list = [
-                asdict(w.regional_quote(actor.city, item)) for item in RAW_RESOURCES
+                {**asdict(w.regional_quote(actor.city, item)),
+                 "locally_produced": item in CITIES[actor.city].deposits}
+                for item in RAW_RESOURCES
             ]
             magic_nodes = [
                 {**asdict(node), "prerequisites": list(node.prerequisites)}
@@ -354,8 +361,24 @@ class GameSession:
                     "inventory": dict(actor.inventory),
                     "cargo": cargo, "cargo_limit": housing.travel_cargo_limit,
                     "ready_minute": actor.ready_minute,
+                    "defeated_until": actor.defeated_until,
+                    # Simulation seconds: the world currently advances on player actions,
+                    # not elapsed real time. The client must label these honestly.
+                    "stamina_next_sim_seconds": (
+                        (5 - now % 5) * 60 if actor.stamina < actor.max_stamina else None),
+                    "mana_next_sim_seconds": (
+                        (10 - now % 10) * 60 if actor.magic.mana < actor.magic.max_mana else None),
+                    "health_next_sim_seconds": (
+                        (actor.defeated_until - now) * 60
+                        if actor.hp <= 0 and actor.defeated_until is not None else None),
+
                 },
                 "cities": places,
+                "contracts": w.city_contracts.view(PLAYER_ID),
+                # Single-player session: only this account is a playable user.
+                "users": [{"id": PLAYER_ID, "name": self.name,
+                           "city": actor.city, "level": actor.level}],
+                "multiplayer": False,
                 "gatherable": dict(w.cities[actor.city].deposits),
                 "quotes": quote_list,
                 "housing": housing_data,
