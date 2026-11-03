@@ -368,7 +368,14 @@ class WorldEngine:
         actor = self._actor(actor_id)
         self._at_city(actor)
         base = self.travel_minutes(actor.city, destination)
-        return self.housing_system.road_minutes(actor, base) if base else 0
+        if not base:
+            return 0
+        minutes = self.housing_system.road_minutes(actor, base)
+        if "roadcraft" in self.state.merit_upgrades.get(actor_id, set()):
+            minutes = max(1, (minutes * 95 + 99) // 100)
+        if actor.magic.road_charm:
+            minutes = max(1, (minutes * (100 - actor.magic.road_charm) + 99) // 100)
+        return minutes
 
     @atomic_action
     def buy_home(self, actor_id: str, tier: str) -> int:
