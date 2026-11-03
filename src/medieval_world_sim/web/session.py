@@ -18,7 +18,7 @@ import secrets
 import threading
 import uuid
 
-from ..catalog import CAPITAL, CITIES, RAW_RESOURCES
+from ..catalog import CAPITAL, CITIES, RAW_RESOURCES, GOODS, PROCESSED_RESOURCES, CONSUMABLES
 from ..core.engine import WorldEngine
 from ..core.entities import Actor
 from ..content.housing import HOMES, HOME_ORDER, FACILITIES, VEHICLES
@@ -26,6 +26,7 @@ from ..content.magic_tree import SCHOOLS
 from ..errors import ActionError
 from ..equipment import GEAR, suggested_value, effective_attack, effective_defense
 from ..systems.cooldowns import MAX_COOLDOWN_MINUTES, FOOD_MINUTES, POTION_MINUTES, remaining
+from ..systems.track import HORSES, RACE_STAMINA_COST, RACE_ENTRY, RACE_COOLDOWN
 
 SAVE_VERSION = 1
 PLAYER_ID = "hero"
@@ -40,6 +41,7 @@ UI_ACTIONS = {
     "attune_magic", "buy_starter_gear", "equip", "unequip",
     "complete_city_contract", "store_goods", "retrieve_goods",
     "start_duel", "duel_turn", "flee_duel", "cast_spell",
+    "church_heal", "buy_racehorse", "race_horse",
 }
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
@@ -88,6 +90,9 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
         "goods_stored": f"Stored {info.get('quantity')} {str(info.get('item')).replace('_',' ')} in {info.get('city')}",
         "goods_retrieved": f"Retrieved {info.get('quantity')} {str(info.get('item')).replace('_',' ')} from {info.get('city')}",
+        "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
+        "horse_purchased": f"Purchased {info.get('breed')} racehorse for {info.get('gold')} gold",
+        "horse_raced": f"Raced {info.get('breed')}: place {info.get('placing')}, earned {info.get('xp')} riding XP and {info.get('prize')} gold",
         "duel_started": f"Challenge begun against {info.get('defender_id')}",
         "duel_round": (
             f"Combat round {info.get('round')}: {info.get('move')} "
@@ -218,10 +223,14 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
-            self._advance_world(record["minutes"])
+            self.world._legacy_health_regen = record.get("ruleset", 1) < 5
+            try:
+                self._advance_world(record["minutes"])
+            finally:
+                self.world._legacy_health_regen = False
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
@@ -253,9 +262,10 @@ class GameSession:
                     PLAYER_ID, record["name"], record["params"], record["id"])
             # Retain ruleset 3 for established actions; old journal assertions and
             # replay semantics must not shift when the new combat commands arrive.
-            ruleset = (4 if record["kind"] == "action" and
-                       record["name"] in {"start_duel", "duel_turn", "flee_duel", "cast_spell"}
-                       else 3)
+            ruleset = (5 if record["kind"] == "advance" or
+                       record.get("name") in {"church_heal", "buy_racehorse", "race_horse"}
+                       else 4 if record.get("name") in
+                       {"start_duel", "duel_turn", "flee_duel", "cast_spell"} else 3)
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
@@ -339,9 +349,40 @@ class GameSession:
                 for gid in actor.gear_ids
             ]
             gear_catalog = [
-                {"kind": kind, "slot": spec.slot, "price": spec.base_value}
+                {"kind": kind, "slot": spec.slot, "price": spec.base_value,
+                 "attack": round(spec.attack * 0.85),
+                 "defense": round(spec.defense * 0.85),
+                 "durability": max(5, spec.max_durability // 2),
+                 "quality": 10}
                 for kind, spec in GEAR.items()
             ]
+            # Display all catalogued goods, not only currently stocked market items.
+            # Unlisted crafted/consumable products have no merchant price; do not
+            # invent supply or imply that NPC/player markets are live.
+            world_items = []
+            for item in sorted(GOODS | set(GEAR)):
+                if item in RAW_RESOURCES:
+                    quotes = [w.regional_quote(city, item) for city in CITIES]
+                    buys = [q for q in quotes if q.sell_capacity > 0]
+                    sells = [q for q in quotes if q.buy_capacity > 0
+                             and w.cities[q.city].gold >= q.player_sell_price]
+                    cheapest = min(buys, key=lambda q: (q.player_buy_price, q.city)) if buys else None
+                    highest = max(sells, key=lambda q: (q.player_sell_price, q.city)) if sells else None
+                    buy_data = ({"city": cheapest.city, "price": cheapest.player_buy_price}
+                                if cheapest else None)
+                    sell_data = ({"city": highest.city, "price": highest.player_sell_price}
+                                 if highest else None)
+                elif item in GEAR:
+                    buy_data = {"city": CAPITAL, "price": GEAR[item].base_value}
+                    sell_data = None
+                else:
+                    buy_data = sell_data = None
+                world_items.append({"id": item, "category": (
+                    "Equipment" if item in GEAR else
+                    "Processed" if item in PROCESSED_RESOURCES else
+                    "Consumable" if item in CONSUMABLES else "Resource"),
+                    "lowest_buy": buy_data, "highest_sell": sell_data,
+                    "market_value": None})
             resale_prices = {q["item"]: q["player_sell_price"] for q in quote_list}
             property_value = (HOMES[housing.tier].price if housing.tier else 0)
             facility_value = sum(FACILITIES[k].price for k in housing.facilities)
@@ -422,6 +463,7 @@ class GameSession:
                                    "and estimated equipment value",
                 "gear": owned_gear,
                 "equipment_catalog": gear_catalog,
+                "world_items": world_items,
                 "equipped": dict(actor.equipped),
                 "player": {
                     "city": actor.city, "destination": actor.destination,
@@ -475,7 +517,8 @@ class GameSession:
                         (10 - now % 10) * 60 if actor.magic.mana < actor.magic.max_mana else None),
                     "health_next_sim_seconds": (
                         (actor.defeated_until - now) * 60
-                        if actor.hp <= 0 and actor.defeated_until is not None else None),
+                        if actor.hp <= 0 and actor.defeated_until is not None else
+                        (10 - now % 10) * 60 if 0 < actor.hp < actor.max_hp else None),
 
                 },
                 "cities": places,
@@ -485,6 +528,20 @@ class GameSession:
                 "duel": active_duel,
                 "last_duel": w.state.last_duels.get(PLAYER_ID),
                 "combat_stamina_cost": 20,
+                "church": {"price": 20, "available": (
+                    actor.hp > 0 and actor.hp < actor.max_hp and
+                    w.state.church_healed_day.get(PLAYER_ID) != now // 1440),
+                    "used_today": w.state.church_healed_day.get(PLAYER_ID) == now // 1440},
+                "track": {"horses": [
+                    {"id": breed, "name": spec["name"], "price": spec["price"],
+                     "speed": spec["speed"], "stamina": spec["stamina"],
+                     "owned": breed in w.state.horses.get(PLAYER_ID, [])}
+                    for breed, spec in HORSES.items()
+                ], "riding_xp": w.state.riding_xp.get(PLAYER_ID, 0),
+                   "last_result": w.state.race_results.get(PLAYER_ID),
+                   "race_cost": RACE_STAMINA_COST, "entry_fee": RACE_ENTRY,
+                   "cooldown_remaining": max(0, w.state.last_race_minute.get(
+                       PLAYER_ID, -RACE_COOLDOWN) + RACE_COOLDOWN - now)},
                 "gatherable": dict(w.cities[actor.city].deposits),
                 "quotes": quote_list,
                 "housing": housing_data,

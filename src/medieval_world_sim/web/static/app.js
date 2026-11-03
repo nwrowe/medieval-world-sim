@@ -11,19 +11,19 @@
     'stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/>' +
     '<path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
   const cityLinks = [
+    { id: "inventory", icon: "◫", title: "Inventory" },
+    { id: "home", icon: "⌂", title: "My Property" },
+    { id: "magic", icon: "✧", title: "Magic" },
     { id: "market", icon: "⚖", title: "Market" },
     { id: "job", icon: "▣", title: "Job" },
     { id: "warriors", icon: "⚔", title: "Warriors Guild" },
     { id: "mageguild", icon: "✦", title: "Mage Guild" },
     { id: "church", icon: "✝", title: "Church" },
     { id: "armory", icon: "⚒", title: "Armory", onlyCity: "crownreach" },
-    { id: "healer", icon: "✚", title: "Healer" },
+    { id: "track", icon: "♞", title: "Track" },
     { id: "training", icon: "✤", title: "Training Hall" },
     { id: "tavern", icon: "♜", title: "Tavern" },
     { id: "cityhall", icon: "♛", title: "City Hall" },
-    { id: "home", icon: "⌂", title: "Property" },
-    { id: "inventory", icon: "◫", title: "Inventory" },
-    { id: "magic", icon: "✧", title: "Magic" },
   ];
   const accountTabs = [
     { id: "character", icon: "♙", title: "Home" },
@@ -33,7 +33,8 @@
     { id: "people", icon: "⌕", title: "Search" },
   ];
   let state = null;
-  let tab = "world";
+  let tab = "character";
+  let levelCelebration = null;
   let school = "restoration";
   let latestPractice = null;
   let latestContract = null;
@@ -134,6 +135,7 @@
   async function load() {
     try {
       state = await request("/api/state");
+      tab = state.duel ? "duel" : "character";
       syncAttunements();
     } catch (error) {
       offline = !authNeeded;
@@ -150,7 +152,13 @@
     render();
     try {
       const result = await request(path, body);
+      const oldLevel = state && state.started ? state.player.level : 1;
       state = result.state;
+      if (state && state.started && state.player.level > oldLevel) {
+        levelCelebration = { from: oldLevel, to: state.player.level,
+          hp: state.player.max_hp, strength: state.player.strength,
+          defense: state.player.defense };
+      }
       syncAttunements();
       if (body && ["start_duel", "duel_turn", "flee_duel"].includes(body.action)) {
         tab = "duel";
@@ -162,6 +170,8 @@
       if (body && body.action === "complete_city_contract" && result.result) {
         latestContract = result.result;
       }
+      if (path === "/api/new") tab = "character";
+      if (body && body.action === "race_horse") tab = "track";
       notify(body && body.action === "cast_spell" && result.result ?
         result.result.message : success);
     } catch (error) {
@@ -267,7 +277,7 @@
       mageguild: renderMageGuild, tavern: renderTavern,
       healer: renderHealer, cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
-      duel: renderDuel,
+      duel: renderDuel, track: renderTrack,
     };
     const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
@@ -737,18 +747,29 @@
               state.player.stamina < state.combat_stamina_cost), "secondary") +
           '</div>';
       }).join('') :
-      market.map(quote =>
-        '<div class="equipment-item"><div><h3>' + esc(pretty(quote.item)) +
-        '</h3><p>Stock: ' + quote.stock + ' · Buy ' +
-        money(quote.player_buy_price) + ' · Sell ' +
-        money(quote.player_sell_price) + '</p></div>' +
-        button("View Market", 'data-tab="market"', "secondary") +
-        '</div>').join('');
+      (state.world_items || []).filter(item =>
+        pretty(item.id).toLowerCase().includes(query)).map(item => {
+        const low = item.lowest_buy, high = item.highest_sell;
+        return '<div class="equipment-item search-price"><div><h3>' +
+          esc(pretty(item.id)) + '</h3><p>' + esc(item.category) + '</p>' +
+          '<p><strong>Lowest buy:</strong> ' +
+          (low ? esc(money(low.price) + ' · ' + pretty(low.city)) : 'No current vendor') +
+          '</p><p><strong>Highest sell:</strong> ' +
+          (high ? esc(money(high.price) + ' · ' + pretty(high.city)) : 'No current buy quote') +
+          '</p><p class="small">Player-trade value: not established</p></div>' +
+          (low && low.city === state.player.city && item.category === 'Resource' ?
+            button('Market', 'data-tab="market"', "secondary") :
+            low && item.category === 'Equipment' && state.player.city === 'crownreach' ?
+            button('Armory', 'data-tab="armory"', "secondary") : '') +
+          '</div>';
+      }).join('');
     const hint = searchScope === "players" ?
       'These are persistent computer-controlled adventurers, not connected players. ' +
       'To attack, be in the same city with at least 20 stamina. Victory takes 5% ' +
       'of the defeated character’s carried gold.' :
-      'Showing goods available in the current city market, including locally produced goods with zero stock.';
+      'All known goods and equipment are listed. Buy and sell prices are live NPC merchant quotes ' +
+      'when the merchant can currently trade; unavailable routes show no quote. ' +
+      'Crafted goods have no guaranteed city merchant, and player-trade values are not yet tracked.';
     return heading("", "Search", "") +
       '<section class="panel search-results-panel">' +
       '<div class="search-panel">' +
@@ -756,7 +777,7 @@
       '<div class="search-type" role="group" aria-label="Search category">' +
       button("Characters", 'data-ui="search-type" data-scope="players" aria-pressed="' +
         (searchScope === "players") + '"', searchScope === "players" ? "secondary" : "ghost") +
-      button("Market Items", 'data-ui="search-type" data-scope="market" aria-pressed="' +
+      button("Items", 'data-ui="search-type" data-scope="market" aria-pressed="' +
         (searchScope === "market") + '"', searchScope === "market" ? "secondary" : "ghost") +
       '</div><div class="button-group"><input id="people-query" class="field" ' +
       'type="search" maxlength="64" placeholder="' +
@@ -892,7 +913,13 @@
       characterRow(pretty(key), xp + " XP")).join('');
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
-    return '<div class="profile-hero"><h3>' + esc(state.name) + '</h3></div>' +
+    return '<div class="profile-hero"><h3>' + esc(state.name) +
+      '</h3><p class="home-lore">The old Goldmeadow bell sounds at dusk, though no hand has rung it in a generation. ' +
+      'The roads to Crownreach have grown restless; couriers whisper of missing caravans and a sealed royal ledger. ' +
+      'You arrive with little more than a purse, an open road, and the chance to make a name in Oathmere.</p>' +
+      '<p class="home-lore"><strong>Your first steps:</strong> earn coin in the Market, ' +
+      'seek work at the Guild, study an art of magic, or test your strength against a local challenger. ' +
+      'Whatever lies behind the silence of the bell, the cities will need capable hands.</p></div>' +
       '<div class="profile-grid">' +
       panel("Character State", "",
         characterRow("Level", p.level) +
@@ -920,6 +947,32 @@
         (study || '<p class="small">No magical studies yet.</p>')) +
       '</div>';
   }
+  function equipmentMannequin(owned, equipped) {
+    const kind = slot => {
+      const item = owned.find(x => x.id === equipped[slot]);
+      return item ? item.kind : "";
+    };
+    // Original SVG mannequin: equipment is placed over a neutral silhouette.
+    const armor = kind("body"), weapon = kind("weapon"), shield = kind("offhand");
+    return '<div class="equipment-figure" role="img" aria-label="' +
+      esc('Character wearing ' + [armor, weapon, shield].filter(Boolean).join(', ')) + '">' +
+      '<svg viewBox="0 0 240 270" aria-hidden="true">' +
+      '<ellipse cx="120" cy="259" rx="66" ry="8" fill="#d7d0bf"/>' +
+      '<path d="M93 165 L147 165 L144 240 L122 240 L119 198 L115 240 L95 240 Z" fill="#636c60"/>' +
+      '<path d="M83 84 L157 84 L151 174 L89 174 Z" fill="' +
+      (armor === 'plate_armor' ? '#87939a' : armor === 'leather_armor' ? '#8e613e' : '#9a8c6f') + '"/>' +
+      '<rect x="56" y="92" width="24" height="86" rx="11" fill="#a58b6b"/>' +
+      '<rect x="160" y="92" width="24" height="86" rx="11" fill="#a58b6b"/>' +
+      '<circle cx="120" cy="52" r="29" fill="#c3a17a"/>' +
+      '<path d="M92 46 Q120 0 148 46 L142 35 L98 35 Z" fill="#574639"/>' +
+      (armor ? '<path d="M83 86 L157 86 L151 166 L89 166Z" fill="none" stroke="#dcc59d" stroke-width="5"/>' : '') +
+      (shield ? '<path d="M173 119 L211 129 L204 193 L182 213 L162 193 L158 130Z" fill="#637e79" stroke="#d5bd83" stroke-width="5"/>' : '') +
+      (weapon ? '<path d="M49 76 L45 205" stroke="#707c83" stroke-width="8"/>' +
+        '<path d="M27 176 L67 176" stroke="#9c7d42" stroke-width="8"/>' : '') +
+      '</svg><p>' + esc([armor, weapon, shield].filter(Boolean).map(pretty).join(' · ') ||
+        'Unarmored adventurer') + '</p></div>';
+  }
+
   function renderEquipment() {
     const p = state.player;
     const owned = state.gear || [];
@@ -947,7 +1000,7 @@
     }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
     return heading("", "Equipment", "") +
       '<div class="profile-grid">' +
-      panel("Equipped Gear", "", slotRows) +
+      panel("Equipped Gear", "", equipmentMannequin(owned, equipped) + slotRows) +
       panel("Owned Equipment", "", gearRows) +
       '</div>';
   }
@@ -955,8 +1008,11 @@
     const p = state.player;
     const inCapital = p.city === "crownreach" && !p.destination;
     const catalog = (state.equipment_catalog || []).map(item =>
-      '<div class="inventory-row"><span>' + esc(pretty(item.kind)) +
-      ' · ' + esc(pretty(item.slot)) + '</span>' +
+      '<div class="inventory-row"><span><strong>' + esc(pretty(item.kind)) +
+      '</strong><small class="armory-spec">' + esc(pretty(item.slot)) +
+      ' · Attack +' + item.attack + ' · Defense +' + item.defense +
+      ' · Durability ' + item.durability + ' · Quality ' + item.quality +
+      '</small></span>' +
       button("Buy · " + money(item.price),
         'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +
         disabled(!inCapital || isBusy() || p.gold < item.price),
@@ -1032,18 +1088,61 @@
       button("Study magic", 'data-tab="magic"', "secondary") + '</section>' +
       contractBoard("mageguild");
   }
-  function renderHealer() {
-    return futurePage("", "Healer's Sanctuary",
-      "Healers tend the weary and the sick. The nearby church now posts a small herb delivery job; direct healing treatments remain a future service.",
-      "church", "Visit church");
-  }
   function renderChurch() {
+    const service = state.church || {};
+    const missing = state.player.max_hp - state.player.hp;
     return heading("", "Church of the Hearth", "") +
       '<section class="story-panel"><h3>The candlelit nave</h3>' +
-      '<p>The infirmary sister points to shelves of empty herbal jars. "A fresh delivery would ' +
-      'let us prepare for the night. We can pay a modest amount."</p>' +
-      button("Study restoration", 'data-ui="study-restoration"', "secondary") + '</section>' +
+      '<p>The sisters keep a lamp lit for travelers returning injured from the roads. ' +
+      '"We turn away no prayer," says the matron, "but herbs and bandages cost coin."</p>' +
+      '<p>Full recovery: ' + money(service.price || 20) + '. ' +
+      'One treatment per simulated day. No job, potion, or other cooldown is added.</p>' +
+      (service.used_today ? '<p class="small">You have received your treatment today.</p>' : '') +
+      button("Receive healing · " + money(service.price || 20),
+        'data-ui="church-heal"' + disabled(!service.available ||
+        state.player.gold < service.price || isBusy()), "gold") +
+      '<p class="small">Your wounds: ' + missing + ' HP missing.</p></section>' +
       contractBoard("church");
+  }
+  function renderTrack() {
+    const track = state.track || {}, p = state.player;
+    const horses = (track.horses || []).map(h => {
+      const eligible = !isBusy() && p.stamina >= track.race_cost &&
+        p.gold >= track.entry_fee && !track.cooldown_remaining;
+      return '<div class="mini-card"><div class="mini-card-title">♞ ' +
+        esc(h.name) + '</div><div class="mini-card-sub">Speed ' + h.speed +
+        ' · Endurance ' + h.stamina + ' · ' +
+        (h.owned ? 'In your stable' : money(h.price)) + '</div>' +
+        (h.owned ?
+          button('Race · ' + money(track.entry_fee),
+            'data-ui="horse-race" data-breed="' + esc(h.id) + '"' +
+            disabled(!eligible), "gold") :
+          button('Buy · ' + money(h.price),
+            'data-ui="horse-buy" data-breed="' + esc(h.id) + '"' +
+            disabled(isBusy() || p.gold < h.price), "secondary")) +
+        '</div>';
+    }).join('');
+    const last = track.last_result;
+    return heading("", "The Track",
+      "Breed, train and race horses against a field of local riders.") +
+      '<section class="story-panel"><h3>The Five Cities Circuit</h3>' +
+      '<p>In Oathmere, a rider is judged as much by the patience of their mount as ' +
+      'the courage of their hand. At the city track, novice jockeys race for ' +
+      'coin and honor beneath the pennants of the five roads.</p>' +
+      '<p>Riding experience: <strong>' + (track.riding_xp || 0) +
+      ' XP</strong> · Entry ' + money(track.entry_fee || 10) +
+      ' · ' + (track.race_cost || 15) + ' stamina · ' +
+      'Winner receives 30 gold.</p>' +
+      (track.cooldown_remaining ? '<p>Next race in ' +
+        dur(track.cooldown_remaining) + ' simulated time.</p>' : '') +
+      '</section>' + panel("Your stable & horse market",
+        "Buy horses permanently; their speed and endurance determine race performance.",
+        '<div class="card-grid">' + horses + '</div>') +
+      (last ? panel("Latest race", "",
+        '<p><strong>' + esc(pretty(last.breed)) + ' placed #' + last.placing +
+        '</strong> · Your score ' + last.score + ' · Opponents ' +
+        last.rival_scores.join(' / ') + '</p>' +
+        '<p>+' + last.xp + ' riding XP · Prize ' + money(last.prize) + '</p>') : '');
   }
   function renderCityHall() {
     return futurePage("", "City Hall",
@@ -1092,11 +1191,26 @@
       '</div></section>';
   }
 
+  function levelUpOverlay() {
+    if (!levelCelebration) return "";
+    return '<div class="level-overlay" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="level-title"><div class="level-card">' +
+      '<div class="level-sparks">✦ ✧ ✦</div><div class="eyebrow">Achievement unlocked</div>' +
+      '<h2 id="level-title">LEVEL ' + levelCelebration.to + '!</h2>' +
+      '<p>Your journey grows. Greater strength, greater resilience, and new challenges await.</p>' +
+      '<div class="level-gains"><span>+ ' + (levelCelebration.to - levelCelebration.from) +
+      ' level(s)</span><span>Health capacity ' + levelCelebration.hp +
+      '</span><span>Strength ' + levelCelebration.strength +
+      '</span><span>Defense ' + levelCelebration.defense + '</span></div>' +
+      button("Continue your journey", 'data-ui="dismiss-level"', "gold") +
+      '</div></div>';
+  }
+
   function render() {
     if (authNeeded) root.innerHTML = authPage();
     else if (offline) root.innerHTML = offlinePage();
     else if (state && !state.started) root.innerHTML = newCharacterPage();
-    else if (state && state.started) root.innerHTML = shell();
+    else if (state && state.started) root.innerHTML = shell() + levelUpOverlay();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
   }
@@ -1139,6 +1253,14 @@
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "dismiss-level":
+        levelCelebration = null; render(); break;
+      case "church-heal":
+        action("church_heal", {}, "The church restores your health"); break;
+      case "horse-buy":
+        action("buy_racehorse", { breed: element.dataset.breed }, "Racehorse purchased"); break;
+      case "horse-race":
+        action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
       case "travel":
       case "map-travel":

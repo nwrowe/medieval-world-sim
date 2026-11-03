@@ -600,3 +600,28 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .spell-tier-heading { padding:10px; gap:5px; }
   .tier-inline-meter { max-width:65px; }
 }
+
+/* Compact vitals: half-width on wide layouts, equally readable on phones. */
+@media (min-width: 641px) {
+  .vital { flex:0 1 72px; max-width:72px; }
+}
+.profile-hero { display:block; }
+.profile-hero .home-lore { max-width:800px; font-size:13px; line-height:1.7; margin:12px 0 0; color:#e5e9de; }
+.profile-hero .home-lore strong { font-family:inherit; font-size:13px; color:#eed5a5; }
+.armory-spec { display:block; margin-top:5px; color:var(--muted); font-size:11px; line-height:1.5; }
+.search-price p { margin-top:5px; }
+.equipment-figure { width:100%; max-width:310px; margin:0 auto 20px; text-align:center; background:#f6f2e8; border:1px solid var(--line); border-radius:12px; padding:12px; }
+.equipment-figure svg { display:block; max-height:280px; width:100%; }
+.equipment-figure p { font-size:12px; color:var(--muted); margin:0 0 6px; }
+.level-overlay { position:fixed; z-index:1000; inset:0; padding:20px; display:grid; place-items:center; background:rgba(13,29,25,.82); }
+.level-card { max-width:470px; width:100%; border:2px solid #d8b771; background:#183c32; color:#fdf5dc; border-radius:19px; padding:34px 24px; text-align:center; box-shadow:0 24px 80px rgba(0,0,0,.4); }
+.level-card h2 { font-size:clamp(38px,10vw,66px); line-height:1.1; margin:15px 0; color:#f8d88e; }
+.level-card>p { font-size:14px; line-height:1.7; color:#e0e7d9; }
+.level-sparks { color:#f8d88e; font-size:35px; letter-spacing:12px; }
+.level-gains { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin:22px 0; }
+.level-gains span { border:1px solid #668274; border-radius:9px; padding:11px 7px; font-size:12px; }
+@media (max-width:640px) {
+  .vital { max-width:none; }
+  .level-gains { grid-template-columns:1fr 1fr; }
+  .card-grid { grid-template-columns:1fr; }
+}

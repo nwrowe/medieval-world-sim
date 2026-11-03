@@ -31,9 +31,11 @@ class StaminaProgressionTests(unittest.TestCase):
         w = self.world()
         for _ in range(5):
             w.attack("a", "b")
-        w.advance(300)
-        for _ in range(3):
-            if w.actors["b"].hp == 0:
+        w.advance(500)
+        # Passive HP regeneration now restores the defender during the rest,
+        # so enough strikes are needed to reach the same XP threshold.
+        for _ in range(8):
+            if w.actors["b"].hp == 0 or w.actors["a"].level >= 2:
                 break
             w.attack("a", "b")
         player = w.actors["a"]

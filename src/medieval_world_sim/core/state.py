@@ -23,3 +23,8 @@ class WorldState:
     command_receipts: dict[str, tuple] = field(default_factory=dict)
     duels: dict[str, DuelState] = field(default_factory=dict)
     last_duels: dict[str, dict] = field(default_factory=dict)
+    church_healed_day: dict[str, int] = field(default_factory=dict)
+    horses: dict[str, list[str]] = field(default_factory=dict)
+    riding_xp: dict[str, int] = field(default_factory=dict)
+    last_race_minute: dict[str, int] = field(default_factory=dict)
+    race_results: dict[str, dict] = field(default_factory=dict)

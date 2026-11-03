@@ -128,6 +128,9 @@ EVENT_FIELDS = {
     "duel_finished": ["winner_id", "loser_id", "gold", "recovery_minutes"],
     "duel_fled": ["attacker_id", "defender_id"],
     "spell_cast": ["actor_id", "node_id", "context", "amount", "message"],
+    "church_healed": ["actor_id", "gold", "health_restored"],
+    "horse_purchased": ["actor_id", "breed", "gold"],
+    "horse_raced": ["actor_id", "breed", "placing", "xp", "prize"],
     "combat": [
         "attacker_id",
         "defender_id",
