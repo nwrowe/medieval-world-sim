@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from .entities import Actor, Company, Offer, WorldEvent, DuelState
 from .cities import CityState
 from ..equipment import GearItem
+from ..systems.guilds import Guild, WarRecord
 
 
 @dataclass
@@ -28,3 +29,9 @@ class WorldState:
     riding_xp: dict[str, int] = field(default_factory=dict)
     last_race_minute: dict[str, int] = field(default_factory=dict)
     race_results: dict[str, dict] = field(default_factory=dict)
+    guilds: dict[str, Guild] = field(default_factory=dict)
+    next_guild_id: int = 1
+    wars: dict[str, WarRecord] = field(default_factory=dict)
+    merit_claims: dict[str, set[str]] = field(default_factory=dict)
+    merit_balance: dict[str, int] = field(default_factory=dict)
+    merit_upgrades: dict[str, set[str]] = field(default_factory=dict)

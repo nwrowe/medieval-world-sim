@@ -32,6 +32,8 @@ from ..systems.combat import CombatSystem, CombatOutcome
 from ..systems.duels import DuelSystem
 from ..systems.spells import SpellSystem
 from ..systems.track import TrackSystem
+from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
+from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
@@ -81,6 +83,8 @@ class WorldEngine:
         self.duel_system = DuelSystem(self)
         self.spell_system = SpellSystem(self)
         self.track_system = TrackSystem(self)
+        self.guild_system = GuildSystem(self)
+        self.merit_system = MeritSystem(self)
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
@@ -451,6 +455,34 @@ class WorldEngine:
         return self.track_system.race(actor_id, breed)
 
     @atomic_action
+    def found_guild(self, actor_id: str, name: str) -> dict:
+        return self.guild_system.found(actor_id, name)
+
+    @atomic_action
+    def invite_guild(self, actor_id: str, candidate_id: str) -> None:
+        return self.guild_system.invite(actor_id, candidate_id)
+
+    @atomic_action
+    def join_guild(self, actor_id: str, guild_id: str) -> None:
+        return self.guild_system.join(actor_id, guild_id)
+
+    @atomic_action
+    def set_guild_role(self, actor_id: str, member_id: str, role: str) -> None:
+        return self.guild_system.set_role(actor_id, member_id, role)
+
+    @atomic_action
+    def leave_guild(self, actor_id: str) -> None:
+        return self.guild_system.leave(actor_id)
+
+    @atomic_action
+    def claim_merit(self, actor_id: str, achievement: str) -> dict:
+        return self.merit_system.claim(actor_id, achievement)
+
+    @atomic_action
+    def buy_merit_upgrade(self, actor_id: str, perk: str) -> dict:
+        return self.merit_system.purchase(actor_id, perk)
+
+    @atomic_action
     def consume(self, actor_id: str, item: str) -> tuple[int, int, int]:
         return self.consumables.consume(actor_id, item)
 
@@ -499,6 +531,13 @@ class WorldEngine:
                 "church_heal": ("church_heal", ()),
                 "buy_racehorse": ("buy_racehorse", ("breed",)),
                 "race_horse": ("race_horse", ("breed",)),
+                "found_guild": ("found_guild", ("name",)),
+                "invite_guild": ("invite_guild", ("candidate_id",)),
+                "join_guild": ("join_guild", ("guild_id",)),
+                "set_guild_role": ("set_guild_role", ("member_id", "role")),
+                "leave_guild": ("leave_guild", ()),
+                "claim_merit": ("claim_merit", ("achievement",)),
+                "buy_merit_upgrade": ("buy_merit_upgrade", ("perk",)),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
                 "accept_job": ("accept_job", ("company_id",)),
@@ -574,6 +613,35 @@ class WorldEngine:
                 for slot, gear_id in account.equipped.items():
                     if gear_id not in account.gear_ids or GEAR[self.gear[gear_id].kind].slot != slot:
                         raise AssertionError("Equipped item is not owned or is in wrong slot")
+        membership = []
+        if type(self.state.next_guild_id) is not int or self.state.next_guild_id < 1:
+            raise AssertionError("Invalid guild sequence")
+        for guild_id, guild in self.state.guilds.items():
+            if (guild_id != guild.id or guild.founder_id not in self.actors
+                    or not 1 <= len(guild.members) <= MAX_GUILD_MEMBERS
+                    or len(guild.name) < 3 or len(guild.name) > 40
+                    or sum(role == "leader" for role in guild.members.values()) != 1
+                    or any(actor_id not in self.actors or role not in ROLES
+                           for actor_id, role in guild.members.items())
+                    or any(invitee not in self.actors for invitee in guild.invited)
+                    or any(invitee in guild.members for invitee in guild.invited)
+                    or guild.rating < 0 or guild.wins < 0 or guild.losses < 0):
+                raise AssertionError("Invalid guild state")
+            membership.extend(guild.members)
+        if len(membership) != len(set(membership)):
+            raise AssertionError("Character has multiple guilds")
+        for actor_id, claimed in self.state.merit_claims.items():
+            if (actor_id not in self.actors or not claimed <= ACHIEVEMENTS.keys()
+                    or type(self.state.merit_balance.get(actor_id, 0)) is not int
+                    or self.state.merit_balance.get(actor_id, 0) < 0):
+                raise AssertionError("Invalid merit claims")
+            bought = self.state.merit_upgrades.get(actor_id, set())
+            if not bought <= MERIT_UPGRADES.keys():
+                raise AssertionError("Unknown merit perk")
+            issued = sum(ACHIEVEMENTS[k].award for k in claimed)
+            spent = sum(MERIT_UPGRADES[k]["cost"] for k in bought)
+            if issued - spent != self.state.merit_balance.get(actor_id, 0):
+                raise AssertionError("Merit conservation mismatch")
         participants = []
         for key, duel in self.state.duels.items():
             if (key != duel.attacker_id or duel.attacker_id == duel.defender_id

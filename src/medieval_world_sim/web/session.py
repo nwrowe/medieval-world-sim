@@ -42,6 +42,8 @@ UI_ACTIONS = {
     "complete_city_contract", "store_goods", "retrieve_goods",
     "start_duel", "duel_turn", "flee_duel", "cast_spell",
     "church_heal", "buy_racehorse", "race_horse",
+    "found_guild", "invite_guild", "join_guild", "set_guild_role",
+    "leave_guild", "claim_merit", "buy_merit_upgrade",
 }
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
@@ -90,6 +92,13 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
         "goods_stored": f"Stored {info.get('quantity')} {str(info.get('item')).replace('_',' ')} in {info.get('city')}",
         "goods_retrieved": f"Retrieved {info.get('quantity')} {str(info.get('item')).replace('_',' ')} from {info.get('city')}",
+        "guild_founded": f"Founded the guild {info.get('name')}",
+        "guild_invited": f"Guild invitation sent to {info.get('candidate_id')}",
+        "guild_joined": f"Joined guild {info.get('guild_id')}",
+        "guild_role_changed": f"Appointed {info.get('member_id')} as {info.get('role')}",
+        "guild_left": f"Left guild {info.get('guild_id')}",
+        "merit_claimed": f"Achievement claimed: {info.get('achievement')}",
+        "merit_upgrade": f"Merit upgrade purchased: {info.get('perk')}",
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
         "horse_purchased": f"Purchased {info.get('breed')} racehorse for {info.get('gold')} gold",
         "horse_raced": f"Raced {info.get('breed')}: place {info.get('placing')}, earned {info.get('xp')} riding XP and {info.get('prize')} gold",
@@ -223,7 +232,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -266,6 +275,11 @@ class GameSession:
                        record.get("name") in {"church_heal", "buy_racehorse", "race_horse"}
                        else 4 if record.get("name") in
                        {"start_duel", "duel_turn", "flee_duel", "cast_spell"} else 3)
+            if record.get("name") in {
+                "found_guild", "invite_guild", "join_guild", "set_guild_role",
+                "leave_guild", "claim_merit", "buy_merit_upgrade"
+            }:
+                ruleset = 6
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
@@ -464,6 +478,8 @@ class GameSession:
                 "gear": owned_gear,
                 "equipment_catalog": gear_catalog,
                 "world_items": world_items,
+                "guilds": w.guild_system.view(PLAYER_ID),
+                "merits": w.merit_system.view(PLAYER_ID),
                 "equipped": dict(actor.equipped),
                 "player": {
                     "city": actor.city, "destination": actor.destination,
