@@ -424,6 +424,67 @@
       '<div class="market-grid">' + cards + '</div>';
   }
 
+  // Mastery tracks are a visual representation of existing school XP,
+  // not a new economy, skill cap, unlock gate, or 400-level grind.
+  const tierThresholds = [0, 30, 120, 350, 1000];
+  function masteryTrack(xp) {
+    const idx = tierThresholds.findIndex((limit, i) =>
+      i < tierThresholds.length - 1 && xp < tierThresholds[i + 1]);
+    const tier = idx < 0 ? 4 : idx + 1;
+    const floor = tierThresholds[tier - 1];
+    const ceiling = tierThresholds[tier];
+    const rank = Math.min(100, Math.floor((xp - floor) / (ceiling - floor) * 100));
+    return { tier, rank, floor, ceiling };
+  }
+  const practiceScenes = {
+    restoration: {
+      setting: "In the chapel infirmary, you place your hands above a patient's bandaged arm and guide a thread of warmth into the wounded flesh.",
+      success: "The ache softens under your touch. An attending healer nods and quietly asks you to return for further study.",
+      failure: "The warmth disperses before it settles. The healer shows you where your focus faltered.",
+    },
+    divination: {
+      setting: "In the archive tower, you lay a handful of old coins beneath a candle and search their shifting shadows for a pattern.",
+      success: "For one clear instant, the pattern holds. You record what you saw before it fades.",
+      failure: "The shadows scatter into unrelated shapes. You mark the mistake and try to understand it.",
+    },
+    enchantment: {
+      setting: "At a workbench, you carefully trace a rune into a fragment of iron, testing whether the line will hold a spell.",
+      success: "The rune catches a steady light. Your tutor examines the finished mark with approval.",
+      failure: "The mark flickers and fades. You reshape the line and note how the metal resisted.",
+    },
+    warding: {
+      setting: "You stand inside a chalk circle and attempt to weave a thin protective veil across its boundary.",
+      success: "The air grows firm as glass. For a moment, the ward withstands your tutor's test.",
+      failure: "The veil parts under the slightest touch. You study the weak point before resetting the circle.",
+    },
+    elemental: {
+      setting: "Beside a forge, you draw a measured breath and coax a spark to dance across your palms without burning your skin.",
+      success: "The spark rises into a controlled flame. The smith watches its shape before returning to his work.",
+      failure: "The spark flares too quickly and dies. You learn again the difference between power and control.",
+    },
+    alchemy: {
+      setting: "Over a narrow brass burner, you measure crushed herbs into a clear flask and wait for the mixture to change.",
+      success: "The liquid settles into the expected hue. You carefully label the preparation for your records.",
+      failure: "An unexpected precipitate forms. You empty the flask and write down the failed proportion.",
+    },
+  };
+  function practiceStory(outcome) {
+    const node = state.magic_nodes.find(x => x.node_id === outcome.nodeId);
+    const schoolName = node ? node.school : outcome.nodeId.split(".")[0];
+    const scene = practiceScenes[schoolName] || practiceScenes.divination;
+    return '<section class="practice-report" role="status" aria-live="polite">' +
+      '<div class="section-kicker">Latest practice · ' + esc(pretty(schoolName)) + '</div>' +
+      '<h3>' + esc(node ? node.title : pretty(outcome.nodeId.split(".").pop())) +
+      (outcome.success ? ' · Success' : ' · Unsuccessful attempt') + '</h3>' +
+      '<p>' + esc(scene.setting + ' ' + (outcome.success ? scene.success : scene.failure)) + '</p>' +
+      '<div class="practice-rewards"><span>' + (outcome.xp_gained > 0 ? '+' : '') +
+      outcome.xp_gained + ' XP</span><span>−' + outcome.mana_spent + ' mana</span>' +
+      (outcome.insight_gained ? '<span>+' + outcome.insight_gained + ' Insight</span>' : '') +
+      '<span>' + outcome.roll + ' rolled / ' + outcome.chance + '% success chance</span></div>' +
+      '<p class="practice-note">Practice has no wage. Future guild and church contracts ' +
+      'will pay real gold only when their objectives are completed.</p></section>';
+  }
+
   function renderMagic() {
     const p = state.player;
     if (!state.magic_schools.includes(school)) school = state.magic_schools[0];
@@ -431,6 +492,17 @@
       '<button data-school="' + esc(s) + '" class="' + (s === school ? "active" : "") +
       '">' + esc(pretty(s)) + '</button>').join("");
     const nodes = state.magic_nodes.filter(n => n.school === school);
+    const schoolXp = p.school_xp[school] || 0;
+    const mastery = masteryTrack(schoolXp);
+    const tierBoxes = [1,2,3,4].map(tier => {
+      const floor = tierThresholds[tier - 1], ceiling = tierThresholds[tier];
+      const rank = Math.min(100, Math.max(0,
+        Math.floor((schoolXp - floor) / (ceiling - floor) * 100)));
+      return '<div class="tier-box ' + (tier === mastery.tier ? 'active' : '') +
+        '"><small>Tier ' + tier + '</small><strong>' +
+        (schoolXp >= ceiling ? '100' : rank) + '/100</strong>' +
+        progress(Math.max(0, rank), 100) + '</div>';
+    }).join("");
     const list = nodes.map(node => {
       const canUse = !isBusy();
       let controls = "";
@@ -462,22 +534,25 @@
       '</div></label></div>').join("") :
       '<p class="small">Unlock Tier III skills to choose your two active specializations.</p>';
     return heading("", "Magic Progression", "") +
+      '<div class="school-banner"><div><small>ARCANE DISCIPLINE</small><h3>' +
+      esc(pretty(school)) + '</h3><p>Progress through four tiers of study. ' +
+      'Unlocking a spell also requires Insight and prerequisite knowledge.</p></div>' +
+      '<div class="insight-badge">' + p.insight + ' Insight</div></div>' +
+      '<div class="school-tabs">' + schools + '</div>' +
+      '<div class="tier-track">' + tierBoxes + '</div>' +
+      (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="two-col"><div class="stack">' +
-      panel(pretty(school) + " school", "Unlock prerequisites, spend mana, and advance your skill.",
-        '<div class="school-tabs">' + schools + '</div>' +
-        '<div class="callout mb-14"><strong>Practice-only prototype</strong>' +
-        'Skills currently award XP, not paid contracts or spell effects. Those features will use ' +
-        'this progression tree later.</div>' +
+      panel("Study & abilities", "Your unlocked spells, branches and prerequisites",
         '<div class="magic-track">' + list + '</div>') +
       '</div><aside class="stack">' +
-      panel("Your arcane studies", "Mana regenerates as world time advances.",
-        '<div class="mini-card-top"><strong>Mana</strong><strong>' + p.mana +
-        ' / ' + p.max_mana + '</strong></div>' + progress(p.mana, p.max_mana) +
-        '<div class="divider"></div><div class="mini-card-top"><strong>School experience</strong>' +
-        '<strong>' + (p.school_xp[school] || 0) + ' XP</strong></div>' +
-        progress(p.school_xp[school] || 0, 350) +
-        '<p class="small mt-13">Basic practice eventually stops granting XP. ' +
-        'Higher-tier studies unlock additional progression.</p>') +
+      panel("Your studies", "Existing school progression",
+        characterRow("Mana", p.mana + " / " + p.max_mana) +
+        characterRow("School experience", schoolXp + " XP") +
+        characterRow("Mastery progress", "Tier " + mastery.tier + " · " +
+          mastery.rank + "/100") +
+        '<p class="small mt-13">The 100-step tier meters summarize existing XP; ' +
+        'they do not add new levels or change unlock conditions. Basic practice ' +
+        'eventually stops granting experience, so more advanced spells matter.</p>') +
       panel("Active specializations", "Select at most two advanced branches. Changing your " +
         "selection has a six-hour in-game cooldown.",
         '<p class="small">Active: ' + p.attuned_paths.length + ' / 2</p>' +
