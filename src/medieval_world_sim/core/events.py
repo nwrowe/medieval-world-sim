@@ -116,6 +116,7 @@ EVENT_FIELDS = {
         "actor_id", "node_id", "school", "success", "roll", "chance",
         "mana_spent", "xp_gained", "school_xp", "insight_gained"
     ],
+    "city_contract_completed": ["actor_id", "city", "contract_id", "gold", "stamina", "mana", "xp", "material"],
     "regional_bought": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "city_sale": ["city_id", "company_id", "item", "price", "quality_stars", "day"],
