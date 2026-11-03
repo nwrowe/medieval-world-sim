@@ -270,10 +270,11 @@
     let body = inventory.length ? inventory.map(([item, qty]) => (
       '<div class="inventory-row"><span>' + esc(pretty(item)) +
       '</span><strong>× ' + qty + '</strong></div>'
-    )).join("") : '<div class="empty">Your pack is empty. Gather resources to start trading.</div>';
-    body += '<div class="divider"></div><div class="small">Local capacity: 20 units. ' +
-      'Travel capacity: ' + p.cargo_limit + ' units. Equipped gear also takes space.</div>';
-    return panel("Your pack", "Items and cargo", body, chip(p.cargo + " items"));
+    )).join("") : '<div class="empty">No items yet. Gather resources or visit a market.</div>';
+    body += '<div class="divider"></div><div class="small">Inventory: ' +
+      p.cargo + ' / 20 units · Travel limit: ' + p.cargo_limit +
+      ' units. Equipment also occupies space.</div>';
+    return panel("Carried inventory", "Goods and resources", body, chip(p.cargo + " items"));
   }
   function activityPanel() {
     let body = state.events.length ? '<ul class="activity">' +
@@ -314,9 +315,10 @@
         disabled(pending)) + '</section>'
       : defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your character ' +
         'has recovered before beginning another activity.</div>' : "";
-    return '<div class="heading-row"><div><div class="section-kicker">The open road</div>' +
-      '<h2>Explore the realm</h2><p class="subheading">Travel, harvest, and discover new trade routes.</p>' +
-      '</div>' + chip(clock(state.minute)) + '</div>' +
+    return '<div class="heading-row"><div><div class="section-kicker">Beyond the city gates</div>' +
+      '<h2>World Map</h2><p class="subheading">Five settlements linked by the royal roads. ' +
+      'Plan a journey or gather outside the walls.</p>' +
+      '</div></div>' +
       '<div class="two-col"><div class="stack">' + journey +
       panel("Choose your destination", "All routes connect through the royal capital.",
         '<div class="card-grid">' + destinations + '</div>') +
@@ -331,7 +333,13 @@
         button("Next day", 'data-ui="advance" data-minutes="1440"' + disabled(pending), "ghost") +
         '</div><p class="small mt-12">Stamina and mana recover with time. ' +
         'The world does not run in real time yet.</p>') +
-      '</div><aside class="stack">' + inventoryPanel() + activityPanel() +
+      '</div><aside class="stack">' +
+      panel("Roads of the Five Cities", "Current road network",
+        '<div class="route-map"><strong>✦ Crownreach</strong>' +
+        '<span>↙ Goldmeadow</span><span>↖ Ironvale</span>' +
+        '<span>↗ Greenhollow</span><span>↘ Emberfall</span></div>' +
+        '<p class="small">All roads presently lead through the royal capital. ' +
+        'Travel times account for your current vehicle.</p>') +
       '</aside></div>';
   }
 
@@ -366,7 +374,8 @@
     return '<div class="heading-row"><div><div class="section-kicker">Commerce & opportunity</div>' +
       '<h2>Regional marketplace</h2><p class="subheading">Buying prices differ by city. ' +
       'Carry goods where merchants pay more.</p></div>' + chip(money(p.gold)) + '</div>' +
-      '<div class="callout mb-20"><strong>Merchant trading</strong>' +
+      '<div class="callout mb-20"><strong>Merchant trading · ' + p.cargo +
+      '/20 inventory units · ' + p.cargo_limit + ' travel capacity</strong>' +
       'Every sale is paid with the city’s existing gold and every purchase uses physical stock. ' +
       'Travel to the producing cities to buy low, then sell at a higher bid elsewhere. ' +
       'Daily limits and availability apply.</div>' +
@@ -772,7 +781,7 @@
       case "reload": load(); break;
       case "travel": action("travel", { destination: element.dataset.target }, "Journey started"); break;
       case "gather": action("gather", { item, quantity: Number(element.dataset.qty) },
-        "Resources added to your pack"); break;
+        "Resources added to your inventory"); break;
       case "advance": advance(Number(element.dataset.minutes)); break;
       case "buy":
       case "sell": {
@@ -803,9 +812,16 @@
         { vehicle: element.dataset.vehicle }, "Vehicle purchased"); break;
       case "select-vehicle": action("select_vehicle",
         { vehicle: element.dataset.vehicle || null }, "Travel option changed"); break;
+      case "buy-starter": action("buy_starter_gear",
+        { kind: element.dataset.kind }, "New equipment purchased"); break;
+      case "equip": action("equip",
+        { gear_id: Number(element.dataset.gearId) }, "Equipment updated"); break;
+      case "unequip": action("unequip",
+        { slot: element.dataset.slot }, "Equipment removed"); break;
       default: break;
     }
   });
 
   load();
+  setInterval(updateEasternClock, 15000);
 })();
