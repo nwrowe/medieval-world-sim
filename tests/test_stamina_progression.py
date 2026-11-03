@@ -31,7 +31,7 @@ class StaminaProgressionTests(unittest.TestCase):
         w = self.world()
         for _ in range(5):
             w.attack("a", "b")
-        w.advance(300)
+        w.advance(500)
         # Passive HP regeneration now restores the defender during the rest,
         # so enough strikes are needed to reach the same XP threshold.
         for _ in range(8):
