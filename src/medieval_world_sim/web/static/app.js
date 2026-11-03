@@ -14,6 +14,8 @@
     { id: "inventory", icon: "◫", title: "Inventory" },
     { id: "home", icon: "⌂", title: "My Property" },
     { id: "magic", icon: "✧", title: "Magic" },
+    { id: "guilds", icon: "⚑", title: "Guilds" },
+    { id: "merits", icon: "✶", title: "Merits" },
     { id: "market", icon: "⚖", title: "Market" },
     { id: "job", icon: "▣", title: "Job" },
     { id: "warriors", icon: "⚔", title: "Warriors Guild" },
@@ -278,6 +280,7 @@
       healer: renderHealer, cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
+      guilds: renderGuilds, merits: renderMerits,
     };
     const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
@@ -1144,6 +1147,79 @@
         last.rival_scores.join(' / ') + '</p>' +
         '<p>+' + last.xp + ' riding XP · Prize ' + money(last.prize) + '</p>') : '');
   }
+  function renderGuilds() {
+    const info = state.guilds || {}, own = info.my_guild, rules = info.rules || {};
+    const directory = (info.directory || []).map(g =>
+      '<div class="equipment-item"><div><h3>' + esc(g.name) +
+      '</h3><p>' + g.members + ' members</p></div></div>').join('');
+    let myGuild = '';
+    if (own) {
+      const roster = Object.entries(own.members).map(([id, role]) =>
+        '<div class="inventory-row"><span>' + esc(id === 'hero' ? state.name : id) +
+        '</span>' + chip(pretty(role)) + '</div>').join('');
+      myGuild = panel(own.name, 'Your ' + pretty(own.role) + ' role',
+        '<div class="resource-list">' +
+        chip('Rating ' + own.rating) + chip('Wins ' + own.wins) +
+        chip('Losses ' + own.losses) + '</div>' +
+        '<h4>Members</h4>' + roster +
+        '<p class="small">Invitations, officer appointments and membership ' +
+        'permissions exist in the engine. A multi-account server is required ' +
+        'to make guild recruitment useful across real players.</p>' +
+        button('Leave guild', 'data-ui="guild-leave"' + disabled(isBusy() ||
+        Object.keys(own.members).length > 1 && own.role === 'leader'), 'ghost'));
+    } else {
+      myGuild = panel('Found your guild',
+        'Choose a banner name and pay a one-time 100 gold charter fee.',
+        '<div class="button-group"><input class="field" id="guild-name" maxlength="40" ' +
+        'placeholder="Guild name (3–40 characters)" aria-label="Guild name">' +
+        button('Found Guild · ' + money(info.founding_cost || 100),
+          'data-ui="guild-found"' + disabled(isBusy() ||
+          state.player.gold < (info.founding_cost || 100)), 'gold') + '</div>');
+    }
+    return heading('', 'Guilds', 'Build a banner, gather allies, and prepare for the ranked-war era.') +
+      '<div class="stack">' + myGuild +
+      panel('The Guild Hall', 'Existing banners', directory ||
+        '<p class="small">No guilds have been founded yet.</p>') +
+      panel('Ranked wars — framework', 'The system is designed, but matchmaking and war attacks are not enabled.',
+        '<p>Two guilds will face a ' + (rules.notice_minutes / 60) +
+        '-hour preparation period followed by at most ' +
+        (rules.duration_minutes / 60) + ' hours of competition.</p>' +
+        '<div class="resource-list">' + chip('Cumulative War Score') +
+        chip('Roster lock') + chip('No outside interference') +
+        chip('Surrender available') + '</div>' +
+        '<p class="small">Score targets will scale with roster size. ' +
+        'Participation, performance, and victory each contribute to rewards. ' +
+        'The Elo-based matchmaker, fortifications and reward payments are future work.</p>') +
+      '</div>';
+  }
+  function renderMerits() {
+    const info = state.merits || {};
+    const feats = (info.achievements || []).map(f =>
+      '<div class="equipment-item"><div><h3>' + esc(f.name) +
+      '</h3><p>' + esc(f.description) + ' · +' + f.award +
+      ' merit</p></div>' +
+      (f.claimed ? chip('Claimed') :
+        button(f.eligible ? 'Claim merit' : 'Locked',
+          'data-ui="merit-claim" data-achievement="' + esc(f.id) + '"' +
+          disabled(!f.eligible || isBusy()), f.eligible ? 'gold' : 'ghost')) +
+      '</div>').join('');
+    const upgrades = (info.upgrades || []).map(perk =>
+      '<div class="equipment-item"><div><h3>' + esc(perk.name) +
+      '</h3><p>' + esc(perk.description) + '</p></div>' +
+      (perk.owned ? chip('Owned') :
+        button('Buy · ' + perk.cost + ' merits',
+          'data-ui="merit-buy" data-perk="' + esc(perk.id) + '"' +
+          disabled(info.balance < perk.cost || isBusy()), 'secondary')) +
+      '</div>').join('');
+    return heading('', 'Merits', 'Honor your milestones and shape a lasting character.') +
+      '<div class="stack">' +
+      panel('Your merit ledger', 'Merits are earned once per achievement, not repeatedly farmed.',
+        '<div class="resource-list">' + chip('Available: ' + (info.balance || 0)) +
+        chip('Lifetime earned: ' + (info.total_earned || 0)) + '</div>') +
+      panel('Achievements', 'Complete goals throughout Oathmere.', feats) +
+      panel('Permanent improvements', 'Spend earned merits on carefully bounded advantages.', upgrades) +
+      '</div>';
+  }
   function renderCityHall() {
     return futurePage("", "City Hall",
       "A clerk maintains the city's merchant ledgers, civic obligations and contracts. You can now earn wages at the guilds and employment hall.",
@@ -1255,6 +1331,19 @@
     switch (ui) {
       case "dismiss-level":
         levelCelebration = null; render(); break;
+      case "guild-found": {
+        const input = document.getElementById("guild-name");
+        const name = input && input.value.trim();
+        if (!name || name.length < 3) {
+          notify('Enter a guild name of at least 3 characters', true); break;
+        }
+        action("found_guild", { name }, "Guild founded"); break;
+      }
+      case "guild-leave": action("leave_guild", {}, "Left your guild"); break;
+      case "merit-claim":
+        action("claim_merit", { achievement: element.dataset.achievement }, "Merit earned"); break;
+      case "merit-buy":
+        action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
         action("church_heal", {}, "The church restores your health"); break;
       case "horse-buy":
