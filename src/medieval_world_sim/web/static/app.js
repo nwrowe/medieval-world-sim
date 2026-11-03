@@ -542,12 +542,14 @@
     }).join("");
     const list = nodes.map(node => {
       const canUse = !isBusy();
+      const higherUnlocked = nodes.some(other => other.tier > node.tier && other.unlocked);
       let controls = "";
       if (node.unlocked) {
-        controls = button("Practice · " + node.mana_cost + " mana",
+        controls = button(higherUnlocked ? "Tier mastered" :
+          "Practice · " + node.mana_cost + " mana",
           'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-          disabled(!canUse || !node.active || p.mana < node.mana_cost),
-          node.active ? "" : "ghost");
+          disabled(!canUse || higherUnlocked || !node.active || p.mana < node.mana_cost),
+          node.active && !higherUnlocked ? "" : "ghost");
       } else {
         controls = button(node.eligible ? "Unlock" : "Locked",
           'data-ui="unlock" data-node="' + esc(node.node_id) + '"' +
@@ -587,9 +589,10 @@
         characterRow("School experience", schoolXp + " XP") +
         characterRow("Mastery progress", "Tier " + mastery.tier + " · " +
           mastery.rank + "/100") +
-        '<p class="small mt-13">The 100-step tier meters summarize existing XP; ' +
-        'they do not add new levels or change unlock conditions. Basic practice ' +
-        'eventually stops granting experience, so more advanced spells matter.</p>') +
+        '<p class="small mt-13">Each tier meter summarizes existing school XP. ' +
+        'After unlocking a higher-tier spell, lower-tier practice is retired. ' +
+        'Practice success is 90–98% depending on difficulty and experience. ' +
+        'The meter does not introduce new unlock requirements.</p>') +
       panel("Active specializations", "Select at most two advanced branches. Changing your " +
         "selection has a six-hour in-game cooldown.",
         '<p class="small">Active: ' + p.attuned_paths.length + ' / 2</p>' +
