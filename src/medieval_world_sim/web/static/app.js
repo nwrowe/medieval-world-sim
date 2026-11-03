@@ -779,8 +779,8 @@
         catalog) +
       '</aside></div>';
   }
-  function futurePage(kicker, title, narrative, next, label) {
-    return heading(kicker, title, "An institution of the Five Cities.") +
+  function futurePage(kicker, title, narrative, next, label, nested = false) {
+    return (nested ? "" : heading("", title, "")) +
       '<section class="story-panel"><div class="section-kicker">Coming chapter</div>' +
       '<h3>' + esc(title) + '</h3><p>' + esc(narrative) + '</p>' +
       '<p class="small">This location is planned. It cannot yet award gold, XP, ' +
@@ -828,7 +828,7 @@
       '<div class="two-col"><div class="stack">' +
       futurePage("Employment Hall", "Contracts & employers",
         "Merchants seek porters, the foundries need laborers, and inns always need hands. A future jobs board will show real employers, wages, shift requirements and experience.",
-        "city", "Return to City Map") +
+        "city", "Return to City Map", true) +
       '</div><aside class="stack">' +
       panel("Your work record", "Authoritative work attributes",
         characterRow("Manual", w.manual) +
@@ -844,7 +844,7 @@
       '<div class="two-col"><div class="stack">' +
       futurePage("The old university", "Training & scholarship",
         "A hall for tutors, scholars and veteran soldiers. Future courses will take time and money, with clear progression rules and different paths for intellect, labor and warfare.",
-        "magic", "Practice magic now") +
+        "magic", "Practice magic now", true) +
       '</div><aside class="stack">' +
       panel("Current disciplines", "Baseline work attributes",
         characterRow("Manual", w.manual) +
