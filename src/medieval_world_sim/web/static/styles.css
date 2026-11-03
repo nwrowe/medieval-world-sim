@@ -182,3 +182,13 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .shell {padding-bottom:94px}
 }
 @media (prefers-reduced-motion: reduce) { * { scroll-behavior:auto!important;animation:none!important;transition:none!important } }
+
+/* Reusable spacing keeps presentation compatible with the restrictive CSP. */
+.mt-12 { margin-top:12px!important }
+.mt-13 { margin-top:13px!important }
+.mb-20 { margin-bottom:20px!important }
+.m-0 { margin:0!important }
+.meter { width:100%; height:9px; display:block; appearance:none; border:0; border-radius:99px; background:#e2e4d9; overflow:hidden; }
+.meter::-webkit-progress-bar { background:#e2e4d9; border-radius:99px; }
+.meter::-webkit-progress-value { background:#b69860; border-radius:99px; }
+.meter::-moz-progress-bar { background:#b69860; border-radius:99px; }
