@@ -80,6 +80,8 @@ class Actor:
     city: str = CAPITAL
     gold: int = 100
     inventory: dict[str, int] = field(default_factory=dict)
+    # City-specific personal storage: goods can be owned without traveling with them.
+    storage: dict[str, dict[str, int]] = field(default_factory=dict)
     gear_ids: list[int] = field(default_factory=list)
     equipped: dict[str, int] = field(default_factory=dict)
     hostile: bool = False
