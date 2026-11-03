@@ -851,50 +851,91 @@
       'contracts, or equipment.</p>' + button(label, 'data-tab="' + esc(next) + '"',
         "secondary") + '</section>';
   }
+  const contractScenes = {
+    warrior_patrol: "You take your position along the weathered city wall. By the end of your patrol, the guard captain signs your report and orders your wage paid from the city treasury.",
+    mage_copywork: "Beneath the guild's high windows, you copy protective sigils until your fingertips ache. The archivist checks your script, then pays you from the guild's civic stipend.",
+    church_supplies: "You bring a bundle of herbs to the infirmary. The sisters inventory it for their patients and offer a modest payment from the city's charitable allowance.",
+    labor_shift: "You join the porters hauling grain and supplies through the market yard. After the last cart is loaded, the foreman counts out your wages.",
+  };
+  function contractBoard(venue) {
+    const p = state.player;
+    const offers = (state.contracts || []).filter(contract => contract.venue === venue);
+    const items = offers.map(contract => {
+      const ready = p.ready_minute <= state.minute;
+      const can = !isBusy() && ready && contract.can_pay && contract.has_material &&
+        p.stamina >= contract.stamina && p.mana >= contract.mana;
+      const costs = [contract.stamina ? contract.stamina + ' stamina' : null,
+        contract.mana ? contract.mana + ' mana' : null,
+        contract.material ? '1 ' + pretty(contract.material) : null].filter(Boolean);
+      return '<div class="contract-card"><div><h3>' + esc(contract.title) + '</h3>' +
+        '<p>' + esc(contract.description) + '</p>' +
+        '<div class="contract-terms"><span>+' + contract.reward + ' gold</span>' +
+        '<span>' + esc(costs.length ? costs.join(' · ') : 'No item cost') + '</span>' +
+        '<span>' + contract.cooldown_minutes + ' game-minute shift cooldown</span></div>' +
+        (!contract.can_pay ? '<p class="small">The city cannot currently fund this offer.</p>' :
+         !contract.has_material ? '<p class="small">You need ' + esc(pretty(contract.material)) + '.</p>' :
+         !ready ? '<p class="small">Available after ' +
+           (p.ready_minute - state.minute) + ' more game minutes.</p>' : '') +
+        '</div>' +
+        button("Complete contract", 'data-ui="contract" data-contract="' +
+          esc(contract.id) + '"' + disabled(!can), "secondary") + '</div>';
+    }).join("");
+    let report = "";
+    if (latestContract && offers.some(c => c.id === latestContract.contract_id)) {
+      const scene = contractScenes[latestContract.contract_id] || "You finish your work and receive payment.";
+      report = '<div class="practice-report" role="status"><h3>Contract completed</h3>' +
+        '<p>' + esc(scene) + '</p><div class="practice-rewards"><span>+' +
+        latestContract.reward + ' gold</span><span>+' + latestContract.xp_gained +
+        ' XP</span></div></div>';
+    }
+    return report + panel("Available paid work",
+      "Wages transfer from the current city's finite funds; no coins are created.",
+      items || '<p class="empty">No contracts are posted here.</p>');
+  }
   function renderWarriorsGuild() {
-    return futurePage("Guild quarter", "Warriors Guild",
-      "The hall smells of worn leather and oiled steel. A contract board stands behind the steward: caravan escort, city patrol, and bounty work will eventually offer paid combat missions.",
-      "equipment", "Prepare equipment");
+    return heading("", "Warriors Guild", "") +
+      '<section class="story-panel"><h3>Duty at the western gate</h3>' +
+      '<p>The watch captain glances at your gear. "A sharp eye is worth as much as a blade. ' +
+      'There is honest coin in keeping these streets safe."</p></section>' +
+      contractBoard("warriors") +
+      '<p class="small mt-13">Patrols train combat experience. Bounties and actual NPC battles are future missions.</p>';
   }
   function renderMageGuild() {
-    return heading("Guild quarter", "Mage Guild", "Scholarship, spellcraft and future commissions.") +
-      '<section class="story-panel"><div class="section-kicker">The six schools</div>' +
-      '<h3>The keeper of the archives</h3><p>The archmage studies your arrival without surprise. ' +
-      'There is room for another apprentice, but first there are six disciplines to learn.</p>' +
-      '<p class="small">School study is available now. Paid magical contracts and spell effects ' +
-      'are planned for later.</p>' +
-      button("Study magic", 'data-tab="magic"', "secondary") + '</section>';
+    return heading("", "Mage Guild", "") +
+      '<section class="story-panel"><h3>The keeper of the archives</h3>' +
+      '<p>The archivist slides a sheaf of wards across the table. "Our copies never finish themselves. ' +
+      'Work well and there is a modest stipend."</p>' +
+      button("Study magic", 'data-tab="magic"', "secondary") + '</section>' +
+      contractBoard("mageguild");
   }
   function renderHealer() {
-    return futurePage("The temple district", "Healer's Sanctuary",
-      "Beneath a quiet stone arch, healers tend weary travelers. Treatment, restorative remedies, and related costs will eventually be real simulation systems.",
-      "city", "Return to City Map");
+    return futurePage("", "Healer's Sanctuary",
+      "Healers tend the weary and the sick. The nearby church now posts a small herb delivery job; direct healing treatments remain a future service.",
+      "church", "Visit church");
   }
   function renderChurch() {
     return heading("", "Church of the Hearth", "") +
       '<section class="story-panel"><h3>The candlelit nave</h3>' +
-      '<p>Quiet footsteps echo beneath the stone arches. Healers and petitioners ' +
-      'gather here, asking aid and sharing news from the roads. A novice invites ' +
-      'you to study the arts of restoration.</p>' +
-      '<p class="small">Church services, charitable assignments, and paid healing ' +
-      'contracts are planned. No gold is earned merely by visiting.</p>' +
-      button("Study restoration", 'data-ui="study-restoration"', "secondary") + '</section>';
+      '<p>The infirmary sister points to shelves of empty herbal jars. "A fresh delivery would ' +
+      'let us prepare for the night. We can pay a modest amount."</p>' +
+      button("Study restoration", 'data-ui="study-restoration"', "secondary") + '</section>' +
+      contractBoard("church");
   }
   function renderCityHall() {
-    return futurePage("The civic quarter", "City Hall",
-      "A clerk maintains ledgers of the city's merchants, residents and obligations. Permits, civic reputation, and faction affairs may someday be managed here.",
-      "city", "Return to City Map");
+    return futurePage("", "City Hall",
+      "A clerk maintains the city's merchant ledgers, civic obligations and contracts. You can now earn wages at the guilds and employment hall.",
+      "job", "Find work");
   }
   function renderJob() {
     const w = state.player.work;
-    return heading("The city's livelihoods", "Job",
-      "Employment, wages and long-term professions.") +
+    return heading("", "Employment Hall", "") +
       '<div class="two-col"><div class="stack">' +
-      futurePage("Employment Hall", "Contracts & employers",
-        "Merchants seek porters, the foundries need laborers, and inns always need hands. A future jobs board will show real employers, wages, shift requirements and experience.",
-        "city", "Return to City Map", true) +
+      '<section class="story-panel"><h3>The morning hiring board</h3>' +
+      '<p>A foreman needs hands for a merchant loading shift. It is tiring work, ' +
+      'but the pay is dependable while the city treasury can afford it.</p></section>' +
+      contractBoard("job") +
       '</div><aside class="stack">' +
-      panel("Your work record", "Authoritative work attributes",
+      panel("Your work record", "Real progression from completed assignments",
         characterRow("Manual", w.manual) +
         characterRow("Intelligence", w.intelligence) +
         characterRow("Endurance", w.endurance) +
@@ -995,6 +1036,8 @@
           { item, quantity }, ui === "buy" ? "Goods purchased" : "Goods sold");
         break;
       }
+      case "contract": action("complete_city_contract",
+        { contract_id: element.dataset.contract }, "Contract completed"); break;
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
       case "find-people":
         peopleQuery = document.getElementById("people-query").value.trim();
