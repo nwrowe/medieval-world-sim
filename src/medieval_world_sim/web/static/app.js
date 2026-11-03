@@ -526,83 +526,110 @@
       'will pay real gold only when their objectives are completed.</p></section>';
   }
 
+  const schoolIcons = {
+    restoration: "✚", divination: "☽", enchantment: "ᚱ",
+    warding: "⛨", elemental: "✹", alchemy: "⚗",
+  };
+  const schoolRoles = {
+    restoration: "Healing", divination: "Sight & travel",
+    enchantment: "Gear & runes", warding: "Protection",
+    elemental: "Fire & combat", alchemy: "Potions",
+  };
+  function spellRow(node, nodes, p) {
+    const higherUnlocked = nodes.some(other => other.tier > node.tier && other.unlocked);
+    const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
+    const needed = node.prerequisites.filter(id =>
+      !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
+      id !== "arcane_fundamentals");
+    const status = node.unlocked ? (node.active ? "Learned" : "Attunement required") :
+      node.eligible ? "Ready to unlock" :
+      needsXp ? needsXp + " XP needed" : needed.length ? "Requires earlier spell" :
+      "Requires Insight";
+    let control;
+    if (node.unlocked) {
+      control = button(higherUnlocked ? "Mastered" : "Practice · " + node.mana_cost + " mana",
+        'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
+        disabled(higherUnlocked || !node.active || isBusy() || p.mana < node.mana_cost),
+        higherUnlocked ? "ghost" : "secondary");
+    } else {
+      control = button(node.eligible ?
+        "Unlock · " + node.insight_cost + " Insight" : "Locked",
+        'data-ui="unlock" data-node="' + esc(node.node_id) + '"' +
+        disabled(!node.eligible || isBusy()), node.eligible ? "gold" : "ghost");
+    }
+    return '<div class="spell-row ' + (node.unlocked ? 'is-learned' : 'is-locked') +
+      '"><span class="spell-symbol" aria-hidden="true">' +
+      (node.unlocked ? "✧" : "◇") + '</span><div class="spell-description">' +
+      '<h4>' + esc(node.title) + '</h4>' +
+      '<div class="spell-meta"><span class="' +
+      (node.unlocked ? "spell-status learned" : "spell-status") + '">' +
+      esc(status) + '</span><span>' + esc(pretty(node.role)) +
+      ' · world effect planned</span></div>' +
+      '</div><div class="spell-action">' + control + '</div></div>';
+  }
   function renderMagic() {
     const p = state.player;
     if (!state.magic_schools.includes(school)) school = state.magic_schools[0];
-    const schools = state.magic_schools.map(s =>
-      '<button data-school="' + esc(s) + '" class="' + (s === school ? "active" : "") +
-      '">' + esc(pretty(s)) + '</button>').join("");
-    const nodes = state.magic_nodes.filter(n => n.school === school);
+    const all = state.magic_nodes;
+    const nodes = all.filter(n => n.school === school);
     const schoolXp = p.school_xp[school] || 0;
     const mastery = masteryTrack(schoolXp);
-    const tierBoxes = [1,2,3,4].map(tier => {
+    const schools = state.magic_schools.map(name => {
+      const xp = p.school_xp[name] || 0;
+      const track = masteryTrack(xp);
+      const learned = all.filter(n => n.school === name && n.unlocked).length;
+      return '<button type="button" data-school="' + esc(name) +
+        '" class="school-tile ' + (name === school ? 'selected' : '') +
+        '" aria-pressed="' + (name === school) + '">' +
+        '<div class="school-tile-heading"><span class="school-glyph" aria-hidden="true">' +
+        (schoolIcons[name] || '✧') + '</span><strong>' + esc(pretty(name)) +
+        '</strong></div><div class="school-tile-metrics"><span>Tier ' +
+        track.tier + ' · ' + learned + '/6 spells</span><strong>' +
+        track.rank + '/100</strong></div>' +
+        progress(track.rank, 100) + '</button>';
+    }).join('');
+    const tiers = [1,2,3,4].map(tier => {
       const floor = tierThresholds[tier - 1], ceiling = tierThresholds[tier];
       const rank = Math.min(100, Math.max(0,
         Math.floor((schoolXp - floor) / (ceiling - floor) * 100)));
-      return '<div class="tier-box ' + (tier === mastery.tier ? 'active' : '') +
-        '"><small>Tier ' + tier + '</small><strong>' +
-        (schoolXp >= ceiling ? '100' : rank) + '/100</strong>' +
-        progress(Math.max(0, rank), 100) + '</div>';
-    }).join("");
-    const list = nodes.map(node => {
-      const canUse = !isBusy();
-      const higherUnlocked = nodes.some(other => other.tier > node.tier && other.unlocked);
-      let controls = "";
-      if (node.unlocked) {
-        controls = button(higherUnlocked ? "Tier mastered" :
-          "Practice · " + node.mana_cost + " mana",
-          'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-          disabled(!canUse || higherUnlocked || !node.active || p.mana < node.mana_cost),
-          node.active && !higherUnlocked ? "" : "ghost");
-      } else {
-        controls = button(node.eligible ? "Unlock" : "Locked",
-          'data-ui="unlock" data-node="' + esc(node.node_id) + '"' +
-          disabled(!canUse || !node.eligible), node.eligible ? "gold" : "ghost");
-      }
-      return '<div class="magic-node ' + (!node.unlocked ? "locked" : "") + '">' +
-        '<div><span class="tier">Tier ' + node.tier +
-        (node.active ? ' · Active' : node.unlocked ? ' · Learned' : ' · Locked') +
-        '</span><h3>' + esc(node.title) + '</h3><p>' + esc(pretty(node.role)) +
-        ' · ' + node.required_xp + ' school XP · ' + node.insight_cost + ' Insight' +
-        (node.prerequisites.length ? '<br>Requires: ' +
-          esc(node.prerequisites.map(id => pretty(id.split(".").pop())).join(", ")) : '') +
-        '</p></div>' + controls + '</div>';
-    }).join("");
-    const specialist = state.magic_nodes.filter(n => n.tier === 3 && n.unlocked);
-    const checkboxes = specialist.length ? specialist.map(n =>
-      '<div class="specialist"><label><input type="checkbox" data-attune="' +
+      const tierNodes = nodes.filter(n => n.tier === tier);
+      return '<section class="spell-tier-block"><div class="spell-tier-heading">' +
+        '<span class="tier-index">Tier ' + tier + '</span>' +
+        '<span>' + (tier === 1 ? 'Foundations' : tier === 2 ?
+          'Discipline' : tier === 3 ? 'Specialization' : 'Mastery') + '</span>' +
+        '<div class="tier-inline-meter">' + progress(rank, 100) +
+        '</div><strong>' + (schoolXp >= ceiling ? 100 : rank) +
+        '/100</strong></div><div class="spell-rows">' +
+        tierNodes.map(n => spellRow(n, nodes, p)).join('') +
+        '</div></section>';
+    }).join('');
+    const specialist = all.filter(n => n.tier === 3 && n.unlocked);
+    const attune = specialist.length ? specialist.map(n =>
+      '<label class="attune-option"><input type="checkbox" data-attune="' +
       esc(n.node_id) + '"' + (selectedAttunements.has(n.node_id) ? " checked" : "") +
-      '><div><strong>' + esc(n.title) + '</strong>' +
-      '<div class="small">' + esc(pretty(n.school)) + ' · also enables its Tier IV mastery</div>' +
-      '</div></label></div>').join("") :
-      '<p class="small">Unlock Tier III skills to choose your two active specializations.</p>';
-    return heading("", "Magic Progression", "") +
-      '<div class="school-banner"><div><small>ARCANE DISCIPLINE</small><h3>' +
-      esc(pretty(school)) + '</h3><p>Progress through four tiers of study. ' +
-      'Unlocking a spell also requires Insight and prerequisite knowledge.</p></div>' +
-      '<div class="insight-badge">' + p.insight + ' Insight</div></div>' +
-      '<div class="school-tabs">' + schools + '</div>' +
-      '<div class="tier-track">' + tierBoxes + '</div>' +
+      '><span>' + esc(n.title) + ' <small>' + esc(pretty(n.school)) +
+      '</small></span></label>').join('') :
+      '<p class="small">Tier III branches appear here once learned.</p>';
+    return heading("", "Magic", "") +
+      '<div class="school-overview" aria-label="Magic schools">' + schools + '</div>' +
+      '<div class="magic-context"><div><strong>' + esc(pretty(school)) +
+      '</strong><span>' + esc(schoolRoles[school]) +
+      ' · ' + schoolXp + ' XP</span></div>' +
+      '<div class="magic-context-stat">✧ ' + p.insight + ' Insight</div></div>' +
+      '<div class="magic-flow"><span>Practice</span><span aria-hidden="true">›</span>' +
+      '<span>Unlock spells</span><span aria-hidden="true">›</span>' +
+      '<span>World abilities <small>(coming)</small></span></div>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
-      '<div class="two-col"><div class="stack">' +
-      panel("Study & abilities", "Your unlocked spells, branches and prerequisites",
-        '<div class="magic-track">' + list + '</div>') +
-      '</div><aside class="stack">' +
-      panel("Your studies", "Existing school progression",
-        characterRow("Mana", p.mana + " / " + p.max_mana) +
-        characterRow("School experience", schoolXp + " XP") +
-        characterRow("Mastery progress", "Tier " + mastery.tier + " · " +
-          mastery.rank + "/100") +
-        '<p class="small mt-13">Each tier meter summarizes existing school XP. ' +
-        'After unlocking a higher-tier spell, lower-tier practice is retired. ' +
-        'Practice success is 90–98% depending on difficulty and experience. ' +
-        'The meter does not introduce new unlock requirements.</p>') +
-      panel("Active specializations", "Select at most two advanced branches. Changing your " +
-        "selection has a six-hour in-game cooldown.",
-        '<p class="small">Active: ' + p.attuned_paths.length + ' / 2</p>' +
-        checkboxes + button("Apply specializations",
-          'data-ui="apply-attune"' + disabled(isBusy() || !specialist.length),
-          "full secondary")) + '</aside></div>';
+      '<div class="magic-layout"><section class="magic-progression" ' +
+      'aria-label="Spell progression">' + tiers + '</section>' +
+      '<aside class="magic-specialization">' +
+      panel("Specializations", "",
+        '<div class="mini-card-top"><span>Active paths</span><strong>' +
+        p.attuned_paths.length + ' / 2</strong></div>' +
+        attune + button("Apply", 'data-ui="apply-attune"' +
+          disabled(isBusy() || !specialist.length), "full secondary") +
+        '<p class="small mt-13">Changing paths has a 6-hour in-game cooldown.</p>') +
+      '</aside></div>';
   }
 
   function renderHome() {
