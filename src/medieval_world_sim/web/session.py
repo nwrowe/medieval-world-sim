@@ -24,6 +24,7 @@ from ..content.housing import HOMES, HOME_ORDER, FACILITIES, VEHICLES
 from ..content.magic_tree import SCHOOLS
 from ..errors import ActionError
 from ..equipment import GEAR, suggested_value, effective_attack, effective_defense
+from ..systems.cooldowns import MAX_COOLDOWN_MINUTES, FOOD_MINUTES, POTION_MINUTES, remaining
 
 SAVE_VERSION = 1
 PLAYER_ID = "hero"
@@ -185,7 +186,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self._advance_world(record["minutes"])
@@ -193,10 +194,12 @@ class GameSession:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
+            self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
             try:
                 self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
             finally:
                 self.world._legacy_magic_rules = False
+                self.world._legacy_cooldown_rules = False
         else:
             raise ValueError("Unknown journal record")
         if recorded_at is not None:
@@ -216,7 +219,7 @@ class GameSession:
             else:
                 result = self.world.execute(
                     PLAYER_ID, record["name"], record["params"], record["id"])
-            stored_record = {**record, "ruleset": 2,
+            stored_record = {**record, "ruleset": 3,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
             try:
@@ -382,6 +385,19 @@ class GameSession:
                     },
                     "cargo": cargo, "cargo_limit": housing.travel_cargo_limit,
                     "ready_minute": actor.ready_minute,
+                    "cooldowns": {
+                        kind: {
+                            "remaining_minutes": remaining(actor, kind, now),
+                            "max_minutes": MAX_COOLDOWN_MINUTES,
+                        }
+                        for kind in ("job", "food", "potion")
+                    },
+                    "consumables": [
+                        {"item": item, "quantity": actor.inventory.get(item, 0),
+                         "channel": ("food" if item in FOOD_MINUTES else "potion"),
+                         "cooldown_minutes": FOOD_MINUTES.get(item, POTION_MINUTES.get(item, 0))}
+                        for item in (*FOOD_MINUTES, *POTION_MINUTES)
+                    ],
                     "defeated_until": actor.defeated_until,
                     # Simulation seconds: the world currently advances on player actions,
                     # not elapsed real time. The client must label these honestly.
