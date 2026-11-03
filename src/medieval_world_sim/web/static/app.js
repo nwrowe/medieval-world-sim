@@ -349,7 +349,7 @@
       '<div class="two-col"><div class="stack">' +
       panel(pretty(school) + " school", "Unlock prerequisites, spend mana, and advance your skill.",
         '<div class="school-tabs">' + schools + '</div>' +
-        '<div class="callout" style="margin-bottom:14px"><strong>Practice-only prototype</strong>' +
+        '<div class="callout mb-14"><strong>Practice-only prototype</strong>' +
         'Skills currently award XP, not paid contracts or spell effects. Those features will use ' +
         'this progression tree later.</div>' +
         '<div class="magic-track">' + list + '</div>') +
