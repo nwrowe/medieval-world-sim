@@ -7,6 +7,7 @@ after each successful step, with rollback on a storage failure.
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from dataclasses import asdict
 import json
 import os
@@ -42,9 +43,12 @@ class SaveError(Exception):
     """An I/O or unsupported-save error, not a gameplay validation failure."""
 
 
-def _friendly_event(event):
+def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=None):
     """Short and safe display labels; the UI never executes event payloads."""
     info = event.data
+    gear_kinds = gear_kinds or {}
+    equipped_kinds = equipped_kinds or {}
+    gear_kind = gear_kinds.get(info.get("gear_id"))
     readable = {
         "gathered": f"Gathered {info.get('quantity')} {info.get('item')}",
         "travel_started": f"Departed for {info.get('destination')}",
@@ -57,14 +61,25 @@ def _friendly_event(event):
         "vehicle_purchased": f"Purchased {info.get('vehicle')}",
         "vehicle_selected": f"Travel vehicle: {info.get('vehicle') or 'walking'}",
         "magic_unlocked": f"Unlocked {info.get('node_id')}",
-        "magic_practiced": f"Practiced {info.get('node_id')} (+{info.get('xp_gained')} XP)",
+        "magic_practiced": (
+            f"Practiced {str(info.get('node_id', '')).replace('_', ' ').replace('.', ' / ')} "
+            f"— {'succeeded' if info.get('success') else 'attempted'} "
+            f"(+{info.get('xp_gained', 0)} XP, "
+            f"-{info.get('mana_spent', 0)} mana"
+            f"{', +' + str(info.get('insight_gained')) + ' Insight' if info.get('insight_gained') else ''})"
+        ),
         "magic_attuned": "Updated advanced magic specializations",
         "consumed": f"Used {info.get('item')}",
-        "starter_purchase": f"Purchased {info.get('kind', 'starter equipment')}",
-        "equipped": "Changed equipped gear",
-        "unequipped": "Unequipped gear",
+        "starter_purchase": f"Purchased {str(info.get('item', 'equipment')).replace('_', ' ')} for {info.get('price', 0)}g",
+        "equipped": f"Equipped {str(gear_kind or info.get('slot', 'gear')).replace('_', ' ')}",
+        "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
     }
-    return {"minute": event.minute, "text": readable.get(event.kind, event.kind)}
+    return {
+        "minute": event.minute,
+        "text": readable.get(event.kind, event.kind),
+        # Legacy records have no wall-time metadata. Never invent timestamps.
+        "recorded_at": recorded_at,
+    }
 
 
 class GameSession:
@@ -75,6 +90,7 @@ class GameSession:
         self.name = ""
         self.seed = 42
         self.records: list[dict] = []
+        self.event_times: dict[int, str] = {}
         if self.save_path.exists():
             self._load()
 
@@ -150,14 +166,29 @@ class GameSession:
     def _replay(self, record: dict) -> None:
         if not isinstance(record, dict):
             raise ValueError("Invalid journal record")
-        if record.get("kind") == "advance" and set(record) == {"kind", "minutes"}:
+        recorded_at = record.get("recorded_at")
+        if recorded_at is not None:
+            if not isinstance(recorded_at, str) or len(recorded_at) > 40:
+                raise ValueError("Invalid event timestamp")
+            try:
+                timestamp = datetime.fromisoformat(recorded_at)
+                if timestamp.tzinfo is None:
+                    raise ValueError("Missing timestamp timezone")
+            except ValueError as exc:
+                raise ValueError("Invalid event timestamp") from exc
+        before = len(self.world.events)
+        valid_keys = set(record) - {"recorded_at"}
+        if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self._advance_world(record["minutes"])
-        elif record.get("kind") == "action" and set(record) == {"kind", "name", "params", "id"}:
+        elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
             self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
         else:
             raise ValueError("Unknown journal record")
+        if recorded_at is not None:
+            for event in self.world.events[before:]:
+                self.event_times[event.event_id] = recorded_at
 
     def _record(self, record: dict) -> object:
         if self.world is None:
@@ -165,18 +196,22 @@ class GameSession:
         if len(self.records) >= MAX_RECORDS:
             raise ActionError("Save journal full; snapshotting is not implemented")
         snapshot = deepcopy(self.world.state)
+        prior_events = len(self.world.events)
         try:
             if record["kind"] == "advance":
                 result = self._advance_world(record["minutes"])
             else:
                 result = self.world.execute(
                     PLAYER_ID, record["name"], record["params"], record["id"])
-            self.records.append(record)
+            stored_record = {**record, "recorded_at": datetime.now(timezone.utc).isoformat()}
+            self.records.append(stored_record)
             try:
                 self._save()
             except Exception:
                 self.records.pop()
                 raise
+            for event in self.world.events[prior_events:]:
+                self.event_times[event.event_id] = stored_record["recorded_at"]
             return result
         except Exception:
             self.world.state = snapshot
@@ -264,6 +299,28 @@ class GameSession:
                 "facilities": list(housing.facilities),
                 "vehicles": list(housing.vehicles),
             }
+            gear_kinds = {}
+            equipped_kinds = {}
+            rendered_events = []
+            for event in w.events:
+                info = event.data
+                if event.kind in ("starter_purchase", "gear_created"):
+                    gear_kinds[info.get("gear_id")] = info.get("item")
+                if event.kind == "equipped":
+                    prior_slot = info.get("slot")
+                    rendered = _friendly_event(
+                        event, gear_kinds=gear_kinds,
+                        equipped_kinds=equipped_kinds,
+                        recorded_at=self.event_times.get(event.event_id))
+                    equipped_kinds[prior_slot] = gear_kinds.get(info.get("gear_id"), prior_slot)
+                else:
+                    rendered = _friendly_event(
+                        event, gear_kinds=gear_kinds,
+                        equipped_kinds=equipped_kinds,
+                        recorded_at=self.event_times.get(event.event_id))
+                    if event.kind == "unequipped":
+                        equipped_kinds.pop(info.get("slot"), None)
+                rendered_events.append(rendered)
             return {
                 "started": True, "name": self.name,
                 "minute": now, "day": now // 1440 + 1,
@@ -313,5 +370,5 @@ class GameSession:
                 ],
                 "magic_schools": list(SCHOOLS),
                 "magic_nodes": magic_nodes,
-                "events": [_friendly_event(event) for event in w.events[-12:]][::-1],
+                "events": rendered_events[-30:][::-1],
             }
