@@ -218,12 +218,21 @@ class GameSession:
             for city_id, city in CITIES.items():
                 places.append({
                     "id": city_id, "name": city.name, "is_current": city_id == actor.city,
-                    "minutes": (0 if is_traveling else w.estimated_travel_minutes(PLAYER_ID, city_id)),
+                    "minutes": (0 if is_traveling or actor.hp <= 0
+                                else w.estimated_travel_minutes(PLAYER_ID, city_id)),
                 })
             quote_list = [
                 asdict(w.regional_quote(actor.city, item)) for item in RAW_RESOURCES
             ]
-            magic_nodes = [asdict(node) for node in w.magic_tree(PLAYER_ID)]
+            magic_nodes = [
+                {**asdict(node), "prerequisites": list(node.prerequisites)}
+                for node in w.magic_tree(PLAYER_ID)
+            ]
+            housing_data = {
+                **asdict(housing),
+                "facilities": list(housing.facilities),
+                "vehicles": list(housing.vehicles),
+            }
             return {
                 "started": True, "name": self.name,
                 "minute": now, "day": now // 1440 + 1,
@@ -245,7 +254,7 @@ class GameSession:
                 "cities": places,
                 "gatherable": dict(w.cities[actor.city].deposits),
                 "quotes": quote_list,
-                "housing": asdict(housing),
+                "housing": housing_data,
                 "homes": [
                     {"id": kind, **asdict(HOMES[kind])} for kind in HOME_ORDER
                 ],
@@ -255,7 +264,7 @@ class GameSession:
                 "vehicles": [
                     {"id": kind, **asdict(spec)} for kind, spec in VEHICLES.items()
                 ],
-                "magic_schools": SCHOOLS,
+                "magic_schools": list(SCHOOLS),
                 "magic_nodes": magic_nodes,
                 "events": [_friendly_event(event) for event in w.events[-12:]][::-1],
             }
