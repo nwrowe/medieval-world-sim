@@ -1,4 +1,4 @@
-/* Medieval World — dependency-free responsive game client.
+/* Oathmere — dependency-free responsive game client.
    Rendering is a read-only projection of server-authoritative world state.
    The browser never calculates gold, travel duration, spell success or ownership.
 */
@@ -7,8 +7,8 @@
 
   const root = document.getElementById("app");
   const tabs = [
-    { id: "city", icon: "⌘", title: "City Map" },
     { id: "world", icon: "⚑", title: "World Map" },
+    { id: "city", icon: "⌘", title: "City Map" },
     { id: "market", icon: "⚖", title: "Market" },
     { id: "magic", icon: "✧", title: "Magic" },
     { id: "home", icon: "⌂", title: "Property" },
@@ -20,7 +20,7 @@
     { id: "character", icon: "♙", title: "Home" },
     { id: "equipment", icon: "⚔", title: "Equipment" },
     { id: "chronicle", icon: "▤", title: "Chronicle" },
-    { id: "people", icon: "⌕", title: "Players" },
+    { id: "people", icon: "⌕", title: "Search" },
   ];
   const cityLore = {
     goldmeadow: {
@@ -55,6 +55,7 @@
   let latestPractice = null;
   let latestContract = null;
   let peopleQuery = "";
+  let searchScope = "players";
   let pending = false;
   let authNeeded = false;
   let offline = false;
@@ -66,6 +67,7 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
   }
+  function placeName(value) { return String(value || "").replace(/\s*\(capital\)/gi, ""); }
   function pretty(key) {
     return String(key || "").replaceAll("_", " ").replace(/\b\w/g, c => c.toUpperCase());
   }
@@ -111,7 +113,8 @@
   }
   function panel(title, sub, body, extra = "") {
     return '<section class="panel"><div class="panel-head"><div><h3>' + esc(title) +
-      '</h3><p>' + esc(sub) + '</p></div>' + extra + '</div>' + body + '</section>';
+      '</h3>' + (sub ? '<p>' + esc(sub) + '</p>' : '') +
+      '</div>' + extra + '</div>' + body + '</section>';
   }
   function notify(message, error = false) {
     let alert = document.querySelector(".alert");
@@ -246,7 +249,7 @@
     const p = state.player;
     const location = state.cities.find(c => c.id === p.city);
     const place = p.destination ? ("En route to " + pretty(p.destination)) :
-      (location ? location.name : pretty(p.city));
+      (location ? placeName(location.name) : pretty(p.city));
     const renderers = {
       city: renderCity, world: renderWorld, market: renderMarket,
       magic: renderMagic, home: renderHome, job: renderJob,
@@ -255,14 +258,15 @@
       chronicle: renderChronicle, warriors: renderWarriorsGuild,
       mageguild: renderMageGuild, tavern: renderTavern,
       healer: renderHealer, cityhall: renderCityHall,
-      church: renderChurch, people: renderPeople,
+      church: renderChurch, people: renderPeople, armory: renderArmory,
     };
     const view = renderers[tab] || renderCity;
-    const sidebar = tabs.map(t => navButton(t)).join('');
+    const worldLink = navButton(tabs[0], "world-first-link");
+    const sidebar = tabs.slice(1).map(t => navButton(t)).join('');
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
-      '<div class="brand"><div class="brand-mark">✦</div><span>MEDIEVAL WORLD</span></div>' +
+      '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
       '<div class="statbar" aria-label="Character vitals">' +
       meterStat("Health", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
       meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
@@ -270,12 +274,13 @@
       '<div class="gold-total"><small>Gold</small><strong>' +
       esc(money(p.gold)) + '</strong></div></div>' +
       '<div class="top-actions">' +
-      '<div class="world-time"><span>Medieval World time</span>' +
+      '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
       '</div></div></header>' +
       '<div class="workspace">' +
       '<aside class="sidebar" aria-label="Locations and services">' +
+      '<nav class="world-nav" aria-label="World map">' + worldLink + '</nav>' +
       '<div class="sidebar-place"><small>Current location</small><strong>' +
       esc(place) + '</strong><span>' + (p.destination ? "On the road" : "Inside the city walls") +
       '</span></div><div class="sidebar-label">Places & services</div>' +
@@ -283,7 +288,7 @@
       '<div class="sidebar-foot">One world, five cities. Your choices make the story.</div>' +
       '</aside><div class="main-column">' +
       '<details class="mobile-nav"><summary>☷ &nbsp; Locations & services · ' +
-      esc(place) + '</summary><nav aria-label="Mobile locations">' + sidebar +
+      esc(place) + '</summary><nav aria-label="Mobile locations">' + worldLink + sidebar +
       '</nav></details>' +
       '<main class="page" id="main-content">' + view() +
       '</main></div></div></div>';
@@ -301,13 +306,14 @@
       ' units, including equipment.</div>';
     return panel("Carried inventory", "Goods and resources", body, chip(p.cargo + " items"));
   }
-  function activityPanel() {
+  function activityPanel(showTitle = true) {
     let body = state.events.length ? '<ul class="activity">' +
       state.events.map(e => '<li><span>' + esc(e.text) +
       '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
       '">' + esc(eventTime(e)) + '</time></li>').join("") +
       '</ul>' : '<p class="empty">The chronicle begins with your first action.</p>';
-    return panel("Chronicle", "Your most recent actions", body);
+    return showTitle ? panel("Chronicle", "", body) :
+      '<section class="panel chronicle-panel">' + body + '</section>';
   }
   const mapLocations = {
     crownreach: { x: 50, y: 47.6 },
@@ -688,7 +694,7 @@
       cityLocation("⚖", "Marketplace", "Buy and sell goods using the local city's real gold and stock.", "market", "Open"),
       cityLocation("⚔", "Warriors Guild", "Future: earn coin through escorted caravans, patrols, and bounty contracts.", "warriors", "Contracts planned"),
       cityLocation("✧", "Mage Guild", "Study six schools today. Arcane commissions and investigations are planned.", "mageguild", "Studies open"),
-      cityLocation("⚒", "Armory & Blacksmith", "Manage your weapons and armor. Crownreach stocks basic equipment.", "equipment", "Equipment open"),
+      cityLocation("⚒", "Armory & Blacksmith", "Purchase weapons and armor in Crownreach.", "armory", "Visit"),
       cityLocation("✚", "Healer\'s Sanctuary", "Future: treatment, healing provisions, and restorative services.", "healer", "Healing planned"),
       cityLocation("✝", "Church of the Hearth", "A chapel for reflection and future restorative service and charity contracts.", "church", "Services planned"),
       cityLocation("♛", "City Hall", "Future: civic standing, records, permits, and city affairs.", "cityhall", "Civic features planned"),
@@ -776,7 +782,7 @@
   }
   function renderChronicle() {
     return heading("", "Chronicle", "") +
-      activityPanel() +
+      activityPanel(false) +
       '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
       'Older actions without saved timestamps are marked earlier. ' +
       'The game simulation still advances only when you take time-based actions.</p>';
