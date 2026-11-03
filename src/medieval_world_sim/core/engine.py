@@ -34,6 +34,7 @@ from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
 from ..systems.magic import MagicSystem, MagicNodeStatus, MagicPracticeResult
 from ..systems.housing import HousingSystem, HousingView
+from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
 
 class WorldEngine:
@@ -79,6 +80,7 @@ class WorldEngine:
         self.regional_trade = RegionalTradeSystem(self)
         self.magic_system = MagicSystem(self)
         self.housing_system = HousingSystem(self)
+        self.city_contracts = CityContractSystem(self)
 
     @property
     def actors(self) -> dict[str, Actor]:
@@ -355,6 +357,9 @@ class WorldEngine:
         return self.housing_system.select_vehicle(actor_id, vehicle)
 
     @atomic_action
+    def complete_city_contract(self, actor_id: str, contract_id: str) -> CityContractResult:
+        return self.city_contracts.complete(actor_id, contract_id)
+
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
 
@@ -405,6 +410,7 @@ class WorldEngine:
                 "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
                 "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
                 "cancel_offer": ("cancel_offer", ("offer_id",)),
+                "complete_city_contract": ("complete_city_contract", ("contract_id",)),
                 "buy_starter_gear": ("buy_starter_gear", ("kind",)),
                 "equip": ("equip", ("gear_id",)),
                 "unequip": ("unequip", ("slot",)),
