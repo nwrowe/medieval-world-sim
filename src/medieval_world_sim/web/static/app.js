@@ -82,7 +82,7 @@
   }
   function isBusy() {
     return pending || !state || !state.started ||
-      Boolean(state.player.destination) || state.player.hp <= 0;
+      Boolean(state.player.destination) || state.player.hp <= 0 || Boolean(state.duel);
   }
   function button(text, attrs = "", variant = "") {
     return '<button class="button ' + variant + '" ' + attrs + '>' + esc(text) + '</button>';
@@ -152,6 +152,9 @@
       const result = await request(path, body);
       state = result.state;
       syncAttunements();
+      if (body && ["start_duel", "duel_turn", "flee_duel"].includes(body.action)) {
+        tab = "duel";
+      }
       if (body && body.action === "practice_magic" && result.result) {
         latestPractice = { ...result.result, nodeId: body.params.node_id };
         tab = "magic";
@@ -159,7 +162,8 @@
       if (body && body.action === "complete_city_contract" && result.result) {
         latestContract = result.result;
       }
-      notify(success);
+      notify(body && body.action === "cast_spell" && result.result ?
+        result.result.message : success);
     } catch (error) {
       notify(error.message, true);
     } finally {
@@ -263,8 +267,9 @@
       mageguild: renderMageGuild, tavern: renderTavern,
       healer: renderHealer, cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
+      duel: renderDuel,
     };
-    const view = renderers[tab] || renderWorld;
+    const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
       .map(t => navButton(t)).join('');
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
@@ -550,7 +555,10 @@
       control = button(higherUnlocked ? "Mastered" : "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
         disabled(higherUnlocked || !node.active || isBusy() || p.mana < node.mana_cost),
-        higherUnlocked ? "ghost" : "secondary");
+        higherUnlocked ? "ghost" : "secondary") +
+        button("Cast · " + node.mana_cost + " mana",
+          'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
+          disabled(!node.active || isBusy() || p.mana < node.mana_cost), "gold");
     } else {
       control = button(node.eligible ?
         "Unlock · " + node.insight_cost + " Insight" : "Locked",
@@ -564,7 +572,7 @@
       '<div class="spell-meta"><span class="' +
       (node.unlocked ? "spell-status learned" : "spell-status") + '">' +
       esc(status) + '</span><span>' + esc(pretty(node.role)) +
-      ' · world effect planned</span></div>' +
+      ' · usable spell</span></div>' +
       '</div><div class="spell-action">' + control + '</div></div>';
   }
   function renderMagic() {
@@ -618,7 +626,7 @@
       '<div class="magic-context-stat">✧ ' + p.insight + ' Insight</div></div>' +
       '<div class="magic-flow"><span>Practice</span><span aria-hidden="true">›</span>' +
       '<span>Unlock spells</span><span aria-hidden="true">›</span>' +
-      '<span>World abilities <small>(coming)</small></span></div>' +
+      '<span>Cast in the world or combat</span></div>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="magic-layout"><section class="magic-progression" ' +
       'aria-label="Spell progression">' + tiers + '</section>' +
@@ -712,30 +720,41 @@
       (quote.locally_produced || quote.stock > 0) &&
       pretty(quote.item).toLowerCase().includes(query));
     const rows = searchScope === "players" ?
-      players.map(person =>
-        '<div class="equipment-item"><div><h3>' + esc(person.name) +
-        '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
-        (person.id === "hero" ? ' · You' : '') + '</p></div>' +
-        button(person.id === "hero" ? "Your character" : "Attack",
-          'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
-          disabled(person.id === "hero" || !state.multiplayer || isBusy()),
-          "secondary") + '</div>').join('') :
+      players.map(person => {
+        const self = person.id === "hero";
+        const recovering = person.recovering_minutes > 0;
+        const text = self ? "Your character" :
+          recovering ? "Hospitalized" : person.can_attack ? "Attack · " +
+            state.combat_stamina_cost + " stamina" : "Out of reach";
+        return '<div class="equipment-item"><div><h3>' + esc(person.name) +
+          '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
+          ' · ' + (self ? 'You' : 'NPC adventurer') + ' · HP ' +
+          person.hp + '/' + person.max_hp +
+          (recovering ? ' · Recovering ' + dur(person.recovering_minutes) : '') +
+          '</p></div>' +
+          button(text, 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
+            disabled(!person.can_attack || isBusy() ||
+              state.player.stamina < state.combat_stamina_cost), "secondary") +
+          '</div>';
+      }).join('') :
       market.map(quote =>
         '<div class="equipment-item"><div><h3>' + esc(pretty(quote.item)) +
         '</h3><p>Stock: ' + quote.stock + ' · Buy ' +
         money(quote.player_buy_price) + ' · Sell ' +
         money(quote.player_sell_price) + '</p></div>' +
-        button("View Market", 'data-tab="market"', "s secondary") +
+        button("View Market", 'data-tab="market"', "secondary") +
         '</div>').join('');
     const hint = searchScope === "players" ?
-      'Only your character exists on this single-player server. Other player attacks require multiplayer accounts.' :
+      'These are persistent computer-controlled adventurers, not connected players. ' +
+      'To attack, be in the same city with at least 20 stamina. Victory takes 5% ' +
+      'of the defeated character’s carried gold.' :
       'Showing goods available in the current city market, including locally produced goods with zero stock.';
     return heading("", "Search", "") +
       '<section class="panel search-results-panel">' +
       '<div class="search-panel">' +
       '<label for="people-query">Find</label>' +
       '<div class="search-type" role="group" aria-label="Search category">' +
-      button("Players", 'data-ui="search-type" data-scope="players" aria-pressed="' +
+      button("Characters", 'data-ui="search-type" data-scope="players" aria-pressed="' +
         (searchScope === "players") + '"', searchScope === "players" ? "secondary" : "ghost") +
       button("Market Items", 'data-ui="search-type" data-scope="market" aria-pressed="' +
         (searchScope === "market") + '"', searchScope === "market" ? "secondary" : "ghost") +
@@ -748,6 +767,57 @@
       (rows || '<p class="empty">No matches.</p>') +
       '<p class="small mt-13">' + esc(hint) + '</p>' +
       '</div></section>';
+  }
+
+  function renderDuel() {
+    const duel = state.duel;
+    const p = state.player;
+    if (!duel) {
+      const result = state.last_duel;
+      const title = result ? (result.outcome === "won" ? "Victory" :
+        result.outcome === "lost" ? "Hospitalized" : "Retreated") : "No active duel";
+      const opponent = result && (state.users || []).find(u => u.id === result.opponent_id);
+      const text = result ? (result.outcome === "won" ?
+        'You claimed ' + money(result.gold) + ' from ' +
+        (opponent ? opponent.name : "your opponent") + '.' :
+        result.outcome === "lost" ? 'Your opponent took ' + money(result.gold) +
+        '. Recovery: ' + dur(Math.max(0, p.defeated_until - state.minute)) + '.' :
+        'You escaped without loot or hospitalization.') : 'Search for someone to fight.';
+      const logs = result ? result.log.map(line => '<li>' + esc(line) + '</li>').join('') : '';
+      return heading("", title, text) +
+        panel("Battle report", result ? result.rounds + " rounds · " +
+          result.xp + " combat XP" : "", '<ol class="combat-log">' + logs + '</ol>' +
+          button("Return to Search", 'data-tab="people"', "secondary"));
+    }
+    const learned = state.magic_nodes.filter(n => n.unlocked && n.active && n.tier > 0);
+    const casts = learned.map(n =>
+      button(n.title + ' · ' + n.mana_cost + ' mana',
+        'data-ui="duel-cast" data-node="' + esc(n.node_id) + '"' +
+        disabled(pending || p.mana < n.mana_cost), "secondary")).join('');
+    const logs = duel.log.length ?
+      '<ol class="combat-log">' + duel.log.map(line => '<li>' + esc(line) +
+      '</li>').join('') + '</ol>' :
+      '<p class="small">You have the initiative. Choose your opening move.</p>';
+    return heading("", "Combat · " + duel.opponent_name,
+      "Turn " + (duel.round + 1) +
+      " · each move triggers an opponent response · the encounter is saved after every round") +
+      '<div class="combat-vitals">' +
+      panel(state.name, "Your health", progress(p.hp, p.max_hp) +
+        '<p>' + p.hp + ' / ' + p.max_hp + ' HP · ' + p.mana + ' mana</p>') +
+      panel(duel.opponent_name, "Enemy health", progress(duel.opponent_hp, duel.opponent_max_hp) +
+        '<p>' + duel.opponent_hp + ' / ' + duel.opponent_max_hp + ' HP</p>') +
+      '</div>' +
+      panel("Choose your move", "Strike, protect yourself, or cast a learned spell.",
+        '<div class="combat-actions">' +
+        button("Strike", 'data-ui="duel-strike"' + disabled(pending), "gold") +
+        button("Guard", 'data-ui="duel-guard"' + disabled(pending), "secondary") +
+        button("Flee", 'data-ui="duel-flee"' + disabled(pending), "ghost") +
+        '</div><h4>Combat magic</h4>' +
+        '<div class="combat-actions">' +
+        (casts || '<p class="small">Unlock spells on the Magic page to use them here.</p>') +
+        '</div>' + (duel.pending_ward ? chip("Prepared ward: " +
+          duel.pending_ward + " damage") : "")) +
+      panel("Round-by-round chronicle", "", logs);
   }
   function renderInventory() {
     const p = state.player;
@@ -1112,7 +1182,18 @@
         searchScope = element.dataset.scope === "market" ? "market" : "players";
         render(); break;
       case "player-attack":
-        notify("PvP requires multiple authenticated accounts; only this character exists.", true); break;
+        action("start_duel", { defender_id: element.dataset.player },
+          "Challenge accepted · 20 stamina spent"); break;
+      case "duel-strike":
+        action("duel_turn", { move: "strike", node_id: "" }, "Strike resolved"); break;
+      case "duel-guard":
+        action("duel_turn", { move: "guard", node_id: "" }, "Guard resolved"); break;
+      case "duel-cast":
+        action("duel_turn", { move: "cast", node_id: node }, "Spell cast"); break;
+      case "duel-flee":
+        action("flee_duel", {}, "You escaped the duel"); break;
+      case "field-cast":
+        action("cast_spell", { node_id: node }, "Spell cast"); break;
       case "study-restoration":
         school = "restoration"; tab = "magic"; render(); break;
       case "unlock": action("unlock_magic", { node_id: node }, "New magical ability unlocked"); break;
