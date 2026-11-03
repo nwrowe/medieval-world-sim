@@ -308,6 +308,12 @@ class GameSession:
                 quantity * resale_prices.get(item, 0)
                 for item, quantity in actor.inventory.items()
             )
+            # Ownership does not change when moving goods to local storage.
+            for storage_city, goods in actor.storage.items():
+                for item, quantity in goods.items():
+                    if quantity and item in RAW_RESOURCES:
+                        trade_goods_value += quantity * w.regional_quote(
+                            storage_city, item).player_sell_price
             net_worth = (actor.gold + property_value + facility_value + vehicle_value
                          + trade_goods_value + sum(item["value"] for item in owned_gear))
             housing_data = {
@@ -343,7 +349,8 @@ class GameSession:
                 "days_played": now // 1440,
                 "net_worth_estimate": net_worth,
                 "net_worth_basis": "Gold plus purchase prices of property and vehicles, "
-                                   "local raw-goods resale quotes, and estimated equipment value",
+                                   "local raw-goods resale quotes (including city storage), "
+                                   "and estimated equipment value",
                 "gear": owned_gear,
                 "equipment_catalog": gear_catalog,
                 "equipped": dict(actor.equipped),
