@@ -37,7 +37,7 @@ class MeritSystem:
         if key == "challenger": return any(e.kind == "duel_finished" and e.data.get("winner_id") == actor_id for e in events)
         if key == "stablehand": return bool(self.world.state.horses.get(actor_id))
         if key == "rider": return self.world.state.riding_xp.get(actor_id, 0) > 0
-        if key == "guild_founder": return any(g.founder_id == actor_id for g in self.world.state.guilds.values())
+        if key == "guild_founder": return any(e.kind == "guild_founded" and e.data.get("actor_id") == actor_id for e in events)
         return False
 
     def claim(self, actor_id: str, key: str) -> dict:
