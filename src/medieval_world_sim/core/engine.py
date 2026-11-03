@@ -436,9 +436,6 @@ class WorldEngine:
             if not isinstance(params, dict):
                 raise ActionError("Command parameters must be a mapping")
             self._actor(principal_id)
-            if (principal_id in self.state.duels
-                    and action not in ("duel_turn", "flee_duel")):
-                raise ActionError("Finish your current duel first")
             command_specs = {
                 "travel": ("start_travel", ("destination",)),
                 "gather": ("gather", ("item", "quantity")),
@@ -488,6 +485,10 @@ class WorldEngine:
                 if existing[0] != signature:
                     raise ActionError("Action ID reused for a different command")
                 return existing[1]
+            # Duplicate requests must return their receipt even after a duel begins.
+            if (principal_id in self.state.duels
+                    and action not in ("duel_turn", "flee_duel")):
+                raise ActionError("Finish your current duel first")
             previous_id = self._current_action_id
             self._current_action_id = action_id
             try:
