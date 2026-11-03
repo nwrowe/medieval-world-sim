@@ -659,40 +659,6 @@
       (subtitle ? '<p class="subheading">' + esc(subtitle) + '</p>' : '') +
       '</div></div>';
   }
-  function cityLocation(icon, title, description, target, badge = "") {
-    return '<div class="location-card"><span class="location-icon">' + icon + '</span>' +
-      '<div><h3>' + esc(title) + '</h3><p>' + esc(description) + '</p>' +
-      (badge ? '<span class="location-badge">' + esc(badge) + '</span>' : '') +
-      '</div>' + button("Enter", 'data-tab="' + esc(target) + '"', "s secondary") + '</div>';
-  }
-  function renderCity() {
-    const p = state.player;
-    const lore = cityLore[p.city] || cityLore.goldmeadow;
-    const city = state.cities.find(c => c.id === p.city);
-    const name = city ? city.name : pretty(p.city);
-    const locations = [
-      cityLocation("⚖", "Marketplace", "Buy and sell goods using the local city's real gold and stock.", "market", "Open"),
-      cityLocation("⚔", "Warriors Guild", "Future: earn coin through escorted caravans, patrols, and bounty contracts.", "warriors", "Contracts planned"),
-      cityLocation("✧", "Mage Guild", "Study six schools today. Arcane commissions and investigations are planned.", "mageguild", "Studies open"),
-      ...(p.city === "crownreach" ? [cityLocation("⚒", "Armory & Blacksmith", "Purchase weapons and armor.", "armory", "Open")] : []),
-      cityLocation("✚", "Healer\'s Sanctuary", "Future: treatment, healing provisions, and restorative services.", "healer", "Healing planned"),
-      cityLocation("✝", "Church of the Hearth", "A chapel for reflection and future restorative service and charity contracts.", "church", "Services planned"),
-      cityLocation("♛", "City Hall", "Future: civic standing, records, permits, and city affairs.", "cityhall", "Civic features planned"),
-      cityLocation("▣", "Employment Hall", "Browse jobs, employers, and eventually shift-based work.", "job", "Jobs planned"),
-      cityLocation("✤", "Training Hall", "Future: long-term discipline, scholarship, and stat training.", "training", "Training planned"),
-      cityLocation("⌂", "Homes & Stables", "Purchase a residence, improve it, and select faster travel.", "home", "Open"),
-      cityLocation("♜", "The Wayfarer's Tavern", "Rest to recover stamina and mana and let world time pass.", "tavern", "Open"),
-      cityLocation("⚑", "The City Gates", "Leave the walls to gather resources or choose a road to another city.", "world", "Open"),
-    ].join('');
-    return heading("", "City Map", "") +
-      '<section class="story-panel"><div class="section-kicker">Chapter I · A stranger at the gate</div>' +
-      '<h3>' + esc(lore.title) + '</h3><p>' + esc(lore.opening) + '</p>' +
-      '<p>You have a name, ' + esc(money(p.gold)) +
-      ', and few obligations. The city offers many doors; which one will you open?</p>' +
-      '<small>Story introduction · Narrative quests and choices are planned, not yet active.</small></section>' +
-      panel("Streets & districts", lore.district,
-        '<div class="location-grid">' + locations + '</div>');
-  }
   function renderPeople() {
     const query = peopleQuery.trim().toLowerCase();
     const players = (state.users || []).filter(person =>
