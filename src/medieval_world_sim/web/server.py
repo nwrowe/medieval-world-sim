@@ -162,7 +162,7 @@ class GameHandler(BaseHTTPRequestHandler):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Play Medieval World in a web browser")
+    parser = argparse.ArgumentParser(description="Play Oathmere in a web browser")
     parser.add_argument("--host", default="127.0.0.1",
                         help="127.0.0.1 (default), or 0.0.0.0 for trusted local Wi-Fi")
     parser.add_argument("--port", type=int, default=8765)
@@ -186,7 +186,7 @@ def main(argv=None):
     session = GameSession(args.save)
     with GameHTTPServer((args.host, args.port), session, token,
                         colab_preview=args.colab_preview) as server:
-        print(f"Medieval World web server: http://127.0.0.1:{server.server_port}", flush=True)
+        print(f"Oathmere web server: http://127.0.0.1:{server.server_port}", flush=True)
         print(f"Save: {Path(args.save).expanduser()}", flush=True)
         if args.host == "0.0.0.0":
             print(f"Trusted LAN only: open http://YOUR_COMPUTER_LAN_IP:{server.server_port} "
