@@ -133,7 +133,7 @@ class RegionalWorldTests(unittest.TestCase):
         self.assertTrue(any(e.kind == "shift_completed" for e in w.events))
         w.assert_invariants()
 
-    def test_carrying_capacity_and_failed_trade_no_gold_loss(self):
+    def test_unbounded_city_inventory_but_road_cargo_and_failed_trade_keep_gold(self):
         w = self.build()
         w.actors["owner"].inventory["stone"] = CARRY_LIMIT
         w.gather("miner", "iron_ore", 1)
@@ -142,9 +142,17 @@ class RegionalWorldTests(unittest.TestCase):
         offer = w.post_offer("miner", "miner", "iron_ore", 1, 9)
         before = w.total_gold
         with self.assertRaises(ActionError):
-            w.accept_offer("owner", "owner", offer, 1)
+            w.accept_offer("owner", "owner", offer, 2)  # Invalid quantity
         self.assertEqual(w.total_gold, before)
         self.assertEqual(w.offers[offer].quantity, 1)
+        # Local inventory no longer has an artificial twenty-unit ceiling.
+        w.accept_offer("owner", "owner", offer, 1)
+        self.assertEqual(w.actors["owner"].inventory["iron_ore"], 1)
+        self.assertEqual(w.total_gold, before)
+        # Leaving the capital still requires staying within road cargo limits.
+        with self.assertRaises(ActionError):
+            w.start_travel("owner", "ironvale")
+        w.assert_invariants()
 
     def test_invalid_gather_and_wages(self):
         w = self.build()
