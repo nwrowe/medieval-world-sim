@@ -7,13 +7,49 @@
 
   const root = document.getElementById("app");
   const tabs = [
-    { id: "world", icon: "⚑", title: "Explore" },
+    { id: "city", icon: "⌘", title: "City Map" },
+    { id: "world", icon: "⚑", title: "World Map" },
     { id: "market", icon: "⚖", title: "Market" },
     { id: "magic", icon: "✧", title: "Magic" },
     { id: "home", icon: "⌂", title: "Property" },
+    { id: "job", icon: "▣", title: "Job" },
+    { id: "inventory", icon: "◫", title: "Inventory" },
+    { id: "training", icon: "✤", title: "Training Hall" },
   ];
+  const accountTabs = [
+    { id: "character", icon: "♙", title: "Home" },
+    { id: "equipment", icon: "⚔", title: "Equipment" },
+    { id: "chronicle", icon: "▤", title: "Chronicle" },
+  ];
+  const cityLore = {
+    goldmeadow: {
+      title: "Where the road begins",
+      opening: "Morning bells drift across the grain fields of Goldmeadow. The gates stand open, traders argue over their loads, and a notice board promises honest pay to anyone brave enough to seek it.",
+      district: "Market lanes and farmsteads",
+    },
+    crownreach: {
+      title: "Under the royal banners",
+      opening: "The capital's stone gates open onto busy merchant streets. Armor rings from the smiths' quarter, and messengers hurry toward the guild halls with sealed contracts.",
+      district: "Royal market and guild quarter",
+    },
+    ironvale: {
+      title: "Where iron meets ambition",
+      opening: "Mine carts creak below Ironvale's steep walls. The forge smoke never settles, and a traveler can earn a name here as quickly as a wage.",
+      district: "The foundries and northern gates",
+    },
+    emberfall: {
+      title: "A city of fire and stone",
+      opening: "Orange light spills from Emberfall's furnaces long after sunset. Quarrymen and merchants share stories of dangerous roads beyond the city walls.",
+      district: "The quarry district",
+    },
+    greenhollow: {
+      title: "Between forest and stone",
+      opening: "In Greenhollow, timber wagons roll beneath ancient trees. Herbalists barter at the crossroads and the old paths invite both curiosity and caution.",
+      district: "Forest markets and herbal gardens",
+    },
+  };
   let state = null;
-  let tab = "world";
+  let tab = "city";
   let school = "restoration";
   let pending = false;
   let authNeeded = false;
@@ -35,6 +71,15 @@
     const hh = String(Math.floor(minute % 1440 / 60)).padStart(2, "0");
     const mm = String(minute % 60).padStart(2, "0");
     return "Day " + day + " · " + hh + ":" + mm;
+  }
+  const easternFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", month: "short", day: "numeric",
+    year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+  });
+  function easternNow() { return easternFormatter.format(new Date()); }
+  function updateEasternClock() {
+    const label = document.getElementById("eastern-clock");
+    if (label) label.textContent = easternNow();
   }
   function dur(minutes) {
     const h = Math.floor(minutes / 60), m = minutes % 60;
