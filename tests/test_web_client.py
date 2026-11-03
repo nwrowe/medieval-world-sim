@@ -225,7 +225,8 @@ class WebHTTPTests(unittest.TestCase):
         with running_server(self.game) as port:
             for path, marker in (
                 ("/", b'<meta name="viewport"'),
-                ("/app.js", b"Magic progression"),
+                ("/app.js", b"Magic Progression"),
+                ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/favicon.svg", b"<svg"),
             ):
