@@ -694,7 +694,7 @@
       cityLocation("⚖", "Marketplace", "Buy and sell goods using the local city's real gold and stock.", "market", "Open"),
       cityLocation("⚔", "Warriors Guild", "Future: earn coin through escorted caravans, patrols, and bounty contracts.", "warriors", "Contracts planned"),
       cityLocation("✧", "Mage Guild", "Study six schools today. Arcane commissions and investigations are planned.", "mageguild", "Studies open"),
-      cityLocation("⚒", "Armory & Blacksmith", "Purchase weapons and armor in Crownreach.", "armory", "Visit"),
+      ...(p.city === "crownreach" ? [cityLocation("⚒", "Armory & Blacksmith", "Purchase weapons and armor.", "armory", "Open")] : []),
       cityLocation("✚", "Healer\'s Sanctuary", "Future: treatment, healing provisions, and restorative services.", "healer", "Healing planned"),
       cityLocation("✝", "Church of the Hearth", "A chapel for reflection and future restorative service and charity contracts.", "church", "Services planned"),
       cityLocation("♛", "City Hall", "Future: civic standing, records, permits, and city affairs.", "cityhall", "Civic features planned"),
