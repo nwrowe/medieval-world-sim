@@ -1,0 +1,261 @@
+"""Single-player, safely replayable JSON action journal for the web prototype.
+
+No pickle, direct actor mutation, or hidden gold injection. The existing world
+engine is rebuilt by replaying validated actions. Saves are atomically replaced
+after each successful step, with rollback on a storage failure.
+"""
+from __future__ import annotations
+
+from copy import deepcopy
+from dataclasses import asdict
+import json
+import os
+from pathlib import Path
+import re
+import secrets
+import threading
+import uuid
+
+from ..catalog import CAPITAL, CITIES, RAW_RESOURCES
+from ..core.engine import WorldEngine
+from ..core.entities import Actor
+from ..content.housing import HOMES, HOME_ORDER, FACILITIES, VEHICLES
+from ..content.magic_tree import SCHOOLS
+from ..errors import ActionError
+
+SAVE_VERSION = 1
+PLAYER_ID = "hero"
+INITIAL_GOLD = 240
+START_CITY = "goldmeadow"
+MAX_RECORDS = 20000
+ADVANCE_LIMIT = 1440
+UI_ACTIONS = {
+    "travel", "gather", "regional_buy", "regional_sell",
+    "consume", "buy_home", "upgrade_home", "build_home_facility",
+    "buy_vehicle", "select_vehicle", "unlock_magic", "practice_magic",
+    "attune_magic",
+}
+
+
+class SaveError(Exception):
+    """An I/O or unsupported-save error, not a gameplay validation failure."""
+
+
+def _friendly_event(event):
+    """Short and safe display labels; the UI never executes event payloads."""
+    info = event.data
+    readable = {
+        "gathered": f"Gathered {info.get('quantity')} {info.get('item')}",
+        "travel_started": f"Departed for {info.get('destination')}",
+        "arrived": f"Arrived in {info.get('city')}",
+        "regional_bought": f"Bought {info.get('quantity')} {info.get('item')} for {info.get('total')}g",
+        "regional_sold": f"Sold {info.get('quantity')} {info.get('item')} for {info.get('total')}g",
+        "home_purchased": f"Purchased a {info.get('tier')}",
+        "home_upgraded": f"Upgraded home to {info.get('tier')}",
+        "home_facility_built": f"Built {info.get('facility')}",
+        "vehicle_purchased": f"Purchased {info.get('vehicle')}",
+        "vehicle_selected": f"Travel vehicle: {info.get('vehicle') or 'walking'}",
+        "magic_unlocked": f"Unlocked {info.get('node_id')}",
+        "magic_practiced": f"Practiced {info.get('node_id')} (+{info.get('xp_gained')} XP)",
+        "magic_attuned": "Updated advanced magic specializations",
+        "consumed": f"Used {info.get('item')}",
+    }
+    return {"minute": event.minute, "text": readable.get(event.kind, event.kind)}
+
+
+class GameSession:
+    def __init__(self, save_path: str | Path):
+        self.save_path = Path(save_path).expanduser()
+        self._lock = threading.RLock()
+        self.world: WorldEngine | None = None
+        self.name = ""
+        self.seed = 42
+        self.records: list[dict] = []
+        if self.save_path.exists():
+            self._load()
+
+    @property
+    def started(self) -> bool:
+        return self.world is not None
+
+    def _new_world(self) -> WorldEngine:
+        return WorldEngine([Actor(PLAYER_ID, "human", city=START_CITY, gold=INITIAL_GOLD)],
+                           seed=self.seed)
+
+    def create(self, name: str) -> None:
+        with self._lock:
+            if self.started or self.save_path.exists():
+                raise ActionError("A saved character already exists on this server")
+            if not isinstance(name, str):
+                raise ActionError("Character name must be text")
+            name = name.strip()
+            if not re.fullmatch(r"[A-Za-z][A-Za-z '’-]{1,27}", name):
+                raise ActionError("Use 2–28 letters, spaces, hyphens or apostrophes")
+            self.name = name
+            self.seed = secrets.randbelow(2**31)
+            self.world = self._new_world()
+            try:
+                self._save()
+            except Exception:
+                self.world = None
+                raise
+
+    def _document(self) -> dict:
+        return {
+            "version": SAVE_VERSION, "name": self.name, "seed": self.seed,
+            "records": self.records,
+        }
+
+    def _save(self) -> None:
+        path = self.save_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            with temporary.open("x", encoding="utf-8") as handle:
+                json.dump(self._document(), handle, separators=(",", ":"), ensure_ascii=False)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, path)
+        except OSError as exc:
+            raise SaveError(f"Failed to save game: {exc}") from exc
+        finally:
+            temporary.unlink(missing_ok=True)
+
+    def _load(self) -> None:
+        try:
+            with self.save_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            if (type(data) is not dict or data.get("version") != SAVE_VERSION
+                    or type(data.get("seed")) is not int
+                    or type(data.get("name")) is not str
+                    or type(data.get("records")) is not list):
+                raise ValueError("Unknown save format")
+            if len(data["records"]) > MAX_RECORDS:
+                raise ValueError("Save journal exceeds prototype limits")
+            self.seed = data["seed"]
+            self.name = data["name"]
+            self.world = self._new_world()
+            for record in data["records"]:
+                self._replay(record)
+            self.world.assert_invariants()
+            self.records = data["records"]
+        except (OSError, ValueError, TypeError, KeyError, ActionError, AssertionError) as exc:
+            self.world = None
+            raise SaveError(f"Cannot open saved world at {self.save_path}: {exc}") from exc
+
+    def _replay(self, record: dict) -> None:
+        if not isinstance(record, dict):
+            raise ValueError("Invalid journal record")
+        if record.get("kind") == "advance" and set(record) == {"kind", "minutes"}:
+            self._advance_world(record["minutes"])
+        elif record.get("kind") == "action" and set(record) == {"kind", "name", "params", "id"}:
+            if record["name"] not in UI_ACTIONS:
+                raise ValueError("Unsupported action in journal")
+            self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
+        else:
+            raise ValueError("Unknown journal record")
+
+    def _record(self, record: dict) -> object:
+        if self.world is None:
+            raise ActionError("Create a character first")
+        if len(self.records) >= MAX_RECORDS:
+            raise ActionError("Save journal full; snapshotting is not implemented")
+        snapshot = deepcopy(self.world.state)
+        try:
+            if record["kind"] == "advance":
+                result = self._advance_world(record["minutes"])
+            else:
+                result = self.world.execute(
+                    PLAYER_ID, record["name"], record["params"], record["id"])
+            self.records.append(record)
+            try:
+                self._save()
+            except Exception:
+                self.records.pop()
+                raise
+            return result
+        except Exception:
+            self.world.state = snapshot
+            raise
+
+    def action(self, name: str, params: dict, request_id: str) -> object:
+        with self._lock:
+            if name not in UI_ACTIONS:
+                raise ActionError("This action is not available in the web prototype")
+            if not isinstance(params, dict) or not isinstance(request_id, str) or not (
+                1 <= len(request_id) <= 80
+            ):
+                raise ActionError("Invalid action request")
+            if self.world is None:
+                raise ActionError("Create a character first")
+            # Duplicate request IDs replay their original outcome, never charge twice.
+            if request_id in self.world.state.command_receipts:
+                return self.world.execute(PLAYER_ID, name, params, request_id)
+            return self._record({
+                "kind": "action", "name": name, "params": params, "id": request_id,
+            })
+
+    def _advance_world(self, minutes: int) -> None:
+        if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
+            raise ActionError("Time advancement must be 1–1440 minutes")
+        self.world.advance(minutes)
+
+    def advance(self, minutes: int) -> None:
+        with self._lock:
+            self._record({"kind": "advance", "minutes": minutes})
+
+    def snapshot(self) -> dict:
+        with self._lock:
+            w = self.world
+            if w is None:
+                return {"started": False}
+            actor = w.actors[PLAYER_ID]
+            housing = w.housing_view(PLAYER_ID)
+            is_traveling = actor.destination is not None
+            now = w.minute
+            cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
+            places = []
+            for city_id, city in CITIES.items():
+                places.append({
+                    "id": city_id, "name": city.name, "is_current": city_id == actor.city,
+                    "minutes": (0 if is_traveling else w.estimated_travel_minutes(PLAYER_ID, city_id)),
+                })
+            quote_list = [
+                asdict(w.regional_quote(actor.city, item)) for item in RAW_RESOURCES
+            ]
+            magic_nodes = [asdict(node) for node in w.magic_tree(PLAYER_ID)]
+            return {
+                "started": True, "name": self.name,
+                "minute": now, "day": now // 1440 + 1,
+                "player": {
+                    "city": actor.city, "destination": actor.destination,
+                    "arrival_minute": actor.arrival_minute,
+                    "gold": actor.gold, "hp": actor.hp, "max_hp": actor.max_hp,
+                    "stamina": actor.stamina, "max_stamina": actor.max_stamina,
+                    "hunger": actor.vitals.hunger, "level": actor.level,
+                    "combat_xp": actor.combat_xp,
+                    "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
+                    "school_xp": dict(actor.magic.school_xp),
+                    "insight": actor.magic.insight,
+                    "attuned_paths": list(actor.magic.attuned_paths),
+                    "inventory": dict(actor.inventory),
+                    "cargo": cargo, "cargo_limit": housing.travel_cargo_limit,
+                    "ready_minute": actor.ready_minute,
+                },
+                "cities": places,
+                "gatherable": dict(w.cities[actor.city].deposits),
+                "quotes": quote_list,
+                "housing": asdict(housing),
+                "homes": [
+                    {"id": kind, **asdict(HOMES[kind])} for kind in HOME_ORDER
+                ],
+                "facilities": [
+                    {"id": kind, **asdict(spec)} for kind, spec in FACILITIES.items()
+                ],
+                "vehicles": [
+                    {"id": kind, **asdict(spec)} for kind, spec in VEHICLES.items()
+                ],
+                "magic_schools": SCHOOLS,
+                "magic_nodes": magic_nodes,
+                "events": [_friendly_event(event) for event in w.events[-12:]][::-1],
+            }
