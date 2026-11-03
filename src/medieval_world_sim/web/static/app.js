@@ -51,6 +51,7 @@
   let state = null;
   let tab = "city";
   let school = "restoration";
+  let latestPractice = null;
   let pending = false;
   let authNeeded = false;
   let offline = false;
@@ -67,16 +68,22 @@
   }
   function money(value) { return Number(value).toLocaleString() + " g"; }
   function clock(minute) {
-    const day = Math.floor(minute / 1440) + 1;
-    const hh = String(Math.floor(minute % 1440 / 60)).padStart(2, "0");
+    const days = Math.floor(minute / 1440);
+    const hh = String(Math.floor((minute % 1440) / 60)).padStart(2, "0");
     const mm = String(minute % 60).padStart(2, "0");
-    return "Day " + day + " · " + hh + ":" + mm;
+    return (days ? days + "d " : "") + hh + ":" + mm;
   }
   const easternFormatter = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York", month: "short", day: "numeric",
-    year: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
   function easternNow() { return easternFormatter.format(new Date()); }
+  function eventTime(event) {
+    if (!event.recorded_at) return "Earlier · timestamp unavailable";
+    const date = new Date(event.recorded_at);
+    return Number.isNaN(date.getTime()) ? "Earlier · timestamp unavailable" :
+      easternFormatter.format(date);
+  }
   function updateEasternClock() {
     const label = document.getElementById("eastern-clock");
     if (label) label.textContent = easternNow();
@@ -156,6 +163,10 @@
       const result = await request(path, body);
       state = result.state;
       syncAttunements();
+      if (body && body.action === "practice_magic" && result.result) {
+        latestPractice = { ...result.result, nodeId: body.params.node_id };
+        tab = "magic";
+      }
       notify(success);
     } catch (error) {
       notify(error.message, true);
@@ -245,7 +256,7 @@
       '<div class="gold-total"><small>Gold</small><strong>' +
       esc(money(p.gold)) + '</strong></div></div>' +
       '<div class="top-actions">' +
-      '<div class="world-time"><span>Medieval World · Eastern</span>' +
+      '<div class="world-time"><span>Medieval World time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
       '</div></div></header>' +
@@ -260,9 +271,8 @@
       '<details class="mobile-nav"><summary>☷ &nbsp; Locations & services · ' +
       esc(place) + '</summary><nav aria-label="Mobile locations">' + sidebar +
       '</nav></details>' +
-      '<main class="page" id="main-content"><div class="page-location">' +
-      '<span class="location-dot"></span>' + esc(place) +
-      '</div>' + view() + '</main></div></div></div>';
+      '<main class="page" id="main-content">' + view() +
+      '</main></div></div></div>';
   }
 
   function inventoryPanel() {
@@ -280,10 +290,44 @@
   function activityPanel() {
     let body = state.events.length ? '<ul class="activity">' +
       state.events.map(e => '<li><span>' + esc(e.text) +
-      '</span><time>' + esc(clock(e.minute)) + '</time></li>').join("") +
+      '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
+      '">' + esc(eventTime(e)) + '</time></li>').join("") +
       '</ul>' : '<p class="empty">The chronicle begins with your first action.</p>';
     return panel("Chronicle", "Your most recent actions", body);
   }
+  const mapLocations = {
+    crownreach: { x: 50, y: 47.6 },
+    ironvale: { x: 33.3, y: 27.6 },
+    greenhollow: { x: 71.1, y: 33.2 },
+    emberfall: { x: 65.0, y: 69.4 },
+    goldmeadow: { x: 30.6, y: 78.5 },
+  };
+  function worldMap() {
+    const p = state.player;
+    const destination = p.destination;
+    const pins = state.cities.map(city => {
+      const point = mapLocations[city.id];
+      if (!point) return "";
+      const current = city.id === p.city;
+      const arriving = city.id === destination;
+      const inactive = pending || Boolean(destination) || p.hp <= 0 || current;
+      return '<button class="map-pin map-' + esc(city.id) +
+        (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
+        '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
+        '" title="' + esc(city.name) +
+        (current ? " — you are here" : arriving ? " — destination" :
+          " — " + dur(city.minutes) + " away, click to travel") +
+        '"' + disabled(inactive) + '>' +
+        '<span class="map-pin-light"></span><strong>' + esc(city.name.replace(" (capital)", "")) +
+        '</strong>' + (current ? '<small>You are here</small>' :
+        arriving ? '<small>Destination</small>' : '') + '</button>';
+    }).join("");
+    return '<section class="world-atlas" aria-label="Illustrated map of the Five Cities">' +
+      '<div class="atlas-canvas"><img src="/world-map.svg" alt="Antique ink-drawn fantasy realm with mountains, rivers, forests and royal roads">' +
+      pins + '</div><div class="atlas-footer"><span>✦ Blue lights mark the cities</span>' +
+      '<span>Click a city to begin traveling · Your location glows gold</span></div></section>';
+  }
+
   function renderWorld() {
     const p = state.player;
     const traveling = Boolean(p.destination);
@@ -316,10 +360,8 @@
         disabled(pending)) + '</section>'
       : defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your character ' +
         'has recovered before beginning another activity.</div>' : "";
-    return '<div class="heading-row"><div><div class="section-kicker">Beyond the city gates</div>' +
-      '<h2>World Map</h2><p class="subheading">Five settlements linked by the royal roads. ' +
-      'Plan a journey or gather outside the walls.</p>' +
-      '</div></div>' +
+    return heading("", "World Map", "") +
+      worldMap() +
       '<div class="two-col"><div class="stack">' + journey +
       panel("Choose your destination", "All routes connect through the royal capital.",
         '<div class="card-grid">' + destinations + '</div>') +
@@ -489,9 +531,7 @@
             esc(v.id) + '"' + disabled(!atHome || !h.facilities.includes(v.facility) ||
               p.gold < v.price), "full secondary")) + '</div>';
     }).join("");
-    return '<div class="heading-row"><div><div class="section-kicker">A place to call your own</div>' +
-      '<h2>Homes & transportation</h2><p class="subheading">Upgrade your home, train more ' +
-      'efficiently, and travel faster.</p></div>' + chip(money(p.gold)) + '</div>' +
+    return heading("", "Property", "") +
       (h.tier ? '<div class="home-banner mb-20">' +
         '<small>Your home · ' + esc(pretty(h.city)) + '</small>' +
         '<h3>' + esc(pretty(h.tier)) + '</h3>' +
@@ -544,8 +584,7 @@
       cityLocation("♜", "The Wayfarer's Tavern", "Rest to recover stamina and mana and let world time pass.", "tavern", "Open"),
       cityLocation("⚑", "The City Gates", "Leave the walls to gather resources or choose a road to another city.", "world", "Open"),
     ].join('');
-    return heading("The five cities · " + name, "City Map",
-      "Streets, guilds, services, and the beginning of your story.") +
+    return heading("", "City Map", "") +
       '<section class="story-panel"><div class="section-kicker">Chapter I · A stranger at the gate</div>' +
       '<h3>' + esc(lore.title) + '</h3><p>' + esc(lore.opening) + '</p>' +
       '<p>You have a name, ' + esc(money(p.gold)) +
@@ -567,11 +606,11 @@
       '</aside></div>';
   }
   function renderChronicle() {
-    return heading("Adventurer's record", "Chronicle",
-      "Your recent journey, transactions, training and milestones.") +
+    return heading("", "Chronicle", "") +
       activityPanel() +
-      '<p class="small mt-13">Entries use elapsed simulation days and minutes. ' +
-      'The Eastern clock in the header reflects real-world time.</p>';
+      '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
+      'Older actions without saved timestamps are marked earlier. ' +
+      'The game simulation still advances only when you take time-based actions.</p>';
   }
   function characterRow(label, value) {
     return '<div class="character-row"><span>' + esc(label) +
@@ -586,9 +625,7 @@
       characterRow(pretty(key), xp + " XP")).join('');
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
-    return heading("Character home", state.name,
-      "Your life, progression, wealth, work and accomplishments.") +
-      '<div class="profile-hero"><div><small>ADVENTURER</small><h3>' + esc(state.name) +
+    return '<div class="profile-hero"><div><small>ADVENTURER</small><h3>' + esc(state.name) +
       '</h3><p>Level ' + p.level + ' · ' + esc(pretty(p.city)) + '</p></div>' +
       '<div><small>Estimated net worth</small><strong>' +
       esc(money(state.net_worth_estimate)) + '</strong></div></div>' +
@@ -793,7 +830,9 @@
     const node = element.dataset.node;
     switch (ui) {
       case "reload": load(); break;
-      case "travel": action("travel", { destination: element.dataset.target }, "Journey started"); break;
+      case "travel":
+      case "map-travel":
+        action("travel", { destination: element.dataset.target }, "Journey started"); break;
       case "gather": action("gather", { item, quantity: Number(element.dataset.qty) },
         "Resources added to your inventory"); break;
       case "advance": advance(Number(element.dataset.minutes)); break;
