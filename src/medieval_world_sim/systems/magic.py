@@ -168,7 +168,9 @@ class MagicSystem:
                 or type(state.mana) is not int or not 0 <= state.mana <= state.max_mana
                 or type(state.attempts) is not int or state.attempts < 0
                 or type(state.insight) is not int or state.insight < 0
-                or type(state.insight_earned) is not int or state.insight_earned < 0):
+                or type(state.insight_earned) is not int or state.insight_earned < 0
+                or type(state.road_charm) is not int or not 0 <= state.road_charm <= 40
+                or type(state.ward_charge) is not int or not 0 <= state.ward_charge <= 20):
             raise AssertionError("Invalid mana or Insight balances")
         if (not isinstance(state.school_xp, dict)
                 or any(s not in SCHOOLS or type(xp) is not int or xp < 0
