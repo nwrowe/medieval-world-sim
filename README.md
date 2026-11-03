@@ -185,3 +185,7 @@ The default save location is `~/.medieval-world-sim/save.json`. To use another s
 ### Google Colab preview
 
 For a Colab notebook iframe, start the web server with `--colab-preview` on `127.0.0.1`, then call `output.serve_kernel_port_as_iframe(8765, height=850)`. The ordinary server still blocks framing by default. See [the Colab instructions](docs/WEB_CLIENT.md#google-colab-notebook-preview) for a complete setup, persistent Drive saves and security limitations.
+
+### Hosted private playtest on Render
+
+To play from any phone or desktop without Colab or leaving your own PC running, see [Render deployment](docs/RENDER_DEPLOYMENT.md). The checked-in `render.yaml` provisions a **paid**, single-instance HTTPS web service with a persistent save disk. You must provide a private `GAME_ACCESS_TOKEN` through the Render dashboard. **Do not deploy the single-player game publicly without this token.** This is not multiplayer hosting; review Render's charges before confirming deployment.
