@@ -242,6 +242,7 @@
       chronicle: renderChronicle, warriors: renderWarriorsGuild,
       mageguild: renderMageGuild, tavern: renderTavern,
       healer: renderHealer, cityhall: renderCityHall,
+      church: renderChurch,
     };
     const view = renderers[tab] || renderCity;
     const sidebar = tabs.map(t => navButton(t)).join('');
@@ -414,9 +415,7 @@
         '</div><p class="small m-0">Available: buy up to ' +
         maxBuy + ', sell up to ' + maxSell + '</p></div>';
     }).join("");
-    return '<div class="heading-row"><div><div class="section-kicker">Commerce & opportunity</div>' +
-      '<h2>Regional marketplace</h2><p class="subheading">Buying prices differ by city. ' +
-      'Carry goods where merchants pay more.</p></div>' + chip(money(p.gold)) + '</div>' +
+    return heading("", "Market", "Trade using the current city's real stock and gold.") +
       '<div class="callout mb-20"><strong>Merchant trading · ' + p.cargo +
       '/20 inventory units · ' + p.cargo_limit + ' travel capacity</strong>' +
       'Every sale is paid with the city’s existing gold and every purchase uses physical stock. ' +
@@ -462,9 +461,7 @@
       '<div class="small">' + esc(pretty(n.school)) + ' · also enables its Tier IV mastery</div>' +
       '</div></label></div>').join("") :
       '<p class="small">Unlock Tier III skills to choose your two active specializations.</p>';
-    return '<div class="heading-row"><div><div class="section-kicker">The arcane arts</div>' +
-      '<h2>Magic progression</h2><p class="subheading">Practice each school independently. ' +
-      'Insight unlocks advanced skills.</p></div>' + chip(p.insight + " Insight") + '</div>' +
+    return heading("", "Magic Progression", "") +
       '<div class="two-col"><div class="stack">' +
       panel(pretty(school) + " school", "Unlock prerequisites, spend mana, and advance your skill.",
         '<div class="school-tabs">' + schools + '</div>' +
@@ -556,9 +553,10 @@
   }
 
   function heading(kicker, title, subtitle) {
-    return '<div class="heading-row"><div><div class="section-kicker">' +
-      esc(kicker) + '</div><h2>' + esc(title) + '</h2><p class="subheading">' +
-      esc(subtitle) + '</p></div></div>';
+    // Page hierarchy: location is already in the sidebar; the page only needs a title.
+    return '<div class="heading-row"><div><h2>' + esc(title) + '</h2>' +
+      (subtitle ? '<p class="subheading">' + esc(subtitle) + '</p>' : '') +
+      '</div></div>';
   }
   function cityLocation(icon, title, description, target, badge = "") {
     return '<div class="location-card"><span class="location-icon">' + icon + '</span>' +
@@ -577,6 +575,7 @@
       cityLocation("✧", "Mage Guild", "Study six schools today. Arcane commissions and investigations are planned.", "mageguild", "Studies open"),
       cityLocation("⚒", "Armory & Blacksmith", "Manage your weapons and armor. Crownreach stocks basic equipment.", "equipment", "Equipment open"),
       cityLocation("✚", "Healer\'s Sanctuary", "Future: treatment, healing provisions, and restorative services.", "healer", "Healing planned"),
+      cityLocation("✝", "Church of the Hearth", "A chapel for reflection and future restorative service and charity contracts.", "church", "Services planned"),
       cityLocation("♛", "City Hall", "Future: civic standing, records, permits, and city affairs.", "cityhall", "Civic features planned"),
       cityLocation("▣", "Employment Hall", "Browse jobs, employers, and eventually shift-based work.", "job", "Jobs planned"),
       cityLocation("✤", "Training Hall", "Future: long-term discipline, scholarship, and stat training.", "training", "Training planned"),
@@ -732,6 +731,16 @@
       "Beneath a quiet stone arch, healers tend weary travelers. Treatment, restorative remedies, and related costs will eventually be real simulation systems.",
       "city", "Return to City Map");
   }
+  function renderChurch() {
+    return heading("", "Church of the Hearth", "") +
+      '<section class="story-panel"><h3>The candlelit nave</h3>' +
+      '<p>Quiet footsteps echo beneath the stone arches. Healers and petitioners ' +
+      'gather here, asking aid and sharing news from the roads. A novice invites ' +
+      'you to study the arts of restoration.</p>' +
+      '<p class="small">Church services, charitable assignments, and paid healing ' +
+      'contracts are planned. No gold is earned merely by visiting.</p>' +
+      button("Study restoration", 'data-ui="study-restoration"', "secondary") + '</section>';
+  }
   function renderCityHall() {
     return futurePage("The civic quarter", "City Hall",
       "A clerk maintains ledgers of the city's merchants, residents and obligations. Permits, civic reputation, and faction affairs may someday be managed here.",
@@ -848,6 +857,8 @@
         break;
       }
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
+      case "study-restoration":
+        school = "restoration"; tab = "magic"; render(); break;
       case "unlock": action("unlock_magic", { node_id: node }, "New magical ability unlocked"); break;
       case "apply-attune":
         if (selectedAttunements.size > 2) {
