@@ -47,11 +47,17 @@ class GameplayExpansionTests(unittest.TestCase):
         self.assertGreater(armory["plate_armor"]["defense"], 0)
 
     def test_church_healing_once_a_day_without_cooldown(self):
-        self.game.world.actors["hero"].hp = 12
+        foe = next(user["id"] for user in self.game.snapshot()["users"]
+                   if user["can_attack"])
+        self.act("start_duel", {"defender_id": foe}, "start-fight")
+        self.act("duel_turn", {"move": "strike", "node_id": ""}, "hit")
+        self.act("flee_duel", {}, "escape")
+        missing = 24 - self.game.snapshot()["player"]["hp"]
+        self.assertGreater(missing, 0)
         total = self.game.world.total_gold
         before_cooldowns = self.game.snapshot()["player"]["cooldowns"]
         healed = self.act("church_heal", {}, "heal-one")
-        self.assertEqual(healed, 12)
+        self.assertEqual(healed, missing)
         view = self.game.snapshot()
         self.assertEqual(view["player"]["hp"], 24)
         self.assertEqual(view["player"]["gold"], 220)
@@ -59,7 +65,6 @@ class GameplayExpansionTests(unittest.TestCase):
         self.assertEqual(view["player"]["cooldowns"], before_cooldowns)
         self.assertEqual(self.game.world.total_gold, total)
         self.assertEqual(GameSession(self.path).snapshot()["church"], view["church"])
-        self.game.world.actors["hero"].hp = 18
         with self.assertRaises(ActionError):
             self.act("church_heal", {}, "heal-repeat")
         self.game.advance(1440)
