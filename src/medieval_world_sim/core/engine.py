@@ -31,6 +31,7 @@ from ..systems.market import MarketSystem
 from ..systems.combat import CombatSystem, CombatOutcome
 from ..systems.duels import DuelSystem
 from ..systems.spells import SpellSystem
+from ..systems.track import TrackSystem
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
@@ -79,6 +80,7 @@ class WorldEngine:
         self.combat = CombatSystem(self)
         self.duel_system = DuelSystem(self)
         self.spell_system = SpellSystem(self)
+        self.track_system = TrackSystem(self)
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
@@ -421,6 +423,34 @@ class WorldEngine:
         return self.spell_system.field_cast(actor_id, node_id)
 
     @atomic_action
+    def church_heal(self, actor_id: str) -> int:
+        actor = self._actor(actor_id)
+        self._at_city(actor)
+        if actor.hp >= actor.max_hp:
+            raise ActionError("You are already at full health")
+        today = self.minute // 1440
+        if self.state.church_healed_day.get(actor_id) == today:
+            raise ActionError("The church has already treated you today")
+        price = 20
+        if actor.gold < price:
+            raise ActionError("Church healing costs 20 gold")
+        from .transactions import transfer_gold
+        transfer_gold(self, actor, None, price)
+        healed = actor.max_hp - actor.hp
+        actor.hp = actor.max_hp
+        self.state.church_healed_day[actor_id] = today
+        self._emit("church_healed", actor_id, price, healed)
+        return healed
+
+    @atomic_action
+    def buy_racehorse(self, actor_id: str, breed: str) -> dict:
+        return self.track_system.buy(actor_id, breed)
+
+    @atomic_action
+    def race_horse(self, actor_id: str, breed: str) -> dict:
+        return self.track_system.race(actor_id, breed)
+
+    @atomic_action
     def consume(self, actor_id: str, item: str) -> tuple[int, int, int]:
         return self.consumables.consume(actor_id, item)
 
@@ -466,6 +496,9 @@ class WorldEngine:
                 "duel_turn": ("duel_turn", ("move", "node_id")),
                 "flee_duel": ("flee_duel", ()),
                 "cast_spell": ("cast_spell", ("node_id",)),
+                "church_heal": ("church_heal", ()),
+                "buy_racehorse": ("buy_racehorse", ("breed",)),
+                "race_horse": ("race_horse", ("breed",)),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
                 "accept_job": ("accept_job", ("company_id",)),
@@ -554,6 +587,21 @@ class WorldEngine:
             participants.extend((duel.attacker_id, duel.defender_id))
         if len(participants) != len(set(participants)):
             raise AssertionError('Actor participating in multiple duels')
+        from ..systems.track import HORSES
+        for actor_id, breeds in self.state.horses.items():
+            if (actor_id not in self.actors or not isinstance(breeds, list)
+                    or len(breeds) != len(set(breeds))
+                    or any(breed not in HORSES for breed in breeds)):
+                raise AssertionError("Invalid horse ownership")
+        for actor_id, xp in self.state.riding_xp.items():
+            if actor_id not in self.actors or type(xp) is not int or xp < 0:
+                raise AssertionError("Invalid riding experience")
+        for actor_id, minute in self.state.last_race_minute.items():
+            if actor_id not in self.actors or type(minute) is not int or not 0 <= minute <= self.minute:
+                raise AssertionError("Invalid racing timestamp")
+        for actor_id, day in self.state.church_healed_day.items():
+            if actor_id not in self.actors or type(day) is not int or not 0 <= day <= self.minute // 1440:
+                raise AssertionError("Invalid church healing day")
         for company in self.companies.values():
             if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
                 raise AssertionError("Invalid company quality state")

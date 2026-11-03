@@ -7,6 +7,7 @@ from ..content.magic_tree import MANA_REGEN_MINUTES
 from ..errors import ActionError
 
 HOUR = 60
+HEALTH_REGEN_MINUTES = 10
 DEPOSIT_CAP = 24
 TRAVEL_CARGO_LIMIT = 12  # Stricter than the 20-unit in-city inventory limit.
 
@@ -91,10 +92,16 @@ class TravelSystem:
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
         mana_ticks = end // MANA_REGEN_MINUTES - start_minute // MANA_REGEN_MINUTES
+        health_ticks = (end // HEALTH_REGEN_MINUTES - start_minute // HEALTH_REGEN_MINUTES
+                        if not getattr(self.world, "_legacy_health_regen", False) else 0)
         self.world.minute = end
         for actor in self.world.actors.values():
             actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
             actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)
+            # Hospitalized characters recover at their release minute; passive
+            # regeneration never circumvents that lockout.
+            if actor.defeated_until is None and actor.hp > 0:
+                actor.hp = min(actor.max_hp, actor.hp + health_ticks)
             if actor.defeated_until is not None and actor.defeated_until <= end:
                 actor.hp = actor.max_hp
                 actor.defeated_until = None
