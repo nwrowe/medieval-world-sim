@@ -1,4 +1,4 @@
-# Medieval World Simulation (working title)
+# Oathmere
 
 An exploration of a persistent, text-first medieval fantasy RPG inspired by the **depth** of player-driven games such as Torn City, not a clone of their content or mechanics.
 
