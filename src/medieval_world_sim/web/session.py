@@ -251,7 +251,12 @@ class GameSession:
             else:
                 result = self.world.execute(
                     PLAYER_ID, record["name"], record["params"], record["id"])
-            stored_record = {**record, "ruleset": 4,
+            # Retain ruleset 3 for established actions; old journal assertions and
+            # replay semantics must not shift when the new combat commands arrive.
+            ruleset = (4 if record["kind"] == "action" and
+                       record["name"] in {"start_duel", "duel_turn", "flee_duel", "cast_spell"}
+                       else 3)
+            stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
             try:
