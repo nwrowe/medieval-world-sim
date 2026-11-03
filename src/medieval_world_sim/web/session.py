@@ -36,7 +36,7 @@ UI_ACTIONS = {
     "consume", "buy_home", "upgrade_home", "build_home_facility",
     "buy_vehicle", "select_vehicle", "unlock_magic", "practice_magic",
     "attune_magic", "buy_starter_gear", "equip", "unequip",
-    "complete_city_contract",
+    "complete_city_contract", "store_goods", "retrieve_goods",
 }
 
 
@@ -74,6 +74,8 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "starter_purchase": f"Purchased {str(info.get('item', 'equipment')).replace('_', ' ')} for {info.get('price', 0)}g",
         "equipped": f"Equipped {str(gear_kind or info.get('slot', 'gear')).replace('_', ' ')}",
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
+        "goods_stored": f"Stored {info.get('quantity')} {str(info.get('item')).replace('_',' ')} in {info.get('city')}",
+        "goods_retrieved": f"Retrieved {info.get('quantity')} {str(info.get('item')).replace('_',' ')} from {info.get('city')}",
         "city_contract_completed": (
             f"Completed {str(info.get('contract_id', '')).replace('_', ' ')} "
             f"(+{info.get('gold')}g, +{info.get('xp')} XP)"
@@ -366,6 +368,11 @@ class GameSession:
                     "insight": actor.magic.insight,
                     "attuned_paths": list(actor.magic.attuned_paths),
                     "inventory": dict(actor.inventory),
+                    "stored_here": dict(actor.storage.get(actor.city, {})),
+                    "storage_cities": {
+                        city: sum(contents.values())
+                        for city, contents in actor.storage.items()
+                    },
                     "cargo": cargo, "cargo_limit": housing.travel_cargo_limit,
                     "ready_minute": actor.ready_minute,
                     "defeated_until": actor.defeated_until,
