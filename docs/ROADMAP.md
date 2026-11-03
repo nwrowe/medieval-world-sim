@@ -47,3 +47,9 @@ Full lore production, procedural dialogue everywhere, native mobile apps, large 
 Progressively priced homes support local training XP bonuses while stable and carriage-house improvements unlock faster road journeys and expanded but bounded travel cargo. The house and vehicle economy is funded and subject to the same command authorization and conservation rules as regional trading. Docks require new physical sea routes.
 
 See [housing and transport](HOUSING_AND_TRANSPORT.md).
+
+## M3a — First playable mobile-friendly web slice
+
+Serve the authoritative Python world over a minimal local HTTP API, with a responsive browser dashboard for exploration, regional markets, gathering, six-school practice, and housing/transport. Persist player choices in a versioned, replayable JSON action journal. Authentication is a LAN-only access code, not an account system. Time advances with explicit player actions and rest commands; a long-running production simulation, multi-user transactions and public hosting are deferred.
+
+**Exit criteria:** a player on a desktop or trusted local Wi-Fi phone can create a character, trade, travel, practice magic, buy a home, and restart the server without losing state. See [web client guide](WEB_CLIENT.md).

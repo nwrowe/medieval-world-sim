@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 
 from ..errors import ActionError
+from .cooldowns import FOOD_MINUTES, POTION_MINUTES, stack, can_add
 
 
 @dataclass(frozen=True)
@@ -34,11 +35,19 @@ class ConsumableSystem:
                 or effect.stamina > 0 and actor.stamina < actor.max_stamina
                 or effect.hunger > 0 and actor.vitals.hunger > 0):
             raise ActionError("No recovery or nourishment needed")
+        legacy = getattr(self.world, "_legacy_cooldown_rules", False)
+        channel = "food" if item in FOOD_MINUTES else "potion"
+        duration = (FOOD_MINUTES.get(item) if channel == "food"
+                    else POTION_MINUTES.get(item))
+        if not legacy and not can_add(actor, channel, duration, self.world.minute):
+            raise ActionError(f"{channel.title()} cooldown would exceed 24 hours")
         before = (actor.hp, actor.stamina, actor.vitals.hunger)
         actor.hp = min(actor.max_hp, actor.hp + effect.health)
         actor.stamina = min(actor.max_stamina, actor.stamina + effect.stamina)
         actor.vitals.hunger = max(0, actor.vitals.hunger - effect.hunger)
         actor.inventory[item] -= 1
+        if not legacy:
+            stack(actor, channel, duration, self.world.minute)
         gains = (actor.hp - before[0], actor.stamina - before[1],
                  before[2] - actor.vitals.hunger)
         self.world._emit("consumed", actor.id, item, *gains)

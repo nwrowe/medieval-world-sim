@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 620" role="img" aria-labelledby="title desc">
+<title id="title">The Five Cities — parchment map</title><desc id="desc">Hand-inked high fantasy coastline, forests, mountains, rivers, royal roads, and a compass rose. Interactive city destinations appear above this illustration.</desc>
+<defs>
+  <radialGradient id="parchment"><stop stop-color="#f0dfb4"/><stop offset=".76" stop-color="#e1ca98"/><stop offset="1" stop-color="#ae8d5e"/></radialGradient>
+  <pattern id="sea" width="31" height="22" patternUnits="userSpaceOnUse"><path d="M2 15q8-7 16 0t15 0" fill="none" stroke="#718d8b" stroke-width="1.25" opacity=".31"/></pattern>
+  <pattern id="grain" width="60" height="48" patternUnits="userSpaceOnUse"><path d="M3 4l3-2M25 39l2-4M48 24l-4 2" stroke="#7e603d" stroke-width=".7" opacity=".27"/></pattern>
+  <g id="pine" fill="none" stroke="#465b45" stroke-width="1.7" stroke-linejoin="round"><path d="M0 0L-10 17H-6L-14 30H-5L-16 43H15L5 30H13L5 17Z"/><path d="M0 35v16" stroke-width="2"/></g>
+  <g id="mount" fill="#d4c19b" stroke="#695c45" stroke-width="2"><path d="M0 58L38 0 84 58Z"/><path d="M37 0l-12 19 14-4 9 14-3-18Z" fill="#faf1db" stroke="none"/><path d="M19 43l19-30 15 23" fill="none" opacity=".7"/></g>
+  <filter id="ink"><feGaussianBlur stdDeviation=".4"/></filter>
+</defs>
+<rect width="1000" height="620" fill="url(#parchment)"/>
+<rect width="1000" height="620" fill="url(#grain)"/>
+<!-- western waters, torn coastline with sketched surf -->
+<path d="M0 0H280q-18 31-26 65t-34 42q-17 20-4 48t-12 47q-27 15-41 45t-12 62q10 25-13 44t-14 41q13 26-12 51t-20 50q4 33-22 48L63 620H0Z" fill="#a2bab1" opacity=".73"/>
+<path d="M0 0H280q-18 31-26 65t-34 42q-17 20-4 48t-12 47q-27 15-41 45t-12 62q10 25-13 44t-14 41q13 26-12 51t-20 50q4 33-22 48L63 620H0Z" fill="url(#sea)"/>
+<path d="M280 0q-18 31-26 65t-34 42q-17 20-4 48t-12 47q-27 15-41 45t-12 62q10 25-13 44t-14 41q13 26-12 51t-20 50q4 33-22 48L63 620" stroke="#675c49" fill="none" stroke-width="3"/>
+<path d="M267 0q-28 40-28 64t-40 49q-22 25-2 42t-17 47q-32 27-36 56t-8 60q-5 22-24 36t-8 39q4 20-10 41t-20 54q4 32-27 69" stroke="#796d55" fill="none" stroke-width="1" opacity=".6"/>
+<!-- eastern lakes and river -->
+<path d="M1000 392q-50-28-82-16t-41 47q-4 33-38 48t-16 47q16 15 49 32t49 70h79Z" fill="#adc1b2" stroke="#687b70" stroke-width="2" opacity=".8"/>
+<path d="M1000 392q-50-28-82-16t-41 47q-4 33-38 48t-16 47q16 15 49 32t49 70h79Z" fill="url(#sea)"/>
+<path d="M831 30q-18 56-48 88t-36 84q-3 39-28 66t-18 53q9 27-4 48t-25 47" fill="none" stroke="#7c9fa0" stroke-width="11" opacity=".65" stroke-linecap="round"/>
+<path d="M831 30q-18 56-48 88t-36 84q-3 39-28 66t-18 53q9 27-4 48t-25 47" fill="none" stroke="#e9dfba" stroke-width="2.2" opacity=".7"/>
+<!-- mountain ranges -->
+<g opacity=".78">
+<use href="#mount" transform="translate(328 65) scale(1.0)"/><use href="#mount" transform="translate(365 54) scale(1.12)"/><use href="#mount" transform="translate(412 83) scale(.84)"/><use href="#mount" transform="translate(454 61) scale(.94)"/><use href="#mount" transform="translate(515 73) scale(.68)"/>
+<use href="#mount" transform="translate(786 256) scale(.65)"/><use href="#mount" transform="translate(822 277) scale(.83)"/><use href="#mount" transform="translate(863 253) scale(.68)"/>
+<use href="#mount" transform="translate(345 374) scale(.65)"/><use href="#mount" transform="translate(383 390) scale(.75)"/>
+</g>
+<!-- pine forests -->
+<g opacity=".65">
+<use href="#pine" transform="translate(592 99) scale(.66)"/><use href="#pine" transform="translate(621 79) scale(.79)"/><use href="#pine" transform="translate(649 112) scale(.62)"/><use href="#pine" transform="translate(669 73) scale(.7)"/><use href="#pine" transform="translate(693 105) scale(.8)"/><use href="#pine" transform="translate(714 89) scale(.62)"/><use href="#pine" transform="translate(745 108) scale(.78)"/>
+<use href="#pine" transform="translate(582 143) scale(.64)"/><use href="#pine" transform="translate(635 158) scale(.74)"/><use href="#pine" transform="translate(694 151) scale(.64)"/><use href="#pine" transform="translate(752 152) scale(.66)"/>
+<use href="#pine" transform="translate(204 363) scale(.7)"/><use href="#pine" transform="translate(244 382) scale(.59)"/><use href="#pine" transform="translate(280 397) scale(.74)"/><use href="#pine" transform="translate(261 438) scale(.62)"/>
+<use href="#pine" transform="translate(769 440) scale(.69)"/><use href="#pine" transform="translate(804 458) scale(.6)"/><use href="#pine" transform="translate(751 478) scale(.68)"/>
+</g>
+<!-- royal roads, dotted -->
+<g fill="none" stroke="#765f48" stroke-linecap="round" stroke-width="2.4" stroke-dasharray="3 9" opacity=".75">
+<path d="M498 295Q414 231 333 171"/>
+<path d="M498 295Q614 242 711 206"/>
+<path d="M498 295Q581 353 650 430"/>
+<path d="M498 295Q388 403 306 487"/>
+</g>
+<g fill="none" stroke="#d4b77c" stroke-width="8" opacity=".15">
+<path d="M498 295Q414 231 333 171"/><path d="M498 295Q614 242 711 206"/><path d="M498 295Q581 353 650 430"/><path d="M498 295Q388 403 306 487"/>
+</g>
+<!-- Ink flourishes and callouts -->
+<g font-family="Georgia,serif" fill="#72634c" opacity=".78">
+<text x="61" y="207" font-size="19" font-style="italic" letter-spacing="3" transform="rotate(-84 61 207)">THE WESTERN SEA</text>
+<text x="345" y="49" font-size="16" font-style="italic" letter-spacing="2">IRONSPINE PEAKS</text>
+<text x="610" y="185" font-size="15" font-style="italic">Elderwood</text>
+<text x="845" y="566" font-size="18" font-style="italic" transform="rotate(-19 845 566)">Glassmere</text>
+<text x="385" y="550" font-size="14" font-style="italic">Southfield Plains</text>
+</g>
+<!-- frame & compass -->
+<rect x="15" y="15" width="970" height="590" rx="5" fill="none" stroke="#78603e" stroke-width="2" opacity=".7"/>
+<rect x="23" y="23" width="954" height="574" rx="3" fill="none" stroke="#a99066" stroke-width="1" opacity=".65"/>
+<g transform="translate(888 98)" stroke="#65513c" fill="none" stroke-width="2">
+<circle r="39" stroke-dasharray="2 4"/><path d="M0-48L9-8 0 48-9 8Z" fill="#7b6040"/><path d="M-48 0L-9-8 48 0 9 8Z" fill="#e6d7ae"/><circle r="5" fill="#725c3d"/><text x="-5" y="-57" font-family="Georgia" fill="#65513c" stroke="none" font-size="17">N</text>
+</g>
+<g fill="#715a3a" font-family="Georgia,serif" text-anchor="middle">
+<text x="506" y="54" font-size="25" letter-spacing="4">THE FIVE CITIES</text>
+<text x="507" y="76" font-size="12" font-style="italic" letter-spacing="2">Roads &amp; Realms of the Crown</text>
+</g>
+<path d="M396 83H608M426 89H578" stroke="#896d48" stroke-width="1" opacity=".6"/>
+<path d="M821 580h129m-129-3v7m43-7v7m43-7v7m43-7v7" stroke="#6c5b45" stroke-width="2"/>
+<text x="885" y="573" text-anchor="middle" font-size="10" fill="#6c5b45" font-family="Georgia">ROYAL LEAGUES</text>
+</svg>

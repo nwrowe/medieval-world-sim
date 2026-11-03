@@ -29,11 +29,14 @@ from ..systems.resources import ResourceSystem
 from ..systems.companies import CompanySystem
 from ..systems.market import MarketSystem
 from ..systems.combat import CombatSystem, CombatOutcome
+from ..systems.duels import DuelSystem
+from ..systems.spells import SpellSystem
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
 from ..systems.magic import MagicSystem, MagicNodeStatus, MagicPracticeResult
 from ..systems.housing import HousingSystem, HousingView
+from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
 
 class WorldEngine:
@@ -74,11 +77,14 @@ class WorldEngine:
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
         self.combat = CombatSystem(self)
+        self.duel_system = DuelSystem(self)
+        self.spell_system = SpellSystem(self)
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
         self.magic_system = MagicSystem(self)
         self.housing_system = HousingSystem(self)
+        self.city_contracts = CityContractSystem(self)
 
     @property
     def actors(self) -> dict[str, Actor]:
@@ -193,9 +199,9 @@ class WorldEngine:
         return account.city
 
     def _space_for(self, actor: Actor | Company, item: str, quantity: int) -> bool:
-        return not isinstance(actor, Actor) or (
-            sum(actor.inventory.values()) + len(actor.gear_ids) + quantity <= CARRY_LIMIT
-        )
+        # City inventories are unbounded; road departures enforce the vehicle
+        # cargo limit instead. Preserve the signature for existing callers.
+        return True
 
     def _mint_gear(self, holder: Actor | Company, kind: str, quality: int, origin: str) -> GearItem:
         """Only called after authorized crafting or a paid capital starter purchase."""
@@ -236,6 +242,30 @@ class WorldEngine:
     @atomic_action
     def gather(self, actor_id: str, item: str, quantity: int = 1) -> None:
         return self.resources.gather(actor_id, item, quantity)
+
+    @atomic_action
+    def store_goods(self, actor_id: str, item: str, quantity: int) -> None:
+        actor = self._actor(actor_id)
+        city = self._at_city(actor)
+        self._positive(quantity, "quantity")
+        if item not in GOODS or actor.inventory.get(item, 0) < quantity:
+            raise ActionError("Not enough valid goods to store")
+        actor.inventory[item] -= quantity
+        stash = actor.storage.setdefault(city, {})
+        stash[item] = stash.get(item, 0) + quantity
+        self._emit("goods_stored", actor_id, city, item, quantity)
+
+    @atomic_action
+    def retrieve_goods(self, actor_id: str, item: str, quantity: int) -> None:
+        actor = self._actor(actor_id)
+        city = self._at_city(actor)
+        self._positive(quantity, "quantity")
+        stash = actor.storage.get(city, {})
+        if item not in GOODS or stash.get(item, 0) < quantity:
+            raise ActionError("Not enough goods stored in this city")
+        stash[item] -= quantity
+        self._add(actor, item, quantity)
+        self._emit("goods_retrieved", actor_id, city, item, quantity)
 
     @atomic_action
     def found_company(self, owner_id: str, company_id: str, industry: str, investment: int) -> None:
@@ -355,6 +385,10 @@ class WorldEngine:
         return self.housing_system.select_vehicle(actor_id, vehicle)
 
     @atomic_action
+    def complete_city_contract(self, actor_id: str, contract_id: str) -> CityContractResult:
+        return self.city_contracts.complete(actor_id, contract_id)
+
+    @atomic_action
     def buy_starter_gear(self, actor_id: str, kind: str) -> int:
         return self.combat.buy_starter_gear(actor_id, kind)
 
@@ -369,6 +403,22 @@ class WorldEngine:
     @atomic_action
     def attack(self, attacker_id: str, defender_id: str) -> CombatOutcome:
         return self.combat.attack(attacker_id, defender_id)
+
+    @atomic_action
+    def start_duel(self, attacker_id: str, defender_id: str) -> dict:
+        return self.duel_system.start(attacker_id, defender_id)
+
+    @atomic_action
+    def duel_turn(self, attacker_id: str, move: str, node_id: str) -> dict:
+        return self.duel_system.turn(attacker_id, move, node_id)
+
+    @atomic_action
+    def flee_duel(self, attacker_id: str) -> dict:
+        return self.duel_system.flee(attacker_id)
+
+    @atomic_action
+    def cast_spell(self, actor_id: str, node_id: str) -> dict:
+        return self.spell_system.field_cast(actor_id, node_id)
 
     @atomic_action
     def consume(self, actor_id: str, item: str) -> tuple[int, int, int]:
@@ -389,6 +439,8 @@ class WorldEngine:
             command_specs = {
                 "travel": ("start_travel", ("destination",)),
                 "gather": ("gather", ("item", "quantity")),
+                "store_goods": ("store_goods", ("item", "quantity")),
+                "retrieve_goods": ("retrieve_goods", ("item", "quantity")),
                 "regional_buy": ("regional_buy", ("item", "quantity")),
                 "regional_sell": ("regional_sell", ("item", "quantity")),
                 "unlock_magic": ("unlock_magic", ("node_id",)),
@@ -405,10 +457,15 @@ class WorldEngine:
                 "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
                 "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
                 "cancel_offer": ("cancel_offer", ("offer_id",)),
+                "complete_city_contract": ("complete_city_contract", ("contract_id",)),
                 "buy_starter_gear": ("buy_starter_gear", ("kind",)),
                 "equip": ("equip", ("gear_id",)),
                 "unequip": ("unequip", ("slot",)),
                 "attack": ("attack", ("defender_id",)),
+                "start_duel": ("start_duel", ("defender_id",)),
+                "duel_turn": ("duel_turn", ("move", "node_id")),
+                "flee_duel": ("flee_duel", ()),
+                "cast_spell": ("cast_spell", ("node_id",)),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
                 "accept_job": ("accept_job", ("company_id",)),
@@ -428,6 +485,10 @@ class WorldEngine:
                 if existing[0] != signature:
                     raise ActionError("Action ID reused for a different command")
                 return existing[1]
+            # Duplicate requests must return their receipt even after a duel begins.
+            if (principal_id in self.state.duels
+                    and action not in ("duel_turn", "flee_duel")):
+                raise ActionError("Finish your current duel first")
             previous_id = self._current_action_id
             self._current_action_id = action_id
             try:
@@ -447,14 +508,22 @@ class WorldEngine:
             if account.gold < 0 or any(k not in GOODS or v < 0 for k, v in account.inventory.items()):
                 raise AssertionError("Negative or invalid asset")
             if isinstance(account, Actor):
+                if any(type(getattr(account.cooldowns, channel)) is not int
+                       or getattr(account.cooldowns, channel) < 0
+                       or max(0, getattr(account.cooldowns, channel) - self.minute) > 1440
+                       for channel in ("job", "food", "potion")):
+                    raise AssertionError("Cooldown exceeds 24-hour limit")
+                if any(city not in CITIES or not isinstance(goods, dict)
+                       or any(item not in GOODS or type(qty) is not int or qty < 0
+                              for item, qty in goods.items())
+                       for city, goods in account.storage.items()):
+                    raise AssertionError("Invalid personal city storage")
                 self.magic_system.assert_valid(account, self.minute)
                 self.housing_system.assert_valid(account)
                 if account.destination is not None:
                     load = sum(account.inventory.values()) + len(account.gear_ids)
                     if load > self.housing_system.travel_cargo_limit(account):
                         raise AssertionError("Traveling actor over cargo limit")
-                if sum(account.inventory.values()) + len(account.gear_ids) > CARRY_LIMIT:
-                    raise AssertionError("Carrying limit exceeded")
                 if (account.destination is None) != (account.arrival_minute is None):
                     raise AssertionError("Inconsistent travel")
                 if not (0 <= account.hp <= account.max_hp and
@@ -472,6 +541,19 @@ class WorldEngine:
                 for slot, gear_id in account.equipped.items():
                     if gear_id not in account.gear_ids or GEAR[self.gear[gear_id].kind].slot != slot:
                         raise AssertionError("Equipped item is not owned or is in wrong slot")
+        participants = []
+        for key, duel in self.state.duels.items():
+            if (key != duel.attacker_id or duel.attacker_id == duel.defender_id
+                    or duel.attacker_id not in self.actors or duel.defender_id not in self.actors
+                    or duel.round < 0 or duel.xp_earned < 0 or duel.pending_ward < 0):
+                raise AssertionError('Invalid active duel')
+            attacker, defender = self.actors[duel.attacker_id], self.actors[duel.defender_id]
+            if (attacker.city != defender.city or attacker.destination or defender.destination
+                    or attacker.hp <= 0 or defender.hp <= 0):
+                raise AssertionError('Invalid duel participants')
+            participants.extend((duel.attacker_id, duel.defender_id))
+        if len(participants) != len(set(participants)):
+            raise AssertionError('Actor participating in multiple duels')
         for company in self.companies.values():
             if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
                 raise AssertionError("Invalid company quality state")

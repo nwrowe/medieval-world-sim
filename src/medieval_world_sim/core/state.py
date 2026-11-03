@@ -1,7 +1,7 @@
 """Single owned mutable state aggregate for the five-city game engine."""
 from dataclasses import dataclass, field
 
-from .entities import Actor, Company, Offer, WorldEvent
+from .entities import Actor, Company, Offer, WorldEvent, DuelState
 from .cities import CityState
 from ..equipment import GearItem
 
@@ -21,3 +21,5 @@ class WorldState:
     initial_gold: int = 0
     events: list[WorldEvent] = field(default_factory=list)
     command_receipts: dict[str, tuple] = field(default_factory=dict)
+    duels: dict[str, DuelState] = field(default_factory=dict)
+    last_duels: dict[str, dict] = field(default_factory=dict)

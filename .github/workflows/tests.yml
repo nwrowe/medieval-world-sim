@@ -11,6 +11,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Verify browser JavaScript syntax
+        run: node --check src/medieval_world_sim/web/static/app.js
       - name: Run standard-library unit tests
         env:
           PYTHONPATH: src
@@ -51,3 +53,7 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim --scenario housing
+      - name: Smoke test web server command
+        env:
+          PYTHONPATH: src
+        run: python -m medieval_world_sim.web --help

@@ -48,6 +48,8 @@ class MagicState:
     attempts: int = 0
     attuned_paths: tuple[str, ...] = ()
     last_attunement_minute: int | None = None
+    road_charm: int = 0
+    ward_charge: int = 0
 
 
 @dataclass
@@ -66,6 +68,14 @@ class TravelState:
     destination: str | None = None
     arrival_minute: int | None = None
     ready_minute: int = 0
+
+
+@dataclass
+class Cooldowns:
+    """Absolute simulation minute when each independent cooldown expires."""
+    job: int = 0
+    food: int = 0
+    potion: int = 0
 
 
 @dataclass
@@ -90,6 +100,9 @@ class Actor:
     work: WorkStats = field(default_factory=WorkStats)
     magic: MagicState = field(default_factory=MagicState)
     housing: HousingState = field(default_factory=HousingState)
+    # Keep new fields at the end to preserve historical positional constructor calls.
+    storage: dict[str, dict[str, int]] = field(default_factory=dict)
+    cooldowns: Cooldowns = field(default_factory=Cooldowns)
 
     @property
     def hp(self) -> int:
@@ -194,6 +207,16 @@ class Actor:
     @ready_minute.setter
     def ready_minute(self, value: int) -> None:
         self.travel.ready_minute = value
+
+
+@dataclass
+class DuelState:
+    attacker_id: str
+    defender_id: str
+    round: int = 0
+    pending_ward: int = 0
+    xp_earned: int = 0
+    log: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

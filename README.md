@@ -1,4 +1,4 @@
-# Medieval World Simulation (working title)
+# Oathmere
 
 An exploration of a persistent, text-first medieval fantasy RPG inspired by the **depth** of player-driven games such as Torn City, not a clone of their content or mechanics.
 
@@ -160,3 +160,32 @@ python -m medieval_world_sim --scenario housing
 ```
 
 See [property and travel rules](docs/HOUSING_AND_TRANSPORT.md).
+
+## Play the web prototype (phone or desktop)
+
+The project now includes a **responsive, local, single-player browser client**. The Python world engine remains authoritative; the browser sends the same validated actions and displays its actual prices, inventory, travel time and magic progression. A JSON action journal automatically saves after every successful action and reconstructs the world when restarted. No frontend framework or external service is needed.
+
+```bash
+python -m pip install -e .
+python -m medieval_world_sim.web
+```
+
+Open **http://127.0.0.1:8765** in your desktop browser. Create a character in Goldmeadow and try gathering grain, selling it, traveling to Crownreach, studying magic and upgrading your home.
+
+**To play on a phone on the same trusted Wi-Fi network**, run the server on the computer with:
+
+```bash
+python -m medieval_world_sim.web --host 0.0.0.0 --port 8765
+```
+
+Then open `http://YOUR_COMPUTER_LAN_IP:8765` on the phone and enter the **game access code printed on the computer**. Keep the server running while using the phone. This LAN mode uses ordinary HTTP, so **do not expose it on the internet**; public hosting, HTTPS, accounts and multiplayer are not supported yet. Firewalls may need an inbound LAN rule.
+
+The default save location is `~/.medieval-world-sim/save.json`. To use another save, start the server with `--save /path/to/save.json`. This is a bounded single-player prototype; do not edit the journal by hand. See [web client instructions](docs/WEB_CLIENT.md) for features and limits.
+
+### Google Colab preview
+
+For a Colab notebook iframe, start the web server with `--colab-preview` on `127.0.0.1`, then call `output.serve_kernel_port_as_iframe(8765, height=850)`. The ordinary server still blocks framing by default. See [the Colab instructions](docs/WEB_CLIENT.md#google-colab-notebook-preview) for a complete setup, persistent Drive saves and security limitations.
+
+### Hosted private playtest on Render
+
+To play from any phone or desktop without Colab or leaving your own PC running, see [Render deployment](docs/RENDER_DEPLOYMENT.md). The checked-in `render.yaml` provisions a **paid**, single-instance HTTPS web service with a persistent save disk. You must provide a private `GAME_ACCESS_TOKEN` through the Render dashboard. **Do not deploy the single-player game publicly without this token.** This is not multiplayer hosting; review Render's charges before confirming deployment.
