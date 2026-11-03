@@ -182,13 +182,19 @@ class GameSession:
             except ValueError as exc:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
-        valid_keys = set(record) - {"recorded_at"}
+        valid_keys = set(record) - {"recorded_at", "ruleset"}
+        if record.get("ruleset", 1) not in (1, 2) or type(record.get("ruleset", 1)) is not int:
+            raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self._advance_world(record["minutes"])
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
-            self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
+            self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
+            try:
+                self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
+            finally:
+                self.world._legacy_magic_rules = False
         else:
             raise ValueError("Unknown journal record")
         if recorded_at is not None:
@@ -208,7 +214,8 @@ class GameSession:
             else:
                 result = self.world.execute(
                     PLAYER_ID, record["name"], record["params"], record["id"])
-            stored_record = {**record, "recorded_at": datetime.now(timezone.utc).isoformat()}
+            stored_record = {**record, "ruleset": 2,
+                             "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
             try:
                 self._save()
