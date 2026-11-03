@@ -442,3 +442,42 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .map-pin-light { width:9px; height:9px; border-width:1px; }
   .map-pin small { font-size:7px; }
 }
+
+
+/* Market service boards, city contract work, searchable player directory and city storage. */
+.contract-card {
+  display:flex; align-items:center; justify-content:space-between; gap:20px;
+  border:1px solid #d6dacf; padding:17px 18px; border-radius:13px;
+  background:#fffefa; margin-bottom:12px;
+}
+.contract-card:last-child { margin-bottom:0; }
+.contract-card>div { min-width:0; flex:1; }
+.contract-card h3 { font:600 18px Georgia,serif; margin:0 0 7px; color:#2a4d3c; }
+.contract-card p { color:#617269; font-size:12px; line-height:1.65; margin:0 0 10px; }
+.contract-card .button { flex-shrink:0; }
+.contract-terms { display:flex; flex-wrap:wrap; gap:7px; }
+.contract-terms span { color:#466b53; background:#edf2e7; font-weight:650;
+  font-size:10px; padding:6px 9px; border-radius:8px; }
+.stash-row {
+  display:flex; align-items:center; gap:10px;
+  padding:13px 0; border-bottom:1px solid #e7e7dc;
+}
+.stash-row:last-child { border-bottom:0; }
+.stash-row>div { flex:1; min-width:0; }
+.stash-row strong { color:#294738; font-size:13px; }
+.stash-row p { color:#7d8a80; margin:4px 0 0; font-size:11px; }
+.stash-row .qty { flex:0 0 78px; }
+.stash-row .button { flex:0 0 auto; }
+.search-panel { background:#f9f8ef; border:1px solid #d6d9cb;
+  border-radius:13px; padding:17px 20px; margin-bottom:19px; }
+.search-panel label { display:block; font-size:11px; font-weight:700; color:#607568; margin-bottom:10px; }
+.search-panel .field { width:min(400px,100%); }
+.vital[tabindex="0"]:focus-visible { outline:2px solid #e6c47b; outline-offset:4px; border-radius:5px; }
+.vital { cursor:help; }
+@media (max-width:640px) {
+  .contract-card { flex-direction:column; align-items:stretch; gap:12px; padding:14px; }
+  .contract-card .button { align-self:flex-start; }
+  .stash-row { gap:6px; }
+  .stash-row .qty { flex-basis:64px; }
+  .stash-row .button { padding:7px 8px; }
+}
