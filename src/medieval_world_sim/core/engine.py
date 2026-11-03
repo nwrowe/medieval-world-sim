@@ -240,6 +240,30 @@ class WorldEngine:
         return self.resources.gather(actor_id, item, quantity)
 
     @atomic_action
+    def store_goods(self, actor_id: str, item: str, quantity: int) -> None:
+        actor = self._actor(actor_id)
+        city = self._at_city(actor)
+        self._positive(quantity, "quantity")
+        if item not in GOODS or actor.inventory.get(item, 0) < quantity:
+            raise ActionError("Not enough valid goods to store")
+        actor.inventory[item] -= quantity
+        stash = actor.storage.setdefault(city, {})
+        stash[item] = stash.get(item, 0) + quantity
+        self._emit("goods_stored", actor_id, city, item, quantity)
+
+    @atomic_action
+    def retrieve_goods(self, actor_id: str, item: str, quantity: int) -> None:
+        actor = self._actor(actor_id)
+        city = self._at_city(actor)
+        self._positive(quantity, "quantity")
+        stash = actor.storage.get(city, {})
+        if item not in GOODS or stash.get(item, 0) < quantity:
+            raise ActionError("Not enough goods stored in this city")
+        stash[item] -= quantity
+        self._add(actor, item, quantity)
+        self._emit("goods_retrieved", actor_id, city, item, quantity)
+
+    @atomic_action
     def found_company(self, owner_id: str, company_id: str, industry: str, investment: int) -> None:
         return self.companies_system.found_company(owner_id, company_id, industry, investment)
 
@@ -395,6 +419,8 @@ class WorldEngine:
             command_specs = {
                 "travel": ("start_travel", ("destination",)),
                 "gather": ("gather", ("item", "quantity")),
+                "store_goods": ("store_goods", ("item", "quantity")),
+                "retrieve_goods": ("retrieve_goods", ("item", "quantity")),
                 "regional_buy": ("regional_buy", ("item", "quantity")),
                 "regional_sell": ("regional_sell", ("item", "quantity")),
                 "unlock_magic": ("unlock_magic", ("node_id",)),
@@ -454,6 +480,11 @@ class WorldEngine:
             if account.gold < 0 or any(k not in GOODS or v < 0 for k, v in account.inventory.items()):
                 raise AssertionError("Negative or invalid asset")
             if isinstance(account, Actor):
+                if any(city not in CITIES or not isinstance(goods, dict)
+                       or any(item not in GOODS or type(qty) is not int or qty < 0
+                              for item, qty in goods.items())
+                       for city, goods in account.storage.items()):
+                    raise AssertionError("Invalid personal city storage")
                 self.magic_system.assert_valid(account, self.minute)
                 self.housing_system.assert_valid(account)
                 if account.destination is not None:
