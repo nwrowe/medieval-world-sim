@@ -25,10 +25,11 @@ class CooldownTests(unittest.TestCase):
         previous = (len(w.events), actor.gold)
         with self.assertRaises(ActionError):
             w.complete_city_contract("hero", "church_supplies")
+        actor = w.actors["hero"]  # A failed atomic action restores a deep-copied state.
         self.assertEqual(previous, (len(w.events), actor.gold))
         w.advance(60)
         w.complete_city_contract("hero", "church_supplies")
-        self.assertEqual(actor.cooldowns.job - w.minute, 1440)
+        self.assertEqual(w.actors["hero"].cooldowns.job - w.minute, 1440)
         self.assertEqual(w.total_gold, original_total)
         w.assert_invariants()
 
@@ -45,6 +46,7 @@ class CooldownTests(unittest.TestCase):
         before = (actor.inventory["bread"], len(w.events))
         with self.assertRaises(ActionError):
             w.consume("hero", "bread")
+        actor = w.actors["hero"]
         self.assertEqual(before, (actor.inventory["bread"], len(w.events)))
         for _ in range(12):
             actor.hp = 1
@@ -54,14 +56,16 @@ class CooldownTests(unittest.TestCase):
         actor.hp = 1
         with self.assertRaises(ActionError):
             w.consume("hero", "healing_potion")
+        actor = w.actors["hero"]
         w.advance(60)
         actor.hp = 1
         with self.assertRaises(ActionError):
             w.consume("hero", "healing_potion")  # Not enough headroom for 120 minutes
+        actor = w.actors["hero"]
         w.advance(60)
         actor.hp = 1
         w.consume("hero", "healing_potion")
-        self.assertEqual(actor.cooldowns.potion - w.minute, 1440)
+        self.assertEqual(w.actors["hero"].cooldowns.potion - w.minute, 1440)
         w.assert_invariants()
 
     def test_legacy_job_replay_retains_old_ready_time_without_new_queue(self):
