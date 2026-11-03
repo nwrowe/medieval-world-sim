@@ -800,12 +800,9 @@
       characterRow(pretty(key), xp + " XP")).join('');
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
-    return '<div class="profile-hero"><div><small>ADVENTURER</small><h3>' + esc(state.name) +
-      '</h3><p>Level ' + p.level + ' · ' + esc(pretty(p.city)) + '</p></div>' +
-      '<div><small>Estimated net worth</small><strong>' +
-      esc(money(state.net_worth_estimate)) + '</strong></div></div>' +
+    return '<div class="profile-hero"><h3>' + esc(state.name) + '</h3></div>' +
       '<div class="profile-grid">' +
-      panel("Life & progress", "Current character state",
+      panel("Character State", "",
         characterRow("Level", p.level) +
         characterRow("Experience toward next level", p.level_xp + " / " + xpNext) +
         characterRow("Health", p.hp + " / " + p.max_hp) +
@@ -813,26 +810,22 @@
         characterRow("Mana", p.mana + " / " + p.max_mana) +
         characterRow("Days played (simulated)", state.days_played) +
         characterRow("Elapsed world time", clock(state.minute))) +
-      panel("Combat attributes", "Base fighter progression",
+      panel("Combat Attributes", "",
         characterRow("Strength", p.strength) +
         characterRow("Defense", p.defense) +
-        characterRow("Combat experience", p.combat_xp + " XP") +
-        button("Equipment", 'data-tab="equipment"', "secondary mt-13")) +
-      panel("Work attributes", "Experience from employment and future training",
+        characterRow("Combat experience", p.combat_xp + " XP")) +
+      panel("Work Attributes", "",
         characterRow("Manual", w.manual) +
         characterRow("Intelligence", w.intelligence) +
         characterRow("Endurance", w.endurance) +
         characterRow("Completed shifts", w.shifts) +
-        (career || '<p class="small">No occupational experience yet.</p>') +
-        button("Job", 'data-tab="job"', "secondary mt-13")) +
-      panel("Assets & studies", "Personal wealth and growth",
+        (career || '<p class="small">No occupational experience yet.</p>')) +
+      panel("Assets", "",
         characterRow("Gold", money(p.gold)) +
         characterRow("Estimated net worth", money(state.net_worth_estimate)) +
         characterRow("Residence", homeName) +
         characterRow("Insight", p.insight) +
-        (study || '<p class="small">You have yet to practice magic.</p>') +
-        '<p class="small mt-13">Net worth estimates held assets; it is not liquid gold. ' +
-        'Raw goods use local resale bids, and equipment uses appraised value.</p>') +
+        (study || '<p class="small">No magical studies yet.</p>')) +
       '</div>';
   }
   function renderEquipment() {
@@ -860,6 +853,14 @@
         button(inUse ? "Equipped" : "Equip", 'data-ui="equip" data-gear-id="' +
           gear.id + '"' + disabled(inUse || isBusy()), "s secondary") + '</div>';
     }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
+    return heading("", "Equipment", "") +
+      '<div class="profile-grid">' +
+      panel("Equipped Gear", "", slotRows) +
+      panel("Owned Equipment", "", gearRows) +
+      '</div>';
+  }
+  function renderArmory() {
+    const p = state.player;
     const inCapital = p.city === "crownreach" && !p.destination;
     const catalog = (state.equipment_catalog || []).map(item =>
       '<div class="inventory-row"><span>' + esc(pretty(item.kind)) +
@@ -868,17 +869,12 @@
         'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +
         disabled(!inCapital || isBusy() || p.gold < item.price),
         "s secondary") + '</div>').join('');
-    return heading("Armory", "Equipment",
-      "Manage your character's real combat gear and active slots.") +
-      '<div class="two-col"><div class="stack">' +
-      panel("Equipped gear", "Active slots", slotRows) +
-      panel("Owned equipment", "Switch equipment when in a city", gearRows) +
-      '</div><aside class="stack">' +
-      panel("Crownreach armory", "Basic equipment is sold only in the capital",
-        '<p class="small">' + (inCapital ? "Starter stock is available." :
-          "Travel to Crownreach to purchase starter equipment.") + '</p>' +
-        catalog) +
-      '</aside></div>';
+    return heading("", "Armory & Blacksmith", "") +
+      (inCapital ?
+        panel("Available Equipment", "", catalog) :
+        panel("No armory here", "",
+          '<p class="small">Starter equipment is currently sold only in Crownreach.</p>' +
+          button("World Map", 'data-tab="world"', "secondary")));
   }
   function futurePage(kicker, title, narrative, next, label, nested = false) {
     return (nested ? "" : heading("", title, "")) +
