@@ -117,6 +117,31 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot(self.bob)["last_duel"]["outcome"], "draw")
         self.game.world.assert_invariants()
 
+    def test_full_duel_can_finish_with_victory_loot_and_hospitalization(self):
+        start_gold = self.game.world.total_gold
+        self.begin()
+        last = None
+        for round_number in range(1, 11):
+            last = self.command(
+                self.alice, "duel_turn", {"move": "fists", "node_id": ""},
+                f"victory-fists-{round_number}")
+            if last["outcome"] != "ongoing":
+                break
+        self.assertEqual(last["outcome"], "won")
+        self.assertLessEqual(last["rounds"], 10)
+        self.assertGreater(last["gold"], 0)
+        alice_state = self.game.snapshot(self.alice)
+        bob_state = self.game.snapshot(self.bob)
+        self.assertEqual(alice_state["last_duel"]["outcome"], "won")
+        self.assertEqual(bob_state["last_duel"]["outcome"], "lost")
+        self.assertIsNotNone(bob_state["player"]["defeated_until"])
+        self.assertEqual(bob_state["player"]["hp"], 0)
+        self.assertEqual(self.game.world.total_gold, start_gold)
+        self.game.close()
+        self.game = MultiplayerGame(self.path)
+        self.assertEqual(self.game.snapshot(self.bob)["last_duel"]["outcome"], "lost")
+        self.game.world.assert_invariants()
+
     def test_primary_weapon_stamina_and_automatic_weapon_retaliation(self):
         alice_sword = self.command(self.alice, "buy_starter_gear",
                                    {"kind": "sword"}, "buy-alice")
