@@ -6,6 +6,7 @@ from .cities import CityState
 from ..equipment import GearItem
 from ..systems.curriculum import CourseEnrollment
 from ..systems.guilds import Guild, WarRecord
+from ..systems.chat import ChatMessage, ChatRoom
 from ..systems.trades import TradeProposal
 
 
@@ -42,5 +43,9 @@ class WorldState:
     chosen_courses: dict[str, dict[str, set[int]]] = field(default_factory=dict)
     free_course_enrollments: set[str] = field(default_factory=set)
     gear_wear: dict[int, int] = field(default_factory=dict)
+    chat_messages: list[ChatMessage] = field(default_factory=list)
+    next_chat_id: int = 1
+    chat_rooms: dict[str, ChatRoom] = field(default_factory=dict)
+    next_chat_room_id: int = 1
     trades: dict[int, TradeProposal] = field(default_factory=dict)
     next_trade_id: int = 1

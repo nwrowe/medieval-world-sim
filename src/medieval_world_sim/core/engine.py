@@ -34,6 +34,7 @@ from ..systems.spells import SpellSystem
 from ..systems.track import TrackSystem
 from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
 from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
+from ..systems.chat import ChatSystem, MAX_MESSAGES_SAVED, MAX_MESSAGE_LENGTH
 from ..systems.trades import TradeSystem, TradeAssets
 from ..systems.curriculum import CurriculumSystem, SCHOOLS, CURRENT_SCHOOLS
 from ..systems.consumables import ConsumableSystem
@@ -87,6 +88,7 @@ class WorldEngine:
         self.spell_system = SpellSystem(self)
         self.track_system = TrackSystem(self)
         self.guild_system = GuildSystem(self)
+        self.chat_system = ChatSystem(self)
         self.merit_system = MeritSystem(self)
         self.curriculum_system = CurriculumSystem(self)
         self.consumables = ConsumableSystem(self)
@@ -504,6 +506,14 @@ class WorldEngine:
         return self.curriculum_system.start(actor_id, school)
 
     @atomic_action
+    def send_chat(self, principal_id: str, kind: str, target: str, message: str) -> dict:
+        return self.chat_system.send(principal_id, kind, target, message)
+
+    @atomic_action
+    def create_chat_room(self, principal_id: str, name: str, members: list[str]) -> dict:
+        return self.chat_system.create_room(principal_id, name, members)
+
+    @atomic_action
     def enroll_course_choice(self, actor_id: str, school: str, index: int) -> dict:
         return self.curriculum_system.choose(actor_id, school, index)
 
@@ -576,6 +586,8 @@ class WorldEngine:
                 "enroll_course": ("enroll_course", ("school",)),
                 "enroll_course_choice": ("enroll_course_choice", ("school", "index")),
                 "buy_merit_upgrade": ("buy_merit_upgrade", ("perk",)),
+                "send_chat": ("send_chat", ("kind", "target", "message")),
+                "create_chat_room": ("create_chat_room", ("name", "members")),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
                 "accept_job": ("accept_job", ("company_id",)),
@@ -597,7 +609,8 @@ class WorldEngine:
                 return existing[1]
             # Duplicate requests must return their receipt even after a duel begins.
             if (principal_id in self.state.duels
-                    and action not in ("duel_turn", "flee_duel")):
+                    and action not in ("duel_turn", "flee_duel",
+                                       "send_chat", "create_chat_room")):
                 raise ActionError("Finish your current duel first")
             previous_id = self._current_action_id
             self._current_action_id = action_id
@@ -712,6 +725,32 @@ class WorldEngine:
         if any(gid not in self.gear or type(count) is not int or not 0 <= count < 12
                for gid, count in self.state.gear_wear.items()):
             raise AssertionError("Invalid equipment wear")
+        if (type(self.state.next_chat_id) is not int or self.state.next_chat_id < 1
+                or len(self.state.chat_messages) > MAX_MESSAGES_SAVED
+                or type(self.state.next_chat_room_id) is not int
+                or self.state.next_chat_room_id < 1):
+            raise AssertionError("Invalid chat sequence")
+        chat_ids = []
+        for msg in self.state.chat_messages:
+            if (type(msg.id) is not int or msg.id <= 0
+                    or msg.id >= self.state.next_chat_id
+                    or msg.author not in self.actors
+                    or self.actors[msg.author].kind != "human"
+                    or msg.kind not in ("global", "direct", "guild", "company", "room")
+                    or type(msg.body) is not str or not 1 <= len(msg.body) <= MAX_MESSAGE_LENGTH
+                    or type(msg.minute) is not int or not 0 <= msg.minute <= self.minute):
+                raise AssertionError("Invalid chat message")
+            chat_ids.append(msg.id)
+        if chat_ids != sorted(set(chat_ids)):
+            raise AssertionError("Chat messages are not ordered")
+        for room_id, room in self.state.chat_rooms.items():
+            if (room.id != room_id or room.creator not in self.actors
+                    or not isinstance(room.members, set)
+                    or room.creator not in room.members or not 1 <= len(room.members) <= 20
+                    or any(actor_id not in self.actors or
+                           self.actors[actor_id].kind != "human"
+                           for actor_id in room.members)):
+                raise AssertionError("Invalid chat room membership")
         participants = []
         for key, duel in self.state.duels.items():
             if (key != duel.attacker_id or duel.attacker_id == duel.defender_id
