@@ -192,7 +192,12 @@
     try {
       const result = await request(path, body);
       const oldLevel = state && state.started ? state.player.level : 1;
-      state = result.state;
+      // A live event may arrive after a command commits but before its HTTP
+      // response. Never overwrite a newer pushed state with an older result.
+      state = (multiMode && state && result.state &&
+               (state.activity_revision || 0) >
+               (result.state.activity_revision || 0)) ?
+        await request("/api/state") : result.state;
       if (state && state.started && state.player.level > oldLevel) {
         levelCelebration = { from: oldLevel, to: state.player.level,
           hp: state.player.max_hp, strength: state.player.strength,
