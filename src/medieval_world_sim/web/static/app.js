@@ -42,6 +42,9 @@
   let latestContract = null;
   let peopleQuery = "";
   let searchScope = "players";
+  let chatOpen = false;
+  let chatChannelKey = "global";
+  let chatDraft = "";
   let pending = false;
   let authNeeded = false;
   let offline = false;
@@ -172,6 +175,7 @@
       if (body && body.action === "complete_city_contract" && result.result) {
         latestContract = result.result;
       }
+      if (body && body.action === "send_chat") chatDraft = "";
       if (path === "/api/new") tab = "character";
       if (body && body.action === "race_horse") tab = "track";
       notify(body && body.action === "cast_spell" && result.result ?
@@ -1339,11 +1343,51 @@
       '</div></div>';
   }
 
+  function chatDock() {
+    if (!state || !state.started) return "";
+    const chat = state.chat || { channels: [], messages: [] };
+    const selected = chat.channels.find(x => x.key === chatChannelKey) ||
+      chat.channels[0] || { key: "global", kind: "global", target: "", label: "Global" };
+    const posts = (chat.messages || []).filter(x => x.channel_key === selected.key);
+    const channels = chat.channels.map(channel =>
+      button(channel.label, 'data-ui="chat-channel" data-key="' + esc(channel.key) +
+        '" aria-pressed="' + (selected.key === channel.key) + '"',
+        selected.key === channel.key ? "secondary" : "ghost")).join('');
+    return '<aside class="chat-dock ' + (chatOpen ? "is-open" : "") +
+      '" aria-label="Chat">' +
+      '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
+      'aria-expanded="' + chatOpen + '">' +
+      '<span aria-hidden="true">✉</span> Chat ' + (chatOpen ? '⌄' : '⌃') +
+      '</button>' +
+      (chatOpen ? '<div class="chat-content">' +
+        '<div class="chat-channels">' + channels + '</div>' +
+        '<p class="chat-preview-notice">Local preview: only one human account is connected. ' +
+        'Live player-to-player chat requires separate authenticated accounts.</p>' +
+        '<div class="chat-history" aria-live="polite">' +
+        (posts.length ? posts.map(post =>
+          '<div class="chat-post"><strong>' +
+          esc(post.sender === "hero" ? state.name : post.sender) +
+          '</strong><p>' + esc(post.body).replace(/\\n/g, '<br>') +
+          '</p></div>').join('') :
+          '<p class="small">No messages in this channel yet.</p>') +
+        '</div>' +
+        '<form id="chatComposeForm" class="chat-compose">' +
+        '<label class="sr-only" for="chat-text">Chat message</label>' +
+        '<input id="chat-text" class="field" maxlength="400" ' +
+        'placeholder="Write a message" autocomplete="off" value="' +
+        esc(chatDraft) + '"' + disabled(pending) + '>' +
+        '<button type="submit" class="button secondary" ' +
+        (pending || !chatDraft.trim() ? 'disabled' : '') + '>Send</button>' +
+        '</form></div>' : '') +
+      '</aside>';
+  }
+
   function render() {
     if (authNeeded) root.innerHTML = authPage();
     else if (offline) root.innerHTML = offlinePage();
     else if (state && !state.started) root.innerHTML = newCharacterPage();
-    else if (state && state.started) root.innerHTML = shell() + levelUpOverlay();
+    else if (state && state.started) root.innerHTML = shell() +
+      chatDock() + levelUpOverlay();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
   }
@@ -1358,6 +1402,23 @@
       token = document.getElementById("access").value.trim();
       sessionStorage.setItem("medieval-world-token", token);
       await load();
+    } else if (event.target.id === "chatComposeForm") {
+      event.preventDefault();
+      const channel = (state.chat.channels || []).find(x => x.key === chatChannelKey) ||
+        state.chat.channels[0];
+      if (channel && chatDraft.trim() && !pending) {
+        await action("send_chat", {
+          kind: channel.kind, target: channel.target, message: chatDraft.trim()
+        }, "Message posted to local chat");
+      }
+    }
+  });
+
+  root.addEventListener("input", event => {
+    if (event.target.id === "chat-text") {
+      chatDraft = event.target.value;
+      const submit = event.target.closest("form").querySelector('button[type="submit"]');
+      if (submit) submit.disabled = !chatDraft.trim() || pending;
     }
   });
 
@@ -1386,6 +1447,12 @@
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "chat-toggle":
+        chatOpen = !chatOpen;
+        render(); break;
+      case "chat-channel":
+        chatChannelKey = element.dataset.key;
+        render(); break;
       case "dismiss-level":
         levelCelebration = null; render(); break;
       case "guild-found": {
