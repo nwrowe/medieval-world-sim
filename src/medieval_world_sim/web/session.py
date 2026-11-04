@@ -64,7 +64,8 @@ class SaveError(Exception):
 
 TRADE_EVENTS = {"trade_proposed", "trade_settled", "trade_closed"}
 COMBAT_EVENTS = {"pvp_strike", "duel_started", "duel_round",
-                 "duel_finished", "duel_fled", "combat", "spell_cast"}
+                 "duel_finished", "duel_fled", "duel_defender_fled",
+                 "duel_draw", "combat", "spell_cast"}
 UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
                      "school_graduated", "school_capstone_perk", "school_martial_perk"}
 TRAVEL_EVENTS = {"travel_started", "arrived"}
@@ -197,7 +198,9 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
             f"{info.get('winner_id')} defeated {info.get('loser_id')} "
             f"and claimed {info.get('gold')} gold"
         ),
-        "duel_fled": "Retreated from combat",
+        "duel_fled": "Attacker retreated from combat",
+        "duel_defender_fled": "Defending player withdrew from combat",
+        "duel_draw": f"Combat ended in a draw after {info.get('round')} rounds",
         "spell_cast": f"Cast {info.get('node_id')}: {info.get('message')}",
         "city_contract_completed": (
             f"Completed {str(info.get('contract_id', '')).replace('_', ' ')} "
@@ -588,14 +591,26 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                 equipped_kinds.pop(info.get("slot"), None)
         rendered_events.append(rendered)
     duel = w.state.duels.get(actor_id)
+    duel_role = "attacker" if duel else None
+    if multiplayer and not duel:
+        duel = next((d for d in w.state.duels.values()
+                     if d.defender_id == actor_id), None)
+        if duel:
+            duel_role = "defender"
     active_duel = None
     if duel:
-        foe = w.actors[duel.defender_id]
+        opponent_id = (duel.defender_id if duel_role == "attacker"
+                       else duel.attacker_id)
+        foe = w.actors[opponent_id]
         active_duel = {
-            "opponent_id": foe.id, "opponent_name": npc_names.get(foe.id, foe.id),
+            "opponent_id": foe.id,
+            "opponent_name": npc_names.get(
+                foe.id, human_names.get(foe.id, foe.id)),
             "opponent_hp": foe.hp, "opponent_max_hp": foe.max_hp,
             "round": duel.round, "log": list(duel.log),
-            "pending_ward": duel.pending_ward,
+            "pending_ward": duel.pending_ward if duel_role == "attacker" else 0,
+            "role": duel_role,
+            "max_rounds": 10 if w.actors[duel.defender_id].kind == "human" else None,
         }
     characters = [{
         "id": actor_id, "name": name, "city": actor.city, "level": actor.level,
@@ -610,7 +625,9 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "can_attack": (
                 npc.city == actor.city and npc.destination is None
                 and npc.hp > 0 and actor.hp > 0 and not is_traveling
-                and active_duel is None
+                and active_duel is None and not any(
+                    npc.id in (d.attacker_id, d.defender_id)
+                    for d in w.state.duels.values())
             ),
             "recovering_minutes": max(0, (npc.defeated_until or 0) - now),
         })

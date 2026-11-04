@@ -387,6 +387,10 @@ class MultiplayerGame:
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
             if kind == "action":
+                if name == "pvp_strike":
+                    # Keep historical journal replay compatible, but prevent
+                    # new clients bypassing the shared turn-based duel rules.
+                    raise ActionError("Use start_duel for player combat")
                 if name not in MULTI_ACTIONS:
                     raise ActionError("Unavailable multiplayer action")
                 outcome = self.world.execute(actor_id, name, params,
@@ -395,8 +399,12 @@ class MultiplayerGame:
                 if type(params.get("minutes")) is not int or set(params) != {"minutes"} or not (
                         1 <= params["minutes"] <= ADVANCE_LIMIT):
                     raise ActionError("Time advancement must be 1–1440 minutes")
-                if self.world.state.duels:
-                    raise ActionError("Finish active combat before advancing world time")
+                # An attacker must not freeze the entire shared-world clock by
+                # opening a PvP duel and going offline. NPC turn-based fights
+                # retain their historical time-advance restriction.
+                if any(self.world.actors[duel.defender_id].kind == "npc"
+                       for duel in self.world.state.duels.values()):
+                    raise ActionError("Finish active NPC combat before advancing world time")
                 self.world.advance(params["minutes"])
                 outcome = None
             else:
@@ -453,6 +461,7 @@ class MultiplayerGame:
             "actor_id": actor_id, "revision": self._revision,
             "chat": chat, "trades": trades, "minute": self.world.minute,
             "users": projection["users"], "events": projection["events"],
+            "duel": projection["duel"], "last_duel": projection["last_duel"],
             "course_active": self.world.curriculum_system.view(actor_id)["active"],
             "player_status": {
                 "hp": actor.hp, "max_hp": actor.max_hp,

@@ -1,4 +1,4 @@
-"""Replayable turn-based duels against NPC actors."""
+"""Replayable turn-based duels against NPCs and auto-defending players."""
 from __future__ import annotations
 from ..core.entities import DuelState
 from ..core.transactions import transfer_gold
@@ -6,6 +6,7 @@ from ..errors import ActionError
 from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
 
 MAGIC_STAMINA_COST = 6
+MAX_PVP_ROUNDS = 10
 
 class DuelSystem:
     def __init__(self, world):
@@ -18,13 +19,15 @@ class DuelSystem:
         attacker, defender = w._actor(attacker_id), w._actor(defender_id)
         if w._at_city(attacker) != w._at_city(defender):
             raise ActionError("Target must be in your city")
-        if defender.kind != "npc":
-            raise ActionError("Local turn-based fights currently require NPC targets")
+        if attacker.kind != "human" or defender.kind not in ("human", "npc"):
+            raise ActionError("Only player characters may initiate duels")
+        if any(attacker_id in (d.attacker_id, d.defender_id) or
+               defender_id in (d.attacker_id, d.defender_id)
+               for d in w.state.duels.values()):
+            raise ActionError("A participant is already in combat")
         legacy = getattr(w, "_legacy_duel_rules", False)
         if legacy and attacker.stamina < ATTACK_STAMINA_COST:
             raise ActionError("Not enough stamina to initiate combat")
-        if any(defender_id in (d.attacker_id, d.defender_id) for d in w.state.duels.values()):
-            raise ActionError("Opponent is already in combat")
         entrance_cost = ATTACK_STAMINA_COST if legacy else 0
         attacker.stamina -= entrance_cost
         ward = attacker.magic.ward_charge
@@ -37,7 +40,7 @@ class DuelSystem:
     def _finish(self, duel, winner, loser, outcome: str) -> dict:
         w = self.world
         gold = 0
-        if outcome != "fled":
+        if outcome in ("won", "lost"):
             loser.hp = 0
             loser.defeated_until = w.minute + DEFEAT_RECOVERY_MINUTES
             gold = loser.gold * 5 // 100
@@ -51,8 +54,18 @@ class DuelSystem:
             if attacker.defeated_until is not None:
                 attacker.hp = 0
         result = {"outcome": outcome, "opponent_id": duel.defender_id,
-                  "gold": gold, "xp": xp, "rounds": duel.round, "log": list(duel.log)}
+                  "gold": gold, "xp": xp, "rounds": duel.round, "log": list(duel.log),
+                  "role": "attacker"}
         w.state.last_duels[duel.attacker_id] = result
+        defender = w.actors[duel.defender_id]
+        if defender.kind == "human":
+            reverse = {"won": "lost", "lost": "won", "draw": "draw",
+                       "fled": "opponent_fled", "opponent_fled": "fled"}[outcome]
+            w.state.last_duels[defender.id] = {
+                "outcome": reverse, "opponent_id": duel.attacker_id,
+                "gold": gold, "xp": 0, "rounds": duel.round,
+                "log": list(duel.log), "role": "defender",
+            }
         del w.state.duels[duel.attacker_id]
         return result
 
@@ -137,14 +150,30 @@ class DuelSystem:
             return self._finish(duel, attacker, defender, "won")
         if attacker.hp == 0:
             return self._finish(duel, defender, attacker, "lost")
+        # Historical NPC duels are intentionally unchanged. PvP duels have a
+        # fixed upper bound so neither party can be held indefinitely.
+        if defender.kind == "human" and duel.round >= MAX_PVP_ROUNDS:
+            duel.log.append("The tenth round ends in a draw. Both fighters withdraw.")
+            w._emit("duel_draw", duel.attacker_id, duel.defender_id, duel.round)
+            return self._finish(duel, attacker, defender, "draw")
         return {"outcome": "ongoing", "round": duel.round, "damage": damage,
                 "stamina_spent": stamina_spent,
                 "retaliation": retaliation, "message": duel.log[-1]}
 
-    def flee(self, attacker_id: str) -> dict:
-        duel = self.world.state.duels.get(attacker_id)
+    def flee(self, actor_id: str) -> dict:
+        w = self.world
+        duel = w.state.duels.get(actor_id)
+        if duel is not None:
+            w._emit("duel_fled", actor_id, duel.defender_id)
+            return self._finish(duel, w.actors[actor_id],
+                                w.actors[duel.defender_id], "fled")
+        # Human defenders may leave combat without waiting for the attacker.
+        duel = next((d for d in w.state.duels.values()
+                     if d.defender_id == actor_id and w.actors[actor_id].kind == "human"),
+                    None)
         if duel is None:
             raise ActionError("No active duel")
-        self.world._emit("duel_fled", attacker_id, duel.defender_id)
-        return self._finish(duel, self.world.actors[attacker_id],
-                            self.world.actors[duel.defender_id], "fled")
+        w._emit("duel_defender_fled", duel.attacker_id, duel.defender_id)
+        self._finish(duel, w.actors[duel.attacker_id],
+                     w.actors[actor_id], "opponent_fled")
+        return dict(w.state.last_duels[actor_id])

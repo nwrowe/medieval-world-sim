@@ -217,13 +217,7 @@
         latestContract = result.result;
       }
       if (body && body.action === "send_chat") chatDraft = "";
-      if (body && body.action === "pvp_strike" && result.result) {
-        const hit = result.result;
-        success = "Skirmish: dealt " + hit.damage + " damage; " +
-          "took " + hit.retaliation + " in retaliation" +
-          (hit.opponent_defeated ? ". Opponent defeated!" : ".");
-      }
-      if (path === "/api/new") tab = "character";
+       if (path === "/api/new") tab = "character";
       if (body && body.action === "race_horse") tab = "track";
       notify(body && body.action === "cast_spell" && result.result ?
         result.result.message : success);
@@ -404,7 +398,14 @@
         esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
         Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
     }
-    return items + trade + travel + university;
+    const defenderAlert = state.duel && state.duel.role === "defender" ?
+      '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
+      'data-ui="activity-duel" title="' +
+      esc("Under attack by " + state.duel.opponent_name +
+        " · your character automatically counterattacks. Open to watch or flee.") +
+      '" aria-label="Under attack · open combat">' +
+      '<span aria-hidden="true">⚔</span><strong>Under attack</strong></button>' : "";
+    return items + trade + travel + university + defenderAlert;
   }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
@@ -433,7 +434,8 @@
       trade: renderTrade,
       guilds: renderGuilds, merits: renderMerits,
     };
-    const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
+    const view = state.duel && state.duel.role !== "defender" ?
+      renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
       .map(t => navButton(t)).join('');
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
@@ -938,8 +940,8 @@
           '</div>';
       }).join('');
     const hint = searchScope === "players" ? (multiMode ?
-      'Player skirmishes resolve a single swing and automatic retaliation; ' +
-      'NPC fights use turn-based duels. ' :
+      'Both players and NPCs use the same turn-based combat. Defenders ' +
+      'automatically counterattack each move; player duels draw after ten rounds. ' :
       'These are persistent computer-controlled adventurers, not connected players. ') +
       'To attack, be in the same city. Starting a duel costs no stamina; ' +
       'each offensive swing costs stamina. Victory takes 5% ' +
@@ -1001,8 +1003,8 @@
           'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
           'will require the upcoming authenticated multiplayer service.' :
           (self ? 'You are viewing your own public profile.' :
-           (multiMode ? 'Skirmishes against other players resolve one swing at a time. ' +
-            'The defender automatically retaliates; you must share a city.' :
+           (multiMode ? 'Player duels use the same weapon, spell, and stamina choices as NPC battles. ' +
+            'Defenders automatically counterattack; the fight ends on defeat, retreat, or a ten-round draw.' :
             'Messaging and trading with players requires authenticated multiplayer accounts.'))) + '</p>' +
         button("Back to Search", 'data-tab="people"', "ghost")) +
       '</div>';
@@ -1116,14 +1118,20 @@
     const p = state.player;
     if (!duel) {
       const result = state.last_duel;
-      const title = result ? (result.outcome === "won" ? "Victory" :
-        result.outcome === "lost" ? "Hospitalized" : "Retreated") : "No active duel";
+      const title = result ? (
+        result.outcome === "won" ? "Victory" :
+        result.outcome === "lost" ? "Hospitalized" :
+        result.outcome === "draw" ? "Draw" :
+        result.outcome === "opponent_fled" ? "Opponent retreated" : "Retreated"
+      ) : "No active duel";
       const opponent = result && (state.users || []).find(u => u.id === result.opponent_id);
       const text = result ? (result.outcome === "won" ?
         'You claimed ' + money(result.gold) + ' from ' +
         (opponent ? opponent.name : "your opponent") + '.' :
         result.outcome === "lost" ? 'Your opponent took ' + money(result.gold) +
-        '. Recovery: ' + dur(Math.max(0, p.defeated_until - state.minute)) + '.' :
+        '. Recovery: ' + dur(Math.max(0, (p.defeated_until || 0) - state.minute)) + '.' :
+        result.outcome === "draw" ? 'Both fighters survived ten rounds. No loot or hospitalization.' :
+        result.outcome === "opponent_fled" ? 'Your opponent withdrew. No loot or hospitalization.' :
         'You escaped without loot or hospitalization.') : 'Search for someone to fight.';
       const logs = result ? result.log.map(line => '<li>' + esc(line) + '</li>').join('') : '';
       return heading("", title, text) +
@@ -1131,6 +1139,7 @@
           result.xp + " combat XP" : "", '<ol class="combat-log">' + logs + '</ol>' +
           button("Return to Search", 'data-tab="people"', "secondary"));
     }
+    const defending = duel.role === "defender";
     const learned = state.magic_nodes.filter(n => n.unlocked && n.active && n.tier > 0);
     const mainSwing = (state.combat_moves || []).find(m => m.move === "strike");
     const casts = learned.map(n => {
@@ -1148,8 +1157,10 @@
       '</li>').join('') + '</ol>' :
       '<p class="small">You have the initiative. Choose your opening move.</p>';
     return heading("", "Combat · " + duel.opponent_name,
-      "Turn " + (duel.round + 1) +
-      " · each move triggers an opponent response · the encounter is saved after every round") +
+      (defending ? "Defending automatically · " : "Choose your move · ") +
+      "Round " + (duel.round + 1) +
+      (duel.max_rounds ? " of " + duel.max_rounds : "") +
+      " · the encounter is saved after every round") +
       '<div class="combat-vitals">' +
       panel(state.name, "Your health", progress(p.hp, p.max_hp) +
         '<p>' + p.hp + ' / ' + p.max_hp + ' HP · ' + p.stamina +
@@ -1157,6 +1168,12 @@
       panel(duel.opponent_name, "Enemy health", progress(duel.opponent_hp, duel.opponent_max_hp) +
         '<p>' + duel.opponent_hp + ' / ' + duel.opponent_max_hp + ' HP</p>') +
       '</div>' +
+      (defending ?
+        panel("Automatic defense",
+          "Your character counterattacks every attacking move without spending stamina.",
+          '<p>Your opponent controls the offensive turns. You can watch the battle ' +
+          'or flee at any time; you do not need to respond manually.</p>' +
+          button("Flee", 'data-ui="duel-flee"' + disabled(pending), "ghost")) :
       panel("Choose your move", "Attack stamina is paid once per swing. Defensive counterstrikes cost none.",
         '<div class="combat-actions">' +
         (state.combat_moves || []).map(option =>
@@ -1172,7 +1189,7 @@
         '<div class="combat-actions">' +
         (casts || '<p class="small">Unlock spells on the Magic page to use them here.</p>') +
         '</div>' + (duel.pending_ward ? chip("Prepared ward: " +
-          duel.pending_ward + " damage") : "")) +
+          duel.pending_ward + " damage") : ""))) +
       panel("Round-by-round chronicle", "", logs);
   }
   function renderInventory() {
@@ -1729,6 +1746,8 @@
       state.chat = update.chat;
       state.trades = update.trades;
       state.minute = update.minute;
+      if ("duel" in update) state.duel = update.duel;
+      if ("last_duel" in update) state.last_duel = update.last_duel;
       if (state.training_hall) state.training_hall.active = update.course_active;
       if (Array.isArray(update.users)) state.users = update.users;
       if (Array.isArray(update.events)) state.events = update.events;
@@ -1765,6 +1784,10 @@
           }
         }
       }
+    }
+    if (tab === "duel" || (state.duel && state.duel.role === "attacker")) {
+      const content = document.getElementById("main-content");
+      if (content) content.innerHTML = renderDuel();
     }
     if (tab === "people") {
       // Replace just the search results, preserving a search being typed.
@@ -2116,6 +2139,8 @@
         action("church_heal", {}, "The church restores your health"); break;
       case "activity-trade":
         tab = "trade"; render(); break;
+      case "activity-duel":
+        tab = "duel"; render(); break;
       case "activity-travel":
         tab = "world"; render(); break;
       case "activity-university":
@@ -2186,16 +2211,9 @@
       case "trade-close":
         action("close_trade", { trade_id: Number(element.dataset.tradeId) },
           "Trade closed; escrow returned to maker"); break;
-      case "player-attack": {
-        const person = (state.users || []).find(p => p.id === element.dataset.player);
-        if (multiMode && person && person.kind === "human") {
-          action("pvp_strike", { defender_id: person.id }, "Player skirmish resolved");
-        } else {
-          action("start_duel", { defender_id: element.dataset.player },
-            "Challenge accepted · no entry stamina");
-        }
-        break;
-      }
+      case "player-attack":
+        action("start_duel", { defender_id: element.dataset.player },
+          "Challenge begun · choose your combat move"); break;
       case "duel-swing":
         action("duel_turn", { move: element.dataset.move, node_id: "" },
           "Attack resolved"); break;
