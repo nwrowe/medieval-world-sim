@@ -145,7 +145,8 @@ class TradeSystem:
         )
         self._withdraw(maker, offer)
         self.world.state.trades[trade_id] = proposal
-        self.world._emit("trade_proposed", principal_id, recipient_id, trade_id)
+        self.world._emit("trade_proposed", principal_id, recipient_id, trade_id,
+                         offer.export(), request.export())
         return proposal.view()
 
     def accept(self, principal_id: str, trade_id: int, terms_hash: str) -> dict:
@@ -168,7 +169,8 @@ class TradeSystem:
         self._deposit(maker, proposal.request)
         self._deposit(recipient, proposal.offer)
         del self.world.state.trades[trade_id]
-        self.world._emit("trade_settled", proposal.maker, principal_id, trade_id)
+        self.world._emit("trade_settled", proposal.maker, principal_id, trade_id,
+                         proposal.offer.export(), proposal.request.export())
         return {"id": trade_id, "status": "accepted"}
 
     def close(self, principal_id: str, trade_id: int) -> dict:
@@ -182,7 +184,8 @@ class TradeSystem:
         maker = self.world._actor(proposal.maker)
         self._deposit(maker, proposal.offer)
         del self.world.state.trades[trade_id]
-        self.world._emit("trade_closed", principal_id, trade_id)
+        self.world._emit("trade_closed", principal_id, proposal.maker,
+                         proposal.recipient, trade_id)
         return {"id": trade_id, "status": "closed"}
 
     def list_for(self, principal_id: str) -> list[dict]:

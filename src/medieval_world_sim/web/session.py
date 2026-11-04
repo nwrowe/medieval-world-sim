@@ -31,7 +31,8 @@ from ..systems.track import HORSES, RACE_STAMINA_COST, RACE_ENTRY, RACE_COOLDOWN
 SAVE_VERSION = 1
 PLAYER_ID = "hero"
 INITIAL_GOLD = 240
-START_CITY = "goldmeadow"
+START_CITY = CAPITAL
+LEGACY_START_CITY = "goldmeadow"
 MAX_RECORDS = 20000
 ADVANCE_LIMIT = 1440
 UI_ACTIONS = {
@@ -61,13 +62,87 @@ class SaveError(Exception):
     """An I/O or unsupported-save error, not a gameplay validation failure."""
 
 
-def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=None):
+TRADE_EVENTS = {"trade_proposed", "trade_settled", "trade_closed"}
+COMBAT_EVENTS = {"pvp_strike", "duel_started", "duel_round",
+                 "duel_finished", "duel_fled", "combat", "spell_cast"}
+UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
+                     "school_graduated", "school_capstone_perk", "school_martial_perk"}
+TRAVEL_EVENTS = {"travel_started", "arrived"}
+GUILD_EVENTS = {"guild_founded", "guild_invited", "guild_joined",
+                "guild_role_changed", "guild_left"}
+EQUIPMENT_EVENTS = {"gear_created", "gear_broken", "starter_purchase",
+                    "equipped", "unequipped", "equipment_offered"}
+PROPERTY_EVENTS = {"home_purchased", "home_upgraded", "home_facility_built",
+                   "vehicle_purchased", "vehicle_selected"}
+MAGIC_EVENTS = {"magic_unlocked", "magic_practiced", "magic_attuned"}
+HEALTH_EVENTS = {"recovered", "consumed", "church_healed"}
+RACING_EVENTS = {"horse_purchased", "horse_raced"}
+PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
+ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",
+                  "goods_stored", "goods_retrieved", "city_contract_completed",
+                  "offer_posted", "offer_filled", "offer_canceled", "city_sale",
+                  "company_founded", "hired", "shift_completed", "job_offered",
+                  "wage_changed", "worker_left", "perks_changed",
+                  "facility_upgraded", "training_paid", "perk_awarded"}
+
+
+def event_category(kind: str) -> str:
+    """Stable Chronicle categories shared by single- and multi-player views."""
+    for label, events in (
+        ("Trade", TRADE_EVENTS), ("Combat", COMBAT_EVENTS),
+        ("Travel", TRAVEL_EVENTS), ("University", UNIVERSITY_EVENTS),
+        ("Guild", GUILD_EVENTS), ("Equipment", EQUIPMENT_EVENTS),
+        ("Property", PROPERTY_EVENTS), ("Magic", MAGIC_EVENTS),
+        ("Health", HEALTH_EVENTS), ("Racing", RACING_EVENTS),
+        ("Progression", PROGRESSION_EVENTS), ("Economy", ECONOMY_EVENTS),
+    ):
+        if kind in events:
+            return label
+    return "Other"
+
+
+def _trade_assets_text(assets) -> str:
+    if not isinstance(assets, dict):
+        return "unspecified assets"
+    parts = []
+    if assets.get("gold"):
+        parts.append(f"{assets['gold']}g")
+    for entry in assets.get("items", []):
+        parts.append(f"{entry.get('quantity')} {entry.get('item')}")
+    for gear_id in assets.get("gear_ids", []):
+        parts.append(f"equipment #{gear_id}")
+    return ", ".join(parts) if parts else "nothing"
+
+
+def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
+                    recorded_at=None, human_names=None):
     """Short and safe display labels; the UI never executes event payloads."""
     info = event.data
     gear_kinds = gear_kinds or {}
     equipped_kinds = equipped_kinds or {}
+    human_names = human_names or {}
+    def who(account_id):
+        return human_names.get(account_id, account_id)
     gear_kind = gear_kinds.get(info.get("gear_id"))
     readable = {
+        "trade_proposed": (
+            f"Trade #{info.get('trade_id')}: "
+            f"{who(info.get('maker_id'))} offered to {who(info.get('recipient_id'))}: "
+            f"offered {_trade_assets_text(info.get('offer'))}; "
+            f"requested {_trade_assets_text(info.get('request'))}"
+        ),
+        "trade_settled": (
+            f"Trade #{info.get('trade_id')} completed: "
+            f"{who(info.get('maker_id'))} offered {_trade_assets_text(info.get('offer'))}; "
+            f"{who(info.get('recipient_id'))} provided {_trade_assets_text(info.get('request'))}"
+        ),
+        "trade_closed": (
+            f"Trade #{info.get('trade_id')} canceled by {who(info.get('actor_id'))}: "
+            f"escrow returned to {who(info.get('maker_id'))}"
+        ),
+        "recovered": "Recovered from injuries",
+        "level_up": f"Reached level {info.get('level')}",
+        "gear_broken": f"{info.get('item')} broke",
         "gathered": f"Gathered {info.get('quantity')} {info.get('item')}",
         "travel_started": f"Departed for {info.get('destination')}",
         "arrived": f"Arrived in {info.get('city')}",
@@ -130,6 +205,9 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         ),
     }
     return {
+        "id": event.event_id,
+        "kind": event.kind,
+        "category": event_category(event.kind),
         "minute": event.minute,
         "text": readable.get(event.kind, event.kind),
         # Legacy records have no wall-time metadata. Never invent timestamps.
@@ -144,6 +222,7 @@ class GameSession:
         self.world: WorldEngine | None = None
         self.name = ""
         self.seed = 42
+        self.start_city = START_CITY
         self.npc_names: dict[str, str] = {}
         self.records: list[dict] = []
         self.event_times: dict[int, str] = {}
@@ -158,7 +237,7 @@ class GameSession:
         rng = random.Random(self.seed)
         names = list(NPC_NAMES)
         rng.shuffle(names)
-        actors = [Actor(PLAYER_ID, "human", city=START_CITY, gold=INITIAL_GOLD)]
+        actors = [Actor(PLAYER_ID, "human", city=self.start_city, gold=INITIAL_GOLD)]
         self.npc_names = {}
         for city in CITIES:
             for idx in range(3):
@@ -178,6 +257,7 @@ class GameSession:
                 raise ActionError("Use 2–28 letters, spaces, hyphens or apostrophes")
             self.name = name
             self.seed = secrets.randbelow(2**31)
+            self.start_city = START_CITY
             self.world = self._new_world()
             try:
                 self._save()
@@ -188,7 +268,7 @@ class GameSession:
     def _document(self) -> dict:
         return {
             "version": SAVE_VERSION, "name": self.name, "seed": self.seed,
-            "records": self.records,
+            "start_city": self.start_city, "records": self.records,
         }
 
     def _save(self) -> None:
@@ -218,6 +298,11 @@ class GameSession:
             if len(data["records"]) > MAX_RECORDS:
                 raise ValueError("Save journal exceeds prototype limits")
             self.seed = data["seed"]
+            # Saves predating the Crownreach starting-city rule must continue
+            # replaying from their original Goldmeadow spawn.
+            self.start_city = data.get("start_city", LEGACY_START_CITY)
+            if self.start_city not in CITIES:
+                raise ValueError("Unknown initial city")
             self.name = data["name"]
             self.world = self._new_world()
             for record in data["records"]:
@@ -470,8 +555,18 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
     for event in w.events:
         # A player's Chronicle must never expose another account's private
         # purchases, inventory changes, employment or other action history.
-        if multiplayer and event.data.get("actor_id") != actor_id:
-            continue
+        if multiplayer:
+            data = event.data
+            participants = (
+                (data.get("maker_id"), data.get("recipient_id"))
+                if event.kind in TRADE_EVENTS else
+                (data.get("attacker_id"), data.get("defender_id"),
+                 data.get("winner_id"), data.get("loser_id"))
+                if event.kind in COMBAT_EVENTS else
+                (data.get("actor_id"),)
+            )
+            if actor_id not in participants:
+                continue
         info = event.data
         if event.kind in ("starter_purchase", "gear_created"):
             gear_kinds[info.get("gear_id")] = info.get("item")
@@ -480,13 +575,15 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             rendered = _friendly_event(
                 event, gear_kinds=gear_kinds,
                 equipped_kinds=equipped_kinds,
-                recorded_at=event_times.get(event.event_id))
+                recorded_at=event_times.get(event.event_id),
+                human_names=human_names)
             equipped_kinds[prior_slot] = gear_kinds.get(info.get("gear_id"), prior_slot)
         else:
             rendered = _friendly_event(
                 event, gear_kinds=gear_kinds,
                 equipped_kinds=equipped_kinds,
-                recorded_at=event_times.get(event.event_id))
+                recorded_at=event_times.get(event.event_id),
+                human_names=human_names)
             if event.kind == "unequipped":
                 equipped_kinds.pop(info.get("slot"), None)
         rendered_events.append(rendered)
@@ -656,5 +753,5 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         ],
         "magic_schools": list(SCHOOLS),
         "magic_nodes": magic_nodes,
-        "events": rendered_events[-30:][::-1],
+        "events": rendered_events[-500:][::-1],
     }

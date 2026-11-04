@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass, dataclass
+from datetime import datetime, timezone
 import hashlib
 import hmac
 import json
@@ -27,7 +28,7 @@ from ..core.engine import WorldEngine
 from ..core.entities import Actor
 from ..errors import ActionError
 from ..systems.cooldowns import remaining
-from .session import (GameSession, NPC_NAMES, START_CITY, INITIAL_GOLD,
+from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
 
 # Deliberately bounded until rate limiting, moderation and deployment hardening
@@ -136,6 +137,12 @@ class MultiplayerGame:
                 UNIQUE(actor_id, request_id)
             );
         """)
+        # Previous multi-account databases lack an event wall-clock column.
+        # Add it without rewriting or inventing timestamps for older rows.
+        columns = {column[1] for column in self.db.execute(
+            "PRAGMA table_info(world_journal)")}
+        if "recorded_at" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -150,10 +157,10 @@ class MultiplayerGame:
                 self.npc_names[npc_id] = names.pop()
         return WorldEngine(actors, seed=42)
 
-    def _join_actor(self, actor_id: str):
+    def _join_actor(self, actor_id: str, city: str = LEGACY_START_CITY):
         if actor_id in self.world.actors:
             raise ValueError("Duplicate player registration in world")
-        self.world.actors[actor_id] = Actor(actor_id, "human", city=START_CITY,
+        self.world.actors[actor_id] = Actor(actor_id, "human", city=city,
                                             gold=INITIAL_GOLD)
         self.world.state.initial_gold += INITIAL_GOLD
         self.world.assert_invariants()
@@ -164,10 +171,11 @@ class MultiplayerGame:
         self.event_times = {}
         registered = set()
         rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id FROM world_journal "
-            "ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id in rows:
+            "SELECT kind, actor_id, action, payload, request_id, recorded_at "
+            "FROM world_journal ORDER BY seq").fetchall()
+        for kind, actor_id, action, payload, request_id, recorded_at in rows:
             params = json.loads(payload)
+            prior_events = len(self.world.events)
             if kind == "join":
                 if actor_id in registered:
                     raise ValueError("Repeated registered actor")
@@ -176,7 +184,10 @@ class MultiplayerGame:
                     (actor_id,)).fetchone()
                 if account is None:
                     raise ValueError("Registered actor has no account")
-                self._join_actor(actor_id)
+                city = params.get("city", LEGACY_START_CITY)
+                if city not in (LEGACY_START_CITY, START_CITY):
+                    raise ValueError("Invalid registered starting city")
+                self._join_actor(actor_id, city)
                 self.names[actor_id] = account[0]
                 registered.add(actor_id)
             elif actor_id not in registered:
@@ -193,6 +204,15 @@ class MultiplayerGame:
                 self.world.advance(minutes)
             else:
                 raise ValueError("Invalid journal kind")
+            if recorded_at is not None:
+                try:
+                    stamp = datetime.fromisoformat(recorded_at)
+                    if stamp.tzinfo is None:
+                        raise ValueError("Timezone required")
+                except (TypeError, ValueError) as exc:
+                    raise ValueError("Invalid saved action timestamp") from exc
+                for event in self.world.events[prior_events:]:
+                    self.event_times[event.event_id] = recorded_at
         self.world.assert_invariants()
         if self.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] != len(registered):
             raise ValueError("Account and world registration journal differ")
@@ -211,6 +231,7 @@ class MultiplayerGame:
         """Both SQL persistence and world mutation succeed, or neither does."""
         with self._lock:
             previous = deepcopy(self.world.state)
+            previous_event_times = dict(self.event_times)
             self._begin()
             try:
                 result = action()
@@ -231,6 +252,7 @@ class MultiplayerGame:
                     # A storage rollback failure must never leave a mutated,
                     # uncommitted world visible to future requests.
                     self.world.state = previous
+                    self.event_times = previous_event_times
                 raise
 
     @staticmethod
@@ -262,10 +284,13 @@ class MultiplayerGame:
                     (actor_id, username, display_name, salt, hashed, int(time.time())))
             except sqlite3.IntegrityError:
                 raise ActionError("Username or character name is already taken") from None
-            self._join_actor(actor_id)
+            self._join_actor(actor_id, START_CITY)
             self.names[actor_id] = display_name
-            self.db.execute("INSERT INTO world_journal(kind, actor_id, payload) "
-                            "VALUES('join', ?, '{}')", (actor_id,))
+            self.db.execute(
+                "INSERT INTO world_journal(kind, actor_id, payload, recorded_at) "
+                "VALUES('join', ?, ?, ?)",
+                (actor_id, _canonical({"city": START_CITY}),
+                 datetime.now(timezone.utc).isoformat()))
             return actor_id
         try:
             return self._tx(perform)
@@ -359,6 +384,8 @@ class MultiplayerGame:
                     raise ActionError("Request ID was reused with different parameters")
                 return json.loads(prev_result)
             self._count_journal()
+            prior_events = len(self.world.events)
+            recorded_at = datetime.now(timezone.utc).isoformat()
             if kind == "action":
                 if name not in MULTI_ACTIONS:
                     raise ActionError("Unavailable multiplayer action")
@@ -376,9 +403,13 @@ class MultiplayerGame:
                 raise ActionError("Unknown command kind")
             encoded_result = _canonical(_jsonable(outcome))
             self.db.execute(
-                "INSERT INTO world_journal(kind,actor_id,action,payload,request_id,result_json) "
-                "VALUES(?,?,?,?,?,?)",
-                (kind, actor_id, name, payload, request_id, encoded_result))
+                "INSERT INTO world_journal("
+                "kind,actor_id,action,payload,request_id,result_json,recorded_at) "
+                "VALUES(?,?,?,?,?,?,?)",
+                (kind, actor_id, name, payload, request_id,
+                 encoded_result, recorded_at))
+            for event in self.world.events[prior_events:]:
+                self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
         return self._tx(perform)
 
@@ -388,8 +419,12 @@ class MultiplayerGame:
     def advance(self, actor_id: str, minutes: int, request_id: str):
         return self._run(actor_id, "advance", None, {"minutes": minutes}, request_id)
 
-    def _social_view(self, actor_id: str) -> dict:
+    def _social_view(self, actor_id: str, projection: dict | None = None) -> dict:
         """Account-scoped streaming data; never broadcast raw world state."""
+        if projection is None:
+            projection = world_snapshot(self.world, actor_id,
+                                        self.names[actor_id], self.npc_names,
+                                        self.names, self.event_times, True)
         actor = self.world._actor(actor_id)
         chat = self.world.chat_system.view(actor_id)
         for channel in chat["channels"]:
@@ -417,6 +452,7 @@ class MultiplayerGame:
         return {
             "actor_id": actor_id, "revision": self._revision,
             "chat": chat, "trades": trades, "minute": self.world.minute,
+            "users": projection["users"], "events": projection["events"],
             "course_active": self.world.curriculum_system.view(actor_id)["active"],
             "player_status": {
                 "hp": actor.hp, "max_hp": actor.max_hp,
@@ -456,9 +492,10 @@ class MultiplayerGame:
             if actor_id not in self.names:
                 raise AuthError("Unknown account")
             result = world_snapshot(self.world, actor_id, self.names[actor_id],
-                                    self.npc_names, self.names, {}, True)
+                                    self.npc_names, self.names,
+                                    self.event_times, True)
             result["actor_id"] = actor_id
-            social = self._social_view(actor_id)
+            social = self._social_view(actor_id, result)
             result["chat"] = social["chat"]
             result["trades"] = social["trades"]
             result["activity_revision"] = self._revision
