@@ -143,6 +143,11 @@ class MultiplayerGame:
             "PRAGMA table_info(world_journal)")}
         if "recorded_at" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
+        if "flee_ruleset" not in columns:
+            # Old successful escapes must replay under the old guaranteed
+            # flee rules, while new 50/50 attempts are ruleset 2.
+            self.db.execute("ALTER TABLE world_journal "
+                            "ADD COLUMN flee_ruleset INTEGER NOT NULL DEFAULT 1")
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -171,9 +176,9 @@ class MultiplayerGame:
         self.event_times = {}
         registered = set()
         rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id, recorded_at "
+            "SELECT kind, actor_id, action, payload, request_id, recorded_at, flee_ruleset "
             "FROM world_journal ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id, recorded_at in rows:
+        for kind, actor_id, action, payload, request_id, recorded_at, flee_ruleset in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -195,8 +200,15 @@ class MultiplayerGame:
             elif kind == "action":
                 if action not in MULTI_ACTIONS:
                     raise ValueError("Forbidden journal command")
-                self.world.execute(actor_id, action, params, self._engine_id(
-                    actor_id, request_id))
+                if flee_ruleset not in (1, 2):
+                    raise ValueError("Unknown flee ruleset in journal")
+                self.world._legacy_flee_rules = (
+                    flee_ruleset == 1 and action == "flee_duel")
+                try:
+                    self.world.execute(actor_id, action, params, self._engine_id(
+                        actor_id, request_id))
+                finally:
+                    self.world._legacy_flee_rules = False
             elif kind == "advance":
                 minutes = params.get("minutes")
                 if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
@@ -412,10 +424,10 @@ class MultiplayerGame:
             encoded_result = _canonical(_jsonable(outcome))
             self.db.execute(
                 "INSERT INTO world_journal("
-                "kind,actor_id,action,payload,request_id,result_json,recorded_at) "
-                "VALUES(?,?,?,?,?,?,?)",
+                "kind,actor_id,action,payload,request_id,result_json,recorded_at,flee_ruleset) "
+                "VALUES(?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at))
+                 encoded_result, recorded_at, 2))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)

@@ -65,7 +65,7 @@ class SaveError(Exception):
 TRADE_EVENTS = {"trade_proposed", "trade_settled", "trade_closed"}
 COMBAT_EVENTS = {"pvp_strike", "duel_started", "duel_round",
                  "duel_finished", "duel_fled", "duel_defender_fled",
-                 "duel_draw", "combat", "spell_cast"}
+                 "duel_draw", "duel_flee_attempt", "combat", "spell_cast"}
 UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
                      "school_graduated", "school_capstone_perk", "school_martial_perk"}
 TRAVEL_EVENTS = {"travel_started", "arrived"}
@@ -197,6 +197,11 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "duel_finished": (
             f"{info.get('winner_id')} defeated {info.get('loser_id')} "
             f"and claimed {info.get('gold')} gold"
+        ),
+        "duel_flee_attempt": (
+            f"Flee attempt (round {info.get('round')}): "
+            f"{'escaped' if info.get('success') else 'failed'}; "
+            f"{info.get('retaliation')} damage taken"
         ),
         "duel_fled": "Attacker retreated from combat",
         "duel_defender_fled": "Defending player withdrew from combat",
@@ -331,7 +336,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -349,6 +354,8 @@ class GameSession:
                                                     and record["name"] == "enroll_course")
             self.world._legacy_guard_rules = record.get("ruleset", 1) < 8
             self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
+            self.world._legacy_flee_rules = (record.get("ruleset", 1) < 11
+                                              and record["name"] == "flee_duel")
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
             self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
             try:
@@ -358,6 +365,7 @@ class GameSession:
                 self.world._legacy_curriculum_rules = False
                 self.world._legacy_guard_rules = False
                 self.world._legacy_duel_rules = False
+                self.world._legacy_flee_rules = False
                 self.world._legacy_magic_rules = False
                 self.world._legacy_cooldown_rules = False
         else:
@@ -392,6 +400,8 @@ class GameSession:
                 ruleset = 6
             if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
                 ruleset = 8
+            if record.get("name") == "flee_duel":
+                ruleset = 11
             if record.get("name") == "enroll_course":
                 ruleset = 8
             if record.get("name") == "enroll_course_choice":

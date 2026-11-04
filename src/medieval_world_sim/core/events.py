@@ -131,6 +131,8 @@ EVENT_FIELDS = {
     "duel_started": ["attacker_id", "defender_id", "stamina_spent"],
     "duel_round": ["attacker_id", "defender_id", "round", "move", "damage", "retaliation"],
     "duel_finished": ["winner_id", "loser_id", "gold", "recovery_minutes"],
+    "duel_flee_attempt": ["actor_id", "attacker_id", "defender_id",
+                          "round", "success", "retaliation"],
     "duel_fled": ["attacker_id", "defender_id"],
     "duel_defender_fled": ["attacker_id", "defender_id"],
     "duel_draw": ["attacker_id", "defender_id", "round"],
