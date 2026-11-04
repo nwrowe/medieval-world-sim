@@ -819,11 +819,12 @@
     const casts = learned.map(n => {
       const meleeMagic = n.school === "enchantment" || n.school === "divination";
       const swingCost = mainSwing ? mainSwing.stamina : 1;
-      const extra = meleeMagic ? ' + ' + swingCost + ' stamina' : '';
+      const magicStamina = state.magic_stamina_cost + (meleeMagic ? swingCost : 0);
+      const extra = ' + ' + magicStamina + ' stamina';
       return button(n.title + ' · ' + n.mana_cost + ' mana' + extra,
         'data-ui="duel-cast" data-node="' + esc(n.node_id) + '"' +
         disabled(pending || p.mana < n.mana_cost ||
-          meleeMagic && p.stamina < swingCost), "secondary");
+          p.stamina < magicStamina), "secondary");
     }).join('');
     const logs = duel.log.length ?
       '<ol class="combat-log">' + duel.log.map(line => '<li>' + esc(line) +
@@ -1298,8 +1299,11 @@
         '</div>').join('');
       return panel(school.name + ' · ' + school.completed + '/8',
         school.tradition + ' · ' + pretty(school.stat),
+        (school.capstone_perk ? '<p class="small">Graduation perk: +' +
+          school.capstone_perk.bonus + ' ' +
+          esc(pretty(school.capstone_perk.stat)) + '</p>' : '') +
         '<div class="resource-list">' +
-        (school.complete ? chip('Graduated · Merit ready') :
+        (school.complete ? chip('Graduated · Merit earned') :
           chip('Course ' + Math.min(8, school.completed + 1) + ' of 8')) +
         '</div>' + rows);
     }).join('');
