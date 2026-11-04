@@ -38,4 +38,6 @@ class WorldState:
     merit_upgrades: dict[str, set[str]] = field(default_factory=dict)
     active_courses: dict[str, CourseEnrollment] = field(default_factory=dict)
     completed_courses: dict[str, dict[str, int]] = field(default_factory=dict)
+    chosen_courses: dict[str, dict[str, set[int]]] = field(default_factory=dict)
+    free_course_enrollments: set[str] = field(default_factory=set)
     gear_wear: dict[int, int] = field(default_factory=dict)

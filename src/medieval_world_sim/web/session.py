@@ -44,6 +44,7 @@ UI_ACTIONS = {
     "church_heal", "buy_racehorse", "race_horse",
     "found_guild", "invite_guild", "join_guild", "set_guild_role",
     "leave_guild", "claim_merit", "buy_merit_upgrade", "enroll_course",
+    "enroll_course_choice",
 }
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
@@ -97,6 +98,7 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "guild_joined": f"Joined guild {info.get('guild_id')}",
         "guild_role_changed": f"Appointed {info.get('member_id')} as {info.get('role')}",
         "guild_left": f"Left guild {info.get('guild_id')}",
+        "course_tuition_paid": f"Paid {info.get('gold')} gold to study {info.get('school')}",
         "course_started": f"Enrolled in {info.get('school')} course #{info.get('course_index', 0) + 1}",
         "course_completed": f"Finished {info.get('school')} course; +{info.get('bonus')} {info.get('stat')}",
         "school_graduated": f"Graduated from {info.get('school')}",
@@ -236,7 +238,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -296,6 +298,8 @@ class GameSession:
                 ruleset = 8
             if record.get("name") == "enroll_course":
                 ruleset = 8
+            if record.get("name") == "enroll_course_choice":
+                ruleset = 9
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)

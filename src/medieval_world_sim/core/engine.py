@@ -34,7 +34,7 @@ from ..systems.spells import SpellSystem
 from ..systems.track import TrackSystem
 from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
 from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
-from ..systems.curriculum import CurriculumSystem, SCHOOLS
+from ..systems.curriculum import CurriculumSystem, SCHOOLS, CURRENT_SCHOOLS
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
@@ -488,6 +488,10 @@ class WorldEngine:
         return self.curriculum_system.start(actor_id, school)
 
     @atomic_action
+    def enroll_course_choice(self, actor_id: str, school: str, index: int) -> dict:
+        return self.curriculum_system.choose(actor_id, school, index)
+
+    @atomic_action
     def claim_merit(self, actor_id: str, achievement: str) -> dict:
         return self.merit_system.claim(actor_id, achievement)
 
@@ -551,6 +555,7 @@ class WorldEngine:
                 "leave_guild": ("leave_guild", ()),
                 "claim_merit": ("claim_merit", ("achievement",)),
                 "enroll_course": ("enroll_course", ("school",)),
+                "enroll_course_choice": ("enroll_course_choice", ("school", "index")),
                 "buy_merit_upgrade": ("buy_merit_upgrade", ("perk",)),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
@@ -661,10 +666,25 @@ class WorldEngine:
                     school not in SCHOOLS or type(count) is not int or not 0 <= count <= 8
                     for school, count in courses.items()):
                 raise AssertionError("Invalid completed curriculum")
+        for actor_id, courses in self.state.chosen_courses.items():
+            if actor_id not in self.actors or any(
+                    school not in CURRENT_SCHOOLS or
+                    not isinstance(indices, set) or
+                    any(type(i) is not int or i < 0 or i >= 8 for i in indices)
+                    for school, indices in courses.items()):
+                raise AssertionError("Invalid freely chosen courses")
+        if any(actor_id not in self.state.active_courses
+               for actor_id in self.state.free_course_enrollments):
+            raise AssertionError("Orphaned university enrollment")
         for actor_id, course in self.state.active_courses.items():
+            legacy = actor_id not in self.state.free_course_enrollments
             if (actor_id not in self.actors or course.school not in SCHOOLS
-                    or self.state.completed_courses.get(actor_id, {}).get(course.school, 0) != course.index
-                    or not 0 <= course.index < 8 or course.ends_at <= self.minute):
+                    or not 0 <= course.index < 8 or course.ends_at <= self.minute
+                    or (legacy and self.state.completed_courses.get(actor_id, {}).get(
+                        course.school, 0) != course.index)
+                    or (not legacy and (course.school not in CURRENT_SCHOOLS
+                        or course.index in self.curriculum_system.completed_indices(
+                            actor_id, course.school)))):
                 raise AssertionError("Invalid active curriculum")
         if any(gid not in self.gear or type(count) is not int or not 0 <= count < 12
                for gid, count in self.state.gear_wear.items()):

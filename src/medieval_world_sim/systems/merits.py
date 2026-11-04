@@ -35,7 +35,7 @@ class MeritSystem:
         actor = self.world._actor(actor_id)
         events = self.world.events
         if key.startswith("school:"):
-            return self.world.state.completed_courses.get(actor_id, {}).get(key[7:], 0) == 8
+            return len(self.world.curriculum_system.completed_indices(actor_id, key[7:])) == 8
         if key == "first_steps": return True
         if key == "apprentice": return actor.level >= 2
         if key == "roadfarer": return any(e.kind == "arrived" and e.data.get("actor_id") == actor_id for e in events)

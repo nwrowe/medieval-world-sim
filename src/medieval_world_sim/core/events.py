@@ -134,6 +134,7 @@ EVENT_FIELDS = {
     "guild_role_changed": ["guild_id", "member_id", "role"],
     "guild_left": ["guild_id", "actor_id"],
     "course_started": ["actor_id", "school", "course_index", "ends_at"],
+    "course_tuition_paid": ["actor_id", "school", "course_index", "gold"],
     "course_completed": ["actor_id", "school", "course_index", "stat", "bonus"],
     "school_graduated": ["actor_id", "school"],
     "school_capstone_perk": ["actor_id", "school", "stat", "bonus"],
