@@ -43,6 +43,8 @@
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
+  let chronicleCategory = "all";
+  let chronicleQuery = "";
   let chatOpen = false;
   let chatChannelKey = "global";
   let chatDraft = "";
@@ -478,12 +480,25 @@
       ' units, including equipment.</div>';
     return panel("Carried inventory", "Goods and resources", body, chip(p.cargo + " items"));
   }
+  const chronicleCategories = ["Trade", "Combat", "Travel", "University",
+    "Economy", "Equipment", "Magic", "Property", "Guild", "Progression", "Other"];
+  function chronicleEvents() {
+    const query = chronicleQuery.trim().toLowerCase();
+    return (state.events || []).filter(event =>
+      (chronicleCategory === "all" || event.category === chronicleCategory) &&
+      (!query || [event.text, event.kind, event.category].some(value =>
+        String(value || "").toLowerCase().includes(query))));
+  }
+  function chronicleItems(events) {
+    return events.length ? '<ul class="activity">' +
+      events.map(e => '<li><span><span class="chronicle-tag">' +
+        esc(e.category || "Other") + '</span> ' + esc(e.text) +
+        '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
+        '">' + esc(eventTime(e)) + '</time></li>').join("") +
+      '</ul>' : '<p class="empty">No matching Chronicle events.</p>';
+  }
   function activityPanel(showTitle = true) {
-    let body = state.events.length ? '<ul class="activity">' +
-      state.events.map(e => '<li><span>' + esc(e.text) +
-      '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
-      '">' + esc(eventTime(e)) + '</time></li>').join("") +
-      '</ul>' : '<p class="empty">The chronicle begins with your first action.</p>';
+    const body = chronicleItems((state.events || []).slice(0, 12));
     return showTitle ? panel("Chronicle", "", body) :
       '<section class="panel chronicle-panel">' + body + '</section>';
   }
@@ -1213,8 +1228,20 @@
       '</aside></div>';
   }
   function renderChronicle() {
+    const options = ['<option value="all">All categories</option>'].concat(
+      chronicleCategories.map(category => '<option value="' + esc(category) + '"' +
+        (chronicleCategory === category ? " selected" : "") + '>' +
+        esc(category) + '</option>')).join("");
     return heading("", "Chronicle", "") +
-      activityPanel(false) +
+      '<section class="panel chronicle-panel">' +
+      '<div class="chronicle-filters"><label for="chronicle-category">Event category</label>' +
+      '<select id="chronicle-category" class="field">' + options + '</select>' +
+      '<label for="chronicle-query">Search events</label>' +
+      '<input id="chronicle-query" class="field" type="search" ' +
+      'placeholder="Trade, combat, equipment…" maxlength="100" value="' +
+      esc(chronicleQuery) + '"></div>' +
+      '<div id="chronicle-list">' + chronicleItems(chronicleEvents()) + '</div>' +
+      '</section>' +
       '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
       'Older actions without saved timestamps are marked earlier. ' +
       'The game simulation still advances only when you take time-based actions.</p>';
@@ -1702,6 +1729,8 @@
       state.trades = update.trades;
       state.minute = update.minute;
       if (state.training_hall) state.training_hall.active = update.course_active;
+      if (Array.isArray(update.users)) state.users = update.users;
+      if (Array.isArray(update.events)) state.events = update.events;
       if (update.player_status) {
         Object.assign(state.player, update.player_status);
       }
@@ -1735,6 +1764,23 @@
           }
         }
       }
+    }
+    if (tab === "people") {
+      // Replace just the search results, preserving a search being typed.
+      const matches = document.querySelector(".search-matches");
+      if (matches) {
+        const temp = document.createElement("div");
+        temp.innerHTML = renderPeople();
+        const latest = temp.querySelector(".search-matches");
+        if (latest && matches.innerHTML !== latest.innerHTML)
+          matches.innerHTML = latest.innerHTML;
+      }
+    } else if (tab === "profile") {
+      const content = document.getElementById("main-content");
+      if (content) content.innerHTML = renderProfile();
+    } else if (tab === "chronicle") {
+      const list = document.getElementById("chronicle-list");
+      if (list) list.innerHTML = chronicleItems(chronicleEvents());
     }
     if (tab === "trade") {
       const current = document.getElementById("trade-offers-list");
@@ -1793,13 +1839,16 @@
         selected.key === channel.key ? "secondary" : "ghost")).join('');
     return '<aside class="chat-dock ' + (chatOpen ? "is-open" : "") +
       '" aria-label="Chat">' +
-      '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
+      '<div class="chat-dock-actions"><button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
       'aria-expanded="' + chatOpen + '">' +
       '<span aria-hidden="true">✉</span> Chat ' +
       (unreadCount() ? '<span class="chat-unread" aria-label="' +
         unreadCount() + ' unread chat messages">' + Math.min(99, unreadCount()) +
         (unreadCount() > 99 ? '+' : '') + '</span>' : '') +
       (chatOpen ? '⌄' : '⌃') + '</button>' +
+      '<button class="chat-game-refresh" type="button" data-ui="refresh-game" ' +
+      'title="Refresh the entire game state" aria-label="Refresh game state">' +
+      '↻</button></div>' +
       (chatOpen ? '<div class="chat-content">' +
         '<div class="chat-channels">' + channels + '</div>' +
         '<p class="chat-preview-notice">' + (multiMode ?
@@ -1924,6 +1973,12 @@
   });
 
   root.addEventListener("input", event => {
+    if (event.target.id === "chronicle-query") {
+      chronicleQuery = event.target.value;
+      const list = document.getElementById("chronicle-list");
+      if (list) list.innerHTML = chronicleItems(chronicleEvents());
+      return;
+    }
     if (event.target.id === "chat-text") {
       chatDraft = event.target.value;
       const submit = event.target.closest("form").querySelector('button[type="submit"]');
@@ -1932,6 +1987,12 @@
   });
 
   root.addEventListener("change", event => {
+    if (event.target.id === "chronicle-category") {
+      chronicleCategory = event.target.value;
+      const list = document.getElementById("chronicle-list");
+      if (list) list.innerHTML = chronicleItems(chronicleEvents());
+      return;
+    }
     const path = event.target.getAttribute("data-attune");
     if (!path) return;
     if (event.target.checked) selectedAttunements.add(path);
@@ -1985,6 +2046,22 @@
         chatChannelKey = element.dataset.key;
         markChannelRead(chatChannelKey);
         render(); break;
+      case "refresh-game":
+        (async () => {
+          if (pending) return;
+          try {
+            const fresh = await request("/api/state");
+            if (!multiMode || !state || !state.activity_revision ||
+                (fresh.activity_revision || 0) >= state.activity_revision) {
+              state = fresh;
+            }
+            syncAttunements();
+            render();
+            notify("Game state refreshed");
+          } catch (error) {
+            notify(error.message, true);
+          }
+        })(); break;
       case "chat-refresh":
         (async () => {
           try {
