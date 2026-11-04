@@ -80,7 +80,7 @@ class MultiAccountPersistenceTests(unittest.TestCase):
             self.game.register("ALICE", PASSWORD, "Someone Else")
         self.game.logout(token)
         self.assertIsNone(self.game.identity(token))
-        second, _, returned = self.game.login("alice", PASSWORD)
+        second, _ = self.game.login("alice", PASSWORD)
         self.assertEqual(self.game.identity(second).actor_id, alice)
 
     def test_logged_actions_and_trades_survive_restart_with_conserved_assets(self):
