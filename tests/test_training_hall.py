@@ -104,6 +104,8 @@ class CurriculumWebTests(unittest.TestCase):
         world = WorldEngine([Actor("modern", "human", city="crownreach")])
         with self.assertRaises(ActionError):
             world.enroll_course("modern", "grammar")
+        with self.assertRaises(ActionError):
+            restored.action("enroll_course", {"school": "rhetoric"}, "new-free-class")
 
     def test_tuition_rejected_atomically_when_not_affordable(self):
         world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=5)])
