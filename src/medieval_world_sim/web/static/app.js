@@ -1367,7 +1367,7 @@
         (posts.length ? posts.map(post =>
           '<div class="chat-post"><strong>' +
           esc(post.sender === "hero" ? state.name : post.sender) +
-          '</strong><p>' + esc(post.body).replace(/\\n/g, '<br>') +
+          '</strong><p>' + esc(post.body) +
           '</p></div>').join('') :
           '<p class="small">No messages in this channel yet.</p>') +
         '</div>' +
