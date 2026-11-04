@@ -1698,8 +1698,19 @@
       }, "Offer sent and your assets placed in escrow");
     } else if (event.target.id === "chatComposeForm") {
       event.preventDefault();
-      const channel = (state.chat.channels || []).find(x => x.key === chatChannelKey) ||
-        state.chat.channels[0];
+      let channel = (state.chat.channels || []).find(x => x.key === chatChannelKey);
+      if (!channel && multiMode && chatDirectTarget &&
+          chatChannelKey === "direct:" + chatDirectTarget) {
+        const recipient = (state.users || []).find(person =>
+          person.id === chatDirectTarget && person.kind === "human" &&
+          person.id !== state.actor_id);
+        if (recipient) channel = { kind: "direct", target: recipient.id };
+      }
+      // Never silently fall back to Global when a private channel is missing:
+      // a message addressed to a person must not be broadcast accidentally.
+      if (!channel && chatChannelKey === "global") {
+        channel = (state.chat.channels || []).find(x => x.kind === "global");
+      }
       if (channel && chatDraft.trim() && !pending) {
         await action("send_chat", {
           kind: channel.kind, target: channel.target, message: chatDraft.trim()
