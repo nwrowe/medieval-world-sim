@@ -232,7 +232,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -243,11 +243,13 @@ class GameSession:
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
+            self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
             self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
             try:
                 self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
             finally:
+                self.world._legacy_duel_rules = False
                 self.world._legacy_magic_rules = False
                 self.world._legacy_cooldown_rules = False
         else:
@@ -280,6 +282,8 @@ class GameSession:
                 "leave_guild", "claim_merit", "buy_merit_upgrade"
             }:
                 ruleset = 6
+            if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
+                ruleset = 7
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
@@ -543,7 +547,21 @@ class GameSession:
                 "multiplayer": False,
                 "duel": active_duel,
                 "last_duel": w.state.last_duels.get(PLAYER_ID),
-                "combat_stamina_cost": 20,
+                "combat_stamina_cost": 0,
+                "combat_moves": [
+                    {"move": move, "label": label, "stamina": cost,
+                     "available": actor.stamina >= cost}
+                    for move in ("strike", "dagger", "fists")
+                    for label, slot, cost in [(
+                        ("Primary: " + w.gear[actor.equipped["weapon"]].kind.replace("_", " ").title())
+                        if move == "strike" and actor.equipped.get("weapon") else
+                        ("Primary: Fists" if move == "strike" else move.title()),
+                        ("secondary" if move == "dagger" else
+                         "weapon" if move == "strike" else None),
+                        (w.combat.melee_option(actor, move)[2]
+                         if move != "dagger" or actor.equipped.get("secondary") else 2)
+                    )] if move != "dagger" or actor.equipped.get("secondary")
+                ],
                 "church": {"price": 20, "available": (
                     actor.hp > 0 and actor.hp < actor.max_hp and
                     w.state.church_healed_day.get(PLAYER_ID) != now // 1440),

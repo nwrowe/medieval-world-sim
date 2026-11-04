@@ -18,17 +18,19 @@ class DuelSystem:
             raise ActionError("Target must be in your city")
         if defender.kind != "npc":
             raise ActionError("Local turn-based fights currently require NPC targets")
-        if attacker.stamina < ATTACK_STAMINA_COST:
+        legacy = getattr(w, "_legacy_duel_rules", False)
+        if legacy and attacker.stamina < ATTACK_STAMINA_COST:
             raise ActionError("Not enough stamina to initiate combat")
         if any(defender_id in (d.attacker_id, d.defender_id) for d in w.state.duels.values()):
             raise ActionError("Opponent is already in combat")
-        attacker.stamina -= ATTACK_STAMINA_COST
+        entrance_cost = ATTACK_STAMINA_COST if legacy else 0
+        attacker.stamina -= entrance_cost
         ward = attacker.magic.ward_charge
         attacker.magic.ward_charge = 0
         w.state.last_duels.pop(attacker_id, None)
         w.state.duels[attacker_id] = DuelState(attacker_id, defender_id, pending_ward=ward)
-        w._emit("duel_started", attacker_id, defender_id, ATTACK_STAMINA_COST)
-        return {"opponent_id": defender_id, "stamina_spent": ATTACK_STAMINA_COST}
+        w._emit("duel_started", attacker_id, defender_id, entrance_cost)
+        return {"opponent_id": defender_id, "stamina_spent": entrance_cost}
 
     def _finish(self, duel, winner, loser, outcome: str) -> dict:
         w = self.world
@@ -57,7 +59,10 @@ class DuelSystem:
         duel = w.state.duels.get(attacker_id)
         if duel is None:
             raise ActionError("No active duel")
-        if move not in ("strike", "guard", "cast") or not isinstance(node_id, str):
+        legacy = getattr(w, "_legacy_duel_rules", False)
+        valid_moves = ("strike", "guard", "cast") if legacy else (
+            "strike", "fists", "dagger", "guard", "cast")
+        if move not in valid_moves or not isinstance(node_id, str):
             raise ActionError("Unknown combat move")
         if move != "cast" and node_id:
             raise ActionError("Only spell casting accepts a spell ID")
@@ -65,15 +70,34 @@ class DuelSystem:
         if attacker.hp <= 0 or defender.hp <= 0:
             raise ActionError("Duel has invalid combatants")
         protection = 0
-        if move == "strike":
-            damage = w.combat._strike(attacker, defender)
-            description = f"You strike for {damage} damage"
+        stamina_spent = 0
+        if move in ("strike", "fists", "dagger"):
+            if legacy:
+                damage = w.combat._strike(attacker, defender)
+                description = f"You strike for {damage} damage"
+            else:
+                label, slot, stamina_spent = w.combat.melee_option(attacker, move)
+                if attacker.stamina < stamina_spent:
+                    raise ActionError(f"Not enough stamina for {label.lower()} attack")
+                attacker.stamina -= stamina_spent
+                damage = w.combat._strike(attacker, defender, slot or "unarmed")
+                description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
         elif move == "guard":
             damage = 0
             protection = 6
             description = "You brace for the next attack"
         else:
+            # Enchantment and divination create a physical strike too.
+            # Charge the same main-weapon cost, in addition to their mana.
+            node = w.spell_system._ready(attacker, node_id)
+            if not legacy and node.school in ("enchantment", "divination"):
+                _, _, stamina_spent = w.combat.melee_option(attacker, "strike")
+                if attacker.stamina < stamina_spent:
+                    raise ActionError("Not enough stamina for this enchanted weapon swing")
+                attacker.stamina -= stamina_spent
             damage, protection, description = w.spell_system.combat_cast(attacker, defender, node_id)
+            if stamina_spent:
+                description += f" ({stamina_spent} stamina)"
         duel.round += 1
         duel.xp_earned += max(1, damage // 4) if damage else 0
         retaliation = 0
@@ -91,6 +115,7 @@ class DuelSystem:
         if attacker.hp == 0:
             return self._finish(duel, defender, attacker, "lost")
         return {"outcome": "ongoing", "round": duel.round, "damage": damage,
+                "stamina_spent": stamina_spent,
                 "retaliation": retaliation, "message": duel.log[-1]}
 
     def flee(self, attacker_id: str) -> dict:
