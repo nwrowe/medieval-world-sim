@@ -26,6 +26,7 @@ from ..catalog import CITIES
 from ..core.engine import WorldEngine
 from ..core.entities import Actor
 from ..errors import ActionError
+from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
 
@@ -405,8 +406,19 @@ class MultiplayerGame:
             "actor_id": actor_id, "revision": self._revision,
             "chat": chat, "trades": trades, "minute": self.world.minute,
             "course_active": self.world.curriculum_system.view(actor_id)["active"],
-            "travel": {"destination": actor.destination,
-                       "arrival_minute": actor.arrival_minute},
+            "player_status": {
+                "hp": actor.hp, "max_hp": actor.max_hp,
+                "stamina": actor.stamina, "max_stamina": actor.max_stamina,
+                "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
+                "gold": actor.gold, "city": actor.city,
+                "destination": actor.destination,
+                "arrival_minute": actor.arrival_minute,
+                "cooldowns": {
+                    name: {"remaining_minutes": remaining(
+                        actor, name, self.world.minute), "max_minutes": 1440}
+                    for name in ("job", "food", "potion")
+                },
+            },
         }
 
     def social_snapshot(self, actor_id: str) -> dict:
