@@ -46,6 +46,7 @@
   let chatOpen = false;
   let chatChannelKey = "global";
   let chatDraft = "";
+  let expandedUniversitySchool = null;
   let chatDirectTarget = null;
   let pending = false;
   let authNeeded = false;
@@ -54,6 +55,7 @@
   let token = sessionStorage.getItem("medieval-world-token") || "";
   let multiMode = false;
   let csrfToken = "";
+  let liveEvents = null;
 
   function esc(value) {
     return String(value === undefined || value === null ? "" : value)
@@ -89,6 +91,15 @@
   function dur(minutes) {
     const h = Math.floor(minutes / 60), m = minutes % 60;
     return h ? (h + "h " + (m ? m + "m" : "")) : m + "m";
+  }
+  function simDuration(minutes) {
+    const total = Math.max(0, Math.ceil(Number(minutes) || 0));
+    const days = Math.floor(total / 1440);
+    const hours = Math.floor((total % 1440) / 60);
+    const mins = total % 60;
+    return (days ? days + "d " : "") +
+      (hours ? hours + "h " : "") +
+      (mins || (!days && !hours) ? mins + "m" : "");
   }
   function isBusy() {
     return pending || !state || !state.started ||
@@ -163,6 +174,8 @@
       state = await request("/api/state");
       tab = state.duel ? "duel" : "character";
       syncAttunements();
+      initializeReadMarkers();
+      startLiveEvents();
     } catch (error) {
       offline = !authNeeded;
       if (!authNeeded) notify(error.message, true);
@@ -179,7 +192,12 @@
     try {
       const result = await request(path, body);
       const oldLevel = state && state.started ? state.player.level : 1;
-      state = result.state;
+      // A live event may arrive after a command commits but before its HTTP
+      // response. Never overwrite a newer pushed state with an older result.
+      state = (multiMode && state && result.state &&
+               (state.activity_revision || 0) >
+               (result.state.activity_revision || 0)) ?
+        await request("/api/state") : result.state;
       if (state && state.started && state.player.level > oldLevel) {
         levelCelebration = { from: oldLevel, to: state.player.level,
           hp: state.player.max_hp, strength: state.player.strength,
@@ -197,6 +215,12 @@
         latestContract = result.result;
       }
       if (body && body.action === "send_chat") chatDraft = "";
+      if (body && body.action === "pvp_strike" && result.result) {
+        const hit = result.result;
+        success = "Skirmish: dealt " + hit.damage + " damage; " +
+          "took " + hit.retaliation + " in retaliation" +
+          (hit.opponent_defeated ? ". Opponent defeated!" : ".");
+      }
       if (path === "/api/new") tab = "character";
       if (body && body.action === "race_horse") tab = "track";
       notify(body && body.action === "cast_spell" && result.result ?
@@ -262,6 +286,11 @@
       const outcome = await request(url, body);
       csrfToken = outcome.csrf || "";
       state = outcome.state;
+      chatChannelKey = "global";
+      chatDirectTarget = null;
+      chatOpen = false;
+      initializeReadMarkers();
+      startLiveEvents();
       authNeeded = false;
       offline = false;
       tab = "character";
@@ -330,12 +359,50 @@
     const data = state.player.cooldowns && state.player.cooldowns[name];
     const remaining = data ? data.remaining_minutes : 0;
     const max = data ? data.max_minutes : 1440;
-    const tip = config.label + " cooldown " + cooldownClock(remaining) +
-      " / 24:00. New actions cannot exceed 24h. Advances with game time.";
+    if (remaining <= 0) return "";
+    const tip = config.label + " cooldown: " + cooldownClock(remaining) +
+      " simulated time remaining. Advances with game time.";
     return '<div class="cooldown-chip ' + (remaining >= max ? 'at-cap' : '') +
       '" title="' + esc(tip) + '" tabindex="0" aria-label="' + esc(tip) +
       '"><span aria-hidden="true">' + config.symbol + '</span><strong>' +
-      (remaining ? cooldownClock(remaining) : 'Ready') + '</strong></div>';
+      cooldownClock(remaining) + '</strong></div>';
+  }
+  function activityIcons() {
+    if (!state || !state.started) return "";
+    const items = ["job", "food", "potion"].map(cooldownIcon).join("");
+    const p = state.player;
+    const incoming = multiMode ? (state.trades || []).filter(t =>
+      t.recipient === state.actor_id).length : 0;
+    const trade = incoming ?
+      '<button class="cooldown-chip activity-clickable activity-trade" type="button" ' +
+      'data-ui="activity-trade" title="' + incoming + ' incoming trade offer(s)" ' +
+      'aria-label="' + incoming + ' incoming trade offer(s)">' +
+      '<span aria-hidden="true">⇄</span><strong>' + incoming + ' trade' +
+      (incoming === 1 ? '' : 's') + '</strong></button>' : "";
+    const tripMinutes = p.destination && Number.isFinite(p.arrival_minute) ?
+      Math.max(0, p.arrival_minute - state.minute) : 0;
+    const travel = p.destination ?
+      '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
+      'title="' + esc("Traveling to " + pretty(p.destination) + " · " +
+        simDuration(tripMinutes) + " of simulated time remaining") + '" ' +
+      'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
+      '<span aria-hidden="true">♞</span><strong>' + esc(simDuration(tripMinutes)) +
+      '</strong></button>' : "";
+    const hall = state.training_hall || {};
+    const current = hall.active;
+    let university = "";
+    if (current) {
+      const school = (hall.schools || []).find(s => s.id === current.school);
+      const course = school && school.courses[current.index];
+      const label = "University: " + (school ? school.name : pretty(current.school)) +
+        (course ? " · " + course.name : "") + " · " +
+        simDuration(current.remaining_minutes) + " simulated time remaining";
+      university = '<button class="cooldown-chip activity-clickable" type="button" ' +
+        'data-ui="activity-university" title="' + esc(label) + '" aria-label="' +
+        esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
+        Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
+    }
+    return items + trade + travel + university;
   }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
@@ -367,9 +434,7 @@
     const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
       .map(t => navButton(t)).join('');
-    const topLinks = accountTabs.concat(multiMode ?
-      [{ id: "trade", icon: "⇄", title: "Trade" }] : [])
-      .map(t => navButton(t, "account-button")).join('');
+    const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
       '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
@@ -379,9 +444,8 @@
       meterStat("Mana", p.mana, p.max_mana, "mana", p.mana_next_sim_seconds) +
       '<div class="gold-total"><strong>' +
       esc(money(p.gold)) + '</strong></div>' +
-      '<div class="cooldown-strip" aria-label="Job, food and potion cooldowns">' +
-      cooldownIcon("job") + cooldownIcon("food") + cooldownIcon("potion") +
-      '</div></div>' +
+      '<div class="cooldown-strip activity-strip" aria-label="Active activities">' +
+      activityIcons() + '</div></div>' +
       '<div class="top-actions">' +
       '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
@@ -825,7 +889,7 @@
         const text = self ? "Your character" :
           recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" :
           person.kind === "human" ? "View profile" : "Out of reach";
-        const profileOnly = person.kind === "human" && !self;
+        const profileOnly = person.kind === "human" && !self && !person.can_attack;
         return '<div class="equipment-item"><div><h3>' +
           '<button type="button" class="character-name-link" data-ui="profile-open" ' +
           'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
@@ -858,7 +922,8 @@
           '</div>';
       }).join('');
     const hint = searchScope === "players" ? (multiMode ?
-      'These are individual player characters and computer-controlled adventurers. ' :
+      'Player skirmishes resolve a single swing and automatic retaliation; ' +
+      'NPC fights use turn-based duels. ' :
       'These are persistent computer-controlled adventurers, not connected players. ') +
       'To attack, be in the same city. Starting a duel costs no stamina; ' +
       'each offensive swing costs stamina. Victory takes 5% ' +
@@ -920,7 +985,9 @@
           'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
           'will require the upcoming authenticated multiplayer service.' :
           (self ? 'You are viewing your own public profile.' :
-           'Messaging and trading with other players requires authenticated multiplayer accounts.')) + '</p>' +
+           (multiMode ? 'Skirmishes against other players resolve one swing at a time. ' +
+            'The defender automatically retaliates; you must share a city.' :
+            'Messaging and trading with players requires authenticated multiplayer accounts.'))) + '</p>' +
         button("Back to Search", 'data-tab="people"', "ghost")) +
       '</div>';
   }
@@ -1023,8 +1090,8 @@
       '<div class="stack">' +
       panel("Propose a trade", "Gold, goods and equipment", form) +
       panel("Open offers", "Review the exact assets before acceptance",
-        button("Refresh offers", 'data-ui="trade-refresh"', "ghost") +
-        existing + (!existing ? '<p class="small">No pending offers.</p>' : '')) +
+        '<div id="trade-offers-list">' +
+        (existing || '<p class="small">No pending offers.</p>') + '</div>') +
       '</div>';
   }
 
@@ -1525,7 +1592,10 @@
           ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
           ' · Tuition ' + money(fee) + '</small></div>' + action + '</div>';
       }).join('');
-      return '<details class="university-school"><summary><span><strong>' +
+      return '<details class="university-school" data-university="' +
+        esc(school.id) + '"' +
+        (expandedUniversitySchool === school.id ? ' open' : '') +
+        '><summary><span><strong>' +
         esc(school.name) + '</strong><small>' +
         school.completed + ' of ' + school.total + ' courses completed</small></span>' +
         '<span class="university-expand" aria-hidden="true">⌄</span></summary>' +
@@ -1570,6 +1640,138 @@
       '</div></div>';
   }
 
+  function chatReadKey(channel) {
+    return "oathmere.read." + (state && state.actor_id || "hero") + "." + channel;
+  }
+  function readMarker(channel) {
+    try {
+      return Math.max(0, Number(localStorage.getItem(chatReadKey(channel))) || 0);
+    } catch { return 0; }
+  }
+  function saveReadMarker(channel, id) {
+    try {
+      localStorage.setItem(chatReadKey(channel), String(Math.max(
+        id, readMarker(channel))));
+    } catch { /* Storage blocked: unread counts remain session-only. */ }
+  }
+  function initializeReadMarkers() {
+    if (!multiMode || !state || !state.chat) return;
+    for (const channel of state.chat.channels || []) {
+      const key = chatReadKey(channel.key);
+      try {
+        if (localStorage.getItem(key) === null) {
+          const newest = Math.max(0, ...(state.chat.messages || [])
+            .filter(m => m.channel_key === channel.key).map(m => m.id));
+          localStorage.setItem(key, String(newest));
+        }
+      } catch { /* Continue without durable read cursors. */ }
+    }
+  }
+  function markChannelRead(channel) {
+    if (!multiMode || !state || !state.chat || !channel ||
+        document.visibilityState === "hidden") return;
+    const newest = Math.max(0, ...(state.chat.messages || [])
+      .filter(m => m.channel_key === channel).map(m => m.id));
+    saveReadMarker(channel, newest);
+  }
+  function unreadCount() {
+    if (!multiMode || !state || !state.chat) return 0;
+    return (state.chat.messages || []).filter(message =>
+      message.sender !== state.actor_id &&
+      message.id > readMarker(message.channel_key)).length;
+  }
+  function stopLiveEvents() {
+    if (liveEvents) {
+      liveEvents.close();
+      liveEvents = null;
+    }
+  }
+  function startLiveEvents() {
+    if (!multiMode || !state || !state.started ||
+        typeof EventSource === "undefined" || liveEvents) return;
+    const stream = new EventSource("/api/events");
+    liveEvents = stream;
+    stream.addEventListener("activity", event => {
+      if (stream !== liveEvents || !state || !state.started) return;
+      let update;
+      try { update = JSON.parse(event.data); } catch { return; }
+      if (update.actor_id !== state.actor_id ||
+          update.revision < (state.activity_revision || 0)) return;
+      state.activity_revision = update.revision;
+      state.chat = update.chat;
+      state.trades = update.trades;
+      state.minute = update.minute;
+      if (state.training_hall) state.training_hall.active = update.course_active;
+      if (update.player_status) {
+        Object.assign(state.player, update.player_status);
+      }
+      if (chatOpen) markChannelRead(chatChannelKey);
+      refreshLiveSurfaces();
+    });
+    // EventSource reconnects automatically and sends the session cookie.
+    // This stream intentionally has no client-controlled actor identifier.
+  }
+  function refreshLiveSurfaces() {
+    if (!state || !state.started) return;
+    const strip = document.querySelector(".activity-strip");
+    if (strip) strip.innerHTML = activityIcons();
+    const dock = document.querySelector(".chat-dock");
+    if (dock) {
+      const fragment = document.createElement("div");
+      fragment.innerHTML = chatDock();
+      const fresh = fragment.querySelector(".chat-dock");
+      if (fresh) {
+        const oldToggle = dock.querySelector(".chat-toggle");
+        const newToggle = fresh.querySelector(".chat-toggle");
+        if (oldToggle && newToggle) oldToggle.innerHTML = newToggle.innerHTML;
+        if (chatOpen) {
+          for (const selector of [".chat-channels", ".chat-history"]) {
+            const old = dock.querySelector(selector);
+            const next = fresh.querySelector(selector);
+            if (!old || !next || old.innerHTML === next.innerHTML) continue;
+            const atBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 32;
+            old.innerHTML = next.innerHTML;
+            if (selector === ".chat-history" && atBottom) old.scrollTop = old.scrollHeight;
+          }
+        }
+      }
+    }
+    if (tab === "trade") {
+      const current = document.getElementById("trade-offers-list");
+      if (current) {
+        const frame = document.createElement("div");
+        frame.innerHTML = renderTrade();
+        const next = frame.querySelector("#trade-offers-list");
+        if (next && current.innerHTML !== next.innerHTML)
+          current.innerHTML = next.innerHTML;
+      }
+    }
+    const header = document.querySelector(".statbar");
+    if (header) {
+      const fresh = [
+        meterStat("Health", state.player.hp, state.player.max_hp,
+                  "health", state.player.health_next_sim_seconds),
+        meterStat("Stamina", state.player.stamina, state.player.max_stamina,
+                  "stamina", state.player.stamina_next_sim_seconds),
+        meterStat("Mana", state.player.mana, state.player.max_mana,
+                  "mana", state.player.mana_next_sim_seconds)
+      ];
+      const oldVitals = header.querySelectorAll(".vital");
+      oldVitals.forEach((node, i) => {
+        if (fresh[i] && node.outerHTML !== fresh[i]) node.outerHTML = fresh[i];
+      });
+      const moneyLabel = header.querySelector(".gold-total strong");
+      if (moneyLabel) moneyLabel.textContent = money(state.player.gold);
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && chatOpen) {
+      markChannelRead(chatChannelKey);
+      refreshLiveSurfaces();
+    }
+  });
+
   function chatDock() {
     if (!state || !state.started) return "";
     const chat = state.chat || { channels: [], messages: [] };
@@ -1593,16 +1795,18 @@
       '" aria-label="Chat">' +
       '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
       'aria-expanded="' + chatOpen + '">' +
-      '<span aria-hidden="true">✉</span> Chat ' + (chatOpen ? '⌄' : '⌃') +
-      '</button>' +
+      '<span aria-hidden="true">✉</span> Chat ' +
+      (unreadCount() ? '<span class="chat-unread" aria-label="' +
+        unreadCount() + ' unread chat messages">' + Math.min(99, unreadCount()) +
+        (unreadCount() > 99 ? '+' : '') + '</span>' : '') +
+      (chatOpen ? '⌄' : '⌃') + '</button>' +
       (chatOpen ? '<div class="chat-content">' +
         '<div class="chat-channels">' + channels + '</div>' +
         '<p class="chat-preview-notice">' + (multiMode ?
-          'Local multi-account chat · Refresh to see messages from other players.' :
+          'Live local chat · Unread messages appear beside the Chat tab.' :
           'Local preview: only one human account is connected. ' +
           'Live player-to-player chat requires separate authenticated accounts.') +
-        (multiMode ? ' <button class="chat-refresh-link" type="button" ' +
-          'data-ui="chat-refresh">Refresh</button>' : '') + '</p>' +
+        '</p>' +
         '<div class="chat-history" aria-live="polite">' +
         (posts.length ? posts.map(post =>
           '<div class="chat-post"><strong>' +
@@ -1735,6 +1939,12 @@
   });
 
   root.addEventListener("click", event => {
+    const summary = event.target.closest(".university-school > summary");
+    if (summary) {
+      const details = summary.parentElement;
+      expandedUniversitySchool = details.open ? null : details.dataset.university;
+      return;
+    }
     const element = event.target.closest("button");
     if (!element || pending || element.disabled) return;
     if (element.dataset.tab) {
@@ -1743,7 +1953,7 @@
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
-    if (element.dataset.school) {
+    if (element.dataset.school && !element.dataset.ui) {
       school = element.dataset.school;
       render();
       return;
@@ -1756,6 +1966,7 @@
         (async () => {
           try {
             await request("/api/auth/logout", {});
+            stopLiveEvents();
             state = null;
             csrfToken = "";
             authNeeded = true;
@@ -1767,10 +1978,12 @@
         })(); break;
       case "chat-toggle":
         chatOpen = !chatOpen;
+        if (chatOpen) markChannelRead(chatChannelKey);
         render(); break;
       case "chat-channel":
         if (chatChannelKey !== element.dataset.key) chatDraft = "";
         chatChannelKey = element.dataset.key;
+        markChannelRead(chatChannelKey);
         render(); break;
       case "chat-refresh":
         (async () => {
@@ -1791,6 +2004,7 @@
           if (chatChannelKey !== "direct:" + chatDirectTarget) chatDraft = "";
           chatChannelKey = "direct:" + chatDirectTarget;
           chatOpen = true;
+          markChannelRead(chatChannelKey);
           render();
         } else {
           notify("Direct chat needs authenticated multiplayer accounts. NPCs cannot receive DMs.", true);
@@ -1822,6 +2036,15 @@
         action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
         action("church_heal", {}, "The church restores your health"); break;
+      case "activity-trade":
+        tab = "trade"; render(); break;
+      case "activity-travel":
+        tab = "world"; render(); break;
+      case "activity-university":
+        tab = "training";
+        if (state.training_hall && state.training_hall.active)
+          expandedUniversitySchool = state.training_hall.active.school;
+        render(); break;
       case "course-enroll":
         action("enroll_course_choice", {
           school: element.dataset.school, index: Number(element.dataset.index)
@@ -1885,9 +2108,16 @@
       case "trade-close":
         action("close_trade", { trade_id: Number(element.dataset.tradeId) },
           "Trade closed; escrow returned to maker"); break;
-      case "player-attack":
-        action("start_duel", { defender_id: element.dataset.player },
-          "Challenge accepted · no entry stamina"); break;
+      case "player-attack": {
+        const person = (state.users || []).find(p => p.id === element.dataset.player);
+        if (multiMode && person && person.kind === "human") {
+          action("pvp_strike", { defender_id: person.id }, "Player skirmish resolved");
+        } else {
+          action("start_duel", { defender_id: element.dataset.player },
+            "Challenge accepted · no entry stamina");
+        }
+        break;
+      }
       case "duel-swing":
         action("duel_turn", { move: element.dataset.move, node_id: "" },
           "Attack resolved"); break;

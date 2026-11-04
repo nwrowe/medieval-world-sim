@@ -26,7 +26,7 @@ The ordinary command with no `--multiplayer-db` remains the original single-play
 
 ## Development limitations
 
-This is a **single-process local bridge**, not an internet-hardened service. The shared world is reconstructed from a bounded journal on restart; there is no normalized PostgreSQL player/asset ledger, migration/backup management, scale-out, distributed transactions or production monitoring. Chat updates are visible when the state is refreshed; they are not pushed through WebSockets yet. Existing turn-based attacks target NPCs; PvP will need its own combat policy. A player-initiated world-time advance currently advances simulated time for everyone, which will need redesign for a live game. Sessions expire after 24 hours and the development backend has a maximum of 100 accounts and 20,000 journal entries. Password reset, MFA, account recovery, moderation and anti-spam controls remain future work.
+This is a **single-process local bridge**, not an internet-hardened service. The shared world is reconstructed from a bounded journal on restart; there is no normalized PostgreSQL player/asset ledger, migration/backup management, scale-out, distributed transactions or production monitoring. Chat and incoming trade alerts are now pushed through **authenticated SSE** on localhost with bounded connections. NPC attacks remain turn-based, while player-versus-player attacks are one-swing server-resolved skirmishes (weapon-specific stamina, automatic counterattack and capped gold loot); there is no full player-versus-player turn-based challenge protocol yet. A player-initiated world-time advance currently advances simulated time for everyone, which will need redesign for a live game. Sessions expire after 24 hours and the development backend has a maximum of 100 accounts and 20,000 journal entries. Password reset, MFA, account recovery, moderation and anti-spam controls remain future work.
 
 **Do not put this login mode online as-is.** Before public hosting, require TLS with Secure session cookies, hardened proxy and DNS/Host controls, application-level rate limits across IPs and accounts, password-reset and anti-abuse procedures, backups, a production database with transactional concurrency handling, and a deployment security review.
 
@@ -39,4 +39,8 @@ This is a **single-process local bridge**, not an internet-hardened service. The
 5. Try using Bob's cookie to send a request with an extra `actor_id` field naming Alice; the API must reject it.
 6. Retry an already committed action using the same action ID; it must not spend resources twice.
 
-The test suite includes automated account isolation, CSRF, forged identity, idempotency, rollback, trade concurrency, and persistence cases.
+The test suite includes automated account isolation, CSRF, forged identity, idempotency, rollback, trade concurrency, persistence, direct-message streaming privacy and PvP tests.
+
+## Active activities
+
+The top status area displays only current cooldowns, incoming trade requests, active travel and ongoing University studies. Trade is accessible through character profiles or the incoming-trade indicator instead of an always-visible top menu button. University enrollment now executes correctly from the expanded school panel, and its simulated-time remaining duration is shown in the activity icon tooltip. A compact unread count appears beside Chat when other people send unread messages.

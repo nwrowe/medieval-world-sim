@@ -126,6 +126,8 @@ EVENT_FIELDS = {
     "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "city_sale": ["city_id", "company_id", "item", "price", "quality_stars", "day"],
     "consumed": ["actor_id", "item", "health_restored", "stamina_restored", "hunger_relieved"],
+    "pvp_strike": ["attacker_id", "defender_id", "damage", "retaliation",
+                   "stamina_spent", "gold_looted"],
     "duel_started": ["attacker_id", "defender_id", "stamina_spent"],
     "duel_round": ["attacker_id", "defender_id", "round", "move", "damage", "retaliation"],
     "duel_finished": ["winner_id", "loser_id", "gold", "recovery_minutes"],

@@ -724,3 +724,19 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   border-radius:8px;padding:12px;margin-bottom:12px; }
 .trade-asset-details p { font-size:13px;line-height:1.6;margin:6px 0; }
 @media(max-width:680px) { .trade-terms { grid-template-columns:1fr; } }
+
+/* The former fixed cooldown row is now contextual: only active work is shown. */
+.activity-strip:empty { display:none; }
+.activity-clickable { cursor:pointer; font:inherit; }
+.activity-clickable:hover { border-color:#b99a61; background:rgba(247,221,162,.12); }
+.activity-clickable:focus-visible { outline:2px solid #e7c579;outline-offset:3px; }
+.activity-trade { border-color:#e2ba6d; }
+.activity-trade span { color:#f6d086; }
+.chat-unread { min-width:19px;height:19px;padding:1px 5px;display:inline-flex;
+  align-items:center;justify-content:center;border-radius:99px;
+  background:#de9d4d;color:#192b22;font-size:11px;font-weight:850;line-height:1; }
+.chat-toggle .chat-unread { margin-left:auto;font-size:11px; }
+@media(max-width:640px) {
+  .activity-strip:empty { display:none; }
+  .activity-clickable { min-width:62px; }
+}

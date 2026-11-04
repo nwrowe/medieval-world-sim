@@ -26,6 +26,7 @@ from ..catalog import CITIES
 from ..core.engine import WorldEngine
 from ..core.entities import Actor
 from ..errors import ActionError
+from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
 
@@ -42,7 +43,7 @@ MAX_JOURNAL = 20000
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
 MULTI_ACTIONS = UI_ACTIONS - {"enroll_course"} | {
-    "propose_trade", "accept_trade", "close_trade",
+    "propose_trade", "accept_trade", "close_trade", "pvp_strike",
 }
 
 
@@ -81,6 +82,9 @@ class MultiplayerGame:
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
+        self._activity_changed = threading.Condition(self._lock)
+        self._revision = 0
+        self._event_slots = threading.BoundedSemaphore(20)
         # A single process owns the in-memory simulation. SQLite exclusive
         # locking prevents two processes independently committing stale worlds.
         self.db = sqlite3.connect(str(self.db_path), isolation_level=None,
@@ -192,6 +196,9 @@ class MultiplayerGame:
         self.world.assert_invariants()
         if self.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] != len(registered):
             raise ValueError("Account and world registration journal differ")
+        # The stream revision must remain stable after restart, as game
+        # snapshots and browser reconnects use it to reject stale updates.
+        self._revision = len(rows)
 
     @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
@@ -209,6 +216,13 @@ class MultiplayerGame:
                 result = action()
                 self.world.assert_invariants()
                 self.db.execute("COMMIT")
+                # Deduplicated command retries do not append a journal row:
+                # they must not manufacture new activity revisions.
+                revision = self.db.execute(
+                    "SELECT COUNT(*) FROM world_journal").fetchone()[0]
+                if revision != self._revision:
+                    self._revision = revision
+                    self._activity_changed.notify_all()
                 return result
             except BaseException:
                 try:
@@ -374,6 +388,69 @@ class MultiplayerGame:
     def advance(self, actor_id: str, minutes: int, request_id: str):
         return self._run(actor_id, "advance", None, {"minutes": minutes}, request_id)
 
+    def _social_view(self, actor_id: str) -> dict:
+        """Account-scoped streaming data; never broadcast raw world state."""
+        actor = self.world._actor(actor_id)
+        chat = self.world.chat_system.view(actor_id)
+        for channel in chat["channels"]:
+            if channel["kind"] == "direct":
+                channel["label"] = self.names.get(channel["target"], "Player")
+        for message in chat["messages"]:
+            message["sender_name"] = self.names.get(
+                message["sender"], message["sender"])
+        trades = self.world.trades_system.list_for(actor_id)
+        for proposal in trades:
+            proposal["maker_name"] = self.names.get(proposal["maker"], "Player")
+            proposal["recipient_name"] = self.names.get(proposal["recipient"], "Player")
+            for side in ("offer", "request"):
+                # Offered equipment is visible to the recipient; requested
+                # equipment details belong only to the requested owner.
+                # A maker must not probe other people's gear by guessing IDs.
+                can_inspect = side == "offer" or actor_id == proposal["recipient"]
+                proposal[side + "_gear"] = [
+                    {"id": gid, "kind": self.world.gear[gid].kind,
+                     "quality": self.world.gear[gid].quality,
+                     "durability": self.world.gear[gid].durability}
+                    for gid in proposal[side]["gear_ids"]
+                    if can_inspect and gid in self.world.gear
+                ]
+        return {
+            "actor_id": actor_id, "revision": self._revision,
+            "chat": chat, "trades": trades, "minute": self.world.minute,
+            "course_active": self.world.curriculum_system.view(actor_id)["active"],
+            "player_status": {
+                "hp": actor.hp, "max_hp": actor.max_hp,
+                "stamina": actor.stamina, "max_stamina": actor.max_stamina,
+                "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
+                "gold": actor.gold, "city": actor.city,
+                "destination": actor.destination,
+                "arrival_minute": actor.arrival_minute,
+                "cooldowns": {
+                    name: {"remaining_minutes": remaining(
+                        actor, name, self.world.minute), "max_minutes": 1440}
+                    for name in ("job", "food", "potion")
+                },
+            },
+        }
+
+    def social_snapshot(self, actor_id: str) -> dict:
+        with self._lock:
+            if actor_id not in self.names:
+                raise AuthError("Unknown account")
+            return self._social_view(actor_id)
+
+    def next_activity_revision(self, since: int, timeout: float = 12.0) -> int:
+        with self._activity_changed:
+            if since == self._revision:
+                self._activity_changed.wait(timeout=timeout)
+            return self._revision
+
+    def acquire_event_slot(self) -> bool:
+        return self._event_slots.acquire(blocking=False)
+
+    def release_event_slot(self):
+        self._event_slots.release()
+
     def snapshot(self, actor_id: str):
         with self._lock:
             if actor_id not in self.names:
@@ -381,24 +458,8 @@ class MultiplayerGame:
             result = world_snapshot(self.world, actor_id, self.names[actor_id],
                                     self.npc_names, self.names, {}, True)
             result["actor_id"] = actor_id
-            # Only this authenticated account's authorized chat messages and
-            # trade offers are projected. Display labels are server-derived.
-            for channel in result["chat"]["channels"]:
-                if channel["kind"] == "direct":
-                    channel["label"] = self.names.get(channel["target"], "Player")
-            for message in result["chat"]["messages"]:
-                message["sender_name"] = self.names.get(
-                    message["sender"], message["sender"])
-            result["trades"] = self.world.trades_system.list_for(actor_id)
-            for proposal in result["trades"]:
-                proposal["maker_name"] = self.names.get(proposal["maker"], "Player")
-                proposal["recipient_name"] = self.names.get(proposal["recipient"], "Player")
-                for side in ("offer", "request"):
-                    proposal[side + "_gear"] = [
-                        {"id": gid, "kind": self.world.gear[gid].kind,
-                         "quality": self.world.gear[gid].quality,
-                         "durability": self.world.gear[gid].durability}
-                        for gid in proposal[side]["gear_ids"]
-                        if gid in self.world.gear
-                    ]
+            social = self._social_view(actor_id)
+            result["chat"] = social["chat"]
+            result["trades"] = social["trades"]
+            result["activity_revision"] = self._revision
             return result
