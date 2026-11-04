@@ -43,6 +43,12 @@ SCHOOLS = {
 # The fifth course in each school is an introduction to applied scholarship.
 # These are small cumulative skill improvements; no consumable resource is minted.
 STAT_BONUS = (1, 1, 1, 2, 2, 2, 3, 4)
+CAPSTONE_PERKS = {
+    "geometry": ("endurance", 2),
+    "music": ("endurance", 2),
+    "astronomy": ("manual", 2),
+    "commerce": ("intelligence", 2),
+}
 
 @dataclass
 class CourseEnrollment:
@@ -84,7 +90,14 @@ class CurriculumSystem:
             self.world._emit("course_completed", actor_id, school, enrollment.index, stat, bonus)
             del self.world.state.active_courses[actor_id]
             if enrollment.index == 7:
+                perk = CAPSTONE_PERKS.get(school)
+                if perk is not None:
+                    attribute, amount = perk
+                    setattr(actor.work, attribute, getattr(actor.work, attribute) + amount)
+                    self.world._emit("school_capstone_perk", actor_id, school, attribute, amount)
                 self.world._emit("school_graduated", actor_id, school)
+                # Graduation grants exactly one merit; automatic, not repeatable.
+                self.world.merit_system.claim(actor_id, "school:" + school)
 
     def view(self, actor_id: str) -> dict:
         counts = self.world.state.completed_courses.get(actor_id, {})
@@ -96,6 +109,9 @@ class CurriculumSystem:
                 "id": key, "name": name, "tradition": tradition,
                 "stat": stat, "complete": count == 8,
                 "completed": count, "total": 8,
+                "capstone_perk": ({"stat": CAPSTONE_PERKS[key][0],
+                                  "bonus": CAPSTONE_PERKS[key][1]}
+                                 if key in CAPSTONE_PERKS else None),
                 "courses": [{"name": title, "days": DAYS[i], "stat_bonus": STAT_BONUS[i],
                              "completed": i < count, "active": bool(active and active.school == key and active.index == i),
                              "available": i == count and not active}
