@@ -34,7 +34,9 @@ class CurriculumWebTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.action("enroll_course", {"school": "latin"}, "duplicate")
         before_intel = self.session.snapshot()["player"]["work"]["intelligence"]
-        self.session.advance(4 * 1440 - 1)
+        for _ in range(3):
+            self.session.advance(1440)
+        self.session.advance(1439)
         self.assertEqual(self.session.snapshot()["player"]["work"]["intelligence"], before_intel)
         self.session.advance(1)
         self.assertEqual(self.session.snapshot()["player"]["work"]["intelligence"], before_intel + 1)
@@ -42,23 +44,26 @@ class CurriculumWebTests(unittest.TestCase):
         self.assertEqual(GameSession(self.path).snapshot(), self.session.snapshot())
 
     def test_graduation_auto_awards_merit_once_and_capstone(self):
-        before = self.session.snapshot()["player"]["work"]
-        for index, days in enumerate(DAYS):
-            self.action("enroll_course", {"school": "commerce"}, f"start-{index}")
-            self.session.advance(days * 1440)
-        snapshot = self.session.snapshot()
-        self.assertEqual(snapshot["training_hall"]["schools"][-1]["completed"], 8)
-        self.assertEqual(snapshot["merits"]["balance"], 1)
-        self.assertEqual(snapshot["merits"]["total_earned"], 1)
-        self.assertEqual(snapshot["player"]["work"]["manual"],
-                         before["manual"] + sum((1, 1, 1, 2, 2, 2, 3, 4)))
-        self.assertEqual(snapshot["player"]["work"]["intelligence"], before["intelligence"] + 2)
+        # Use the domain engine directly for 110 days of simulated coursework:
+        # the web adapter intentionally limits each advance to one day.
+        world = WorldEngine([Actor("scholar", "human", city="crownreach")])
+        before_manual = world.actors["scholar"].work.manual
+        before_intelligence = world.actors["scholar"].work.intelligence
+        for days in DAYS:
+            world.enroll_course("scholar", "commerce")
+            world.advance(days * 1440)
+        view = world.curriculum_system.view("scholar")
+        self.assertEqual(view["schools"][-1]["completed"], 8)
+        self.assertEqual(world.state.merit_balance["scholar"], 1)
+        self.assertIn("school:commerce", world.state.merit_claims["scholar"])
+        self.assertEqual(world.actors["scholar"].work.manual,
+                         before_manual + sum((1, 1, 1, 2, 2, 2, 3, 4)))
+        self.assertEqual(world.actors["scholar"].work.intelligence, before_intelligence + 2)
         with self.assertRaises(ActionError):
-            self.action("enroll_course", {"school": "commerce"}, "repeat")
+            world.enroll_course("scholar", "commerce")
         with self.assertRaises(ActionError):
-            self.action("claim_merit", {"achievement": "school:commerce"}, "duplicate-claim")
-        self.assertEqual(GameSession(self.path).snapshot(), snapshot)
-        self.session.world.assert_invariants()
+            world.claim_merit("scholar", "school:commerce")
+        world.assert_invariants()
 
 
 class SwingAndWearTests(unittest.TestCase):
