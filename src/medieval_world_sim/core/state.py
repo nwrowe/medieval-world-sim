@@ -7,6 +7,7 @@ from ..equipment import GearItem
 from ..systems.curriculum import CourseEnrollment
 from ..systems.guilds import Guild, WarRecord
 from ..systems.chat import ChatMessage, ChatRoom
+from ..systems.trades import TradeProposal
 
 
 @dataclass
@@ -46,3 +47,5 @@ class WorldState:
     next_chat_id: int = 1
     chat_rooms: dict[str, ChatRoom] = field(default_factory=dict)
     next_chat_room_id: int = 1
+    trades: dict[int, TradeProposal] = field(default_factory=dict)
+    next_trade_id: int = 1

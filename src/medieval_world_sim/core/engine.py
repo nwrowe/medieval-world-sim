@@ -35,6 +35,7 @@ from ..systems.track import TrackSystem
 from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
 from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
 from ..systems.chat import ChatSystem, MAX_MESSAGES_SAVED, MAX_MESSAGE_LENGTH
+from ..systems.trades import TradeSystem, TradeAssets
 from ..systems.curriculum import CurriculumSystem, SCHOOLS, CURRENT_SCHOOLS
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
@@ -81,6 +82,7 @@ class WorldEngine:
         self.resources = ResourceSystem(self)
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
+        self.trades_system = TradeSystem(self)
         self.combat = CombatSystem(self)
         self.duel_system = DuelSystem(self)
         self.spell_system = SpellSystem(self)
@@ -173,7 +175,8 @@ class WorldEngine:
     def total_gold(self) -> int:
         return (self.crown_gold + sum(a.gold for a in self.actors.values())
                 + sum(c.gold for c in self.companies.values())
-                + sum(city.household_gold for city in self.cities.values()))
+                + sum(city.household_gold for city in self.cities.values())
+                + sum(t.offer.gold for t in self.state.trades.values()))
 
     def _emit(self, kind: str, *details: object) -> None:
         self.events.append(WorldEvent(
@@ -334,6 +337,19 @@ class WorldEngine:
     @atomic_action
     def cancel_offer(self, initiator_id: str, offer_id: int) -> None:
         return self.market.cancel_offer(initiator_id, offer_id)
+
+    @atomic_action
+    def propose_trade(self, principal_id: str, recipient_id: str,
+                      offer: dict, request: dict) -> dict:
+        return self.trades_system.propose(principal_id, recipient_id, offer, request)
+
+    @atomic_action
+    def accept_trade(self, principal_id: str, trade_id: int, terms_hash: str) -> dict:
+        return self.trades_system.accept(principal_id, trade_id, terms_hash)
+
+    @atomic_action
+    def close_trade(self, principal_id: str, trade_id: int) -> dict:
+        return self.trades_system.close(principal_id, trade_id)
 
     def regional_quote(self, city_id: str, item: str) -> RegionalQuote:
         return self.regional_trade.quote(city_id, item)
@@ -546,6 +562,9 @@ class WorldEngine:
                 "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
                 "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
                 "cancel_offer": ("cancel_offer", ("offer_id",)),
+                "propose_trade": ("propose_trade", ("recipient_id", "offer", "request")),
+                "accept_trade": ("accept_trade", ("trade_id", "terms_hash")),
+                "close_trade": ("close_trade", ("trade_id",)),
                 "complete_city_contract": ("complete_city_contract", ("contract_id",)),
                 "buy_starter_gear": ("buy_starter_gear", ("kind",)),
                 "equip": ("equip", ("gear_id",)),
@@ -777,6 +796,33 @@ class WorldEngine:
                 raise AssertionError("Invalid regional deposits")
         holdings = [gear_id for a in self.actors.values() for gear_id in a.gear_ids]
         holdings += [gear_id for company in self.companies.values() for gear_id in company.gear_ids]
+        if (type(self.state.next_trade_id) is not int
+                or self.state.next_trade_id < 1):
+            raise AssertionError("Invalid next trade ID")
+        for trade_id, proposal in self.state.trades.items():
+            if (type(trade_id) is not int or trade_id <= 0
+                    or trade_id >= self.state.next_trade_id
+                    or proposal.id != trade_id
+                    or proposal.maker not in self.actors
+                    or proposal.recipient not in self.actors
+                    or proposal.maker == proposal.recipient
+                    or self.actors[proposal.maker].kind != "human"
+                    or self.actors[proposal.recipient].kind != "human"
+                    or proposal.city not in CITIES
+                    or proposal.terms_hash != self.trades_system._hash(
+                        proposal.maker, proposal.recipient, proposal.city,
+                        proposal.offer, proposal.request)):
+                raise AssertionError("Corrupted trade proposal")
+            if proposal.offer.empty() and proposal.request.empty():
+                raise AssertionError("Empty trade proposal")
+            for bundle in (proposal.offer, proposal.request):
+                if (type(bundle.gold) is not int or not 0 <= bundle.gold <= 10**12
+                        or len(bundle.items) > 16 or len(bundle.gear_ids) > 16
+                        or len(set(bundle.gear_ids)) != len(bundle.gear_ids)
+                        or any(item not in GOODS or type(qty) is not int or qty <= 0
+                               for item, qty in bundle.items)):
+                    raise AssertionError("Invalid escrow asset bundle")
+            holdings.extend(proposal.offer.gear_ids)
         for offer in self.offers.values():
             if offer.quantity <= 0:
                 raise AssertionError("Invalid market escrow")
