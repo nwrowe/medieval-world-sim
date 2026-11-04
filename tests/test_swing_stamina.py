@@ -53,7 +53,7 @@ class WeaponStaminaTests(unittest.TestCase):
         self.action("start_duel", {"defender_id": self.foe()}, "start")
         for move, cost in (("fists", 1), ("dagger", 2), ("strike", 5)):
             before = self.game.snapshot()["player"]["stamina"]
-            result = self.action("duel_turn", {"move": move, "node_id": ""}, move)
+            result = self.action("duel_turn", {"move": move, "node_id": ""}, "hit-" + move)
             self.assertEqual(result["stamina_spent"], cost)
             self.assertEqual(self.game.snapshot()["player"]["stamina"], before - cost)
         self.assertEqual(GameSession(self.path).snapshot(), self.game.snapshot())
