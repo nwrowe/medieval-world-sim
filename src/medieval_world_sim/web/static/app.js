@@ -1758,6 +1758,28 @@
       message.sender !== state.actor_id &&
       message.id > readMarker(message.channel_key)).length;
   }
+  function stopPresence() {
+    if (presenceTimer !== null) {
+      clearInterval(presenceTimer);
+      presenceTimer = null;
+    }
+  }
+  async function sendPresence(visible = document.visibilityState === "visible") {
+    if (!multiMode || !state || !state.started || !csrfToken) return;
+    try {
+      await request("/api/presence", { visible }, !visible);
+    } catch {
+      // Presence is advisory. A transient network or authentication failure
+      // must never prevent the game itself from being played.
+    }
+  }
+  function startPresence() {
+    if (!multiMode || !state || !state.started) return;
+    if (presenceTimer === null) {
+      presenceTimer = setInterval(() => sendPresence(), 30000);
+    }
+    sendPresence();
+  }
   function stopLiveEvents() {
     if (liveEvents) {
       liveEvents.close();
@@ -1869,10 +1891,15 @@
   }
 
   document.addEventListener("visibilitychange", () => {
+    sendPresence();
     if (document.visibilityState === "visible" && chatOpen) {
       markChannelRead(chatChannelKey);
       refreshLiveSurfaces();
     }
+  });
+  window.addEventListener("pagehide", () => {
+    sendPresence(false);
+    stopPresence();
   });
 
   function chatDock() {
