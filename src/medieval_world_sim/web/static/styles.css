@@ -655,3 +655,17 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 @media (max-width:1080px) { .university-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:640px) { .university-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:380px) { .university-grid { grid-template-columns:1fr; } }
+
+
+/* Public character profiles reveal only server-approved directory details. */
+.character-name-link {
+  appearance:none; border:0; padding:0; background:transparent;
+  font:inherit; font-weight:700; color:#315d4d; cursor:pointer;
+  text-align:left; text-decoration:underline; text-decoration-color:#9baa93;
+  text-underline-offset:3px;
+}
+.character-name-link:hover, .character-name-link:focus-visible {
+  color:#173d30; text-decoration-color:currentColor;
+}
+.character-public-profile { padding:23px; }
+.character-public-profile h3 { font-size:23px; margin:6px 0 17px; }
