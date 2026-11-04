@@ -471,6 +471,17 @@ class GameSession:
                     ),
                     "recovering_minutes": max(0, (npc.defeated_until or 0) - now),
                 })
+            combat_moves = []
+            for move in ("strike", "dagger", "fists"):
+                if move == "strike" and "weapon" not in actor.equipped:
+                    continue
+                if move == "dagger" and "secondary" not in actor.equipped:
+                    continue
+                label, _, cost = w.combat.melee_option(actor, move)
+                combat_moves.append({
+                    "move": move, "label": "Primary: " + label if move == "strike" else label,
+                    "stamina": cost, "available": actor.stamina >= cost,
+                })
             return {
                 "started": True, "name": self.name,
                 "minute": now, "day": now // 1440 + 1,
@@ -548,20 +559,7 @@ class GameSession:
                 "duel": active_duel,
                 "last_duel": w.state.last_duels.get(PLAYER_ID),
                 "combat_stamina_cost": 0,
-                "combat_moves": [
-                    {"move": move, "label": label, "stamina": cost,
-                     "available": actor.stamina >= cost}
-                    for move in ("strike", "dagger", "fists")
-                    for label, slot, cost in [(
-                        ("Primary: " + w.gear[actor.equipped["weapon"]].kind.replace("_", " ").title())
-                        if move == "strike" and actor.equipped.get("weapon") else
-                        ("Primary: Fists" if move == "strike" else move.title()),
-                        ("secondary" if move == "dagger" else
-                         "weapon" if move == "strike" else None),
-                        (w.combat.melee_option(actor, move)[2]
-                         if move != "dagger" or actor.equipped.get("secondary") else 2)
-                    )] if move != "dagger" or actor.equipped.get("secondary")
-                ],
+                "combat_moves": combat_moves,
                 "church": {"price": 20, "available": (
                     actor.hp > 0 and actor.hp < actor.max_hp and
                     w.state.church_healed_day.get(PLAYER_ID) != now // 1440),
