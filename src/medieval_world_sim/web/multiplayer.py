@@ -72,7 +72,7 @@ def _digest(token: str) -> bytes:
 
 def _password_hash(password: str, salt: bytes) -> bytes:
     return hashlib.scrypt(password.encode("utf-8"), salt=salt,
-                          n=PASSWORD_N, r=PASSWORD_R, p=PASSWORD_P, dklen=32)
+                          n=PASSWORD_N, r=PASSWORD_R, p=PASSWORD_P, dklen=32,\n                          maxmem=64 * 1024 * 1024)
 
 
 class MultiplayerGame:
