@@ -74,7 +74,7 @@ class WeaponStaminaTests(unittest.TestCase):
     def test_exhausted_sword_swing_is_rejected_and_defender_stays_fresh(self):
         world = WorldEngine([
             Actor("hero", "human", city="crownreach", gold=70),
-            Actor("foe", "npc", city="crownreach", gold=10),
+            Actor("foe", "npc", city="crownreach", gold=70),
         ])
         sword = world.buy_starter_gear("hero", "sword")
         world.equip("hero", sword)
@@ -99,7 +99,7 @@ class WeaponStaminaTests(unittest.TestCase):
         def opening_damage(with_armor):
             world = WorldEngine([
                 Actor("hero", "human", city="crownreach", gold=70),
-                Actor("foe", "npc", city="crownreach", gold=10),
+                Actor("foe", "npc", city="crownreach", gold=70),
             ])
             if with_armor:
                 for kind in ("iron_helm", "iron_greaves", "iron_boots"):
