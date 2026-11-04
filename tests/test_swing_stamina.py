@@ -87,12 +87,14 @@ class WeaponStaminaTests(unittest.TestCase):
         before_round = world.state.duels["hero"].round
         with self.assertRaises(ActionError):
             world.duel_turn("hero", "strike", "")
-        self.assertEqual(attacker.stamina, 4)
-        self.assertEqual(defender.hp, before_hp)
+        # Rejected atomic actions restore the entire state snapshot. Always
+        # read actors back from the engine, not a stale pre-rollback reference.
+        self.assertEqual(world.actors["hero"].stamina, 4)
+        self.assertEqual(world.actors["foe"].hp, before_hp)
         self.assertEqual(world.state.duels["hero"].round, before_round)
         world.duel_turn("hero", "fists", "")
-        self.assertEqual(attacker.stamina, 3)
-        self.assertEqual(defender.stamina, 0)
+        self.assertEqual(world.actors["hero"].stamina, 3)
+        self.assertEqual(world.actors["foe"].stamina, 0)
         world.assert_invariants()
 
     def test_armored_body_slots_reduce_damage(self):
