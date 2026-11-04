@@ -30,10 +30,10 @@ class CurriculumWebTests(unittest.TestCase):
         self.assertEqual(sum(len(s["courses"]) for s in view["schools"]), 80)
         self.assertEqual(DAYS, (4, 6, 8, 10, 13, 17, 22, 30))
         self.assertEqual(sum(DAYS), 110)
-        start = self.action("enroll_course", {"school": "rhetoric"}, "enroll-1")
+        start = self.action("enroll_course_choice", {"school": "rhetoric", "index": 0}, "enroll-1")
         self.assertEqual(start["ends_at"], 4 * 1440)
         with self.assertRaises(ActionError):
-            self.action("enroll_course", {"school": "latin"}, "duplicate")
+            self.action("enroll_course_choice", {"school": "latin", "index": 0}, "duplicate")
         before_intel = self.session.snapshot()["player"]["work"]["intelligence"]
         for _ in range(3):
             self.session.advance(1440)
