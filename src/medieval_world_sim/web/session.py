@@ -625,7 +625,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
     characters = [{
         "id": actor_id, "name": name, "city": actor.city, "level": actor.level,
         "kind": "human", "hp": actor.hp, "max_hp": actor.max_hp,
-        "can_attack": False, "recovering_minutes": max(0, (actor.defeated_until or 0) - now),
+        "can_attack": False, "traveling": actor.destination is not None,
+        "recovering_minutes": max(0, (actor.defeated_until or 0) - now),
     }]
     for npc_id, npc_name in npc_names.items():
         npc = w.actors[npc_id]
@@ -639,6 +640,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                     npc.id in (d.attacker_id, d.defender_id)
                     for d in w.state.duels.values())
             ),
+            "traveling": npc.destination is not None,
             "recovering_minutes": max(0, (npc.defeated_until or 0) - now),
         })
     if multiplayer:
@@ -657,6 +659,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                         other.id in (d.attacker_id, d.defender_id)
                         for d in w.state.duels.values())
                 ),
+                "traveling": other.destination is not None,
                 "recovering_minutes": max(0, (other.defeated_until or 0) - now),
             })
     combat_moves = []
