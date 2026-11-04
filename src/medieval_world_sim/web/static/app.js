@@ -481,7 +481,8 @@
     return panel("Carried inventory", "Goods and resources", body, chip(p.cargo + " items"));
   }
   const chronicleCategories = ["Trade", "Combat", "Travel", "University",
-    "Economy", "Equipment", "Magic", "Property", "Guild", "Progression", "Other"];
+    "Economy", "Equipment", "Magic", "Health", "Racing", "Property",
+    "Guild", "Progression", "Other"];
   function chronicleEvents() {
     const query = chronicleQuery.trim().toLowerCase();
     return (state.events || []).filter(event =>
