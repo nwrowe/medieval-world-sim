@@ -131,3 +131,23 @@ The Equipment screen shows a simple original SVG human silhouette with a few ite
 Search → Items lists all known resources, processed goods, consumables and equipment, including those with no active vendor. For raw materials, prices are obtained from the authoritative quotes of all five cities; a quote appears as available only while the relevant merchant has capacity, funds and stock. Equipment shows its fixed rough-starter purchase price in Crownreach. The highest sale quote for equipment and crafted products is absent until those products have actual supported city buying rules. Average player-to-player value remains untracked.
 
 At the **Track**, own one of three horse breeds: Moor Pony, Valley Runner or Royal Courser. Horse purchases permanently debit gold to the crown treasury. Each race costs 15 stamina and a 10-gold entry fee; a win transfers a 30-gold prize from the crown treasury when funded. Races have a 60-simulated-minute rest requirement, earn riding XP, and resolve deterministically using horse speed/endurance, the rider's accumulated skill and seed-based variability. This is not a gambling facility, live multiplayer racing or a full breeding system. Purchases and races participate in the same idempotent action journal and replay as other gameplay.
+
+## Per-swing melee stamina and segmented equipment
+
+The browser's NPC **turn-based duels** no longer charge 20 stamina to start. Your character spends stamina **only when initiating a physical strike**:
+
+| Move | Cost per swing | When available |
+| --- | ---: | --- |
+| Fists | 1 stamina | Always available |
+| Dagger | 2 stamina | Dagger equipped in secondary slot |
+| Sword | 5 stamina | Sword equipped as primary |
+| Axe | 7 stamina | Axe equipped as primary |
+| Bow | 4 stamina | Bow equipped as primary |
+
+Primary-weapon attacks choose the equipped weapon; if nothing is equipped, fists are the fallback. Guards, fleeing and enemy counterattacks cost **zero stamina**, even when the defender's primary weapon or dagger is used. Magical effects still use mana; enchantment/divination attacks that perform a physical swing also spend the corresponding melee stamina.
+
+The interface shows current stamina and each attack's cost, and disables attacks you cannot afford; trying to use a non-equipped dagger or insufficient stamina is rejected by the server without consuming an action or changing health. Stamina regains on existing 5-simulated-minute boundaries, not between successive duel rounds. Weapons and struck armor continue to wear down.
+
+New equipment slots are **secondary** (dagger), **helm**, **boots**, **greaves**, and **gloves**. Each equipped defensive item contributes to the defender's total armor value and its durability wears on hits. New leather and iron armor options are available in the Crownreach starter armory. The pre-existing **tool** slot and pickaxe remain for compatibility with player equipment already stored in saves; tools are utility gear, not alternate combat weapons.
+
+**Save compatibility:** old action journal records (rulesets 1–6) replay turn-based combat using the historical 20-stamina initiation cost and no stamina cost on strikes. New duel command records use **ruleset 7**. The older single-action simulation API `WorldEngine.attack()` is still governed by its legacy 20-stamina fee; web combat uses the more tactical `start_duel` / `duel_turn` route. A later migration can unify the two engine modes after remaining simulations adopt turn-based combat.
