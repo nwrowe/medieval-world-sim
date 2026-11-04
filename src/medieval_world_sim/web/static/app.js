@@ -816,12 +816,12 @@
     const mainSwing = (state.combat_moves || []).find(m => m.move === "strike");
     const casts = learned.map(n => {
       const meleeMagic = n.school === "enchantment" || n.school === "divination";
-      const extra = meleeMagic ? ' + ' + (mainSwing ? mainSwing.stamina : 1) +
-        ' stamina' : '';
+      const swingCost = mainSwing ? mainSwing.stamina : 1;
+      const extra = meleeMagic ? ' + ' + swingCost + ' stamina' : '';
       return button(n.title + ' · ' + n.mana_cost + ' mana' + extra,
         'data-ui="duel-cast" data-node="' + esc(n.node_id) + '"' +
         disabled(pending || p.mana < n.mana_cost ||
-          meleeMagic && mainSwing && !mainSwing.available), "secondary");
+          meleeMagic && p.stamina < swingCost), "secondary");
     }).join('');
     const logs = duel.log.length ?
       '<ol class="combat-log">' + duel.log.map(line => '<li>' + esc(line) +
