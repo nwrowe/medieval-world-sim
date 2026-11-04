@@ -143,6 +143,53 @@ class CombatSystem:
             self.world._emit("level_up", actor.id, actor.level, actor.max_hp)
         return levels
 
+    def pvp_strike(self, attacker_id: str, defender_id: str) -> dict:
+        """Single, non-consensual player skirmish; no unattended turn locks.
+
+        Each request makes one server-authoritative swing and one automatic
+        defensive reaction. This intentionally differs from NPC-only duels.
+        """
+        w = self.world
+        attacker, defender = w._actor(attacker_id), w._actor(defender_id)
+        if attacker_id == defender_id or attacker.kind != "human" or defender.kind != "human":
+            raise ActionError("PvP requires two different player characters")
+        if w._at_city(attacker) != w._at_city(defender):
+            raise ActionError("Both players must be in the same city")
+        if attacker.hp <= 0 or defender.hp <= 0:
+            raise ActionError("Cannot attack a defeated player")
+        if any(attacker_id in (d.attacker_id, d.defender_id) or
+               defender_id in (d.attacker_id, d.defender_id)
+               for d in w.state.duels.values()):
+            raise ActionError("A player is already in combat")
+        label, slot, cost = self.melee_option(attacker, "strike")
+        if attacker.stamina < cost:
+            raise ActionError("Not enough stamina to attack")
+        attacker.stamina -= cost
+        damage = self._strike(attacker, defender, slot or "unarmed")
+        retaliation, gold = 0, 0
+        if defender.hp == 0:
+            defender.defeated_until = w.minute + DEFEAT_RECOVERY_MINUTES
+            gold = min(MAX_GOLD_LOOT, defender.gold * 5 // 100)
+            transfer_gold(w, defender, attacker, gold)
+        else:
+            defense_slot = ("weapon" if defender.equipped.get("weapon") else
+                            "secondary" if defender.equipped.get("secondary") else
+                            "unarmed")
+            retaliation = self._strike(defender, attacker, defense_slot)
+            if attacker.hp == 0:
+                attacker.defeated_until = w.minute + DEFEAT_RECOVERY_MINUTES
+        xp = 1 + damage // 4 + (5 if defender.hp == 0 else 0)
+        trained = w.housing_system.training_xp(attacker, xp, "combat")
+        self._award_xp(attacker, trained)
+        if attacker.defeated_until is not None:
+            attacker.hp = 0
+        w._emit("pvp_strike", attacker_id, defender_id, damage, retaliation, cost, gold)
+        return {"opponent_id": defender_id, "attack": label,
+                "damage": damage, "retaliation": retaliation,
+                "stamina_spent": cost, "gold_looted": gold,
+                "opponent_defeated": defender.hp == 0,
+                "attacker_defeated": attacker.hp == 0}
+
     def attack(self, attacker_id: str, defender_id: str) -> CombatOutcome:
         attacker = self.world._actor(attacker_id)
         defender = self.world._actor(defender_id)

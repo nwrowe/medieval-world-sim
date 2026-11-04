@@ -109,6 +109,10 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
         "horse_purchased": f"Purchased {info.get('breed')} racehorse for {info.get('gold')} gold",
         "horse_raced": f"Raced {info.get('breed')}: place {info.get('placing')}, earned {info.get('xp')} riding XP and {info.get('prize')} gold",
+        "pvp_strike": (f"Skirmish against {info.get('defender_id')}: "
+                       f"{info.get('damage')} damage, "
+                       f"{info.get('retaliation')} retaliated, "
+                       f"{info.get('gold_looted')}g looted"),
         "duel_started": f"Challenge begun against {info.get('defender_id')}",
         "duel_round": (
             f"Combat round {info.get('round')}: {info.get('move')} "
@@ -522,7 +526,13 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                 "id": other.id, "name": human_name, "city": other.city,
                 "level": other.level, "kind": "human",
                 "hp": other.hp, "max_hp": other.max_hp,
-                "can_attack": False,  # PvP turn-based duels are not yet enabled.
+                "can_attack": (
+                    other.city == actor.city and other.destination is None
+                    and other.hp > 0 and actor.hp > 0 and not is_traveling
+                    and active_duel is None and not any(
+                        other.id in (d.attacker_id, d.defender_id)
+                        for d in w.state.duels.values())
+                ),
                 "recovering_minutes": max(0, (other.defeated_until or 0) - now),
             })
     combat_moves = []

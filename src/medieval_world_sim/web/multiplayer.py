@@ -42,7 +42,7 @@ MAX_JOURNAL = 20000
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
 MULTI_ACTIONS = UI_ACTIONS - {"enroll_course"} | {
-    "propose_trade", "accept_trade", "close_trade",
+    "propose_trade", "accept_trade", "close_trade", "pvp_strike",
 }
 
 
