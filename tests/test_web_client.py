@@ -53,10 +53,10 @@ class BrowserEntrypointTests(unittest.TestCase):
         """Catch undefined renderer names that crash after a valid gate code."""
         source = files("medieval_world_sim.web").joinpath(
             "static", "app.js").read_text(encoding="utf-8")
-        table = re.search(r"const renderers = \\{(.*?)\\};", source, re.S)
+        table = re.search(r"const renderers = \{(.*?)\};", source, re.S)
         self.assertIsNotNone(table)
         for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
-            self.assertRegex(source, rf"function {name}\\s*\\(")
+            self.assertRegex(source, rf"function {name}\s*\(")
         self.assertNotIn("renderHealer", source)
 
 
