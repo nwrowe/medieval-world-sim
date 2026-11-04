@@ -1,7 +1,7 @@
 """Finite achievement rewards and one-time merit purchases (no combat inflation)."""
 from dataclasses import dataclass
 from ..errors import ActionError
-from .curriculum import SCHOOLS
+from .curriculum import SCHOOLS, RETIRED_SCHOOLS
 
 @dataclass(frozen=True)
 class Achievement:
@@ -84,6 +84,8 @@ class MeritSystem:
                 "achievements": [{
                     "id": k, "name": spec.name, "description": spec.description,
                     "claimed": k in claimed, "eligible": self.earned(actor_id, k),
-                    "award": spec.award} for k, spec in ACHIEVEMENTS.items()],
+                    "award": spec.award} for k, spec in ACHIEVEMENTS.items()
+                    if not (k.startswith("school:") and k[7:] in RETIRED_SCHOOLS)
+                    or k in claimed or self.earned(actor_id, k)],
                 "upgrades": [{"id": key, **spec, "owned": key in upgrades}
                              for key, spec in MERIT_UPGRADES.items()]}
