@@ -1,28 +1,15 @@
-# Training Hall and combat balance (November 2026)
+# University and free-choice courses (November 2026)
 
-## Medieval schools and courses
+The former Training Hall is now the **University**, with a compact **five-column by two-row grid** of ten expandable school cards (responsive on smaller screens).
 
-The Training Hall provides nine distinct schools: Grammar, Rhetoric, Logic (the **trivium**); Arithmetic, Geometry, Astronomy and Music (the **quadrivium**); plus Latin and Commerce & Recordkeeping. The courses draw on medieval liberal-arts teaching and practical literacy, not a literal reconstruction of a particular medieval university.
+The active schools are: Rhetoric, Logic, Arithmetic, Astronomy, Music, Latin, Commerce, Writing & Recordkeeping, Physical Training and Weapons Training.
 
-Every school has eight sequential courses. Courses require **4, 6, 8, 10, 13, 17, 22, and 30 simulated days** respectively (110 simulated days total per school). Work stats improve after course completion, not when enrollment begins. The UI shows durations, work-stat bonuses, active study and progress. The player can enroll in **only one course across all schools** at once; attempting to enroll twice or to skip prerequisites is rejected. A player's study progress is not interrupted by travel or jobs, and simulation time does not run automatically from the wall clock; use ordinary time advances at the tavern (one simulated day per request at most).
+Grammar and Geometry are retired from **new** enrollments, but their existing course records and merits remain in the save-replay model. The former Commerce & Recordkeeping school retains the `commerce` identifier, now shown as Commerce; the independent `writing` school starts fresh.
 
-The last course earns a one-time, **automatically credited merit**; the record is also visible on the Merits page. Geometry, Astronomy, Music, and Commerce & Recordkeeping also have a modest capstone perk: +2 to a secondary work stat. These modest, permanent effects are easy to balance while a larger education system is still evolving.
+Each active school offers eight courses of durations **4, 6, 8, 10, 13, 17, 22 and 30 simulated days**, respectively. You can **choose any course in any order**, provided it is not already completed and you are not studying another course. Tuition is **8, 12, 16, 20, 25, 30, 40 and 50 gold**, respectively, paid to the crown when enrollment starts. These are fixed by course tier and displayed before payment. A completed course cannot be purchased twice; replay and request-id deduplication prevent duplicate charges.
 
-## Stamina and combat equipment
+Course completion grants its designated work-stat bonus. The school grants **one merit automatically** when all eight distinct courses have been completed, regardless of their order. Selected schools additionally award small work-stat capstone bonuses. A graduation benefit is one-time and paid in full only on the eighth distinct completion.
 
-- Fighting begins without an entrance fee.
-- Guarding costs **2 stamina**.
-- Fists cost **2 stamina** per attack.
-- Dagger costs **3 stamina** per attack.
-- Sword costs **5 stamina**; axe costs **7**, bow **5**.
-- Combat spells cost **6 stamina and their existing mana cost**. Melee-enhancing spells also pay their associated physical swing cost.
-- Reactive defensive counterattacks are still free. Ordinary guard is an active turn and costs stamina.
-- Each equipped weapon/armor item loses **one durability after 12 qualified combat wear events** rather than after each strike. An individual item's counter is stored in the engine state and is independent of other gear. Broken equipment is removed just as before.
+The University page intentionally does not duplicate work-stat information found on the Home page. The small active-course summary reports remaining **simulated** time, not elapsed real time. Courses currently progress only with advancing game time, and only one may be active at a time.
 
-### Preservation of previous saves
-
-New duel actions replay under journal ruleset **8**. Earlier rulesets replay using their historical stamina/durability conventions, including ruleset 7's old fist/dagger and guard costs. Existing gold, gear and school-less saves remain compatible. The single-action simulation `WorldEngine.attack()` remains a distinct legacy combat path.
-
-### Future directions
-
-A later iteration can introduce course prerequisites between schools, education fees, certificates and graduations, school-specific job bonuses, and formal course attendance that progresses with real-world elapsed time. These are **not** part of the current implementation.
+The old `enroll_course` action remains supported for historical journal replay; all new user enrollments use `enroll_course_choice`, ruleset 9. Old Grammar and Geometry enrollment actions replay faithfully without granting users new enrollments in those retired schools. No already-earned legacy merit is removed.
