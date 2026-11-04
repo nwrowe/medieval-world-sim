@@ -44,3 +44,15 @@ The test suite includes automated account isolation, CSRF, forged identity, idem
 ## Active activities
 
 The top status area displays only current cooldowns, incoming trade requests, active travel and ongoing University studies. Trade is accessible through character profiles or the incoming-trade indicator instead of an always-visible top menu button. University enrollment now executes correctly from the expanded school panel, and its simulated-time remaining duration is shown in the activity icon tooltip. A compact unread count appears beside Chat when other people send unread messages.
+
+## Chronicle, new characters and live presence
+
+Newly registered multiplayer characters begin in **Crownreach**. Previously registered characters retain their existing cities, and journal replay preserves the historical spawn city for old accounts. The old single-player JSON save remains readable; new single-player characters also start in Crownreach, while legacy saves without a recorded starting city continue replaying from Goldmeadow.
+
+The Chronicle now includes player-to-player trade proposals, settlements and cancellations for **both parties**, with summarized exchanged assets. Events have consistent categories such as Trade, Combat, Travel, University, Economy, Health and Racing. The Chronicle supports category filtering and keyword search over the latest 500 authorized events.
+
+New multiplayer journal commands now store timezone-aware UTC wall-clock timestamps in SQLite, rendered in the browser as Eastern time. Existing historical commands without stored wall-clock timestamps remain marked **timestamp unavailable**; dates are not fabricated or inferred from simulation minutes. SQLite migrations add the timestamp column automatically without deleting accounts or transactions.
+
+The authenticated event stream now sends the requesting account's public character directory (name, city, level, health and ability to attack), alongside its authorized Chronicle and social notifications. When someone arrives in a city, other nearby players immediately see updated location and combat eligibility. Private inventories, funds and combat attributes remain excluded.
+
+The compact refresh icon beside Chat requests a full current game snapshot (market, city, public characters, Chronicle, and inventory) without changing screens. This provides a manual way to re-sync pages beyond the pushed chat and character presence fields.
