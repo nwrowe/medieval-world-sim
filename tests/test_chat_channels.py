@@ -99,6 +99,13 @@ class ChatWebReplayTests(unittest.TestCase):
             with self.assertRaises(ActionError):
                 game.action("send_chat", {"kind": "direct", "target": "npc:1",
                             "message": "Hello npc"}, "chat-two")
+            foe = next(user["id"] for user in view["users"] if user["can_attack"])
+            game.action("start_duel", {"defender_id": foe}, "duel-begin")
+            game.action("send_chat", {"kind": "global", "target": "",
+                        "message": "Still here during combat"}, "chat-during-duel")
+            self.assertIsNotNone(game.snapshot()["duel"])
+            self.assertEqual(len(game.snapshot()["chat"]["messages"]), 2)
+            self.assertEqual(GameSession(path).snapshot(), game.snapshot())
 
 
 if __name__ == "__main__":
