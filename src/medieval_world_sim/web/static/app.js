@@ -58,6 +58,7 @@
   let multiMode = false;
   let csrfToken = "";
   let liveEvents = null;
+  let presenceTimer = null;
 
   function esc(value) {
     return String(value === undefined || value === null ? "" : value)
@@ -137,13 +138,14 @@
     return "web:" + Date.now() + ":" + Math.random().toString(36).slice(2);
   }
 
-  async function request(url, body) {
+  async function request(url, body, keepalive = false) {
     const headers = multiMode ? {} : { "X-Game-Token": token };
     if (multiMode && body !== undefined &&
         url !== "/api/auth/login" && url !== "/api/auth/register") {
       headers["X-CSRF-Token"] = csrfToken;
     }
-    const options = { method: body === undefined ? "GET" : "POST", headers };
+    const options = { method: body === undefined ? "GET" : "POST", headers,
+      keepalive };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(body);
@@ -178,6 +180,7 @@
       syncAttunements();
       initializeReadMarkers();
       startLiveEvents();
+      startPresence();
     } catch (error) {
       offline = !authNeeded;
       if (!authNeeded) notify(error.message, true);
@@ -189,11 +192,15 @@
   }
   async function send(path, body, success = "Action complete") {
     if (pending) return;
+    const oldStats = state && state.started ? {
+      level: state.player.level, hp: state.player.max_hp,
+      strength: state.player.strength, defense: state.player.defense
+    } : null;
     pending = true;
     render();
     try {
       const result = await request(path, body);
-      const oldLevel = state && state.started ? state.player.level : 1;
+      const oldLevel = oldStats ? oldStats.level : 1;
       // A live event may arrive after a command commits but before its HTTP
       // response. Never overwrite a newer pushed state with an older result.
       state = (multiMode && state && result.state &&
@@ -202,8 +209,9 @@
         await request("/api/state") : result.state;
       if (state && state.started && state.player.level > oldLevel) {
         levelCelebration = { from: oldLevel, to: state.player.level,
-          hp: state.player.max_hp, strength: state.player.strength,
-          defense: state.player.defense };
+          hp: state.player.max_hp - oldStats.hp,
+          strength: state.player.strength - oldStats.strength,
+          defense: state.player.defense - oldStats.defense };
       }
       syncAttunements();
       if (body && ["start_duel", "duel_turn", "flee_duel"].includes(body.action)) {
@@ -287,6 +295,7 @@
       chatOpen = false;
       initializeReadMarkers();
       startLiveEvents();
+      startPresence();
       authNeeded = false;
       offline = false;
       tab = "character";
@@ -367,6 +376,16 @@
     if (!state || !state.started) return "";
     const items = ["job", "food", "potion"].map(cooldownIcon).join("");
     const p = state.player;
+    const hospitalMinutes = Number.isFinite(p.defeated_until) ?
+      Math.max(0, p.defeated_until - state.minute) : 0;
+    const hospital = p.hp <= 0 && hospitalMinutes > 0 ?
+      '<button class="cooldown-chip activity-clickable activity-hospital" ' +
+      'type="button" data-ui="activity-hospital" title="' +
+      esc("Hospitalized: " + simDuration(hospitalMinutes) +
+        " of simulated time remaining") +
+      '" aria-label="' + esc("Hospitalized: " + simDuration(hospitalMinutes)) +
+      '"><span aria-hidden="true">✚</span><strong>' +
+      esc(simDuration(hospitalMinutes)) + '</strong></button>' : "";
     const incoming = multiMode ? (state.trades || []).filter(t =>
       t.recipient === state.actor_id).length : 0;
     const trade = incoming ?
@@ -398,14 +417,15 @@
         esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
         Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
     }
-    const defenderAlert = state.duel && state.duel.role === "defender" ?
+    const defenderAlert = state.duel && state.duel.role === "defender" &&
+      state.duel.round > 0 ?
       '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
       'data-ui="activity-duel" title="' +
       esc("Under attack by " + state.duel.opponent_name +
         " · your character automatically counterattacks. Open to watch or flee.") +
       '" aria-label="Under attack · open combat">' +
       '<span aria-hidden="true">⚔</span><strong>Under attack</strong></button>' : "";
-    return items + trade + travel + university + defenderAlert;
+    return hospital + items + trade + travel + university + defenderAlert;
   }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
@@ -893,9 +913,21 @@
       (subtitle ? '<p class="subheading">' + esc(subtitle) + '</p>' : '') +
       '</div></div>';
   }
+  function presenceIndicator(person) {
+    if (!multiMode || person.kind !== "human") return "";
+    const status = ["active", "away"].includes(person.presence) ?
+      person.presence : "offline";
+    return ' <span class="presence-indicator presence-' + status +
+      '" title="' + esc(status[0].toUpperCase() + status.slice(1)) +
+      '" aria-label="' + esc("Player is " + status) + '">' +
+      '<span class="presence-dot" aria-hidden="true"></span>' +
+      esc(status[0].toUpperCase() + status.slice(1)) + '</span>';
+  }
   function renderPeople() {
     const query = peopleQuery.trim().toLowerCase();
     const players = (state.users || []).filter(person =>
+      !state.player.destination && !person.traveling &&
+      person.city === state.player.city &&
       person.name.toLowerCase().includes(query));
     const market = (state.quotes || []).filter(quote =>
       (quote.locally_produced || quote.stock > 0) &&
@@ -911,6 +943,7 @@
         return '<div class="equipment-item"><div><h3>' +
           '<button type="button" class="character-name-link" data-ui="profile-open" ' +
           'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
+          presenceIndicator(person) +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
           ' · ' + (self ? 'You' : person.kind === "npc" ?
             'NPC adventurer' : 'Player') + ' · HP ' +
@@ -982,7 +1015,7 @@
       '<div class="section-kicker">' +
       (isNpc ? 'NPC adventurer' : self ? 'Your character' : 'Player adventurer') +
       '</div>' +
-      '<h3>' + esc(person.name) + '</h3>' +
+      '<h3>' + esc(person.name) + presenceIndicator(person) + '</h3>' +
       characterRow("Level", person.level) +
       characterRow("Health", person.hp + " / " + person.max_hp) +
       characterRow("Location", pretty(person.city)) +
@@ -1674,14 +1707,14 @@
     if (!levelCelebration) return "";
     return '<div class="level-overlay" role="dialog" aria-modal="true" ' +
       'aria-labelledby="level-title"><div class="level-card">' +
-      '<div class="level-sparks">✦ ✧ ✦</div><div class="eyebrow">Achievement unlocked</div>' +
+      '<div class="level-sparks">✦ ✧ ✦</div>' +
       '<h2 id="level-title">LEVEL ' + levelCelebration.to + '!</h2>' +
-      '<p>Your journey grows. Greater strength, greater resilience, and new challenges await.</p>' +
-      '<div class="level-gains"><span>+ ' + (levelCelebration.to - levelCelebration.from) +
-      ' level(s)</span><span>Health capacity ' + levelCelebration.hp +
-      '</span><span>Strength ' + levelCelebration.strength +
-      '</span><span>Defense ' + levelCelebration.defense + '</span></div>' +
-      button("Continue your journey", 'data-ui="dismiss-level"', "gold") +
+      '<div class="level-gains"><span>+' + (levelCelebration.to - levelCelebration.from) +
+      ((levelCelebration.to - levelCelebration.from) === 1 ? ' level' : ' levels') +
+      '</span><span>+' + levelCelebration.hp + ' Health Capacity' +
+      '</span><span>+' + levelCelebration.strength + ' Strength' +
+      '</span><span>+' + levelCelebration.defense + ' Defense</span></div>' +
+      button("Continue", 'data-ui="dismiss-level"', "gold") +
       '</div></div>';
   }
 
@@ -2052,6 +2085,7 @@
           try {
             await request("/api/auth/logout", {});
             stopLiveEvents();
+            stopPresence();
             state = null;
             csrfToken = "";
             authNeeded = true;
@@ -2141,6 +2175,8 @@
         tab = "trade"; render(); break;
       case "activity-duel":
         tab = "duel"; render(); break;
+      case "activity-hospital":
+        tab = "character"; render(); break;
       case "activity-travel":
         tab = "world"; render(); break;
       case "activity-university":
