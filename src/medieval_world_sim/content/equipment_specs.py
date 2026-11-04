@@ -18,7 +18,7 @@ GEAR: dict[str, GearSpec] = {
     "plate_armor": GearSpec("body", 0, 10, 45, 65),
     "leather_armor": GearSpec("body", 0, 5, 20, 40),
     "pickaxe": GearSpec("tool", 0, 1, 12, 35),  # Legacy utility gear stays equippable.
-    "dagger": GearSpec("secondary", 4, 0, 12, 45),
+    "dagger": GearSpec("secondary", 5, 0, 12, 45),
     "iron_helm": GearSpec("helm", 0, 3, 18, 45),
     "leather_cap": GearSpec("helm", 0, 2, 10, 38),
     "iron_boots": GearSpec("boots", 0, 2, 16, 48),
