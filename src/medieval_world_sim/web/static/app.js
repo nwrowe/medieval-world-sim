@@ -811,7 +811,9 @@
     const recovering = Number(person.recovering_minutes) > 0;
     return heading("", esc(person.name), "") +
       '<div class="profile-grid"><section class="panel character-public-profile">' +
-      '<div class="section-kicker">' + (isNpc ? 'NPC adventurer' : 'Your character') + '</div>' +
+      '<div class="section-kicker">' +
+      (isNpc ? 'NPC adventurer' : self ? 'Your character' : 'Player adventurer') +
+      '</div>' +
       '<h3>' + esc(person.name) + '</h3>' +
       characterRow("Level", person.level) +
       characterRow("Health", person.hp + " / " + person.max_hp) +
@@ -832,7 +834,8 @@
         '</div><p class="small">' + (isNpc ?
           'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
           'will require the upcoming authenticated multiplayer service.' :
-          'You are viewing your own public profile.') + '</p>' +
+          (self ? 'You are viewing your own public profile.' :
+           'Messaging and trading with other players requires authenticated multiplayer accounts.')) + '</p>' +
         button("Back to Search", 'data-tab="people"', "ghost")) +
       '</div>';
   }
