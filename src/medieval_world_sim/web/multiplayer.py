@@ -395,5 +395,6 @@ class MultiplayerGame:
                          "quality": self.world.gear[gid].quality,
                          "durability": self.world.gear[gid].durability}
                         for gid in proposal[side]["gear_ids"]
+                        if gid in self.world.gear
                     ]
             return result
