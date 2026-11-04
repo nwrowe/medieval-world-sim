@@ -627,3 +627,31 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .level-gains { grid-template-columns:1fr 1fr; }
   .card-grid { grid-template-columns:1fr; }
 }
+
+
+/* Ten compact school tiles: five across, two down at desktop width.
+   Native details/summary retains keyboard and screen-reader behavior. */
+.university-grid { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:start; }
+.university-school { min-width:0;background:#f7f3e8;border:1px solid #cdbf9f;border-radius:12px;overflow:hidden; }
+.university-school>summary { display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:17px 12px;min-height:80px;cursor:pointer;list-style:none; }
+.university-school>summary::-webkit-details-marker { display:none; }
+.university-school>summary strong { display:block;font-size:14px;line-height:1.3;color:#273b30; }
+.university-school>summary small { display:block;font-size:11px;color:#58645a;margin-top:6px; }
+.university-expand { font-size:20px;color:#53665b;flex:0 0 auto;transition:transform .15s; }
+.university-school[open] { grid-column:1/-1; }
+.university-school[open] .university-expand { transform:rotate(180deg); }
+.university-school>summary:hover { background:#f0e8d6; }
+.university-school>summary:focus-visible { outline:2px solid #597e6d;outline-offset:-3px; }
+.university-school-body { padding:8px 16px 16px;border-top:1px solid #d8cdb6; }
+.university-course { display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:10px 4px;border-bottom:1px solid #e3dac9; }
+.university-course:last-child { border-bottom:0; }
+.university-course strong { display:block;font-size:13px; }
+.university-course small { display:block;color:#677166;font-size:11px;margin-top:4px; }
+.university-course .button { flex:0 0 auto; }
+.university-progress { margin:0 0 15px; }
+.vital-stamina .vital-icon svg { display:block;width:14px;height:14px; }
+@media (max-width:1080px) { .university-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media (max-width:640px) { .university-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media (max-width:380px) { .university-grid { grid-template-columns:1fr; } }

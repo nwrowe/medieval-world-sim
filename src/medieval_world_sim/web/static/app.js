@@ -23,7 +23,7 @@
     { id: "church", icon: "✝", title: "Church" },
     { id: "armory", icon: "⚒", title: "Armory", onlyCity: "crownreach" },
     { id: "track", icon: "♞", title: "Track" },
-    { id: "training", icon: "✤", title: "Training Hall" },
+    { id: "training", icon: "✤", title: "University" },
     { id: "tavern", icon: "♜", title: "Tavern" },
     { id: "cityhall", icon: "♛", title: "City Hall" },
   ];
@@ -232,7 +232,10 @@
       '" title="' + esc(hint) + '" tabindex="0" aria-label="' +
       esc(label + ': ' + v + ' of ' + maximum + '. ' + hint) + '">' +
       '<div class="vital-caption"><span class="vital-icon" aria-hidden="true">' +
-      (kind === "health" ? "+" : kind === "stamina" ? "ϟ" : "✦") +
+      (kind === "health" ? "+" : kind === "stamina" ?
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
+        'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<path d="m13 2-9 12h8l-1 8 9-12h-8z"/></svg>' : "✦") +
       '</span><strong>' +
       v + '/' + maximum + '</strong></div>' +
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
@@ -1270,55 +1273,42 @@
       '</aside></div>';
   }
   function renderTraining() {
-    const w = state.player.work;
     const hall = state.training_hall || { schools: [], active: null };
-    const current = hall.active;
-    const active = current ? hall.schools.find(s => s.id === current.school) : null;
-    const progressBox = current ?
-      panel("Current studies", (active ? active.name : pretty(current.school)) +
-        " · Course " + (current.index + 1),
-        '<p>Your lessons are in progress. ' +
-        Math.max(1, Math.ceil(current.remaining_minutes / 1440)) +
-        ' simulated days remaining.</p><p class="small">Course progress advances with world time. ' +
-        'Visit the tavern to advance the simulation.</p>') :
-      panel("Ready to enroll", "One course at a time",
-        '<p>Enroll in a course below. Each school has eight sequential courses, ' +
-        'lasting 4–30 simulated days. Your work statistics improve automatically ' +
-        'at completion, and each graduated school unlocks a claimable merit.</p>');
-    const schoolPanels = hall.schools.map(school => {
-      const rows = school.courses.map((course, index) =>
-        '<div class="inventory-row"><span><strong>' + (index + 1) + '. ' +
-        esc(course.name) + '</strong><small>' + course.days +
-        ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
-        '</small></span>' +
-        (course.completed ? chip('Completed') :
-         course.active ? chip('Studying') :
-         course.available ? button('Enroll', 'data-ui="course-enroll" data-school="' +
-           esc(school.id) + '"' + disabled(pending || isBusy()), "secondary") :
-         chip('Locked')) +
-        '</div>').join('');
-      return panel(school.name + ' · ' + school.completed + '/8',
-        school.tradition + ' · ' + pretty(school.stat),
-        (school.capstone_perk ? '<p class="small">Graduation perk: +' +
-          school.capstone_perk.bonus + ' ' +
-          esc(pretty(school.capstone_perk.stat)) + '</p>' : '') +
-        '<div class="resource-list">' +
-        (school.complete ? chip('Graduated · Merit earned') :
-          chip('Course ' + Math.min(8, school.completed + 1) + ' of 8')) +
-        '</div>' + rows);
+    const studies = hall.active;
+    const studying = studies ?
+      '<p class="small university-progress">Studying ' +
+      esc(pretty(studies.school)) + ' · Course ' + (studies.index + 1) +
+      ' · ' + Math.max(1, Math.ceil(studies.remaining_minutes / 1440)) +
+      ' simulated days remaining</p>' : '';
+    const tiles = hall.schools.map(school => {
+      const courses = school.courses.map((course, index) => {
+        const fee = Number(course.tuition);
+        const blocked = pending || isBusy() || state.player.gold < fee || !course.available;
+        const action = course.completed ? chip("Completed") :
+          course.active ? chip("In progress") :
+          button("Enroll · " + money(fee),
+            'data-ui="course-enroll" data-school="' + esc(school.id) +
+            '" data-index="' + index + '"' + disabled(blocked), "secondary");
+        return '<div class="university-course"><div><strong>' +
+          esc(course.name) + '</strong><small>' + course.days +
+          ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
+          ' · Tuition ' + money(fee) + '</small></div>' + action + '</div>';
+      }).join('');
+      return '<details class="university-school"><summary><span><strong>' +
+        esc(school.name) + '</strong><small>' +
+        school.completed + ' of ' + school.total + ' courses completed</small></span>' +
+        '<span class="university-expand" aria-hidden="true">⌄</span></summary>' +
+        '<div class="university-school-body">' +
+        '<p class="small">Graduation: 1 merit' +
+        (school.capstone_perk ? ' · +' + school.capstone_perk.bonus +
+          ' ' + esc(pretty(school.capstone_perk.stat)) : '') +
+        (school.martial_perk ? ' · +' + school.martial_perk.bonus +
+          ' ' + esc(pretty(school.martial_perk.stat)) : '') +
+        '</p>' +
+        courses + '</div></details>';
     }).join('');
-    return heading("The old university", "Training Hall",
-      "Nine schools rooted in the liberal arts, Latin and practical scholarship.") +
-      '<div class="two-col"><div class="stack">' + progressBox +
-      schoolPanels +
-      '</div><aside class="stack">' +
-      panel("Your work attributes", "",
-        characterRow("Manual", w.manual) +
-        characterRow("Intelligence", w.intelligence) +
-        characterRow("Endurance", w.endurance) +
-        '<p class="small">School merits can be claimed on the Merits page ' +
-        'once all eight courses are complete.</p>') +
-      '</aside></div>';
+    return heading("", "University", "") + studying +
+      '<div class="university-grid">' + tiles + '</div>';
   }
   function renderTavern() {
     return heading("A place to rest", "Wayfarer's Tavern",
@@ -1414,8 +1404,9 @@
       case "church-heal":
         action("church_heal", {}, "The church restores your health"); break;
       case "course-enroll":
-        action("enroll_course", { school: element.dataset.school },
-          "Enrolled in your next course"); break;
+        action("enroll_course_choice", {
+          school: element.dataset.school, index: Number(element.dataset.index)
+        }, "Course enrollment confirmed"); break;
       case "horse-buy":
         action("buy_racehorse", { breed: element.dataset.breed }, "Racehorse purchased"); break;
       case "horse-race":
