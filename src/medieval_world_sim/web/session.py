@@ -332,6 +332,10 @@ class GameSession:
             # Duplicate request IDs replay their original outcome, never charge twice.
             if request_id in self.world.state.command_receipts:
                 return self.world.execute(PLAYER_ID, name, params, request_id)
+            # Historical records may still replay this command, but new web
+            # requests must use the tuition-charging course-choice action.
+            if name == "enroll_course":
+                raise ActionError("Use the University's paid course enrollment")
             return self._record({
                 "kind": "action", "name": name, "params": params, "id": request_id,
             })
