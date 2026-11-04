@@ -205,7 +205,7 @@ class GameHandler(BaseHTTPRequestHandler):
                              "default-src 'none'; frame-ancestors 'none'")
             self.send_header("Connection", "close")
             self.end_headers()
-            self.wfile.write(b"retry: 2500\\n\\n")
+            self.wfile.write(b"retry: 2500\n\n")
             self.wfile.flush()
             previous = -1
             while True:
@@ -214,12 +214,12 @@ class GameHandler(BaseHTTPRequestHandler):
                 if fresh is None or fresh.actor_id != identity.actor_id:
                     break
                 if revision == previous:
-                    self.wfile.write(b": heartbeat\\n\\n")
+                    self.wfile.write(b": heartbeat\n\n")
                 else:
                     payload = game.social_snapshot(identity.actor_id)
                     output = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-                    self.wfile.write(("event: activity\\ndata: " + output +
-                                      "\\n\\n").encode("utf-8"))
+                    self.wfile.write(("event: activity\ndata: " + output +
+                                      "\n\n").encode("utf-8"))
                     previous = payload["revision"]
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):
