@@ -102,7 +102,11 @@ class DuelSystem:
         duel.xp_earned += max(1, damage // 4) if damage else 0
         retaliation = 0
         if defender.hp:
-            retaliation = w.combat._strike(defender, attacker)
+            # Defensive reactions never consume stamina, even if armed. A
+            # secondary dagger can serve as a fallback defensive weapon.
+            defense_slot = "weapon" if defender.equipped.get("weapon") else (
+                "secondary" if defender.equipped.get("secondary") else "unarmed")
+            retaliation = w.combat._strike(defender, attacker, defense_slot)
             blocked = min(retaliation, protection + duel.pending_ward)
             attacker.hp = min(attacker.max_hp, attacker.hp + blocked)
             retaliation -= blocked
