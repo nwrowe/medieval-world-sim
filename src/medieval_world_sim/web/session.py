@@ -44,7 +44,7 @@ UI_ACTIONS = {
     "church_heal", "buy_racehorse", "race_horse",
     "found_guild", "invite_guild", "join_guild", "set_guild_role",
     "leave_guild", "claim_merit", "buy_merit_upgrade", "enroll_course",
-    "enroll_course_choice",
+    "enroll_course_choice", "send_chat", "create_chat_room",
 }
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
@@ -239,7 +239,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -304,6 +304,8 @@ class GameSession:
                 ruleset = 8
             if record.get("name") == "enroll_course_choice":
                 ruleset = 9
+            if record.get("name") in {"send_chat", "create_chat_room"}:
+                ruleset = 10
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
@@ -520,6 +522,7 @@ class GameSession:
                 "guilds": w.guild_system.view(PLAYER_ID),
                 "merits": w.merit_system.view(PLAYER_ID),
                 "training_hall": w.curriculum_system.view(PLAYER_ID),
+                "chat": w.chat_system.view(PLAYER_ID),
                 "equipped": dict(actor.equipped),
                 "player": {
                     "city": actor.city, "destination": actor.destination,
