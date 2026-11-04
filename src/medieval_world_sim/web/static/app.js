@@ -1023,7 +1023,8 @@
       '<div class="stack">' +
       panel("Propose a trade", "Gold, goods and equipment", form) +
       panel("Open offers", "Review the exact assets before acceptance",
-        existing || '<p class="small">No pending offers.</p>') +
+        button("Refresh offers", 'data-ui="trade-refresh"', "ghost") +
+        existing + (!existing ? '<p class="small">No pending offers.</p>' : '')) +
       '</div>';
   }
 
@@ -1858,6 +1859,11 @@
         peopleQuery = document.getElementById("people-query").value.trim();
         searchScope = element.dataset.scope === "market" ? "market" : "players";
         render(); break;
+      case "trade-refresh":
+        (async () => {
+          try { state = await request("/api/state"); render(); }
+          catch (error) { notify(error.message, true); }
+        })(); break;
       case "trade-accept":
         action("accept_trade", {
           trade_id: Number(element.dataset.tradeId),
