@@ -6,6 +6,7 @@ from .cities import CityState
 from ..equipment import GearItem
 from ..systems.curriculum import CourseEnrollment
 from ..systems.guilds import Guild, WarRecord
+from ..systems.trades import TradeProposal
 
 
 @dataclass
@@ -41,3 +42,5 @@ class WorldState:
     chosen_courses: dict[str, dict[str, set[int]]] = field(default_factory=dict)
     free_course_enrollments: set[str] = field(default_factory=set)
     gear_wear: dict[int, int] = field(default_factory=dict)
+    trades: dict[int, TradeProposal] = field(default_factory=dict)
+    next_trade_id: int = 1

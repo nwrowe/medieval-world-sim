@@ -70,6 +70,9 @@ EVENT_FIELDS = {
         "quantity",
         "total_price"
     ],
+    "trade_proposed": ["maker_id", "recipient_id", "trade_id"],
+    "trade_settled": ["maker_id", "recipient_id", "trade_id"],
+    "trade_closed": ["actor_id", "trade_id"],
     "offer_canceled": [
         "offer_id"
     ],
