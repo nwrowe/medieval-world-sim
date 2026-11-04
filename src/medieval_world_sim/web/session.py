@@ -253,6 +253,8 @@ class GameSession:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
             self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
+            self.world._legacy_curriculum_rules = (record.get("ruleset", 1) <= 8
+                                                    and record["name"] == "enroll_course")
             self.world._legacy_guard_rules = record.get("ruleset", 1) < 8
             self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
@@ -261,6 +263,7 @@ class GameSession:
                 self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
             finally:
                 self.world._legacy_equipment_wear = False
+                self.world._legacy_curriculum_rules = False
                 self.world._legacy_guard_rules = False
                 self.world._legacy_duel_rules = False
                 self.world._legacy_magic_rules = False
