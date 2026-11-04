@@ -6,6 +6,8 @@ import unittest
 
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.session import GameSession
+from medieval_world_sim.core.engine import WorldEngine
+from medieval_world_sim.core.entities import Actor
 
 
 class WeaponStaminaTests(unittest.TestCase):
@@ -68,6 +70,47 @@ class WeaponStaminaTests(unittest.TestCase):
         self.assertEqual(guarded["retaliation"], 0)
         with self.assertRaises(ActionError):
             self.action("duel_turn", {"move": "dagger", "node_id": ""}, "no-dagger")
+
+    def test_exhausted_sword_swing_is_rejected_and_defender_stays_fresh(self):
+        world = WorldEngine([
+            Actor("hero", "human", city="crownreach", gold=70),
+            Actor("foe", "npc", city="crownreach", gold=10),
+        ])
+        sword = world.buy_starter_gear("hero", "sword")
+        world.equip("hero", sword)
+        world.start_duel("hero", "foe")
+        defender = world.actors["foe"]
+        attacker = world.actors["hero"]
+        attacker.stamina = 4
+        defender.stamina = 0
+        before_hp = defender.hp
+        before_round = world.state.duels["hero"].round
+        with self.assertRaises(ActionError):
+            world.duel_turn("hero", "strike", "")
+        self.assertEqual(attacker.stamina, 4)
+        self.assertEqual(defender.hp, before_hp)
+        self.assertEqual(world.state.duels["hero"].round, before_round)
+        world.duel_turn("hero", "fists", "")
+        self.assertEqual(attacker.stamina, 3)
+        self.assertEqual(defender.stamina, 0)
+        world.assert_invariants()
+
+    def test_armored_body_slots_reduce_damage(self):
+        def opening_damage(with_armor):
+            world = WorldEngine([
+                Actor("hero", "human", city="crownreach", gold=70),
+                Actor("foe", "npc", city="crownreach", gold=10),
+            ])
+            if with_armor:
+                for kind in ("iron_helm", "iron_greaves", "iron_boots"):
+                    ident = world.buy_starter_gear("foe", kind)
+                    world.equip("foe", ident)
+            world.start_duel("hero", "foe")
+            outcome = world.duel_turn("hero", "fists", "")
+            return outcome["damage"]
+        # Poorly armed fists deal at least one damage, but segmented armor
+        # provides a measurable defense improvement.
+        self.assertGreater(opening_damage(False), opening_damage(True))
 
     def test_historical_ruleset_four_still_charges_twenty_on_replay(self):
         foe = self.foe()
