@@ -104,6 +104,8 @@ class ChronicleAuditTests(unittest.TestCase):
                 if e["kind"] == "gathered"]
         self.assertEqual(len(past), 1)
         self.assertIsNone(past[0]["recorded_at"])
+        # Resource harvesting has a one-hour work cooldown.
+        self.game.advance(self.b, 60, "second-harvest")
         self.game.action(self.a, "gather",
                          {"item": "grain", "quantity": 1}, "new-command")
         current = [e for e in self.game.snapshot(self.a)["events"]
