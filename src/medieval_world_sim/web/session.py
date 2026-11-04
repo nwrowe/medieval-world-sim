@@ -75,6 +75,8 @@ EQUIPMENT_EVENTS = {"gear_created", "gear_broken", "starter_purchase",
 PROPERTY_EVENTS = {"home_purchased", "home_upgraded", "home_facility_built",
                    "vehicle_purchased", "vehicle_selected"}
 MAGIC_EVENTS = {"magic_unlocked", "magic_practiced", "magic_attuned"}
+HEALTH_EVENTS = {"recovered", "consumed", "church_healed"}
+RACING_EVENTS = {"horse_purchased", "horse_raced"}
 PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
 ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",
                   "goods_stored", "goods_retrieved", "city_contract_completed",
@@ -91,6 +93,7 @@ def event_category(kind: str) -> str:
         ("Travel", TRAVEL_EVENTS), ("University", UNIVERSITY_EVENTS),
         ("Guild", GUILD_EVENTS), ("Equipment", EQUIPMENT_EVENTS),
         ("Property", PROPERTY_EVENTS), ("Magic", MAGIC_EVENTS),
+        ("Health", HEALTH_EVENTS), ("Racing", RACING_EVENTS),
         ("Progression", PROGRESSION_EVENTS), ("Economy", ECONOMY_EVENTS),
     ):
         if kind in events:
@@ -123,8 +126,8 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
     gear_kind = gear_kinds.get(info.get("gear_id"))
     readable = {
         "trade_proposed": (
-            f"Trade #{info.get('trade_id')} proposed with "
-            f"{who(info.get('recipient_id'))}: "
+            f"Trade #{info.get('trade_id')}: "
+            f"{who(info.get('maker_id'))} offered to {who(info.get('recipient_id'))}: "
             f"offered {_trade_assets_text(info.get('offer'))}; "
             f"requested {_trade_assets_text(info.get('request'))}"
         ),
@@ -137,6 +140,9 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
             f"Trade #{info.get('trade_id')} canceled by {who(info.get('actor_id'))}: "
             f"escrow returned to {who(info.get('maker_id'))}"
         ),
+        "recovered": "Recovered from injuries",
+        "level_up": f"Reached level {info.get('level')}",
+        "gear_broken": f"{info.get('item')} broke",
         "gathered": f"Gathered {info.get('quantity')} {info.get('item')}",
         "travel_started": f"Departed for {info.get('destination')}",
         "arrived": f"Arrived in {info.get('city')}",
