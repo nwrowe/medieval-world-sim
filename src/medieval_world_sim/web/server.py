@@ -121,7 +121,8 @@ class GameHandler(BaseHTTPRequestHandler):
             raise ValueError("Invalid or oversized JSON request")
         if self.headers.get("Content-Type", "").split(";", 1)[0].strip() != "application/json":
             raise ValueError("Content-Type must be application/json")
-        value = json.loads(self.rfile.read(int(length)),\n                           parse_constant=lambda x: (_ for _ in ()).throw(\n                               ValueError("Non-finite JSON values are forbidden")))
+        value = json.loads(self.rfile.read(int(length)),
+                           parse_constant=lambda x: (_ for _ in ()).throw(\n                               ValueError("Non-finite JSON values are forbidden")))
         if not isinstance(value, dict):
             raise ValueError("Expected a JSON object")
         return value
