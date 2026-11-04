@@ -64,7 +64,8 @@ class ChronicleAuditTests(unittest.TestCase):
                 self.assertIsInstance(event["id"], int)
             self.assertTrue(all(event["category"] in {
                 "Trade", "Combat", "Travel", "University", "Economy",
-                "Equipment", "Magic", "Property", "Guild", "Progression", "Other"}
+                "Equipment", "Magic", "Health", "Racing", "Property",
+                "Guild", "Progression", "Other"}
                 for event in view["events"]))
         self.assertEqual([e for e in self.game.snapshot(self.c)["events"]
                           if e["category"] == "Trade"], [])
