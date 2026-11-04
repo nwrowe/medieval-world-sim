@@ -55,6 +55,7 @@
   let token = sessionStorage.getItem("medieval-world-token") || "";
   let multiMode = false;
   let csrfToken = "";
+  let liveEvents = null;
 
   function esc(value) {
     return String(value === undefined || value === null ? "" : value)
@@ -164,6 +165,8 @@
       state = await request("/api/state");
       tab = state.duel ? "duel" : "character";
       syncAttunements();
+      initializeReadMarkers();
+      startLiveEvents();
     } catch (error) {
       offline = !authNeeded;
       if (!authNeeded) notify(error.message, true);
@@ -269,6 +272,11 @@
       const outcome = await request(url, body);
       csrfToken = outcome.csrf || "";
       state = outcome.state;
+      chatChannelKey = "global";
+      chatDirectTarget = null;
+      chatOpen = false;
+      initializeReadMarkers();
+      startLiveEvents();
       authNeeded = false;
       offline = false;
       tab = "character";
@@ -1068,8 +1076,8 @@
       '<div class="stack">' +
       panel("Propose a trade", "Gold, goods and equipment", form) +
       panel("Open offers", "Review the exact assets before acceptance",
-        button("Refresh offers", 'data-ui="trade-refresh"', "ghost") +
-        existing + (!existing ? '<p class="small">No pending offers.</p>' : '')) +
+        '<div id="trade-offers-list">' +
+        (existing || '<p class="small">No pending offers.</p>') + '</div>') +
       '</div>';
   }
 
@@ -1618,6 +1626,138 @@
       '</div></div>';
   }
 
+  function chatReadKey(channel) {
+    return "oathmere.read." + (state && state.actor_id || "hero") + "." + channel;
+  }
+  function readMarker(channel) {
+    try {
+      return Math.max(0, Number(localStorage.getItem(chatReadKey(channel))) || 0);
+    } catch { return 0; }
+  }
+  function saveReadMarker(channel, id) {
+    try {
+      localStorage.setItem(chatReadKey(channel), String(Math.max(
+        id, readMarker(channel))));
+    } catch { /* Storage blocked: unread counts remain session-only. */ }
+  }
+  function initializeReadMarkers() {
+    if (!multiMode || !state || !state.chat) return;
+    for (const channel of state.chat.channels || []) {
+      const key = chatReadKey(channel.key);
+      try {
+        if (localStorage.getItem(key) === null) {
+          const newest = Math.max(0, ...(state.chat.messages || [])
+            .filter(m => m.channel_key === channel.key).map(m => m.id));
+          localStorage.setItem(key, String(newest));
+        }
+      } catch { /* Continue without durable read cursors. */ }
+    }
+  }
+  function markChannelRead(channel) {
+    if (!multiMode || !state || !state.chat || !channel ||
+        document.visibilityState === "hidden") return;
+    const newest = Math.max(0, ...(state.chat.messages || [])
+      .filter(m => m.channel_key === channel).map(m => m.id));
+    saveReadMarker(channel, newest);
+  }
+  function unreadCount() {
+    if (!multiMode || !state || !state.chat) return 0;
+    return (state.chat.messages || []).filter(message =>
+      message.sender !== state.actor_id &&
+      message.id > readMarker(message.channel_key)).length;
+  }
+  function stopLiveEvents() {
+    if (liveEvents) {
+      liveEvents.close();
+      liveEvents = null;
+    }
+  }
+  function startLiveEvents() {
+    if (!multiMode || !state || !state.started ||
+        typeof EventSource === "undefined" || liveEvents) return;
+    const stream = new EventSource("/api/events");
+    liveEvents = stream;
+    stream.addEventListener("activity", event => {
+      if (stream !== liveEvents || !state || !state.started) return;
+      let update;
+      try { update = JSON.parse(event.data); } catch { return; }
+      if (update.actor_id !== state.actor_id ||
+          update.revision < (state.activity_revision || 0)) return;
+      state.activity_revision = update.revision;
+      state.chat = update.chat;
+      state.trades = update.trades;
+      state.minute = update.minute;
+      if (state.training_hall) state.training_hall.active = update.course_active;
+      if (update.player_status) {
+        Object.assign(state.player, update.player_status);
+      }
+      if (chatOpen) markChannelRead(chatChannelKey);
+      refreshLiveSurfaces();
+    });
+    // EventSource reconnects automatically and sends the session cookie.
+    // This stream intentionally has no client-controlled actor identifier.
+  }
+  function refreshLiveSurfaces() {
+    if (!state || !state.started) return;
+    const strip = document.querySelector(".activity-strip");
+    if (strip) strip.innerHTML = activityIcons();
+    const dock = document.querySelector(".chat-dock");
+    if (dock) {
+      const fragment = document.createElement("div");
+      fragment.innerHTML = chatDock();
+      const fresh = fragment.querySelector(".chat-dock");
+      if (fresh) {
+        const oldToggle = dock.querySelector(".chat-toggle");
+        const newToggle = fresh.querySelector(".chat-toggle");
+        if (oldToggle && newToggle) oldToggle.innerHTML = newToggle.innerHTML;
+        if (chatOpen) {
+          for (const selector of [".chat-channels", ".chat-history"]) {
+            const old = dock.querySelector(selector);
+            const next = fresh.querySelector(selector);
+            if (!old || !next || old.innerHTML === next.innerHTML) continue;
+            const atBottom = old.scrollHeight - old.scrollTop - old.clientHeight < 32;
+            old.innerHTML = next.innerHTML;
+            if (selector === ".chat-history" && atBottom) old.scrollTop = old.scrollHeight;
+          }
+        }
+      }
+    }
+    if (tab === "trade") {
+      const current = document.getElementById("trade-offers-list");
+      if (current) {
+        const frame = document.createElement("div");
+        frame.innerHTML = renderTrade();
+        const next = frame.querySelector("#trade-offers-list");
+        if (next && current.innerHTML !== next.innerHTML)
+          current.innerHTML = next.innerHTML;
+      }
+    }
+    const header = document.querySelector(".statbar");
+    if (header) {
+      const fresh = [
+        meterStat("Health", state.player.hp, state.player.max_hp,
+                  "health", state.player.health_next_sim_seconds),
+        meterStat("Stamina", state.player.stamina, state.player.max_stamina,
+                  "stamina", state.player.stamina_next_sim_seconds),
+        meterStat("Mana", state.player.mana, state.player.max_mana,
+                  "mana", state.player.mana_next_sim_seconds)
+      ];
+      const oldVitals = header.querySelectorAll(".vital");
+      oldVitals.forEach((node, i) => {
+        if (fresh[i] && node.outerHTML !== fresh[i]) node.outerHTML = fresh[i];
+      });
+      const moneyLabel = header.querySelector(".gold-total strong");
+      if (moneyLabel) moneyLabel.textContent = money(state.player.gold);
+    }
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && chatOpen) {
+      markChannelRead(chatChannelKey);
+      refreshLiveSurfaces();
+    }
+  });
+
   function chatDock() {
     if (!state || !state.started) return "";
     const chat = state.chat || { channels: [], messages: [] };
@@ -1641,16 +1781,18 @@
       '" aria-label="Chat">' +
       '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
       'aria-expanded="' + chatOpen + '">' +
-      '<span aria-hidden="true">✉</span> Chat ' + (chatOpen ? '⌄' : '⌃') +
-      '</button>' +
+      '<span aria-hidden="true">✉</span> Chat ' +
+      (unreadCount() ? '<span class="chat-unread" aria-label="' +
+        unreadCount() + ' unread chat messages">' + Math.min(99, unreadCount()) +
+        (unreadCount() > 99 ? '+' : '') + '</span>' : '') +
+      (chatOpen ? '⌄' : '⌃') + '</button>' +
       (chatOpen ? '<div class="chat-content">' +
         '<div class="chat-channels">' + channels + '</div>' +
         '<p class="chat-preview-notice">' + (multiMode ?
-          'Local multi-account chat · Refresh to see messages from other players.' :
+          'Live local chat · Unread messages appear beside the Chat tab.' :
           'Local preview: only one human account is connected. ' +
           'Live player-to-player chat requires separate authenticated accounts.') +
-        (multiMode ? ' <button class="chat-refresh-link" type="button" ' +
-          'data-ui="chat-refresh">Refresh</button>' : '') + '</p>' +
+        '</p>' +
         '<div class="chat-history" aria-live="polite">' +
         (posts.length ? posts.map(post =>
           '<div class="chat-post"><strong>' +
@@ -1810,6 +1952,7 @@
         (async () => {
           try {
             await request("/api/auth/logout", {});
+            stopLiveEvents();
             state = null;
             csrfToken = "";
             authNeeded = true;
@@ -1821,10 +1964,12 @@
         })(); break;
       case "chat-toggle":
         chatOpen = !chatOpen;
+        if (chatOpen) markChannelRead(chatChannelKey);
         render(); break;
       case "chat-channel":
         if (chatChannelKey !== element.dataset.key) chatDraft = "";
         chatChannelKey = element.dataset.key;
+        markChannelRead(chatChannelKey);
         render(); break;
       case "chat-refresh":
         (async () => {
@@ -1845,6 +1990,7 @@
           if (chatChannelKey !== "direct:" + chatDirectTarget) chatDraft = "";
           chatChannelKey = "direct:" + chatDirectTarget;
           chatOpen = true;
+          markChannelRead(chatChannelKey);
           render();
         } else {
           notify("Direct chat needs authenticated multiplayer accounts. NPCs cannot receive DMs.", true);
