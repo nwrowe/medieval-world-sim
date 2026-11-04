@@ -28,7 +28,7 @@ class DuelSystem:
         legacy = getattr(w, "_legacy_duel_rules", False)
         if legacy and attacker.stamina < ATTACK_STAMINA_COST:
             raise ActionError("Not enough stamina to initiate combat")
-         entrance_cost = ATTACK_STAMINA_COST if legacy else 0
+        entrance_cost = ATTACK_STAMINA_COST if legacy else 0
         attacker.stamina -= entrance_cost
         ward = attacker.magic.ward_charge
         attacker.magic.ward_charge = 0
@@ -174,6 +174,6 @@ class DuelSystem:
         if duel is None:
             raise ActionError("No active duel")
         w._emit("duel_defender_fled", duel.attacker_id, duel.defender_id)
-        attacker_result = self._finish(duel, w.actors[duel.attacker_id],
-                                       w.actors[actor_id], "opponent_fled")
-        return {**w.state.last_duels[actor_id], "opponent_id": duel.attacker_id}
+        self._finish(duel, w.actors[duel.attacker_id],
+                     w.actors[actor_id], "opponent_fled")
+        return dict(w.state.last_duels[actor_id])
