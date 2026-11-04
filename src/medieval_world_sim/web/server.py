@@ -177,6 +177,56 @@ class GameHandler(BaseHTTPRequestHandler):
         return (f"oathmere_session={value}; Path=/; HttpOnly; SameSite=Strict; "
                 f"Max-Age={SESSION_SECONDS if token else 0}")
 
+    def _multi_events(self):
+        """Authenticated, bounded server-sent event stream.
+
+        Each pushed payload is projected for the requesting actor. The browser
+        cannot subscribe to someone else's private chats or trades.
+        """
+        if not self._multi_host_valid() or not self._same_origin():
+            return
+        identity = self._multi_auth()
+        if identity is None:
+            return
+        game = self.server.multiplayer
+        if not game.acquire_event_slot():
+            self._json(429, {"error": "Too many live event connections"})
+            return
+        token = self._multi_cookie()
+        self.close_connection = True
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store, no-transform")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Security-Policy",
+                             "default-src 'none'; frame-ancestors 'none'")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(b"retry: 2500\\n\\n")
+            self.wfile.flush()
+            previous = -1
+            while True:
+                revision = game.next_activity_revision(previous)
+                fresh = game.identity(token)
+                if fresh is None or fresh.actor_id != identity.actor_id:
+                    break
+                if revision == previous:
+                    self.wfile.write(b": heartbeat\\n\\n")
+                else:
+                    payload = game.social_snapshot(identity.actor_id)
+                    output = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+                    self.wfile.write(("event: activity\\ndata: " + output +
+                                      "\\n\\n").encode("utf-8"))
+                    previous = payload["revision"]
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            pass
+        finally:
+            game.release_event_slot()
+
     def _multi_get(self, route: str):
         if not self._multi_host_valid():
             return
@@ -191,6 +241,8 @@ class GameHandler(BaseHTTPRequestHandler):
             identity = self._multi_auth()
             if identity:
                 self._json(200, self.server.multiplayer.snapshot(identity.actor_id))
+        elif route == "/api/events":
+            self._multi_events()
         elif route in ASSETS:
             filename, mime = ASSETS[route]
             payload = files("medieval_world_sim.web").joinpath(
