@@ -7,6 +7,8 @@ import unittest
 
 from medieval_world_sim.web.multiplayer import MultiplayerGame
 from medieval_world_sim.web.session import GameSession, event_category
+from test_multiplayer_auth import serve
+from test_live_activity import LiveEventTests, next_sse_activity
 
 
 PASSWORD = "correct horse battery staple"
@@ -140,6 +142,41 @@ class ChronicleAuditTests(unittest.TestCase):
         self.assertNotIn("strength", bob_info)
         self.assertNotIn("inventory", bob_info)
         self.game.world.assert_invariants()
+
+    def test_authentic_stream_pushes_arrivals_to_other_players(self):
+        token, _ = self.game.login("alice", PASSWORD)
+        with serve(self.game) as port:
+            conn, response = LiveEventTests.stream(port, token)
+            try:
+                self.assertEqual(response.status, 200)
+                first = next_sse_activity(response)
+                bob = next(user for user in first["users"]
+                           if user["id"] == self.b)
+                self.assertEqual(bob["city"], "crownreach")
+                self.assertTrue(bob["can_attack"])
+                self.game.action(self.b, "travel",
+                                 {"destination": "goldmeadow"}, "outbound")
+                moving = next_sse_activity(response)
+                self.assertFalse(next(u for u in moving["users"]
+                    if u["id"] == self.b)["can_attack"])
+                self.game.advance(self.c, 60, "outbound-arrival")
+                elsewhere = next_sse_activity(response)
+                bob = next(u for u in elsewhere["users"] if u["id"] == self.b)
+                self.assertEqual(bob["city"], "goldmeadow")
+                self.assertFalse(bob["can_attack"])
+                self.game.action(self.b, "travel",
+                                 {"destination": "crownreach"}, "returning")
+                next_sse_activity(response)
+                self.game.advance(self.c, 60, "return-arrival")
+                returned = next_sse_activity(response)
+                bob = next(u for u in returned["users"] if u["id"] == self.b)
+                self.assertEqual(bob["city"], "crownreach")
+                self.assertTrue(bob["can_attack"])
+                self.assertNotIn("gold", bob)
+                self.assertNotIn("inventory", bob)
+            finally:
+                response.close()
+                conn.close()
 
     def test_known_event_types_have_stable_categories(self):
         self.assertEqual(event_category("trade_settled"), "Trade")
