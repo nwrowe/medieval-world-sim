@@ -5,6 +5,8 @@ from ..core.transactions import transfer_gold
 from ..errors import ActionError
 from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
 
+MAGIC_STAMINA_COST = 6
+
 class DuelSystem:
     def __init__(self, world):
         self.world = world
@@ -95,10 +97,13 @@ class DuelSystem:
             # Enchantment and divination create a physical strike too.
             # Charge the same main-weapon cost, in addition to their mana.
             node = w.spell_system._ready(attacker, node_id)
-            if not legacy and node.school in ("enchantment", "divination"):
-                _, _, stamina_spent = w.combat.melee_option(attacker, "strike")
+            if not getattr(w, "_legacy_guard_rules", False):
+                stamina_spent = MAGIC_STAMINA_COST
+                if node.school in ("enchantment", "divination"):
+                    _, _, swing_cost = w.combat.melee_option(attacker, "strike")
+                    stamina_spent += swing_cost
                 if attacker.stamina < stamina_spent:
-                    raise ActionError("Not enough stamina for this enchanted weapon swing")
+                    raise ActionError("Not enough stamina to cast this combat spell")
                 attacker.stamina -= stamina_spent
             damage, protection, description = w.spell_system.combat_cast(attacker, defender, node_id)
             if stamina_spent:
