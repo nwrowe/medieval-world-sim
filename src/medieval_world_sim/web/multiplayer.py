@@ -211,8 +211,12 @@ class MultiplayerGame:
                 self.db.execute("COMMIT")
                 return result
             except BaseException:
-                self.db.execute("ROLLBACK")
-                self.world.state = previous
+                try:
+                    self.db.execute("ROLLBACK")
+                finally:
+                    # A storage rollback failure must never leave a mutated,
+                    # uncommitted world visible to future requests.
+                    self.world.state = previous
                 raise
 
     @staticmethod
