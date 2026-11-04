@@ -59,6 +59,7 @@ RETIRED_SCHOOLS = frozenset({"grammar", "geometry"})
 CURRENT_SCHOOLS = {key: spec for key, spec in SCHOOLS.items()
                    if key not in RETIRED_SCHOOLS}
 COURSE_FEES = (8, 12, 16, 20, 25, 30, 40, 50)
+MARTIAL_CAPSTONES = {"physical": ("max_hp", 5), "weapons": ("strength", 1)}
 # The fifth course in each school is an introduction to applied scholarship.
 # These are small cumulative skill improvements; no consumable resource is minted.
 STAT_BONUS = (1, 1, 1, 2, 2, 2, 3, 4)
@@ -154,6 +155,13 @@ class CurriculumSystem:
                     attribute, amount = perk
                     setattr(actor.work, attribute, getattr(actor.work, attribute) + amount)
                     self.world._emit("school_capstone_perk", actor_id, school, attribute, amount)
+                martial = MARTIAL_CAPSTONES.get(school)
+                if martial:
+                    attribute, amount = martial
+                    setattr(actor, attribute, getattr(actor, attribute) + amount)
+                    if attribute == "max_hp":
+                        actor.hp += amount
+                    self.world._emit("school_martial_perk", actor_id, school, attribute, amount)
                 self.world._emit("school_graduated", actor_id, school)
                 # Graduation grants exactly one merit; automatic, not repeatable.
                 self.world.merit_system.claim(actor_id, "school:" + school)
@@ -171,6 +179,9 @@ class CurriculumSystem:
                 "capstone_perk": ({"stat": CAPSTONE_PERKS[key][0],
                                   "bonus": CAPSTONE_PERKS[key][1]}
                                  if key in CAPSTONE_PERKS else None),
+                "martial_perk": ({"stat": MARTIAL_CAPSTONES[key][0],
+                                  "bonus": MARTIAL_CAPSTONES[key][1]}
+                                 if key in MARTIAL_CAPSTONES else None),
                 "courses": [{"name": title, "days": DAYS[i], "tuition": COURSE_FEES[i],
                              "stat_bonus": STAT_BONUS[i],
                              "completed": i in completed,

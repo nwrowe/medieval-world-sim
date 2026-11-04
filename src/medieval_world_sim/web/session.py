@@ -103,6 +103,7 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "course_completed": f"Finished {info.get('school')} course; +{info.get('bonus')} {info.get('stat')}",
         "school_graduated": f"Graduated from {info.get('school')}",
         "school_capstone_perk": f"{info.get('school')} capstone: +{info.get('bonus')} {info.get('stat')}",
+        "school_martial_perk": f"{info.get('school')} martial training: +{info.get('bonus')} {info.get('stat')}",
         "merit_claimed": f"Achievement claimed: {info.get('achievement')}",
         "merit_upgrade": f"Merit upgrade purchased: {info.get('perk')}",
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",

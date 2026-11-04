@@ -138,6 +138,7 @@ EVENT_FIELDS = {
     "course_completed": ["actor_id", "school", "course_index", "stat", "bonus"],
     "school_graduated": ["actor_id", "school"],
     "school_capstone_perk": ["actor_id", "school", "stat", "bonus"],
+    "school_martial_perk": ["actor_id", "school", "stat", "bonus"],
     "merit_claimed": ["actor_id", "achievement", "amount"],
     "merit_upgrade": ["actor_id", "perk", "cost"],
     "church_healed": ["actor_id", "gold", "health_restored"],

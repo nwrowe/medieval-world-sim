@@ -106,6 +106,7 @@ class CurriculumWebTests(unittest.TestCase):
         self.assertEqual(world.state.merit_balance["scholar"], 1)
         self.assertEqual(len(world.curriculum_system.completed_indices("scholar", "physical")), 8)
         self.assertIn("school:physical", world.state.merit_claims["scholar"])
+        self.assertEqual(world.actors["scholar"].max_hp, 29)
         with self.assertRaises(ActionError):
             world.enroll_course_choice("scholar", "physical", 5)
         world.assert_invariants()

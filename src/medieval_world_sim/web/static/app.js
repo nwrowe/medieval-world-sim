@@ -1299,9 +1299,12 @@
         school.completed + ' of ' + school.total + ' courses completed</small></span>' +
         '<span class="university-expand" aria-hidden="true">⌄</span></summary>' +
         '<div class="university-school-body">' +
-        (school.capstone_perk ? '<p class="small">Graduation: +2 ' +
-          esc(pretty(school.capstone_perk.stat)) + ' · 1 merit</p>' :
-          '<p class="small">Graduation: 1 merit</p>') +
+        '<p class="small">Graduation: 1 merit' +
+        (school.capstone_perk ? ' · +' + school.capstone_perk.bonus +
+          ' ' + esc(pretty(school.capstone_perk.stat)) : '') +
+        (school.martial_perk ? ' · +' + school.martial_perk.bonus +
+          ' ' + esc(pretty(school.martial_perk.stat)) : '') +
+        '</p>' +
         courses + '</div></details>';
     }).join('');
     return heading("", "University", "") + studying +
