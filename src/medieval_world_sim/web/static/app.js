@@ -51,6 +51,8 @@
   let offline = false;
   let selectedAttunements = new Set();
   let token = sessionStorage.getItem("medieval-world-token") || "";
+  let multiMode = false;
+  let csrfToken = "";
 
   function esc(value) {
     return String(value === undefined || value === null ? "" : value)
@@ -122,7 +124,11 @@
   }
 
   async function request(url, body) {
-    const headers = { "X-Game-Token": token };
+    const headers = multiMode ? {} : { "X-Game-Token": token };
+    if (multiMode && body !== undefined &&
+        url !== "/api/auth/login" && url !== "/api/auth/register") {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
     const options = { method: body === undefined ? "GET" : "POST", headers };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -140,6 +146,19 @@
 
   async function load() {
     try {
+      const health = await request("/api/health");
+      multiMode = health.mode === "multi-account-local";
+      if (multiMode) {
+        const account = await request("/api/auth/session");
+        csrfToken = account.csrf || "";
+        if (!account.authenticated) {
+          authNeeded = true;
+          offline = false;
+          state = null;
+          render();
+          return;
+        }
+      }
       state = await request("/api/state");
       tab = state.duel ? "duel" : "character";
       syncAttunements();
@@ -192,10 +211,40 @@
     return send("/api/action", { action: name, params, id: nextId() }, success);
   }
   function advance(minutes) {
-    return send("/api/advance", { minutes: Number(minutes) }, "World time advanced");
+    return send("/api/advance", multiMode ?
+      { minutes: Number(minutes), id: nextId() } :
+      { minutes: Number(minutes) }, "World time advanced");
   }
 
   function authPage() {
+    if (multiMode) return '<div class="entry"><div class="entry-card">' +
+      '<div class="entry-seal">✦</div><div class="eyebrow">Local multi-account world</div>' +
+      '<h1>Welcome to Oathmere</h1>' +
+      '<p>Each player has a private login and a separate character. ' +
+      'This development server runs on your own computer.</p>' +
+      '<form id="accountLoginForm" class="stack">' +
+      '<label for="loginUsername">Username</label>' +
+      '<input id="loginUsername" class="field" autocomplete="username" ' +
+      'maxlength="24" required>' +
+      '<label for="loginPassword">Password</label>' +
+      '<input id="loginPassword" class="field" type="password" ' +
+      'autocomplete="current-password" required>' +
+      '<button class="button full gold" type="submit">Sign in</button></form>' +
+      '<details class="account-register"><summary>Create an account</summary>' +
+      '<form id="accountRegisterForm" class="stack">' +
+      '<label for="registerUsername">Username</label>' +
+      '<input id="registerUsername" class="field" autocomplete="username" ' +
+      'minlength="3" maxlength="24" required>' +
+      '<label for="registerCharacter">Character name</label>' +
+      '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
+      '<label for="registerPassword">Password (12 characters minimum)</label>' +
+      '<input id="registerPassword" class="field" type="password" ' +
+      'autocomplete="new-password" minlength="12" maxlength="128" required>' +
+      '<button class="button full" type="submit">Create character</button>' +
+      '</form></details>' +
+      '<p class="small">Development-only: local computer access. Do not expose this ' +
+      'login server over the internet or ordinary LAN HTTP.</p>' +
+      '</div></div>';
     return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Private local world</div>' +
       '<h1>Enter the city gates</h1>' +
@@ -205,6 +254,26 @@
       '<input id="access" class="field" type="password" autocomplete="off" placeholder="Server access code" required>' +
       '<button class="button full" type="submit">Enter world</button></form></div></div>';
   }
+  async function accountSubmit(url, body) {
+    if (pending) return;
+    pending = true;
+    try {
+      const outcome = await request(url, body);
+      csrfToken = outcome.csrf || "";
+      state = outcome.state;
+      authNeeded = false;
+      offline = false;
+      tab = "character";
+      syncAttunements();
+      notify(url.endsWith("register") ? "Character created" : "Signed in");
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      pending = false;
+      render();
+    }
+  }
+
   function newCharacterPage() {
     return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Welcome, traveler</div>' +
@@ -313,6 +382,8 @@
       '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
+      (multiMode ? '<button class="logout-link" type="button" data-ui="account-logout">' +
+        'Sign out</button>' : '') +
       '</div></div></header>' +
       '<div class="workspace">' +
       '<aside class="sidebar" aria-label="Locations and services">' +
@@ -1445,6 +1516,19 @@
       token = document.getElementById("access").value.trim();
       sessionStorage.setItem("medieval-world-token", token);
       await load();
+    } else if (event.target.id === "accountLoginForm") {
+      event.preventDefault();
+      await accountSubmit("/api/auth/login", {
+        username: document.getElementById("loginUsername").value.trim(),
+        password: document.getElementById("loginPassword").value
+      });
+    } else if (event.target.id === "accountRegisterForm") {
+      event.preventDefault();
+      await accountSubmit("/api/auth/register", {
+        username: document.getElementById("registerUsername").value.trim(),
+        display_name: document.getElementById("registerCharacter").value.trim(),
+        password: document.getElementById("registerPassword").value
+      });
     } else if (event.target.id === "chatComposeForm") {
       event.preventDefault();
       const channel = (state.chat.channels || []).find(x => x.key === chatChannelKey) ||
@@ -1490,6 +1574,19 @@
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "account-logout":
+        (async () => {
+          try {
+            await request("/api/auth/logout", {});
+            state = null;
+            csrfToken = "";
+            authNeeded = true;
+            notify("Signed out");
+            render();
+          } catch (error) {
+            notify(error.message, true);
+          }
+        })(); break;
       case "chat-toggle":
         chatOpen = !chatOpen;
         render(); break;
