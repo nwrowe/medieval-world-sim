@@ -737,8 +737,7 @@
         const self = person.id === "hero";
         const recovering = person.recovering_minutes > 0;
         const text = self ? "Your character" :
-          recovering ? "Hospitalized" : person.can_attack ? "Attack · " +
-            state.combat_stamina_cost + " stamina" : "Out of reach";
+          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" : "Out of reach";
         return '<div class="equipment-item"><div><h3>' + esc(person.name) +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
           ' · ' + (self ? 'You' : 'NPC adventurer') + ' · HP ' +
@@ -746,8 +745,7 @@
           (recovering ? ' · Recovering ' + dur(person.recovering_minutes) : '') +
           '</p></div>' +
           button(text, 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
-            disabled(!person.can_attack || isBusy() ||
-              state.player.stamina < state.combat_stamina_cost), "secondary") +
+            disabled(!person.can_attack || isBusy()), "secondary") +
           '</div>';
       }).join('') :
       (state.world_items || []).filter(item =>
@@ -969,8 +967,11 @@
     };
     // Original SVG mannequin: equipment is placed over a neutral silhouette.
     const armor = kind("body"), weapon = kind("weapon"), shield = kind("offhand");
+    const dagger = kind("secondary"), helm = kind("helm"), boots = kind("boots");
+    const greaves = kind("greaves"), gloves = kind("gloves");
     return '<div class="equipment-figure" role="img" aria-label="' +
-      esc('Character wearing ' + [armor, weapon, shield].filter(Boolean).join(', ')) + '">' +
+      esc('Character wearing ' +
+        [armor, weapon, shield, dagger, helm, boots, greaves, gloves].filter(Boolean).join(', ')) + '">' +
       '<svg viewBox="0 0 240 270" aria-hidden="true">' +
       '<ellipse cx="120" cy="259" rx="66" ry="8" fill="#d7d0bf"/>' +
       '<path d="M93 165 L147 165 L144 240 L122 240 L119 198 L115 240 L95 240 Z" fill="#636c60"/>' +
@@ -984,7 +985,17 @@
       (shield ? '<path d="M173 119 L211 129 L204 193 L182 213 L162 193 L158 130Z" fill="#637e79" stroke="#d5bd83" stroke-width="5"/>' : '') +
       (weapon ? '<path d="M49 76 L45 205" stroke="#707c83" stroke-width="8"/>' +
         '<path d="M27 176 L67 176" stroke="#9c7d42" stroke-width="8"/>' : '') +
-      '</svg><p>' + esc([armor, weapon, shield].filter(Boolean).map(pretty).join(' · ') ||
+      (helm ? '<path d="M91 43 Q120 4 149 43 L150 58 L139 47 L101 47 L90 58Z" fill="#8e9796" stroke="#d9c99e" stroke-width="3"/>' : '') +
+      (gloves ? '<rect x="54" y="157" width="28" height="22" rx="5" fill="#8a9696"/>' +
+        '<rect x="158" y="157" width="28" height="22" rx="5" fill="#8a9696"/>' : '') +
+      (greaves ? '<path d="M96 189 L112 189 L110 232 L95 232Z" fill="#8a9696"/>' +
+        '<path d="M126 189 L142 189 L144 232 L129 232Z" fill="#8a9696"/>' : '') +
+      (boots ? '<path d="M94 229 L112 229 L110 246 L78 246Z" fill="#5c5b52"/>' +
+        '<path d="M129 229 L144 229 L163 246 L128 246Z" fill="#5c5b52"/>' : '') +
+      (dagger ? '<path d="M192 112 L189 179" stroke="#8d9ea5" stroke-width="5"/>' +
+        '<path d="M176 165 L202 165" stroke="#91683d" stroke-width="5"/>' : '') +
+      '</svg><p>' + esc([armor, weapon, shield, dagger, helm, boots, greaves, gloves]
+        .filter(Boolean).map(pretty).join(' · ') ||
         'Unarmored adventurer') + '</p></div>';
   }
 
