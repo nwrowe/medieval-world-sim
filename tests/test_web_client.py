@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 import http.client
 import json
+import re
 from pathlib import Path
 import tempfile
 import threading
@@ -45,6 +46,18 @@ def request(port, method, path, body=None, headers=None):
 def api(port, method, path, body=None, headers=None):
     status, response_headers, raw = request(port, method, path, body, headers)
     return status, json.loads(raw), response_headers
+
+
+class BrowserEntrypointTests(unittest.TestCase):
+    def test_every_shell_renderer_has_an_implementation(self):
+        """Catch undefined renderer names that crash after a valid gate code."""
+        source = files("medieval_world_sim.web").joinpath(
+            "static", "app.js").read_text(encoding="utf-8")
+        table = re.search(r"const renderers = \{(.*?)\};", source, re.S)
+        self.assertIsNotNone(table)
+        for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
+            self.assertRegex(source, rf"function {name}\s*\(")
+        self.assertNotIn("renderHealer", source)
 
 
 class WebSessionTests(unittest.TestCase):

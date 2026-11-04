@@ -277,7 +277,7 @@
       character: renderCharacter, equipment: renderEquipment,
       chronicle: renderChronicle, warriors: renderWarriorsGuild,
       mageguild: renderMageGuild, tavern: renderTavern,
-      healer: renderHealer, cityhall: renderCityHall,
+      cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
       guilds: renderGuilds, merits: renderMerits,
