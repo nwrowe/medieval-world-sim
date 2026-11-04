@@ -4,6 +4,7 @@ import tempfile
 import unittest
 
 from medieval_world_sim.catalog import CITIES, RAW_RESOURCES, EQUIPMENT, CONSUMABLES, PROCESSED_RESOURCES
+from medieval_world_sim.equipment import GEAR
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
@@ -27,7 +28,7 @@ class GameplayExpansionTests(unittest.TestCase):
         view = self.game.snapshot()
         catalog = {entry["id"]: entry for entry in view["world_items"]}
         self.assertEqual(set(catalog), set(RAW_RESOURCES) | set(PROCESSED_RESOURCES)
-                         | set(CONSUMABLES) | set(EQUIPMENT))
+                         | set(CONSUMABLES) | set(EQUIPMENT) | set(GEAR))
         self.assertEqual(catalog["sword"]["lowest_buy"],
                          {"city": "crownreach", "price": 16})
         self.assertIsNone(catalog["sword"]["highest_sell"])
