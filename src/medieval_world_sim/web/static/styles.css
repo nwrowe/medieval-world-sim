@@ -740,3 +740,23 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .activity-strip:empty { display:none; }
   .activity-clickable { min-width:62px; }
 }
+
+
+/* The Chronicle filters are compact and preserve the search field during updates. */
+.chronicle-filters {display:flex;flex-wrap:wrap;align-items:center;gap:9px 12px;
+  margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid #d9d9cc;}
+.chronicle-filters label {font-size:12px;font-weight:650;color:#536555;}
+.chronicle-filters .field {min-width:125px;max-width:245px;flex:1;}
+.chronicle-tag {display:inline-block;color:#42634d;background:#e9f0e6;
+  border:1px solid #d4e0d3;border-radius:6px;padding:1px 5px;margin-right:6px;
+  font-size:10px;font-weight:700;white-space:nowrap;}
+.chat-dock-actions {display:flex;align-items:stretch;background:#273f34;}
+.chat-dock-actions .chat-toggle {flex:1;min-width:0;}
+.chat-game-refresh {appearance:none;border:0;border-left:1px solid #536b58;
+  color:#fff3d6;background:transparent;width:43px;min-height:42px;
+  font-size:25px;cursor:pointer;flex:0 0 43px;line-height:1;}
+.chat-game-refresh:hover,.chat-game-refresh:focus-visible {background:#426451;}
+@media (max-width:640px) {
+  .chronicle-filters {align-items:stretch;flex-direction:column;gap:6px;}
+  .chronicle-filters .field {width:100%;max-width:none;flex:none;}
+}
