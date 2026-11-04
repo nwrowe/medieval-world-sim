@@ -1,5 +1,6 @@
 """Replayable turn-based duels against NPCs and auto-defending players."""
 from __future__ import annotations
+from hashlib import sha256
 from ..core.entities import DuelState
 from ..core.transactions import transfer_gold
 from ..errors import ActionError
@@ -160,20 +161,80 @@ class DuelSystem:
                 "stamina_spent": stamina_spent,
                 "retaliation": retaliation, "message": duel.log[-1]}
 
+    @staticmethod
+    def _flee_success(w, actor_id: str, duel) -> bool:
+        """Replayable 50/50 outcome, independent of client-supplied action IDs.
+
+        This prototype uses a deterministic hash of the world and encounter
+        state, matching the game's replayable combat/spell model. Never use
+        it for security-sensitive randomness or real-money outcomes.
+        """
+        data = (f"flee:{w.seed}:{len(w.events)}:{actor_id}:"
+                f"{duel.attacker_id}:{duel.defender_id}:{duel.round}")
+        return bool(sha256(data.encode("utf-8")).digest()[0] & 1)
+
     def flee(self, actor_id: str) -> dict:
         w = self.world
         duel = w.state.duels.get(actor_id)
-        if duel is not None:
-            w._emit("duel_fled", actor_id, duel.defender_id)
-            return self._finish(duel, w.actors[actor_id],
-                                w.actors[duel.defender_id], "fled")
-        # Human defenders may leave combat without waiting for the attacker.
-        duel = next((d for d in w.state.duels.values()
-                     if d.defender_id == actor_id and w.actors[actor_id].kind == "human"),
-                    None)
+        if duel is None:
+            duel = next((d for d in w.state.duels.values()
+                         if d.defender_id == actor_id and
+                         w.actors[actor_id].kind == "human"), None)
         if duel is None:
             raise ActionError("No active duel")
-        w._emit("duel_defender_fled", duel.attacker_id, duel.defender_id)
-        self._finish(duel, w.actors[duel.attacker_id],
-                     w.actors[actor_id], "opponent_fled")
-        return dict(w.state.last_duels[actor_id])
+        is_attacker = duel.attacker_id == actor_id
+        attacker = w.actors[duel.attacker_id]
+        defender = w.actors[duel.defender_id]
+        if getattr(w, "_legacy_flee_rules", False):
+            # Old committed journals had guaranteed, zero-turn retreats.
+            # Preserve those results precisely when rebuilding old saves.
+            if is_attacker:
+                w._emit("duel_fled", actor_id, duel.defender_id)
+                return self._finish(duel, attacker, defender, "fled")
+            w._emit("duel_defender_fled", duel.attacker_id, duel.defender_id)
+            self._finish(duel, attacker, defender, "opponent_fled")
+            return dict(w.state.last_duels[actor_id])
+
+        fugitive = attacker if is_attacker else defender
+        pursuer = defender if is_attacker else attacker
+        # An escape attempt is a full combat round. The opponent attacks
+        # automatically even when escape succeeds, without spending stamina.
+        duel.round += 1
+        slot = ("weapon" if pursuer.equipped.get("weapon") else
+                "secondary" if pursuer.equipped.get("secondary") else "unarmed")
+        counter = w.combat._strike(pursuer, fugitive, slot)
+        if is_attacker:
+            blocked = min(counter, duel.pending_ward)
+            fugitive.hp = min(fugitive.max_hp, fugitive.hp + blocked)
+            counter -= blocked
+            duel.pending_ward = 0
+        success = self._flee_success(w, actor_id, duel)
+        duel.log.append(
+            f"Round {duel.round}: {actor_id} attempts to flee and takes "
+            f"{counter} damage. " + ("Escape succeeds." if success else "Escape fails.")
+        )
+        duel.log = duel.log[-12:]
+        w._emit("duel_flee_attempt", actor_id, duel.attacker_id,
+                duel.defender_id, duel.round, success, counter)
+        if fugitive.hp <= 0:
+            if is_attacker:
+                return self._finish(duel, defender, attacker, "lost")
+            self._finish(duel, attacker, defender, "won")
+            return dict(w.state.last_duels[actor_id])
+        if success:
+            if is_attacker:
+                w._emit("duel_fled", actor_id, duel.defender_id)
+                return self._finish(duel, attacker, defender, "fled")
+            w._emit("duel_defender_fled", duel.attacker_id, duel.defender_id)
+            self._finish(duel, attacker, defender, "opponent_fled")
+            return dict(w.state.last_duels[actor_id])
+        if defender.kind == "human" and duel.round >= MAX_PVP_ROUNDS:
+            duel.log.append("The tenth round ends in a draw. Both fighters withdraw.")
+            w._emit("duel_draw", duel.attacker_id, duel.defender_id, duel.round)
+            if is_attacker:
+                return self._finish(duel, attacker, defender, "draw")
+            self._finish(duel, attacker, defender, "draw")
+            return dict(w.state.last_duels[actor_id])
+        return {"outcome": "ongoing", "round": duel.round,
+                "retaliation": counter, "flee_success": False,
+                "message": duel.log[-1]}
