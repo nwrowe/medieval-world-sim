@@ -148,7 +148,10 @@ class EquipmentCombatTests(unittest.TestCase):
         sword = w.buy_starter_gear("hero", "sword")
         w.equip("hero", sword)
         w.gear[sword].durability = 1
-        w.attack("hero", "bandit")
+        # One durability point now requires twelve strikes. Trigger the
+        # wear counter directly so the test isolates breakage from combat.
+        for _ in range(12):
+            w.combat._wear(w.actors["hero"], sword)
         self.assertNotIn(sword, w.gear)
         self.assertNotIn("weapon", w.actors["hero"].equipped)
         with self.assertRaises(ActionError):
