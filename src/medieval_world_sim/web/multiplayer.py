@@ -41,6 +41,9 @@ PASSWORD_P = 1
 MAX_FAILED_LOGINS = 6
 LOGIN_COOLDOWN = 900
 MAX_JOURNAL = 20000
+# Heartbeats are ephemeral and never treated as proof of a real-world identity.
+PRESENCE_ACTIVE_SECONDS = 75
+PRESENCE_OFFLINE_SECONDS = 180
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
 MULTI_ACTIONS = UI_ACTIONS - {"enroll_course"} | {
@@ -85,6 +88,10 @@ class MultiplayerGame:
         self._lock = threading.RLock()
         self._activity_changed = threading.Condition(self._lock)
         self._revision = 0
+        self._journal_count = 0
+        # Per-authenticated-session browser visibility, never claimed actor IDs.
+        self._presence: dict[bytes, tuple[str, float, bool]] = {}
+        self._published_presence: dict[str, str] = {}
         self._event_slots = threading.BoundedSemaphore(20)
         # A single process owns the in-memory simulation. SQLite exclusive
         # locking prevents two processes independently committing stale worlds.
@@ -230,7 +237,11 @@ class MultiplayerGame:
             raise ValueError("Account and world registration journal differ")
         # The stream revision must remain stable after restart, as game
         # snapshots and browser reconnects use it to reject stale updates.
-        self._revision = len(rows)
+        self._journal_count = len(rows)
+        # Wall-clock process epoch prevents browser SSE revision comparisons
+        # from rejecting updates when the server restarts after presence events.
+        self._revision = time.time_ns() // 1000
+        self._published_presence = {account: "offline" for account in self.names}
 
     @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
@@ -251,10 +262,11 @@ class MultiplayerGame:
                 self.db.execute("COMMIT")
                 # Deduplicated command retries do not append a journal row:
                 # they must not manufacture new activity revisions.
-                revision = self.db.execute(
+                journal_count = self.db.execute(
                     "SELECT COUNT(*) FROM world_journal").fetchone()[0]
-                if revision != self._revision:
-                    self._revision = revision
+                if journal_count != self._journal_count:
+                    self._journal_count = journal_count
+                    self._revision += 1
                     self._activity_changed.notify_all()
                 return result
             except BaseException:
@@ -348,9 +360,12 @@ class MultiplayerGame:
         token = secrets.token_urlsafe(32)
         csrf = secrets.token_urlsafe(24)
         with self._lock:
+            token_digest = _digest(token)
             self.db.execute(
                 "INSERT INTO sessions(digest, actor_id, csrf, expires) VALUES(?,?,?,?)",
-                (_digest(token), actor_id, csrf, int(time.time()) + SESSION_SECONDS))
+                (token_digest, actor_id, csrf, int(time.time()) + SESSION_SECONDS))
+            self._presence[token_digest] = (actor_id, time.monotonic(), True)
+            self._refresh_presence_locked()
         return token, csrf
 
     def identity(self, token: str | None) -> Identity | None:
@@ -366,7 +381,49 @@ class MultiplayerGame:
 
     def logout(self, token: str):
         with self._lock:
-            self.db.execute("DELETE FROM sessions WHERE digest=?", (_digest(token),))
+            digest = _digest(token)
+            self.db.execute("DELETE FROM sessions WHERE digest=?", (digest,))
+            self._presence.pop(digest, None)
+            self._refresh_presence_locked()
+
+    def _presence_status_locked(self, actor_id: str, now: float) -> str:
+        records = [(now - last_seen, visible) for actor, last_seen, visible
+                   in self._presence.values() if actor == actor_id]
+        if any(age <= PRESENCE_ACTIVE_SECONDS and visible
+               for age, visible in records):
+            return "active"
+        if any(age <= PRESENCE_OFFLINE_SECONDS for age, _ in records):
+            return "away"
+        return "offline"
+
+    def _refresh_presence_locked(self):
+        now = time.monotonic()
+        # Bound in-memory heartbeat data for clients that simply close a tab.
+        self._presence = {
+            token: value for token, value in self._presence.items()
+            if now - value[1] <= PRESENCE_OFFLINE_SECONDS
+        }
+        statuses = {
+            account: self._presence_status_locked(account, now)
+            for account in self.names
+        }
+        if statuses != self._published_presence:
+            self._published_presence = statuses
+            self._revision += 1
+            self._activity_changed.notify_all()
+
+    def heartbeat(self, token: str, actor_id: str, visible: bool) -> str:
+        if type(visible) is not bool:
+            raise ActionError("Presence visibility must be true or false")
+        with self._lock:
+            # The HTTP handler must derive actor_id from the verified session.
+            identity = self.identity(token)
+            if identity is None or identity.actor_id != actor_id:
+                raise AuthError("Sign in to update presence")
+            self._presence[_digest(token)] = (
+                actor_id, time.monotonic(), visible)
+            self._refresh_presence_locked()
+            return self._published_presence[actor_id]
 
     def _count_journal(self):
         if self.db.execute("SELECT COUNT(*) FROM world_journal").fetchone()[0] >= MAX_JOURNAL:
@@ -446,6 +503,10 @@ class MultiplayerGame:
                                         self.names[actor_id], self.npc_names,
                                         self.names, self.event_times, True)
         actor = self.world._actor(actor_id)
+        now = time.monotonic()
+        for person in projection["users"]:
+            if person["kind"] == "human":
+                person["presence"] = self._presence_status_locked(person["id"], now)
         chat = self.world.chat_system.view(actor_id)
         for channel in chat["channels"]:
             if channel["kind"] == "direct":
@@ -498,8 +559,10 @@ class MultiplayerGame:
 
     def next_activity_revision(self, since: int, timeout: float = 12.0) -> int:
         with self._activity_changed:
+            self._refresh_presence_locked()
             if since == self._revision:
                 self._activity_changed.wait(timeout=timeout)
+            self._refresh_presence_locked()
             return self._revision
 
     def acquire_event_slot(self) -> bool:
