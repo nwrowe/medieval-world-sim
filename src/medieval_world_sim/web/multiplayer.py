@@ -376,5 +376,24 @@ class MultiplayerGame:
                 raise AuthError("Unknown account")
             result = world_snapshot(self.world, actor_id, self.names[actor_id],
                                     self.npc_names, self.names, {}, True)
+            result["actor_id"] = actor_id
+            # Only this authenticated account's authorized chat messages and
+            # trade offers are projected. Display labels are server-derived.
+            for channel in result["chat"]["channels"]:
+                if channel["kind"] == "direct":
+                    channel["label"] = self.names.get(channel["target"], "Player")
+            for message in result["chat"]["messages"]:
+                message["sender_name"] = self.names.get(
+                    message["sender"], message["sender"])
             result["trades"] = self.world.trades_system.list_for(actor_id)
+            for proposal in result["trades"]:
+                proposal["maker_name"] = self.names.get(proposal["maker"], "Player")
+                proposal["recipient_name"] = self.names.get(proposal["recipient"], "Player")
+                for side in ("offer", "request"):
+                    proposal[side + "_gear"] = [
+                        {"id": gid, "kind": self.world.gear[gid].kind,
+                         "quality": self.world.gear[gid].quality,
+                         "durability": self.world.gear[gid].durability}
+                        for gid in proposal[side]["gear_ids"]
+                    ]
             return result
