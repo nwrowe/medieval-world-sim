@@ -735,7 +735,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .chat-unread { min-width:19px;height:19px;padding:1px 5px;display:inline-flex;
   align-items:center;justify-content:center;border-radius:99px;
   background:#de9d4d;color:#192b22;font-size:11px;font-weight:850;line-height:1; }
-.chat-toggle .chat-unread { margin-left:auto; }
+.chat-toggle .chat-unread { margin-left:auto;font-size:11px; }
 @media(max-width:640px) {
   .activity-strip:empty { display:none; }
   .activity-clickable { min-width:62px; }
