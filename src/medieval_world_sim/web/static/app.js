@@ -92,6 +92,15 @@
     const h = Math.floor(minutes / 60), m = minutes % 60;
     return h ? (h + "h " + (m ? m + "m" : "")) : m + "m";
   }
+  function simDuration(minutes) {
+    const total = Math.max(0, Math.ceil(Number(minutes) || 0));
+    const days = Math.floor(total / 1440);
+    const hours = Math.floor((total % 1440) / 60);
+    const mins = total % 60;
+    return (days ? days + "d " : "") +
+      (hours ? hours + "h " : "") +
+      (mins || (!days && !hours) ? mins + "m" : "");
+  }
   function isBusy() {
     return pending || !state || !state.started ||
       Boolean(state.player.destination) || state.player.hp <= 0 || Boolean(state.duel);
@@ -370,9 +379,9 @@
     const travel = p.destination ?
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
       'title="' + esc("Traveling to " + pretty(p.destination) + " · " +
-        dur(tripMinutes) + " of simulated time remaining") + '" ' +
+        simDuration(tripMinutes) + " of simulated time remaining") + '" ' +
       'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
-      '<span aria-hidden="true">♞</span><strong>' + esc(dur(tripMinutes)) +
+      '<span aria-hidden="true">♞</span><strong>' + esc(simDuration(tripMinutes)) +
       '</strong></button>' : "";
     const hall = state.training_hall || {};
     const current = hall.active;
@@ -382,7 +391,7 @@
       const course = school && school.courses[current.index];
       const label = "University: " + (school ? school.name : pretty(current.school)) +
         (course ? " · " + course.name : "") + " · " +
-        dur(current.remaining_minutes) + " simulated time remaining";
+        simDuration(current.remaining_minutes) + " simulated time remaining";
       university = '<button class="cooldown-chip activity-clickable" type="button" ' +
         'data-ui="activity-university" title="' + esc(label) + '" aria-label="' +
         esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
