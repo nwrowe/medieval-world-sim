@@ -216,6 +216,8 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .vital { flex:1 1 0; min-width:65px; max-width:144px; }
 .vital-caption { display:flex; justify-content:space-between; gap:5px; align-items:center; margin-bottom:5px; }
 .vital-caption span { font-size:10px; color:#d1dcd3; }
+.vital-caption .vital-icon { font-size:17px; font-weight:800; line-height:1; color:var(--meter-color); }
+.gold-total { display:flex; align-items:center; }
 .vital-caption strong { font-size:11px; color:#fff9ef; font-variant-numeric:tabular-nums; white-space:nowrap; }
 .vital progress {
   display:block; width:100%; height:7px; border:0; border-radius:10px;
@@ -228,7 +230,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .vital-stamina { --meter-color:#86c995; }
 .vital-mana { --meter-color:#8bbbef; }
 .gold-total { min-width:84px; border-left:1px solid rgba(249,240,222,.17); padding-left:12px; }
-.gold-total small { display:block; font-size:9px; color:#c9c6ad; text-transform:uppercase; letter-spacing:.09em; }
+/* Gold is displayed as the compact amount only. */
 .gold-total strong { color:#e6c37d; font-size:14px; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .top-actions { display:flex; align-items:center; justify-content:flex-end; gap:15px; }
 .world-time { font-size:10px; min-width:118px; line-height:1.5; text-align:right; white-space:nowrap; }

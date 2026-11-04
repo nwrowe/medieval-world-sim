@@ -231,7 +231,9 @@
     return '<div class="vital vital-' + kind +
       '" title="' + esc(hint) + '" tabindex="0" aria-label="' +
       esc(label + ': ' + v + ' of ' + maximum + '. ' + hint) + '">' +
-      '<div class="vital-caption"><span>' + esc(label) + '</span><strong>' +
+      '<div class="vital-caption"><span class="vital-icon" aria-hidden="true">' +
+      (kind === "health" ? "+" : kind === "stamina" ? "ϟ" : "✦") +
+      '</span><strong>' +
       v + '/' + maximum + '</strong></div>' +
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
       '" max="' + maximum + '" aria-label="' + esc(label) + '"></progress></div>';
@@ -293,7 +295,7 @@
       meterStat("Health", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
       meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
       meterStat("Mana", p.mana, p.max_mana, "mana", p.mana_next_sim_seconds) +
-      '<div class="gold-total"><small>Gold</small><strong>' +
+      '<div class="gold-total"><strong>' +
       esc(money(p.gold)) + '</strong></div>' +
       '<div class="cooldown-strip" aria-label="Job, food and potion cooldowns">' +
       cooldownIcon("job") + cooldownIcon("food") + cooldownIcon("potion") +
@@ -817,11 +819,12 @@
     const casts = learned.map(n => {
       const meleeMagic = n.school === "enchantment" || n.school === "divination";
       const swingCost = mainSwing ? mainSwing.stamina : 1;
-      const extra = meleeMagic ? ' + ' + swingCost + ' stamina' : '';
+      const magicStamina = state.magic_stamina_cost + (meleeMagic ? swingCost : 0);
+      const extra = ' + ' + magicStamina + ' stamina';
       return button(n.title + ' · ' + n.mana_cost + ' mana' + extra,
         'data-ui="duel-cast" data-node="' + esc(n.node_id) + '"' +
         disabled(pending || p.mana < n.mana_cost ||
-          meleeMagic && p.stamina < swingCost), "secondary");
+          p.stamina < magicStamina), "secondary");
     }).join('');
     const logs = duel.log.length ?
       '<ol class="combat-log">' + duel.log.map(line => '<li>' + esc(line) +
@@ -844,7 +847,9 @@
             'data-ui="duel-swing" data-move="' + option.move + '"' +
             disabled(pending || !option.available),
             option.move === "strike" ? "gold" : "secondary")).join('') +
-        button("Guard · 0 stamina", 'data-ui="duel-guard"' + disabled(pending), "secondary") +
+        button("Guard · " + state.guard_stamina_cost + " stamina",
+          'data-ui="duel-guard"' + disabled(pending ||
+            p.stamina < state.guard_stamina_cost), "secondary") +
         button("Flee", 'data-ui="duel-flee"' + disabled(pending), "ghost") +
         '</div><h4>Combat magic</h4>' +
         '<div class="combat-actions">' +
@@ -1266,17 +1271,53 @@
   }
   function renderTraining() {
     const w = state.player.work;
-    return heading("Learning for a lifetime", "Training Hall",
-      "Planned courses will improve work and combat attributes over time.") +
-      '<div class="two-col"><div class="stack">' +
-      futurePage("The old university", "Training & scholarship",
-        "A hall for tutors, scholars and veteran soldiers. Future courses will take time and money, with clear progression rules and different paths for intellect, labor and warfare.",
-        "magic", "Practice magic now", true) +
+    const hall = state.training_hall || { schools: [], active: null };
+    const current = hall.active;
+    const active = current ? hall.schools.find(s => s.id === current.school) : null;
+    const progressBox = current ?
+      panel("Current studies", (active ? active.name : pretty(current.school)) +
+        " · Course " + (current.index + 1),
+        '<p>Your lessons are in progress. ' +
+        Math.max(1, Math.ceil(current.remaining_minutes / 1440)) +
+        ' simulated days remaining.</p><p class="small">Course progress advances with world time. ' +
+        'Visit the tavern to advance the simulation.</p>') :
+      panel("Ready to enroll", "One course at a time",
+        '<p>Enroll in a course below. Each school has eight sequential courses, ' +
+        'lasting 4–30 simulated days. Your work statistics improve automatically ' +
+        'at completion, and each graduated school unlocks a claimable merit.</p>');
+    const schoolPanels = hall.schools.map(school => {
+      const rows = school.courses.map((course, index) =>
+        '<div class="inventory-row"><span><strong>' + (index + 1) + '. ' +
+        esc(course.name) + '</strong><small>' + course.days +
+        ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
+        '</small></span>' +
+        (course.completed ? chip('Completed') :
+         course.active ? chip('Studying') :
+         course.available ? button('Enroll', 'data-ui="course-enroll" data-school="' +
+           esc(school.id) + '"' + disabled(pending || isBusy()), "secondary") :
+         chip('Locked')) +
+        '</div>').join('');
+      return panel(school.name + ' · ' + school.completed + '/8',
+        school.tradition + ' · ' + pretty(school.stat),
+        (school.capstone_perk ? '<p class="small">Graduation perk: +' +
+          school.capstone_perk.bonus + ' ' +
+          esc(pretty(school.capstone_perk.stat)) + '</p>' : '') +
+        '<div class="resource-list">' +
+        (school.complete ? chip('Graduated · Merit earned') :
+          chip('Course ' + Math.min(8, school.completed + 1) + ' of 8')) +
+        '</div>' + rows);
+    }).join('');
+    return heading("The old university", "Training Hall",
+      "Nine schools rooted in the liberal arts, Latin and practical scholarship.") +
+      '<div class="two-col"><div class="stack">' + progressBox +
+      schoolPanels +
       '</div><aside class="stack">' +
-      panel("Current disciplines", "Baseline work attributes",
+      panel("Your work attributes", "",
         characterRow("Manual", w.manual) +
         characterRow("Intelligence", w.intelligence) +
-        characterRow("Endurance", w.endurance)) +
+        characterRow("Endurance", w.endurance) +
+        '<p class="small">School merits can be claimed on the Merits page ' +
+        'once all eight courses are complete.</p>') +
       '</aside></div>';
   }
   function renderTavern() {
@@ -1372,6 +1413,9 @@
         action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
         action("church_heal", {}, "The church restores your health"); break;
+      case "course-enroll":
+        action("enroll_course", { school: element.dataset.school },
+          "Enrolled in your next course"); break;
       case "horse-buy":
         action("buy_racehorse", { breed: element.dataset.breed }, "Racehorse purchased"); break;
       case "horse-race":

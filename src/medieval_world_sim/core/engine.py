@@ -34,6 +34,7 @@ from ..systems.spells import SpellSystem
 from ..systems.track import TrackSystem
 from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
 from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
+from ..systems.curriculum import CurriculumSystem, SCHOOLS
 from ..systems.consumables import ConsumableSystem
 from ..systems.city_demand import CityDemandSystem
 from ..systems.regional_trade import RegionalTradeSystem, RegionalQuote, MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
@@ -85,6 +86,7 @@ class WorldEngine:
         self.track_system = TrackSystem(self)
         self.guild_system = GuildSystem(self)
         self.merit_system = MeritSystem(self)
+        self.curriculum_system = CurriculumSystem(self)
         self.consumables = ConsumableSystem(self)
         self.city_demand = CityDemandSystem(self)
         self.regional_trade = RegionalTradeSystem(self)
@@ -482,6 +484,10 @@ class WorldEngine:
         return self.guild_system.leave(actor_id)
 
     @atomic_action
+    def enroll_course(self, actor_id: str, school: str) -> dict:
+        return self.curriculum_system.start(actor_id, school)
+
+    @atomic_action
     def claim_merit(self, actor_id: str, achievement: str) -> dict:
         return self.merit_system.claim(actor_id, achievement)
 
@@ -544,6 +550,7 @@ class WorldEngine:
                 "set_guild_role": ("set_guild_role", ("member_id", "role")),
                 "leave_guild": ("leave_guild", ()),
                 "claim_merit": ("claim_merit", ("achievement",)),
+                "enroll_course": ("enroll_course", ("school",)),
                 "buy_merit_upgrade": ("buy_merit_upgrade", ("perk",)),
                 "consume": ("consume", ("item",)),
                 "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
@@ -649,6 +656,19 @@ class WorldEngine:
             spent = sum(MERIT_UPGRADES[k]["cost"] for k in bought)
             if issued - spent != self.state.merit_balance.get(actor_id, 0):
                 raise AssertionError("Merit conservation mismatch")
+        for actor_id, courses in self.state.completed_courses.items():
+            if actor_id not in self.actors or any(
+                    school not in SCHOOLS or type(count) is not int or not 0 <= count <= 8
+                    for school, count in courses.items()):
+                raise AssertionError("Invalid completed curriculum")
+        for actor_id, course in self.state.active_courses.items():
+            if (actor_id not in self.actors or course.school not in SCHOOLS
+                    or self.state.completed_courses.get(actor_id, {}).get(course.school, 0) != course.index
+                    or not 0 <= course.index < 8 or course.ends_at <= self.minute):
+                raise AssertionError("Invalid active curriculum")
+        if any(gid not in self.gear or type(count) is not int or not 0 <= count < 12
+               for gid, count in self.state.gear_wear.items()):
+            raise AssertionError("Invalid equipment wear")
         participants = []
         for key, duel in self.state.duels.items():
             if (key != duel.attacker_id or duel.attacker_id == duel.defender_id

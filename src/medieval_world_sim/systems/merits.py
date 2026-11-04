@@ -1,6 +1,7 @@
 """Finite achievement rewards and one-time merit purchases (no combat inflation)."""
 from dataclasses import dataclass
 from ..errors import ActionError
+from .curriculum import SCHOOLS
 
 @dataclass(frozen=True)
 class Achievement:
@@ -17,6 +18,9 @@ ACHIEVEMENTS = {
     "stablehand": Achievement("Stablehand", "Own a racehorse"),
     "rider": Achievement("Rider", "Complete your first race"),
     "guild_founder": Achievement("Banner Bearer", "Found a guild"),
+    **{"school:" + school: Achievement(
+        name + " Scholar", "Complete all eight courses in " + name)
+       for school, (name, _, _, _) in SCHOOLS.items()},
 }
 MERIT_UPGRADES = {
     "roadcraft": {"name": "Roadcraft", "cost": 2, "description": "5% shorter road journeys"},
@@ -30,6 +34,8 @@ class MeritSystem:
     def earned(self, actor_id: str, key: str) -> bool:
         actor = self.world._actor(actor_id)
         events = self.world.events
+        if key.startswith("school:"):
+            return self.world.state.completed_courses.get(actor_id, {}).get(key[7:], 0) == 8
         if key == "first_steps": return True
         if key == "apprentice": return actor.level >= 2
         if key == "roadfarer": return any(e.kind == "arrived" and e.data.get("actor_id") == actor_id for e in events)

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from .entities import Actor, Company, Offer, WorldEvent, DuelState
 from .cities import CityState
 from ..equipment import GearItem
+from ..systems.curriculum import CourseEnrollment
 from ..systems.guilds import Guild, WarRecord
 
 
@@ -35,3 +36,6 @@ class WorldState:
     merit_claims: dict[str, set[str]] = field(default_factory=dict)
     merit_balance: dict[str, int] = field(default_factory=dict)
     merit_upgrades: dict[str, set[str]] = field(default_factory=dict)
+    active_courses: dict[str, CourseEnrollment] = field(default_factory=dict)
+    completed_courses: dict[str, dict[str, int]] = field(default_factory=dict)
+    gear_wear: dict[int, int] = field(default_factory=dict)

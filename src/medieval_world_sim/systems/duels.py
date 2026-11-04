@@ -3,7 +3,9 @@ from __future__ import annotations
 from ..core.entities import DuelState
 from ..core.transactions import transfer_gold
 from ..errors import ActionError
-from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES
+from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
+
+MAGIC_STAMINA_COST = 6
 
 class DuelSystem:
     def __init__(self, world):
@@ -77,23 +79,40 @@ class DuelSystem:
                 description = f"You strike for {damage} damage"
             else:
                 label, slot, stamina_spent = w.combat.melee_option(attacker, move)
+                if getattr(w, "_legacy_guard_rules", False):
+                    # Ruleset 7 recorded the original fists/dagger costs.
+                    if move == "fists" or (move == "strike" and slot is None):
+                        stamina_spent = 1
+                    elif move == "dagger":
+                        stamina_spent = 2
+                    elif move == "strike" and slot == "weapon":
+                        kind = w.gear[attacker.equipped["weapon"]].kind
+                        stamina_spent = {"sword": 5, "axe": 7, "bow": 4}.get(kind, 5)
                 if attacker.stamina < stamina_spent:
                     raise ActionError(f"Not enough stamina for {label.lower()} attack")
                 attacker.stamina -= stamina_spent
                 damage = w.combat._strike(attacker, defender, slot or "unarmed")
                 description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
         elif move == "guard":
+            if not getattr(w, "_legacy_guard_rules", False):
+                if attacker.stamina < GUARD_STAMINA:
+                    raise ActionError("Not enough stamina to guard")
+                attacker.stamina -= GUARD_STAMINA
+                stamina_spent = GUARD_STAMINA
             damage = 0
             protection = 6
-            description = "You brace for the next attack"
+            description = f"You brace for the next attack ({stamina_spent} stamina)"
         else:
             # Enchantment and divination create a physical strike too.
             # Charge the same main-weapon cost, in addition to their mana.
             node = w.spell_system._ready(attacker, node_id)
-            if not legacy and node.school in ("enchantment", "divination"):
-                _, _, stamina_spent = w.combat.melee_option(attacker, "strike")
+            if not getattr(w, "_legacy_guard_rules", False):
+                stamina_spent = MAGIC_STAMINA_COST
+                if node.school in ("enchantment", "divination"):
+                    _, _, swing_cost = w.combat.melee_option(attacker, "strike")
+                    stamina_spent += swing_cost
                 if attacker.stamina < stamina_spent:
-                    raise ActionError("Not enough stamina for this enchanted weapon swing")
+                    raise ActionError("Not enough stamina to cast this combat spell")
                 attacker.stamina -= stamina_spent
             damage, protection, description = w.spell_system.combat_cast(attacker, defender, node_id)
             if stamina_spent:

@@ -43,7 +43,7 @@ UI_ACTIONS = {
     "start_duel", "duel_turn", "flee_duel", "cast_spell",
     "church_heal", "buy_racehorse", "race_horse",
     "found_guild", "invite_guild", "join_guild", "set_guild_role",
-    "leave_guild", "claim_merit", "buy_merit_upgrade",
+    "leave_guild", "claim_merit", "buy_merit_upgrade", "enroll_course",
 }
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
@@ -97,6 +97,10 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "guild_joined": f"Joined guild {info.get('guild_id')}",
         "guild_role_changed": f"Appointed {info.get('member_id')} as {info.get('role')}",
         "guild_left": f"Left guild {info.get('guild_id')}",
+        "course_started": f"Enrolled in {info.get('school')} course #{info.get('course_index', 0) + 1}",
+        "course_completed": f"Finished {info.get('school')} course; +{info.get('bonus')} {info.get('stat')}",
+        "school_graduated": f"Graduated from {info.get('school')}",
+        "school_capstone_perk": f"{info.get('school')} capstone: +{info.get('bonus')} {info.get('stat')}",
         "merit_claimed": f"Achievement claimed: {info.get('achievement')}",
         "merit_upgrade": f"Merit upgrade purchased: {info.get('perk')}",
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
@@ -232,23 +236,29 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
+            self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
             try:
                 self._advance_world(record["minutes"])
             finally:
                 self.world._legacy_health_regen = False
+                self.world._legacy_equipment_wear = False
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
                 raise ValueError("Unsupported action in journal")
+            self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
+            self.world._legacy_guard_rules = record.get("ruleset", 1) < 8
             self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
             self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
             try:
                 self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
             finally:
+                self.world._legacy_equipment_wear = False
+                self.world._legacy_guard_rules = False
                 self.world._legacy_duel_rules = False
                 self.world._legacy_magic_rules = False
                 self.world._legacy_cooldown_rules = False
@@ -283,7 +293,9 @@ class GameSession:
             }:
                 ruleset = 6
             if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
-                ruleset = 7
+                ruleset = 8
+            if record.get("name") == "enroll_course":
+                ruleset = 8
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             self.records.append(stored_record)
@@ -495,6 +507,7 @@ class GameSession:
                 "world_items": world_items,
                 "guilds": w.guild_system.view(PLAYER_ID),
                 "merits": w.merit_system.view(PLAYER_ID),
+                "training_hall": w.curriculum_system.view(PLAYER_ID),
                 "equipped": dict(actor.equipped),
                 "player": {
                     "city": actor.city, "destination": actor.destination,
@@ -559,6 +572,8 @@ class GameSession:
                 "duel": active_duel,
                 "last_duel": w.state.last_duels.get(PLAYER_ID),
                 "combat_stamina_cost": 0,
+                "guard_stamina_cost": 2,
+                "magic_stamina_cost": 6,
                 "combat_moves": combat_moves,
                 "church": {"price": 20, "available": (
                     actor.hp > 0 and actor.hp < actor.max_hp and
