@@ -624,9 +624,13 @@ class WorldEngine:
                         account.work.endurance >= 0 and account.work.shifts >= 0 and
                         all(isinstance(v, int) and 0 <= v <= 100
                             for v in account.work.experience.values()) and
-                        account.max_hp == 24 + 4 * (account.level - 1) and
+                        account.max_hp == 24 + 4 * (account.level - 1) + (
+                            5 if "school:physical" in self.state.merit_claims.get(account.id, set())
+                            else 0) and
                         account.max_stamina == MAX_STAMINA and
-                        account.strength == account.level and account.defense == account.level and
+                        account.strength == account.level + (
+                            1 if "school:weapons" in self.state.merit_claims.get(account.id, set())
+                            else 0) and account.defense == account.level and
                         account.level_xp >= 0 and account.combat_xp >= 0):
                     raise AssertionError("Invalid combat state")
                 for slot, gear_id in account.equipped.items():
