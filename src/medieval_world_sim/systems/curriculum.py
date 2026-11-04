@@ -86,7 +86,9 @@ class CurriculumSystem:
     def start(self, actor_id: str, school: str) -> dict:
         actor = self.world._actor(actor_id)
         self.world._at_city(actor)
-        if school not in SCHOOLS:
+        if school not in SCHOOLS or (
+                school in RETIRED_SCHOOLS and not getattr(
+                    self.world, "_legacy_curriculum_rules", False)):
             raise ActionError("Unknown school")
         if actor_id in self.world.state.active_courses:
             raise ActionError("Finish your current course first")
