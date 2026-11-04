@@ -196,6 +196,9 @@ class MultiplayerGame:
         self.world.assert_invariants()
         if self.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] != len(registered):
             raise ValueError("Account and world registration journal differ")
+        # The stream revision must remain stable after restart, as game
+        # snapshots and browser reconnects use it to reject stale updates.
+        self._revision = len(rows)
 
     @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
