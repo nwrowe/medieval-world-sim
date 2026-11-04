@@ -1769,6 +1769,7 @@
         chatOpen = !chatOpen;
         render(); break;
       case "chat-channel":
+        if (chatChannelKey !== element.dataset.key) chatDraft = "";
         chatChannelKey = element.dataset.key;
         render(); break;
       case "chat-refresh":
@@ -1787,6 +1788,7 @@
       case "profile-chat":
         if (multiMode) {
           chatDirectTarget = element.dataset.character;
+          if (chatChannelKey !== "direct:" + chatDirectTarget) chatDraft = "";
           chatChannelKey = "direct:" + chatDirectTarget;
           chatOpen = true;
           render();
