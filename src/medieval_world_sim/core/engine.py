@@ -590,7 +590,8 @@ class WorldEngine:
                 return existing[1]
             # Duplicate requests must return their receipt even after a duel begins.
             if (principal_id in self.state.duels
-                    and action not in ("duel_turn", "flee_duel")):
+                    and action not in ("duel_turn", "flee_duel",
+                                       "send_chat", "create_chat_room")):
                 raise ActionError("Finish your current duel first")
             previous_id = self._current_action_id
             self._current_action_id = action_id
