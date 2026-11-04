@@ -398,7 +398,14 @@
         esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
         Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
     }
-    return items + trade + travel + university;
+    const defenderAlert = state.duel && state.duel.role === "defender" ?
+      '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
+      'data-ui="activity-duel" title="' +
+      esc("Under attack by " + state.duel.opponent_name +
+        " · your character automatically counterattacks. Open to watch or flee.") +
+      '" aria-label="Under attack · open combat">' +
+      '<span aria-hidden="true">⚔</span><strong>Under attack</strong></button>' : "";
+    return items + trade + travel + university + defenderAlert;
   }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
@@ -2132,6 +2139,8 @@
         action("church_heal", {}, "The church restores your health"); break;
       case "activity-trade":
         tab = "trade"; render(); break;
+      case "activity-duel":
+        tab = "duel"; render(); break;
       case "activity-travel":
         tab = "world"; render(); break;
       case "activity-university":
