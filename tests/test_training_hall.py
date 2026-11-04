@@ -1,5 +1,6 @@
 """Training Hall, graduated merits, wear interval and stamina economy regressions."""
 from pathlib import Path
+import json
 import tempfile
 import unittest
 
@@ -85,6 +86,24 @@ class CurriculumWebTests(unittest.TestCase):
             self.action("enroll_course_choice",
                         {"school": "rhetoric", "index": 0}, "double-book")
         self.assertEqual(GameSession(self.path).snapshot(), self.session.snapshot())
+
+    def test_retired_grammar_replays_old_journal_but_rejects_new_enrollment(self):
+        document = json.loads(self.path.read_text())
+        document["records"].append({
+            "kind": "action", "name": "enroll_course",
+            "params": {"school": "grammar"}, "id": "historic-grammar",
+            "ruleset": 8,
+        })
+        self.path.write_text(json.dumps(document))
+        restored = GameSession(self.path)
+        self.assertEqual(restored.snapshot()["training_hall"]["active"]["school"], "grammar")
+        self.assertNotIn("grammar", {s["id"] for s in
+                         restored.snapshot()["training_hall"]["schools"]})
+        restored.advance(1440)
+        self.assertEqual(GameSession(self.path).snapshot(), restored.snapshot())
+        world = WorldEngine([Actor("modern", "human", city="crownreach")])
+        with self.assertRaises(ActionError):
+            world.enroll_course("modern", "grammar")
 
     def test_tuition_rejected_atomically_when_not_affordable(self):
         world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=5)])
