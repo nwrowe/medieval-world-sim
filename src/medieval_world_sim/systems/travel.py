@@ -97,6 +97,7 @@ class TravelSystem:
         health_ticks = (end // HEALTH_REGEN_MINUTES - start_minute // HEALTH_REGEN_MINUTES
                         if not getattr(self.world, "_legacy_health_regen", False) else 0)
         self.world.minute = end
+        self.world.curriculum_system.settle(end)
         for actor in self.world.actors.values():
             actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
             actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)

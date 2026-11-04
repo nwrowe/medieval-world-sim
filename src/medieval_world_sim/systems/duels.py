@@ -3,7 +3,7 @@ from __future__ import annotations
 from ..core.entities import DuelState
 from ..core.transactions import transfer_gold
 from ..errors import ActionError
-from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES
+from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
 
 class DuelSystem:
     def __init__(self, world):
@@ -83,9 +83,14 @@ class DuelSystem:
                 damage = w.combat._strike(attacker, defender, slot or "unarmed")
                 description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
         elif move == "guard":
+            if not getattr(w, "_legacy_guard_rules", False):
+                if attacker.stamina < GUARD_STAMINA:
+                    raise ActionError("Not enough stamina to guard")
+                attacker.stamina -= GUARD_STAMINA
+                stamina_spent = GUARD_STAMINA
             damage = 0
             protection = 6
-            description = "You brace for the next attack"
+            description = f"You brace for the next attack ({stamina_spent} stamina)"
         else:
             # Enchantment and divination create a physical strike too.
             # Charge the same main-weapon cost, in addition to their mana.

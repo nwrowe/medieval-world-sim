@@ -12,7 +12,9 @@ MAX_GOLD_LOOT = 10
 
 # Turn-based combat expenditure occurs for an *initiated* melee swing only.
 # Counterattacks are defensive reactions, regardless of their weapon.
-SWING_STAMINA = {"fists": 1, "dagger": 2, "sword": 5, "axe": 7, "bow": 4}
+SWING_STAMINA = {"fists": 2, "dagger": 3, "sword": 5, "axe": 7, "bow": 5}
+GUARD_STAMINA = 2
+WEAR_INTERVAL = 12
 DEFAULT_WEAPON_STAMINA = 5
 ARMOR_SLOTS = ("body", "offhand", "helm", "boots", "greaves", "gloves")
 
@@ -108,8 +110,17 @@ class CombatSystem:
 
     def _wear(self, owner, gear_id: int) -> None:
         item = self.world.gear[gear_id]
-        item.durability -= 1
+        if getattr(self.world, "_legacy_equipment_wear", False):
+            item.durability -= 1
+        else:
+            count = self.world.state.gear_wear.get(gear_id, 0) + 1
+            if count < WEAR_INTERVAL:
+                self.world.state.gear_wear[gear_id] = count
+                return
+            self.world.state.gear_wear.pop(gear_id, None)
+            item.durability -= 1
         if item.durability == 0:
+            self.world.state.gear_wear.pop(gear_id, None)
             owner.gear_ids.remove(gear_id)
             for slot, equipped_id in list(owner.equipped.items()):
                 if equipped_id == gear_id:
