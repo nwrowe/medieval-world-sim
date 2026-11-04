@@ -32,8 +32,8 @@ class WeaponStaminaTests(unittest.TestCase):
         self.assertEqual(start["stamina_spent"], 0)
         self.assertEqual(self.game.snapshot()["player"]["stamina"], 100)
         turn = self.action("duel_turn", {"move": "fists", "node_id": ""}, "punch")
-        self.assertEqual(turn["stamina_spent"], 1)
-        self.assertEqual(self.game.snapshot()["player"]["stamina"], 99)
+        self.assertEqual(turn["stamina_spent"], 2)
+        self.assertEqual(self.game.snapshot()["player"]["stamina"], 98)
         self.assertGreater(turn["retaliation"], 0)
         self.assertEqual(GameSession(self.path).snapshot(), self.game.snapshot())
 
@@ -51,9 +51,9 @@ class WeaponStaminaTests(unittest.TestCase):
         for key in ("helm", "boots", "greaves", "gloves"):
             self.assertIn(key, view["equipped"])
         self.assertEqual({m["move"]: m["stamina"] for m in view["combat_moves"]},
-                         {"strike": 5, "dagger": 2, "fists": 1})
+                         {"strike": 5, "dagger": 3, "fists": 2})
         self.action("start_duel", {"defender_id": self.foe()}, "start")
-        for move, cost in (("fists", 1), ("dagger", 2), ("strike", 5)):
+        for move, cost in (("fists", 2), ("dagger", 3), ("strike", 5)):
             before = self.game.snapshot()["player"]["stamina"]
             result = self.action("duel_turn", {"move": move, "node_id": ""}, "hit-" + move)
             self.assertEqual(result["stamina_spent"], cost)
@@ -66,7 +66,7 @@ class WeaponStaminaTests(unittest.TestCase):
         # engine test below rather than introduce an undocumented save mutation.
         before = self.game.snapshot()["player"]["stamina"]
         guarded = self.action("duel_turn", {"move": "guard", "node_id": ""}, "guard")
-        self.assertEqual(self.game.snapshot()["player"]["stamina"], before)
+        self.assertEqual(self.game.snapshot()["player"]["stamina"], before - 2)
         self.assertEqual(guarded["retaliation"], 0)
         with self.assertRaises(ActionError):
             self.action("duel_turn", {"move": "dagger", "node_id": ""}, "no-dagger")
@@ -93,7 +93,7 @@ class WeaponStaminaTests(unittest.TestCase):
         self.assertEqual(world.actors["foe"].hp, before_hp)
         self.assertEqual(world.state.duels["hero"].round, before_round)
         world.duel_turn("hero", "fists", "")
-        self.assertEqual(world.actors["hero"].stamina, 3)
+        self.assertEqual(world.actors["hero"].stamina, 2)
         self.assertEqual(world.actors["foe"].stamina, 0)
         world.assert_invariants()
 
