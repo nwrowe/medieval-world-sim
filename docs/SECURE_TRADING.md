@@ -1,6 +1,6 @@
 # Authenticated bilateral trade: domain foundation
 
-**Status:** engine-only. The current Oathmere browser server is **single-player**. Its LAN access code identifies a whole server, not an individual account. Do **not** expose trade endpoints on that API: a client must first have a separately authenticated principal. The trade engine deliberately does not appear in `GameSession.UI_ACTIONS` and cannot be called from the single-player browser.
+**Status:** trade remains unavailable in the ordinary single-player browser. The opt-in **localhost-only multi-account development mode** (see [setup](MULTIPLAYER_LOCAL_DEVELOPMENT.md)) now authenticates separate players and exposes trade endpoints through session-bound, CSRF-protected requests. This is for local testing only; do **not** use the development server as a public-money or internet-facing trading service. The old shared LAN access code still cannot authenticate individual people.
 
 ## Proposed workflow
 
@@ -20,7 +20,7 @@ Offers and requests are explicit, typed and bounded. A trade may gift assets one
 
 ## What is *not* yet secure or live
 
-The in-memory engine is transaction-safe **within one process** (`atomic_action` rollbacks under `RLock`). It is not a substitute for database ACID durability across multiple servers or processes. Before enabling player trading on a hosted multiplayer service, introduce:
+The local multi-account development service uses a **single SQLite transaction** for each replayable action and a shared process lock around world changes; this survives restarts and avoids double settlement in the local mode. Its in-memory world is still **not a normalized shared asset ledger** and cannot provide cross-process ACID behavior or production crash-recovery guarantees without further work. Before enabling publicly hosted player trading, introduce:
 
 - Account registration/login, secure password storage, per-account sessions and a verified session-to-actor mapping.
 - A shared database transaction (e.g., PostgreSQL `SERIALIZABLE` or appropriate row locks) for escrow, inventory, trade acceptance, and commit; unique constraints on item/gear ownership.
