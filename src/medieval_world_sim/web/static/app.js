@@ -46,6 +46,7 @@
   let chatOpen = false;
   let chatChannelKey = "global";
   let chatDraft = "";
+  let chatDirectTarget = null;
   let pending = false;
   let authNeeded = false;
   let offline = false;
@@ -360,12 +361,15 @@
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
       profile: renderProfile,
+      trade: renderTrade,
       guilds: renderGuilds, merits: renderMerits,
     };
     const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
       .map(t => navButton(t)).join('');
-    const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
+    const topLinks = accountTabs.concat(multiMode ?
+      [{ id: "trade", icon: "⇄", title: "Trade" }] : [])
+      .map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
       '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
@@ -816,15 +820,17 @@
       pretty(quote.item).toLowerCase().includes(query));
     const rows = searchScope === "players" ?
       players.map(person => {
-        const self = person.id === "hero";
+        const self = person.id === (state.actor_id || "hero");
         const recovering = person.recovering_minutes > 0;
         const text = self ? "Your character" :
-          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" : "Out of reach";
+          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" :
+          person.kind === "human" ? "View profile" : "Out of reach";
         return '<div class="equipment-item"><div><h3>' +
           '<button type="button" class="character-name-link" data-ui="profile-open" ' +
           'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
-          ' · ' + (self ? 'You' : 'NPC adventurer') + ' · HP ' +
+          ' · ' + (self ? 'You' : person.kind === "npc" ?
+            'NPC adventurer' : 'Player') + ' · HP ' +
           person.hp + '/' + person.max_hp +
           (recovering ? ' · Recovering ' + dur(person.recovering_minutes) : '') +
           '</p></div>' +
@@ -848,8 +854,9 @@
             button('Armory', 'data-tab="armory"', "secondary") : '') +
           '</div>';
       }).join('');
-    const hint = searchScope === "players" ?
-      'These are persistent computer-controlled adventurers, not connected players. ' +
+    const hint = searchScope === "players" ? (multiMode ?
+      'These are individual player characters and computer-controlled adventurers. ' :
+      'These are persistent computer-controlled adventurers, not connected players. ') +
       'To attack, be in the same city. Starting a duel costs no stamina; ' +
       'each offensive swing costs stamina. Victory takes 5% ' +
       'of the defeated character’s carried gold.' :
@@ -880,7 +887,7 @@
     const person = (state.users || []).find(user => user.id === selectedCharacterId);
     if (!person) return heading("", "Character unavailable", "") +
       panel("Search for characters", "", button("Back to Search", 'data-tab="people"', "secondary"));
-    const self = person.id === "hero";
+    const self = person.id === (state.actor_id || "hero");
     const isNpc = person.kind === "npc";
     const reachable = !self && person.can_attack;
     const recovering = Number(person.recovering_minutes) > 0;
@@ -903,9 +910,9 @@
         button("Attack", 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
           disabled(!reachable || pending || isBusy()), "gold") +
         button("Chat", 'data-ui="profile-chat" data-character="' + esc(person.id) + '"' +
-          disabled(self), "secondary") +
+          disabled(self || (multiMode && isNpc)), "secondary") +
         button("Trade", 'data-ui="profile-trade" data-character="' + esc(person.id) + '"' +
-          disabled(self), "secondary") +
+          disabled(self || (multiMode && isNpc)), "secondary") +
         '</div><p class="small">' + (isNpc ?
           'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
           'will require the upcoming authenticated multiplayer service.' :
@@ -1460,10 +1467,19 @@
   function chatDock() {
     if (!state || !state.started) return "";
     const chat = state.chat || { channels: [], messages: [] };
-    const selected = chat.channels.find(x => x.key === chatChannelKey) ||
-      chat.channels[0] || { key: "global", kind: "global", target: "", label: "Global" };
+    const available = chat.channels.slice();
+    if (multiMode && chatDirectTarget &&
+        !available.some(x => x.key === "direct:" + chatDirectTarget)) {
+      const user = (state.users || []).find(x => x.id === chatDirectTarget);
+      if (user && user.kind === "human") {
+        available.push({ key: "direct:" + chatDirectTarget, kind: "direct",
+                         target: chatDirectTarget, label: user.name });
+      }
+    }
+    const selected = available.find(x => x.key === chatChannelKey) ||
+      available[0] || { key: "global", kind: "global", target: "", label: "Global" };
     const posts = (chat.messages || []).filter(x => x.channel_key === selected.key);
-    const channels = chat.channels.map(channel =>
+    const channels = available.map(channel =>
       button(channel.label, 'data-ui="chat-channel" data-key="' + esc(channel.key) +
         '" aria-pressed="' + (selected.key === channel.key) + '"',
         selected.key === channel.key ? "secondary" : "ghost")).join('');
@@ -1475,12 +1491,17 @@
       '</button>' +
       (chatOpen ? '<div class="chat-content">' +
         '<div class="chat-channels">' + channels + '</div>' +
-        '<p class="chat-preview-notice">Local preview: only one human account is connected. ' +
-        'Live player-to-player chat requires separate authenticated accounts.</p>' +
+        '<p class="chat-preview-notice">' + (multiMode ?
+          'Local multi-account chat · Refresh to see messages from other players.' :
+          'Local preview: only one human account is connected. ' +
+          'Live player-to-player chat requires separate authenticated accounts.') +
+        (multiMode ? ' <button class="chat-refresh-link" type="button" ' +
+          'data-ui="chat-refresh">Refresh</button>' : '') + '</p>' +
         '<div class="chat-history" aria-live="polite">' +
         (posts.length ? posts.map(post =>
           '<div class="chat-post"><strong>' +
-          esc(post.sender === "hero" ? state.name : post.sender) +
+          esc(post.sender_name ||
+              (post.sender === (state.actor_id || "hero") ? state.name : post.sender)) +
           '</strong><p>' + esc(post.body) +
           '</p></div>').join('') :
           '<p class="small">No messages in this channel yet.</p>') +
@@ -1593,6 +1614,13 @@
       case "chat-channel":
         chatChannelKey = element.dataset.key;
         render(); break;
+      case "chat-refresh":
+        (async () => {
+          try {
+            state = await request("/api/state");
+            render();
+          } catch (error) { notify(error.message, true); }
+        })(); break;
       case "profile-open":
         selectedCharacterId = element.dataset.character;
         tab = "profile";
@@ -1600,10 +1628,23 @@
         window.scrollTo({ top: 0, behavior: "smooth" });
         break;
       case "profile-chat":
-        notify("Direct chat needs authenticated multiplayer accounts. NPCs do not have live private conversations.", true);
+        if (multiMode) {
+          chatDirectTarget = element.dataset.character;
+          chatChannelKey = "direct:" + chatDirectTarget;
+          chatOpen = true;
+          render();
+        } else {
+          notify("Direct chat needs authenticated multiplayer accounts. NPCs cannot receive DMs.", true);
+        }
         break;
       case "profile-trade":
-        notify("Player-to-player trade is not enabled on this single-player server.", true);
+        if (multiMode) {
+          selectedCharacterId = element.dataset.character;
+          tab = "trade";
+          render();
+        } else {
+          notify("Player-to-player trading requires individual accounts.", true);
+        }
         break;
       case "dismiss-level":
         levelCelebration = null; render(); break;
