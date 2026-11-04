@@ -217,6 +217,53 @@ class MultiAccountHTTPTests(unittest.TestCase):
                                headers={"Cookie": bob_cookie})
             self.assertEqual(status, 200)
 
+    def test_http_trade_requires_the_correct_recipient_session(self):
+        with serve(self.game) as port:
+            credentials = []
+            for username, name in (("alice", "Alice River"),
+                                   ("bob", "Bryn Stone"),
+                                   ("mallory", "Mara Vale")):
+                status, registered, headers = api(port, "POST", "/api/auth/register", {
+                    "username": username, "password": PASSWORD, "display_name": name})
+                self.assertEqual(status, 200)
+                credentials.append((registered["state"]["actor_id"],
+                                    headers["Set-Cookie"].split(";", 1)[0],
+                                    registered["csrf"]))
+            alice, alice_cookie, alice_csrf = credentials[0]
+            bob, bob_cookie, bob_csrf = credentials[1]
+            mallory, mal_cookie, mal_csrf = credentials[2]
+            offer = {"gold": 20, "items": [], "gear_ids": []}
+            request = {"gold": 15, "items": [], "gear_ids": []}
+            status, proposal, _ = api(port, "POST", "/api/action", {
+                "action": "propose_trade",
+                "params": {"recipient_id": bob, "offer": offer, "request": request},
+                "id": "trade-maker-1"
+            }, headers={"Cookie": alice_cookie, "X-CSRF-Token": alice_csrf})
+            self.assertEqual(status, 200)
+            trade = proposal["result"]
+            status, outsider, _ = api(port, "GET", "/api/state",
+                                      headers={"Cookie": mal_cookie})
+            self.assertEqual(status, 200)
+            self.assertNotIn(trade["id"], [t["id"] for t in outsider["trades"]])
+            status, denied, _ = api(port, "POST", "/api/action", {
+                "action": "accept_trade",
+                "params": {"trade_id": trade["id"], "terms_hash": trade["terms_hash"]},
+                "id": "trade-mallory-1"
+            }, headers={"Cookie": mal_cookie, "X-CSRF-Token": mal_csrf})
+            self.assertEqual(status, 400)
+            status, accepted, _ = api(port, "POST", "/api/action", {
+                "action": "accept_trade",
+                "params": {"trade_id": trade["id"], "terms_hash": trade["terms_hash"]},
+                "id": "trade-bob-1"
+            }, headers={"Cookie": bob_cookie, "X-CSRF-Token": bob_csrf})
+            self.assertEqual(status, 200)
+            self.assertEqual(accepted["state"]["player"]["gold"], 245)
+            status, alice_now, _ = api(port, "GET", "/api/state",
+                                       headers={"Cookie": alice_cookie})
+            self.assertEqual(status, 200)
+            self.assertEqual(alice_now["player"]["gold"], 235)
+            self.assertEqual(self.game.world.total_gold, self.game.world.initial_gold)
+
     def test_host_and_cross_origin_validation(self):
         with serve(self.game) as port:
             status, _, _ = api(port, "GET", "/api/health",
