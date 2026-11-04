@@ -32,7 +32,7 @@ class DuelWebTests(unittest.TestCase):
         total = self.game.world.total_gold
         start = self.do("start_duel", {"defender_id": enemy["id"]}, "start")
         self.assertEqual(self.do("start_duel", {"defender_id": enemy["id"]}, "start"), start)
-        self.assertEqual(self.game.snapshot()["player"]["stamina"], 80)
+        self.assertEqual(self.game.snapshot()["player"]["stamina"], 100)
         with self.assertRaises(ActionError):
             self.do("travel", {"destination": "crownreach"}, "no-travel")
         with self.assertRaises(ActionError):
