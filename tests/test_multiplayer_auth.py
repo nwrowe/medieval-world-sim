@@ -62,6 +62,9 @@ class MultiAccountPersistenceTests(unittest.TestCase):
             self.assertNotIn("gold", person)
             self.assertNotIn("strength", person)
             self.assertNotIn("defense", person)
+        self.game.action(alice, "travel",
+                         {"destination": "goldmeadow"}, "to-fields")
+        self.game.advance(bob, 60, "arrive-fields")
         self.game.action(alice, "gather", {"item": "grain", "quantity": 1}, "gather-a")
         self.assertEqual(self.game.snapshot(alice)["player"]["inventory"].get("grain"), 1)
         self.assertEqual(self.game.snapshot(bob)["player"]["inventory"].get("grain", 0), 0)
@@ -114,6 +117,9 @@ class MultiAccountPersistenceTests(unittest.TestCase):
     def test_reused_request_id_mismatched_payload_and_cross_account_isolation(self):
         _, _, alice = self.register("alice", "Alice River")
         _, _, bob = self.register("bob", "Bryn Stone")
+        self.game.action(alice, "travel", {"destination": "goldmeadow"}, "trip-a")
+        self.game.action(bob, "travel", {"destination": "goldmeadow"}, "trip-b")
+        self.game.advance(alice, 60, "arrive-both")
         self.game.action(alice, "gather", {"item": "grain", "quantity": 1}, "req-1")
         with self.assertRaises(ActionError):
             self.game.action(alice, "gather", {"item": "grain", "quantity": 2}, "req-1")
@@ -192,6 +198,15 @@ class MultiAccountHTTPTests(unittest.TestCase):
                 headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
             self.assertEqual(status, 400)
             self.assertIn("Invalid action request fields", forged["error"])
+            status, _, _ = api(port, "POST", "/api/action", {
+                "action": "travel", "params": {"destination": "goldmeadow"},
+                "id": "trip-to-fields"
+            }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
+            self.assertEqual(status, 200)
+            status, _, _ = api(port, "POST", "/api/advance", {
+                "minutes": 60, "id": "arrive-fields"
+            }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
+            self.assertEqual(status, 200)
             status, result, _ = api(port, "POST", "/api/action", {
                 "action": "gather", "params": {"item": "grain", "quantity": 1},
                 "id": "gather-1"},

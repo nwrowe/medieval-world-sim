@@ -90,7 +90,7 @@ class WebSessionTests(unittest.TestCase):
         view = self.game.snapshot()
         self.assertTrue(view["started"])
         self.assertEqual(view["player"]["gold"], 240)
-        self.assertEqual(view["player"]["city"], "goldmeadow")
+        self.assertEqual(view["player"]["city"], "crownreach")
         self.assertEqual(len(view["cities"]), 5)
         self.assertEqual(len(view["magic_nodes"]), 37)
         self.assertEqual(view["player"]["cargo_limit"], 12)
@@ -101,6 +101,8 @@ class WebSessionTests(unittest.TestCase):
     def test_action_journal_survives_restart_and_remains_authoritative(self):
         self.game.create("Alin Marlow")
         initial_gold = self.game.world.initial_gold
+        self.game.action("travel", {"destination": "goldmeadow"}, "to-fields")
+        self.game.advance(60)
         self.game.action("gather", {"item": "grain", "quantity": 2}, "gather-1")
         self.game.action("regional_sell", {"item": "grain", "quantity": 1}, "sell-1")
         self.game.advance(90)
@@ -117,6 +119,8 @@ class WebSessionTests(unittest.TestCase):
 
     def test_saved_command_id_is_not_charged_twice(self):
         self.game.create("Eryn Vale")
+        self.game.action("travel", {"destination": "goldmeadow"}, "buy-fields")
+        self.game.advance(60)
         args = {"item": "grain", "quantity": 2}
         self.game.action("regional_buy", args, "one-purchase")
         before = self.game.snapshot()
@@ -140,8 +144,7 @@ class WebSessionTests(unittest.TestCase):
         self.assertEqual(first["equipped"], {})
         self.assertTrue(first["equipment_catalog"])
 
-        self.game.action("travel", {"destination": "crownreach"}, "trip-for-armory")
-        self.game.advance(60)
+        self.assertEqual(self.game.snapshot()["player"]["city"], "crownreach")
         sword_id = self.game.action("buy_starter_gear", {"kind": "sword"}, "buy-sword")
         self.assertIsInstance(sword_id, int)
         self.game.action("equip", {"gear_id": sword_id}, "equip-sword")
@@ -157,8 +160,6 @@ class WebSessionTests(unittest.TestCase):
 
     def test_chronicle_records_real_action_times_and_exact_gear_names(self):
         self.game.create("Chronicle Keeper")
-        self.game.action("travel", {"destination": "crownreach"}, "trip-to-crown")
-        self.game.advance(60)
         sword_id = self.game.action("buy_starter_gear", {"kind": "sword"}, "buy-a-sword")
         self.game.action("equip", {"gear_id": sword_id}, "equip-a-sword")
         self.game.action("unequip", {"slot": "weapon"}, "remove-a-sword")
@@ -176,6 +177,11 @@ class WebSessionTests(unittest.TestCase):
 
     def test_old_journal_without_wall_timestamps_remains_readable(self):
         self.game.create("Old Chronicle")
+        # A legacy save without start_city replays from its historical city.
+        document = json.loads(self.save.read_text(encoding="utf-8"))
+        document.pop("start_city", None)
+        self.save.write_text(json.dumps(document), encoding="utf-8")
+        self.game = GameSession(self.save)
         self.game.action("gather", {"item": "grain", "quantity": 1}, "legacy-gather")
         document = json.loads(self.save.read_text(encoding="utf-8"))
         for record in document["records"]:
@@ -237,6 +243,15 @@ class WebHTTPTests(unittest.TestCase):
             status, data, _ = api(port, "POST", "/api/new", {"name": "Carin Moss"})
             self.assertEqual(status, 200)
             self.assertEqual(data["state"]["name"], "Carin Moss")
+            self.assertEqual(data["state"]["player"]["city"], "crownreach")
+            status, data, _ = api(port, "POST", "/api/action",
+                                  {"action": "travel",
+                                   "params": {"destination": "goldmeadow"},
+                                   "id": "to-fields"})
+            self.assertEqual(status, 200)
+            status, data, _ = api(port, "POST", "/api/advance", {"minutes": 60})
+            self.assertEqual(status, 200)
+            self.assertEqual(data["state"]["player"]["city"], "goldmeadow")
             status, data, _ = api(port, "POST", "/api/action",
                                   {"action": "gather", "params": {"item": "grain", "quantity": 2},
                                    "id": "gather-a"})

@@ -27,14 +27,14 @@ class DuelWebTests(unittest.TestCase):
 
     def test_npc_search_stamina_per_round_persistence_and_exact_loot(self):
         enemy = self.enemy()
-        self.assertEqual(enemy["city"], "goldmeadow")
+        self.assertEqual(enemy["city"], "crownreach")
         starting_gold = self.game.world.actors[enemy["id"]].gold
         total = self.game.world.total_gold
         start = self.do("start_duel", {"defender_id": enemy["id"]}, "start")
         self.assertEqual(self.do("start_duel", {"defender_id": enemy["id"]}, "start"), start)
         self.assertEqual(self.game.snapshot()["player"]["stamina"], 100)
         with self.assertRaises(ActionError):
-            self.do("travel", {"destination": "crownreach"}, "no-travel")
+            self.do("travel", {"destination": "goldmeadow"}, "no-travel")
         with self.assertRaises(ActionError):
             self.game.advance(10)
         first = self.do("duel_turn", {"move": "strike", "node_id": ""}, "first")

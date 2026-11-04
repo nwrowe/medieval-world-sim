@@ -90,6 +90,9 @@ class ChronicleAuditTests(unittest.TestCase):
                              self.game.snapshot(self.c)["events"]))
 
     def test_old_sqlite_journal_migrates_without_fabricating_past_timestamps(self):
+        self.game.action(self.a, "travel",
+                         {"destination": "goldmeadow"}, "to-fields")
+        self.game.advance(self.b, 60, "arrive-fields")
         self.game.action(self.a, "gather",
                          {"item": "grain", "quantity": 1}, "old-command")
         # Simulate a pre-timestamp-database entry. Leave the schema in place.

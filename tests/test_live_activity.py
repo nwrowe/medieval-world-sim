@@ -74,7 +74,7 @@ class PvPSkirmishTests(unittest.TestCase):
             self.game.action(self.alice, "start_duel",
                              {"defender_id": self.bob}, "illegal-pvp-duel")
         self.game.action(self.alice, "travel",
-                         {"destination": "crownreach"}, "travel-first")
+                         {"destination": "goldmeadow"}, "travel-first")
         with self.assertRaises(ActionError):
             self.game.action(self.alice, "pvp_strike",
                              {"defender_id": self.bob}, "attack-on-the-road")

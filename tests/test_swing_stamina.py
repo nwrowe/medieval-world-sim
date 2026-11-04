@@ -38,8 +38,7 @@ class WeaponStaminaTests(unittest.TestCase):
         self.assertEqual(GameSession(self.path).snapshot(), self.game.snapshot())
 
     def test_weapon_and_dagger_attack_costs_and_slot_catalog(self):
-        self.action("travel", {"destination": "crownreach"}, "travel")
-        self.game.advance(60)
+        # New players begin at Crownreach, where starter gear is sold.
         self.assertEqual(self.game.snapshot()["player"]["city"], "crownreach")
         owned = {}
         for kind in ("sword", "dagger", "iron_helm", "iron_boots",

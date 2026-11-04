@@ -114,6 +114,11 @@ class SaveCompatibilityTests(unittest.TestCase):
             path = Path(folder) / "save.json"
             game = GameSession(path)
             game.create("Cale Rowan")
+            # Exercise legacy Goldmeadow saves alongside the new Crownreach spawn.
+            old_document = json.loads(path.read_text(encoding="utf-8"))
+            old_document.pop("start_city", None)
+            path.write_text(json.dumps(old_document), encoding="utf-8")
+            game = GameSession(path)
             game.action("gather", {"item": "grain", "quantity": 2}, "gather")
             game.action("store_goods", {"item": "grain", "quantity": 2}, "store")
             self.assertEqual(game.snapshot()["player"]["stored_here"]["grain"], 2)
