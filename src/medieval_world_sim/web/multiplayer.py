@@ -419,8 +419,12 @@ class MultiplayerGame:
     def advance(self, actor_id: str, minutes: int, request_id: str):
         return self._run(actor_id, "advance", None, {"minutes": minutes}, request_id)
 
-    def _social_view(self, actor_id: str) -> dict:
+    def _social_view(self, actor_id: str, projection: dict | None = None) -> dict:
         """Account-scoped streaming data; never broadcast raw world state."""
+        if projection is None:
+            projection = world_snapshot(self.world, actor_id,
+                                        self.names[actor_id], self.npc_names,
+                                        self.names, self.event_times, True)
         actor = self.world._actor(actor_id)
         chat = self.world.chat_system.view(actor_id)
         for channel in chat["channels"]:
@@ -448,6 +452,7 @@ class MultiplayerGame:
         return {
             "actor_id": actor_id, "revision": self._revision,
             "chat": chat, "trades": trades, "minute": self.world.minute,
+            "users": projection["users"], "events": projection["events"],
             "course_active": self.world.curriculum_system.view(actor_id)["active"],
             "player_status": {
                 "hp": actor.hp, "max_hp": actor.max_hp,
@@ -490,7 +495,7 @@ class MultiplayerGame:
                                     self.npc_names, self.names,
                                     self.event_times, True)
             result["actor_id"] = actor_id
-            social = self._social_view(actor_id)
+            social = self._social_view(actor_id, result)
             result["chat"] = social["chat"]
             result["trades"] = social["trades"]
             result["activity_revision"] = self._revision
