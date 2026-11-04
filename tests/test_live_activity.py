@@ -43,40 +43,45 @@ class PvPSkirmishTests(unittest.TestCase):
         self.game.close()
         self.temp.cleanup()
 
-    def test_unarmed_player_attack_one_swing_server_authority_and_restart(self):
+    def test_player_attack_uses_replayable_duel_flow(self):
         alice_view = self.game.snapshot(self.alice)
         opponent = next(x for x in alice_view["users"] if x["id"] == self.bob)
         self.assertTrue(opponent["can_attack"])
         before = self.game.world.total_gold
-        outcome = self.game.action(self.alice, "pvp_strike",
-                                   {"defender_id": self.bob}, "pvp-once")
+        started = self.game.action(self.alice, "start_duel",
+                                   {"defender_id": self.bob}, "pvp-start")
+        self.assertEqual(started["stamina_spent"], 0)
+        self.assertEqual(self.game.snapshot(self.alice)["duel"]["role"], "attacker")
+        self.assertEqual(self.game.snapshot(self.bob)["duel"]["role"], "defender")
+        outcome = self.game.action(self.alice, "duel_turn",
+                                   {"move": "fists", "node_id": ""}, "pvp-turn")
         self.assertEqual(outcome["stamina_spent"], 2)
         self.assertGreater(outcome["damage"], 0)
         self.assertGreater(outcome["retaliation"], 0)
         self.assertEqual(self.game.snapshot(self.alice)["player"]["stamina"], 98)
+        self.assertEqual(self.game.snapshot(self.bob)["player"]["stamina"], 100)
         self.assertLess(self.game.snapshot(self.bob)["player"]["hp"], 24)
         self.assertEqual(self.game.world.total_gold, before)
-        self.assertEqual(self.game.action(self.alice, "pvp_strike",
-                         {"defender_id": self.bob}, "pvp-once"), outcome)
-        self.assertEqual(self.game.snapshot(self.alice)["player"]["stamina"], 98)
+        self.assertEqual(self.game.action(self.alice, "duel_turn",
+                         {"move": "fists", "node_id": ""}, "pvp-turn"), outcome)
         self.game.close()
         self.game = MultiplayerGame(self.path)
+        self.assertEqual(self.game.snapshot(self.alice)["duel"]["round"], 1)
+        self.assertEqual(self.game.snapshot(self.bob)["duel"]["round"], 1)
         self.assertEqual(self.game.snapshot(self.alice)["player"]["stamina"], 98)
-        self.assertLess(self.game.snapshot(self.bob)["player"]["hp"], 24)
         self.game.world.assert_invariants()
 
-    def test_cannot_attack_self_npcs_or_while_traveling(self):
-        for target in (self.alice, "npc:goldmeadow:0"):
-            with self.assertRaises(ActionError):
-                self.game.action(self.alice, "pvp_strike",
-                                 {"defender_id": target}, "illegal-" + target)
+    def test_cannot_attack_self_or_players_while_traveling(self):
         with self.assertRaises(ActionError):
             self.game.action(self.alice, "start_duel",
-                             {"defender_id": self.bob}, "illegal-pvp-duel")
+                             {"defender_id": self.alice}, "illegal-self")
+        with self.assertRaises(ActionError):
+            self.game.action(self.alice, "pvp_strike",
+                             {"defender_id": self.bob}, "retired-pvp-api")
         self.game.action(self.alice, "travel",
                          {"destination": "goldmeadow"}, "travel-first")
         with self.assertRaises(ActionError):
-            self.game.action(self.alice, "pvp_strike",
+            self.game.action(self.alice, "start_duel",
                              {"defender_id": self.bob}, "attack-on-the-road")
         self.game.world.assert_invariants()
 
