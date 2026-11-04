@@ -655,3 +655,33 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 @media (max-width:1080px) { .university-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:640px) { .university-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media (max-width:380px) { .university-grid { grid-template-columns:1fr; } }
+
+
+/* Persistent chat: available from every game screen without replacing the page. */
+.chat-dock { position:fixed;right:19px;bottom:15px;width:350px;max-width:calc(100vw - 28px);
+  z-index:70;border:1px solid #a99b79;border-radius:13px;background:#f8f5eb;
+  box-shadow:0 13px 45px rgba(20,28,20,.23);overflow:hidden; }
+.chat-toggle { display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 15px;width:100%;border:0;background:#273f34;color:#fff4da;
+  font-size:13px;font-weight:750;cursor:pointer;text-align:left; }
+.chat-toggle:hover,.chat-toggle:focus-visible { background:#395444; }
+.chat-toggle span { font-size:18px; }
+.chat-content { display:flex;flex-direction:column;height:min(440px,60vh); }
+.chat-channels { display:flex;gap:4px;padding:8px;overflow-x:auto;border-bottom:1px solid #d8ccb4;flex:0 0 auto; }
+.chat-channels .button {white-space:nowrap;padding:7px 9px;font-size:11px;}
+.chat-preview-notice {padding:8px 12px;margin:0;background:#f0eadb;
+  border-bottom:1px solid #e0d2ba;font-size:10px;line-height:1.5;color:#625f4e;}
+.chat-history {min-height:0;flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px;}
+.chat-post {border-bottom:1px solid #e3dac8;padding-bottom:8px;overflow-wrap:anywhere;}
+.chat-post strong {display:block;font-size:11px;color:#344f3e;margin-bottom:3px;}
+.chat-post p {margin:0;font-size:12px;line-height:1.5;white-space:pre-wrap;}
+.chat-compose {display:flex;gap:7px;padding:11px;border-top:1px solid #d8ccb4;}
+.chat-compose .field {min-width:0;flex:1;max-width:none;font-size:12px;}
+.chat-compose .button {flex:0 0 auto;padding:8px 12px;}
+.sr-only {position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;
+  overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+@media (max-width:640px) {
+  .chat-dock {bottom:8px;right:8px;max-width:calc(100vw - 16px);width:310px;}
+  .chat-dock.is-open {width:calc(100vw - 16px);}
+  .chat-content {height:min(440px,60vh);}
+}
