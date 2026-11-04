@@ -403,12 +403,16 @@ class MultiplayerGame:
             proposal["maker_name"] = self.names.get(proposal["maker"], "Player")
             proposal["recipient_name"] = self.names.get(proposal["recipient"], "Player")
             for side in ("offer", "request"):
+                # Offered equipment is visible to the recipient; requested
+                # equipment details belong only to the requested owner.
+                # A maker must not probe other people's gear by guessing IDs.
+                can_inspect = side == "offer" or actor_id == proposal["recipient"]
                 proposal[side + "_gear"] = [
                     {"id": gid, "kind": self.world.gear[gid].kind,
                      "quality": self.world.gear[gid].quality,
                      "durability": self.world.gear[gid].durability}
                     for gid in proposal[side]["gear_ids"]
-                    if gid in self.world.gear
+                    if can_inspect and gid in self.world.gear
                 ]
         return {
             "actor_id": actor_id, "revision": self._revision,
