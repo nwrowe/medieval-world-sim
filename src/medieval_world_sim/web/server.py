@@ -286,6 +286,13 @@ class GameHandler(BaseHTTPRequestHandler):
                 self._json(200, {"result": {"logged_out": True}},
                            {"Set-Cookie": self._session_cookie(None)})
                 return
+            if route == "/api/presence":
+                if set(data) != {"visible"} or type(data["visible"]) is not bool:
+                    raise ActionError("Invalid presence request")
+                status = self.server.multiplayer.heartbeat(
+                    self._multi_cookie(), identity.actor_id, data["visible"])
+                self._json(200, {"result": {"presence": status}})
+                return
             if route == "/api/action":
                 if set(data) != {"action", "params", "id"}:
                     raise ActionError("Invalid action request fields")
