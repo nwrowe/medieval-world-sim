@@ -8,7 +8,7 @@ from medieval_world_sim.regional_world import Actor, ActionError, RegionalWorld,
 class EquipmentCombatTests(unittest.TestCase):
     def world(self):
         return RegionalWorld([
-            Actor("hero", "human", gold=250),
+            Actor("hero", "human", gold=600),
             Actor("rival", "human", gold=100),
             Actor("bandit", "npc", gold=35, hostile=True),
             Actor("merchant", "npc", gold=100),

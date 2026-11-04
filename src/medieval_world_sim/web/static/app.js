@@ -737,8 +737,7 @@
         const self = person.id === "hero";
         const recovering = person.recovering_minutes > 0;
         const text = self ? "Your character" :
-          recovering ? "Hospitalized" : person.can_attack ? "Attack · " +
-            state.combat_stamina_cost + " stamina" : "Out of reach";
+          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" : "Out of reach";
         return '<div class="equipment-item"><div><h3>' + esc(person.name) +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
           ' · ' + (self ? 'You' : 'NPC adventurer') + ' · HP ' +
@@ -746,8 +745,7 @@
           (recovering ? ' · Recovering ' + dur(person.recovering_minutes) : '') +
           '</p></div>' +
           button(text, 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
-            disabled(!person.can_attack || isBusy() ||
-              state.player.stamina < state.combat_stamina_cost), "secondary") +
+            disabled(!person.can_attack || isBusy()), "secondary") +
           '</div>';
       }).join('') :
       (state.world_items || []).filter(item =>
@@ -768,7 +766,8 @@
       }).join('');
     const hint = searchScope === "players" ?
       'These are persistent computer-controlled adventurers, not connected players. ' +
-      'To attack, be in the same city with at least 20 stamina. Victory takes 5% ' +
+      'To attack, be in the same city. Starting a duel costs no stamina; ' +
+      'each offensive swing costs stamina. Victory takes 5% ' +
       'of the defeated character’s carried gold.' :
       'All known goods and equipment are listed. Buy and sell prices are live NPC merchant quotes ' +
       'when the merchant can currently trade; unavailable routes show no quote. ' +
@@ -814,10 +813,16 @@
           button("Return to Search", 'data-tab="people"', "secondary"));
     }
     const learned = state.magic_nodes.filter(n => n.unlocked && n.active && n.tier > 0);
-    const casts = learned.map(n =>
-      button(n.title + ' · ' + n.mana_cost + ' mana',
+    const mainSwing = (state.combat_moves || []).find(m => m.move === "strike");
+    const casts = learned.map(n => {
+      const meleeMagic = n.school === "enchantment" || n.school === "divination";
+      const swingCost = mainSwing ? mainSwing.stamina : 1;
+      const extra = meleeMagic ? ' + ' + swingCost + ' stamina' : '';
+      return button(n.title + ' · ' + n.mana_cost + ' mana' + extra,
         'data-ui="duel-cast" data-node="' + esc(n.node_id) + '"' +
-        disabled(pending || p.mana < n.mana_cost), "secondary")).join('');
+        disabled(pending || p.mana < n.mana_cost ||
+          meleeMagic && p.stamina < swingCost), "secondary");
+    }).join('');
     const logs = duel.log.length ?
       '<ol class="combat-log">' + duel.log.map(line => '<li>' + esc(line) +
       '</li>').join('') + '</ol>' :
@@ -827,14 +832,19 @@
       " · each move triggers an opponent response · the encounter is saved after every round") +
       '<div class="combat-vitals">' +
       panel(state.name, "Your health", progress(p.hp, p.max_hp) +
-        '<p>' + p.hp + ' / ' + p.max_hp + ' HP · ' + p.mana + ' mana</p>') +
+        '<p>' + p.hp + ' / ' + p.max_hp + ' HP · ' + p.stamina +
+        ' / ' + p.max_stamina + ' stamina · ' + p.mana + ' mana</p>') +
       panel(duel.opponent_name, "Enemy health", progress(duel.opponent_hp, duel.opponent_max_hp) +
         '<p>' + duel.opponent_hp + ' / ' + duel.opponent_max_hp + ' HP</p>') +
       '</div>' +
-      panel("Choose your move", "Strike, protect yourself, or cast a learned spell.",
+      panel("Choose your move", "Attack stamina is paid once per swing. Defensive counterstrikes cost none.",
         '<div class="combat-actions">' +
-        button("Strike", 'data-ui="duel-strike"' + disabled(pending), "gold") +
-        button("Guard", 'data-ui="duel-guard"' + disabled(pending), "secondary") +
+        (state.combat_moves || []).map(option =>
+          button(option.label + ' · ' + option.stamina + ' stamina',
+            'data-ui="duel-swing" data-move="' + option.move + '"' +
+            disabled(pending || !option.available),
+            option.move === "strike" ? "gold" : "secondary")).join('') +
+        button("Guard · 0 stamina", 'data-ui="duel-guard"' + disabled(pending), "secondary") +
         button("Flee", 'data-ui="duel-flee"' + disabled(pending), "ghost") +
         '</div><h4>Combat magic</h4>' +
         '<div class="combat-actions">' +
@@ -957,8 +967,11 @@
     };
     // Original SVG mannequin: equipment is placed over a neutral silhouette.
     const armor = kind("body"), weapon = kind("weapon"), shield = kind("offhand");
+    const dagger = kind("secondary"), helm = kind("helm"), boots = kind("boots");
+    const greaves = kind("greaves"), gloves = kind("gloves");
     return '<div class="equipment-figure" role="img" aria-label="' +
-      esc('Character wearing ' + [armor, weapon, shield].filter(Boolean).join(', ')) + '">' +
+      esc('Character wearing ' +
+        [armor, weapon, shield, dagger, helm, boots, greaves, gloves].filter(Boolean).join(', ')) + '">' +
       '<svg viewBox="0 0 240 270" aria-hidden="true">' +
       '<ellipse cx="120" cy="259" rx="66" ry="8" fill="#d7d0bf"/>' +
       '<path d="M93 165 L147 165 L144 240 L122 240 L119 198 L115 240 L95 240 Z" fill="#636c60"/>' +
@@ -972,7 +985,17 @@
       (shield ? '<path d="M173 119 L211 129 L204 193 L182 213 L162 193 L158 130Z" fill="#637e79" stroke="#d5bd83" stroke-width="5"/>' : '') +
       (weapon ? '<path d="M49 76 L45 205" stroke="#707c83" stroke-width="8"/>' +
         '<path d="M27 176 L67 176" stroke="#9c7d42" stroke-width="8"/>' : '') +
-      '</svg><p>' + esc([armor, weapon, shield].filter(Boolean).map(pretty).join(' · ') ||
+      (helm ? '<path d="M91 43 Q120 4 149 43 L150 58 L139 47 L101 47 L90 58Z" fill="#8e9796" stroke="#d9c99e" stroke-width="3"/>' : '') +
+      (gloves ? '<rect x="54" y="157" width="28" height="22" rx="5" fill="#8a9696"/>' +
+        '<rect x="158" y="157" width="28" height="22" rx="5" fill="#8a9696"/>' : '') +
+      (greaves ? '<path d="M96 189 L112 189 L110 232 L95 232Z" fill="#8a9696"/>' +
+        '<path d="M126 189 L142 189 L144 232 L129 232Z" fill="#8a9696"/>' : '') +
+      (boots ? '<path d="M94 229 L112 229 L110 246 L78 246Z" fill="#5c5b52"/>' +
+        '<path d="M129 229 L144 229 L163 246 L128 246Z" fill="#5c5b52"/>' : '') +
+      (dagger ? '<path d="M192 112 L189 179" stroke="#8d9ea5" stroke-width="5"/>' +
+        '<path d="M176 165 L202 165" stroke="#91683d" stroke-width="5"/>' : '') +
+      '</svg><p>' + esc([armor, weapon, shield, dagger, helm, boots, greaves, gloves]
+        .filter(Boolean).map(pretty).join(' · ') ||
         'Unarmored adventurer') + '</p></div>';
   }
 
@@ -980,7 +1003,8 @@
     const p = state.player;
     const owned = state.gear || [];
     const equipped = state.equipped || {};
-    const slots = ["weapon", "offhand", "body", "tool"];
+    const slots = ["weapon", "secondary", "offhand", "helm", "body",
+      "gloves", "greaves", "boots", "tool"];
     const slotRows = slots.map(slot => {
       const id = equipped[slot];
       const gear = owned.find(g => g.id === id);
@@ -1015,6 +1039,8 @@
       '</strong><small class="armory-spec">' + esc(pretty(item.slot)) +
       ' · Attack +' + item.attack + ' · Defense +' + item.defense +
       ' · Durability ' + item.durability + ' · Quality ' + item.quality +
+      ' · Swing ' + (item.kind === "dagger" ? "2" : item.kind === "sword" ? "5" :
+        item.kind === "axe" ? "7" : item.kind === "bow" ? "4" : "—") + ' stamina' +
       '</small></span>' +
       button("Buy · " + money(item.price),
         'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +
@@ -1394,7 +1420,10 @@
         render(); break;
       case "player-attack":
         action("start_duel", { defender_id: element.dataset.player },
-          "Challenge accepted · 20 stamina spent"); break;
+          "Challenge accepted · no entry stamina"); break;
+      case "duel-swing":
+        action("duel_turn", { move: element.dataset.move, node_id: "" },
+          "Attack resolved"); break;
       case "duel-strike":
         action("duel_turn", { move: "strike", node_id: "" }, "Strike resolved"); break;
       case "duel-guard":

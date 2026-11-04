@@ -10,6 +10,13 @@ MAX_STAMINA = 100
 DEFEAT_RECOVERY_MINUTES = 60
 MAX_GOLD_LOOT = 10
 
+# Turn-based combat expenditure occurs for an *initiated* melee swing only.
+# Counterattacks are defensive reactions, regardless of their weapon.
+SWING_STAMINA = {"fists": 1, "dagger": 2, "sword": 5, "axe": 7, "bow": 4}
+DEFAULT_WEAPON_STAMINA = 5
+ARMOR_SLOTS = ("body", "offhand", "helm", "boots", "greaves", "gloves")
+
+
 def xp_to_next_level(level: int) -> int:
     return 10 * level * level
 
@@ -64,11 +71,29 @@ class CombatSystem:
         self.world._emit("unequipped", actor_id, slot)
         self.world.assert_invariants()
 
-    def _strike(self, attacker, defender) -> int:
-        weapon_id = attacker.equipped.get("weapon")
+    def melee_option(self, actor, move: str) -> tuple[str, str | None, int]:
+        """Return attack label, equipped slot and stamina cost, without mutation."""
+        if move == "fists":
+            return "Fists", None, SWING_STAMINA["fists"]
+        if move == "dagger":
+            gear_id = actor.equipped.get("secondary")
+            if gear_id is None or self.world.gear[gear_id].kind != "dagger":
+                raise ActionError("Equip a dagger in your secondary slot first")
+            return "Dagger", "secondary", SWING_STAMINA["dagger"]
+        if move == "strike":
+            gear_id = actor.equipped.get("weapon")
+            if gear_id is None:
+                return "Fists", None, SWING_STAMINA["fists"]
+            kind = self.world.gear[gear_id].kind
+            return kind.replace("_", " ").title(), "weapon", SWING_STAMINA.get(
+                kind, DEFAULT_WEAPON_STAMINA)
+        raise ActionError("Unknown melee attack")
+
+    def _strike(self, attacker, defender, weapon_slot: str = "weapon") -> int:
+        weapon_id = attacker.equipped.get(weapon_slot)
         # Fists are always available; even an unarmed defender counterattacks.
         base_attack = effective_attack(self.world.gear[weapon_id]) if weapon_id is not None else 3
-        armor_ids = [defender.equipped.get("body"), defender.equipped.get("offhand")]
+        armor_ids = [defender.equipped.get(slot) for slot in ARMOR_SLOTS]
         defense = defender.defense + sum(
             effective_defense(self.world.gear[g_id]) for g_id in armor_ids if g_id is not None
         )
