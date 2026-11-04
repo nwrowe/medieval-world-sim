@@ -825,6 +825,7 @@
         const text = self ? "Your character" :
           recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" :
           person.kind === "human" ? "View profile" : "Out of reach";
+        const profileOnly = person.kind === "human" && !self;
         return '<div class="equipment-item"><div><h3>' +
           '<button type="button" class="character-name-link" data-ui="profile-open" ' +
           'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
@@ -834,8 +835,10 @@
           person.hp + '/' + person.max_hp +
           (recovering ? ' · Recovering ' + dur(person.recovering_minutes) : '') +
           '</p></div>' +
-          button(text, 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
-            disabled(!person.can_attack || isBusy()), "secondary") +
+          button(text, (profileOnly ?
+            'data-ui="profile-open" data-character="' + esc(person.id) + '"' :
+            'data-ui="player-attack" data-player="' + esc(person.id) + '"') +
+            disabled((!profileOnly && !person.can_attack) || isBusy()), "secondary") +
           '</div>';
       }).join('') :
       (state.world_items || []).filter(item =>
@@ -919,6 +922,108 @@
           (self ? 'You are viewing your own public profile.' :
            'Messaging and trading with other players requires authenticated multiplayer accounts.')) + '</p>' +
         button("Back to Search", 'data-tab="people"', "ghost")) +
+      '</div>';
+  }
+
+  function tradeAssetSummary(bundle, gear) {
+    const parts = [];
+    if (bundle.gold) parts.push(bundle.gold + " gold");
+    for (const line of bundle.items || []) {
+      parts.push(line.quantity + " × " + pretty(line.item));
+    }
+    for (const item of gear || []) {
+      parts.push(pretty(item.kind) + " #" + item.id +
+        " (quality " + item.quality + ", durability " + item.durability + ")");
+    }
+    return parts.length ? parts.map(esc).join(" · ") : "Nothing";
+  }
+
+  function renderTrade() {
+    if (!multiMode) return heading("", "Trade", "") +
+      panel("Unavailable", "Requires authenticated multiplayer accounts", "");
+    const me = state.actor_id;
+    const partners = (state.users || []).filter(person =>
+      person.kind === "human" && person.id !== me);
+    const partner = partners.find(p => p.id === selectedCharacterId) || partners[0];
+    const incoming = state.trades || [];
+    const partnerOptions = partners.map(person =>
+      '<option value="' + esc(person.id) + '"' +
+      (partner && partner.id === person.id ? ' selected' : '') + '>' +
+      esc(person.name + " · " + pretty(person.city)) + '</option>').join('');
+    const offeredItems = Object.entries(state.player.inventory || {})
+      .filter(pair => pair[1] > 0)
+      .map(([name, quantity]) => '<option value="' + esc(name) + '">' +
+        esc(pretty(name) + " · owned " + quantity) + '</option>').join('');
+    const requestedItems = (state.world_items || [])
+      .filter(item => item.category !== "Equipment")
+      .map(item => '<option value="' + esc(item.id) + '">' +
+        esc(pretty(item.id)) + '</option>').join('');
+    const equippedGear = (state.gear || []).map(item =>
+      '<option value="' + item.id + '">' +
+      esc(pretty(item.kind) + " #" + item.id + " · Q" + item.quality +
+        " · durability " + item.durability) + '</option>').join('');
+    const form = partners.length ?
+      '<form id="tradeOfferForm" class="trade-compose">' +
+      '<label for="trade-recipient">Trade with</label>' +
+      '<select id="trade-recipient" class="field">' + partnerOptions + '</select>' +
+      '<div class="trade-terms"><fieldset><legend>You offer</legend>' +
+      '<label for="trade-offer-gold">Gold</label>' +
+      '<input id="trade-offer-gold" class="field" type="number" min="0" ' +
+      'max="1000000000000" step="1" value="0">' +
+      '<label for="trade-offer-item">Item</label>' +
+      '<select id="trade-offer-item" class="field"><option value="">None</option>' +
+      offeredItems + '</select>' +
+      '<label for="trade-offer-quantity">Quantity</label>' +
+      '<input id="trade-offer-quantity" class="field" type="number" min="0" ' +
+      'max="100000" step="1" value="0">' +
+      '<label for="trade-offer-gear">Equipment</label>' +
+      '<select id="trade-offer-gear" class="field"><option value="">None</option>' +
+      equippedGear + '</select></fieldset>' +
+      '<fieldset><legend>You request</legend>' +
+      '<label for="trade-request-gold">Gold</label>' +
+      '<input id="trade-request-gold" class="field" type="number" min="0" ' +
+      'max="1000000000000" step="1" value="0">' +
+      '<label for="trade-request-item">Item</label>' +
+      '<select id="trade-request-item" class="field"><option value="">None</option>' +
+      requestedItems + '</select>' +
+      '<label for="trade-request-quantity">Quantity</label>' +
+      '<input id="trade-request-quantity" class="field" type="number" min="0" ' +
+      'max="100000" step="1" value="0">' +
+      '<label for="trade-request-gear">Specific equipment ID (optional)</label>' +
+      '<input id="trade-request-gear" class="field" type="number" min="0" ' +
+      'step="1" value="0"></fieldset></div>' +
+      '<p class="small">Both players must be in the same city. Your offered assets ' +
+      'are held in escrow until the other player accepts, or either player cancels. ' +
+      'The terms cannot be edited after sending.</p>' +
+      '<button class="button gold" type="submit">Send trade offer</button>' +
+      '</form>' : '<p class="small">Another human account must register to trade.</p>';
+    const existing = incoming.map(trade => {
+      const mine = trade.maker === me;
+      const headline = mine ?
+        "To " + trade.recipient_name : "From " + trade.maker_name;
+      const controls = mine ? button("Cancel offer",
+        'data-ui="trade-close" data-trade-id="' + trade.id + '"' +
+        disabled(pending || isBusy()), "secondary") :
+        button("Accept exact terms",
+          'data-ui="trade-accept" data-trade-id="' + trade.id +
+          '" data-terms-hash="' + esc(trade.terms_hash) + '"' +
+          disabled(pending || isBusy()), "gold") +
+        button("Decline", 'data-ui="trade-close" data-trade-id="' + trade.id +
+          '"' + disabled(pending || isBusy()), "secondary");
+      return panel("Trade #" + trade.id + " · " + headline,
+        "City: " + pretty(trade.city),
+        '<div class="trade-asset-details"><p><strong>' +
+        esc(trade.maker_name) + " offers:</strong> " +
+        tradeAssetSummary(trade.offer, trade.offer_gear) +
+        '</p><p><strong>' + esc(trade.recipient_name) + " provides:</strong> " +
+        tradeAssetSummary(trade.request, trade.request_gear) + '</p></div>' +
+        '<div class="button-group">' + controls + '</div>');
+    }).join('');
+    return heading("", "Trade", "") +
+      '<div class="stack">' +
+      panel("Propose a trade", "Gold, goods and equipment", form) +
+      panel("Open offers", "Review the exact assets before acceptance",
+        existing || '<p class="small">No pending offers.</p>') +
       '</div>';
   }
 
@@ -1550,6 +1655,46 @@
         display_name: document.getElementById("registerCharacter").value.trim(),
         password: document.getElementById("registerPassword").value
       });
+    } else if (event.target.id === "tradeOfferForm") {
+      event.preventDefault();
+      const field = id => document.getElementById(id).value;
+      const integer = id => Number(field(id));
+      const offerGold = integer("trade-offer-gold");
+      const requestGold = integer("trade-request-gold");
+      const offerQuantity = integer("trade-offer-quantity");
+      const requestQuantity = integer("trade-request-quantity");
+      const requestedGear = integer("trade-request-gear");
+      if (![offerGold, requestGold, offerQuantity, requestQuantity, requestedGear]
+          .every(n => Number.isSafeInteger(n) && n >= 0)) {
+        notify("Trade quantities must be nonnegative whole numbers", true);
+        return;
+      }
+      const offerItem = field("trade-offer-item");
+      const requestItem = field("trade-request-item");
+      if ((offerItem && !offerQuantity) || (!offerItem && offerQuantity) ||
+          (requestItem && !requestQuantity) || (!requestItem && requestQuantity)) {
+        notify("Choose an item and a quantity together", true);
+        return;
+      }
+      const offerGear = field("trade-offer-gear");
+      const offer = {
+        gold: offerGold,
+        items: offerItem ? [{ item: offerItem, quantity: offerQuantity }] : [],
+        gear_ids: offerGear ? [Number(offerGear)] : []
+      };
+      const request = {
+        gold: requestGold,
+        items: requestItem ? [{ item: requestItem, quantity: requestQuantity }] : [],
+        gear_ids: requestedGear ? [requestedGear] : []
+      };
+      if (!offer.gold && !offer.items.length && !offer.gear_ids.length &&
+          !request.gold && !request.items.length && !request.gear_ids.length) {
+        notify("A trade cannot be empty", true);
+        return;
+      }
+      await action("propose_trade", {
+        recipient_id: field("trade-recipient"), offer, request
+      }, "Offer sent and your assets placed in escrow");
     } else if (event.target.id === "chatComposeForm") {
       event.preventDefault();
       const channel = (state.chat.channels || []).find(x => x.key === chatChannelKey) ||
@@ -1713,6 +1858,14 @@
         peopleQuery = document.getElementById("people-query").value.trim();
         searchScope = element.dataset.scope === "market" ? "market" : "players";
         render(); break;
+      case "trade-accept":
+        action("accept_trade", {
+          trade_id: Number(element.dataset.tradeId),
+          terms_hash: element.dataset.termsHash
+        }, "Trade completed"); break;
+      case "trade-close":
+        action("close_trade", { trade_id: Number(element.dataset.tradeId) },
+          "Trade closed; escrow returned to maker"); break;
       case "player-attack":
         action("start_duel", { defender_id: element.dataset.player },
           "Challenge accepted · no entry stamina"); break;
