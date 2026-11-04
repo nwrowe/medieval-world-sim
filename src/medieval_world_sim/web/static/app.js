@@ -1261,9 +1261,9 @@
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
     return '<div class="profile-hero"><h3>' + esc(state.name) +
-      '</h3><p class="home-lore">The old Goldmeadow bell sounds at dusk, though no hand has rung it in a generation. ' +
-      'The roads to Crownreach have grown restless; couriers whisper of missing caravans and a sealed royal ledger. ' +
-      'You arrive with little more than a purse, an open road, and the chance to make a name in Oathmere.</p>' +
+      '</h3><p class="home-lore">Under the stone arches of Crownreach, merchants whisper about Goldmeadow’s silent bell. ' +
+      'Couriers report missing caravans and a sealed royal ledger in the capital. ' +
+      'Your journey begins here with little more than a purse and the chance to make a name in Oathmere.</p>' +
       '<p class="home-lore"><strong>Your first steps:</strong> earn coin in the Market, ' +
       'seek work at the Guild, study an art of magic, or test your strength against a local challenger. ' +
       'Whatever lies behind the silence of the bell, the cities will need capable hands.</p></div>' +
