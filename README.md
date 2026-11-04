@@ -180,6 +180,16 @@ python -m medieval_world_sim.web --host 0.0.0.0 --port 8765
 
 Then open `http://YOUR_COMPUTER_LAN_IP:8765` on the phone and enter the **game access code printed on the computer**. Keep the server running while using the phone. This LAN mode uses ordinary HTTP, so **do not expose it on the internet**; public hosting, HTTPS, accounts and multiplayer are not supported yet. Firewalls may need an inbound LAN rule.
 
+## Experimental local multi-account mode
+
+To create separate player accounts on the **same computer**, with a shared world backed by SQLite, use:
+
+```powershell
+python -m medieval_world_sim.web --multiplayer-db "$HOME\\.medieval-world-sim\\multi-dev.sqlite3"
+```
+
+Register in your browser, then use a second browser profile or incognito window to log in as another player. Passwords are salted and hashed; sessions and actions are tied to the authenticated player. This **localhost-only development mode** is not suitable for public hosting or LAN HTTP. It does not modify or import your single-player save. See [Local Multi-Account Development](docs/MULTIPLAYER_LOCAL_DEVELOPMENT.md) for scope, testing and security limitations.
+
 The default save location is `~/.medieval-world-sim/save.json`. To use another save, start the server with `--save /path/to/save.json`. This is a bounded single-player prototype; do not edit the journal by hand. See [web client instructions](docs/WEB_CLIENT.md) for features and limits.
 
 ### Google Colab preview

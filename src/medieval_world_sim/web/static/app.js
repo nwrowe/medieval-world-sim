@@ -46,11 +46,14 @@
   let chatOpen = false;
   let chatChannelKey = "global";
   let chatDraft = "";
+  let chatDirectTarget = null;
   let pending = false;
   let authNeeded = false;
   let offline = false;
   let selectedAttunements = new Set();
   let token = sessionStorage.getItem("medieval-world-token") || "";
+  let multiMode = false;
+  let csrfToken = "";
 
   function esc(value) {
     return String(value === undefined || value === null ? "" : value)
@@ -122,7 +125,11 @@
   }
 
   async function request(url, body) {
-    const headers = { "X-Game-Token": token };
+    const headers = multiMode ? {} : { "X-Game-Token": token };
+    if (multiMode && body !== undefined &&
+        url !== "/api/auth/login" && url !== "/api/auth/register") {
+      headers["X-CSRF-Token"] = csrfToken;
+    }
     const options = { method: body === undefined ? "GET" : "POST", headers };
     if (body !== undefined) {
       headers["Content-Type"] = "application/json";
@@ -140,6 +147,19 @@
 
   async function load() {
     try {
+      const health = await request("/api/health");
+      multiMode = health.mode === "multi-account-local";
+      if (multiMode) {
+        const account = await request("/api/auth/session");
+        csrfToken = account.csrf || "";
+        if (!account.authenticated) {
+          authNeeded = true;
+          offline = false;
+          state = null;
+          render();
+          return;
+        }
+      }
       state = await request("/api/state");
       tab = state.duel ? "duel" : "character";
       syncAttunements();
@@ -192,10 +212,40 @@
     return send("/api/action", { action: name, params, id: nextId() }, success);
   }
   function advance(minutes) {
-    return send("/api/advance", { minutes: Number(minutes) }, "World time advanced");
+    return send("/api/advance", multiMode ?
+      { minutes: Number(minutes), id: nextId() } :
+      { minutes: Number(minutes) }, "World time advanced");
   }
 
   function authPage() {
+    if (multiMode) return '<div class="entry"><div class="entry-card">' +
+      '<div class="entry-seal">✦</div><div class="eyebrow">Local multi-account world</div>' +
+      '<h1>Welcome to Oathmere</h1>' +
+      '<p>Each player has a private login and a separate character. ' +
+      'This development server runs on your own computer.</p>' +
+      '<form id="accountLoginForm" class="stack">' +
+      '<label for="loginUsername">Username</label>' +
+      '<input id="loginUsername" class="field" autocomplete="username" ' +
+      'maxlength="24" required>' +
+      '<label for="loginPassword">Password</label>' +
+      '<input id="loginPassword" class="field" type="password" ' +
+      'autocomplete="current-password" required>' +
+      '<button class="button full gold" type="submit">Sign in</button></form>' +
+      '<details class="account-register"><summary>Create an account</summary>' +
+      '<form id="accountRegisterForm" class="stack">' +
+      '<label for="registerUsername">Username</label>' +
+      '<input id="registerUsername" class="field" autocomplete="username" ' +
+      'minlength="3" maxlength="24" required>' +
+      '<label for="registerCharacter">Character name</label>' +
+      '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
+      '<label for="registerPassword">Password (12 characters minimum)</label>' +
+      '<input id="registerPassword" class="field" type="password" ' +
+      'autocomplete="new-password" minlength="12" maxlength="128" required>' +
+      '<button class="button full" type="submit">Create character</button>' +
+      '</form></details>' +
+      '<p class="small">Development-only: local computer access. Do not expose this ' +
+      'login server over the internet or ordinary LAN HTTP.</p>' +
+      '</div></div>';
     return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Private local world</div>' +
       '<h1>Enter the city gates</h1>' +
@@ -205,6 +255,26 @@
       '<input id="access" class="field" type="password" autocomplete="off" placeholder="Server access code" required>' +
       '<button class="button full" type="submit">Enter world</button></form></div></div>';
   }
+  async function accountSubmit(url, body) {
+    if (pending) return;
+    pending = true;
+    try {
+      const outcome = await request(url, body);
+      csrfToken = outcome.csrf || "";
+      state = outcome.state;
+      authNeeded = false;
+      offline = false;
+      tab = "character";
+      syncAttunements();
+      notify(url.endsWith("register") ? "Character created" : "Signed in");
+    } catch (error) {
+      notify(error.message, true);
+    } finally {
+      pending = false;
+      render();
+    }
+  }
+
   function newCharacterPage() {
     return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Welcome, traveler</div>' +
@@ -291,12 +361,15 @@
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
       profile: renderProfile,
+      trade: renderTrade,
       guilds: renderGuilds, merits: renderMerits,
     };
     const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
     const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
       .map(t => navButton(t)).join('');
-    const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
+    const topLinks = accountTabs.concat(multiMode ?
+      [{ id: "trade", icon: "⇄", title: "Trade" }] : [])
+      .map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
       '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
@@ -313,6 +386,8 @@
       '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
+      (multiMode ? '<button class="logout-link" type="button" data-ui="account-logout">' +
+        'Sign out</button>' : '') +
       '</div></div></header>' +
       '<div class="workspace">' +
       '<aside class="sidebar" aria-label="Locations and services">' +
@@ -745,20 +820,25 @@
       pretty(quote.item).toLowerCase().includes(query));
     const rows = searchScope === "players" ?
       players.map(person => {
-        const self = person.id === "hero";
+        const self = person.id === (state.actor_id || "hero");
         const recovering = person.recovering_minutes > 0;
         const text = self ? "Your character" :
-          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" : "Out of reach";
+          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" :
+          person.kind === "human" ? "View profile" : "Out of reach";
+        const profileOnly = person.kind === "human" && !self;
         return '<div class="equipment-item"><div><h3>' +
           '<button type="button" class="character-name-link" data-ui="profile-open" ' +
           'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
-          ' · ' + (self ? 'You' : 'NPC adventurer') + ' · HP ' +
+          ' · ' + (self ? 'You' : person.kind === "npc" ?
+            'NPC adventurer' : 'Player') + ' · HP ' +
           person.hp + '/' + person.max_hp +
           (recovering ? ' · Recovering ' + dur(person.recovering_minutes) : '') +
           '</p></div>' +
-          button(text, 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
-            disabled(!person.can_attack || isBusy()), "secondary") +
+          button(text, (profileOnly ?
+            'data-ui="profile-open" data-character="' + esc(person.id) + '"' :
+            'data-ui="player-attack" data-player="' + esc(person.id) + '"') +
+            disabled((!profileOnly && !person.can_attack) || isBusy()), "secondary") +
           '</div>';
       }).join('') :
       (state.world_items || []).filter(item =>
@@ -777,8 +857,9 @@
             button('Armory', 'data-tab="armory"', "secondary") : '') +
           '</div>';
       }).join('');
-    const hint = searchScope === "players" ?
-      'These are persistent computer-controlled adventurers, not connected players. ' +
+    const hint = searchScope === "players" ? (multiMode ?
+      'These are individual player characters and computer-controlled adventurers. ' :
+      'These are persistent computer-controlled adventurers, not connected players. ') +
       'To attack, be in the same city. Starting a duel costs no stamina; ' +
       'each offensive swing costs stamina. Victory takes 5% ' +
       'of the defeated character’s carried gold.' :
@@ -809,7 +890,7 @@
     const person = (state.users || []).find(user => user.id === selectedCharacterId);
     if (!person) return heading("", "Character unavailable", "") +
       panel("Search for characters", "", button("Back to Search", 'data-tab="people"', "secondary"));
-    const self = person.id === "hero";
+    const self = person.id === (state.actor_id || "hero");
     const isNpc = person.kind === "npc";
     const reachable = !self && person.can_attack;
     const recovering = Number(person.recovering_minutes) > 0;
@@ -832,15 +913,118 @@
         button("Attack", 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
           disabled(!reachable || pending || isBusy()), "gold") +
         button("Chat", 'data-ui="profile-chat" data-character="' + esc(person.id) + '"' +
-          disabled(self), "secondary") +
+          disabled(self || (multiMode && isNpc)), "secondary") +
         button("Trade", 'data-ui="profile-trade" data-character="' + esc(person.id) + '"' +
-          disabled(self), "secondary") +
+          disabled(self || (multiMode && isNpc)), "secondary") +
         '</div><p class="small">' + (isNpc ?
           'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
           'will require the upcoming authenticated multiplayer service.' :
           (self ? 'You are viewing your own public profile.' :
            'Messaging and trading with other players requires authenticated multiplayer accounts.')) + '</p>' +
         button("Back to Search", 'data-tab="people"', "ghost")) +
+      '</div>';
+  }
+
+  function tradeAssetSummary(bundle, gear) {
+    const parts = [];
+    if (bundle.gold) parts.push(bundle.gold + " gold");
+    for (const line of bundle.items || []) {
+      parts.push(line.quantity + " × " + pretty(line.item));
+    }
+    for (const item of gear || []) {
+      parts.push(pretty(item.kind) + " #" + item.id +
+        " (quality " + item.quality + ", durability " + item.durability + ")");
+    }
+    return parts.length ? parts.map(esc).join(" · ") : "Nothing";
+  }
+
+  function renderTrade() {
+    if (!multiMode) return heading("", "Trade", "") +
+      panel("Unavailable", "Requires authenticated multiplayer accounts", "");
+    const me = state.actor_id;
+    const partners = (state.users || []).filter(person =>
+      person.kind === "human" && person.id !== me);
+    const partner = partners.find(p => p.id === selectedCharacterId) || partners[0];
+    const incoming = state.trades || [];
+    const partnerOptions = partners.map(person =>
+      '<option value="' + esc(person.id) + '"' +
+      (partner && partner.id === person.id ? ' selected' : '') + '>' +
+      esc(person.name + " · " + pretty(person.city)) + '</option>').join('');
+    const offeredItems = Object.entries(state.player.inventory || {})
+      .filter(pair => pair[1] > 0)
+      .map(([name, quantity]) => '<option value="' + esc(name) + '">' +
+        esc(pretty(name) + " · owned " + quantity) + '</option>').join('');
+    const requestedItems = (state.world_items || [])
+      .filter(item => item.category !== "Equipment")
+      .map(item => '<option value="' + esc(item.id) + '">' +
+        esc(pretty(item.id)) + '</option>').join('');
+    const equippedGear = (state.gear || []).map(item =>
+      '<option value="' + item.id + '">' +
+      esc(pretty(item.kind) + " #" + item.id + " · Q" + item.quality +
+        " · durability " + item.durability) + '</option>').join('');
+    const form = partners.length ?
+      '<form id="tradeOfferForm" class="trade-compose">' +
+      '<label for="trade-recipient">Trade with</label>' +
+      '<select id="trade-recipient" class="field">' + partnerOptions + '</select>' +
+      '<div class="trade-terms"><fieldset><legend>You offer</legend>' +
+      '<label for="trade-offer-gold">Gold</label>' +
+      '<input id="trade-offer-gold" class="field" type="number" min="0" ' +
+      'max="1000000000000" step="1" value="0">' +
+      '<label for="trade-offer-item">Item</label>' +
+      '<select id="trade-offer-item" class="field"><option value="">None</option>' +
+      offeredItems + '</select>' +
+      '<label for="trade-offer-quantity">Quantity</label>' +
+      '<input id="trade-offer-quantity" class="field" type="number" min="0" ' +
+      'max="100000" step="1" value="0">' +
+      '<label for="trade-offer-gear">Equipment</label>' +
+      '<select id="trade-offer-gear" class="field"><option value="">None</option>' +
+      equippedGear + '</select></fieldset>' +
+      '<fieldset><legend>You request</legend>' +
+      '<label for="trade-request-gold">Gold</label>' +
+      '<input id="trade-request-gold" class="field" type="number" min="0" ' +
+      'max="1000000000000" step="1" value="0">' +
+      '<label for="trade-request-item">Item</label>' +
+      '<select id="trade-request-item" class="field"><option value="">None</option>' +
+      requestedItems + '</select>' +
+      '<label for="trade-request-quantity">Quantity</label>' +
+      '<input id="trade-request-quantity" class="field" type="number" min="0" ' +
+      'max="100000" step="1" value="0">' +
+      '<label for="trade-request-gear">Specific equipment ID (optional)</label>' +
+      '<input id="trade-request-gear" class="field" type="number" min="0" ' +
+      'step="1" value="0"></fieldset></div>' +
+      '<p class="small">Both players must be in the same city. Your offered assets ' +
+      'are held in escrow until the other player accepts, or either player cancels. ' +
+      'The terms cannot be edited after sending.</p>' +
+      '<button class="button gold" type="submit">Send trade offer</button>' +
+      '</form>' : '<p class="small">Another human account must register to trade.</p>';
+    const existing = incoming.map(trade => {
+      const mine = trade.maker === me;
+      const headline = mine ?
+        "To " + trade.recipient_name : "From " + trade.maker_name;
+      const controls = mine ? button("Cancel offer",
+        'data-ui="trade-close" data-trade-id="' + trade.id + '"' +
+        disabled(pending || isBusy()), "secondary") :
+        button("Accept exact terms",
+          'data-ui="trade-accept" data-trade-id="' + trade.id +
+          '" data-terms-hash="' + esc(trade.terms_hash) + '"' +
+          disabled(pending || isBusy()), "gold") +
+        button("Decline", 'data-ui="trade-close" data-trade-id="' + trade.id +
+          '"' + disabled(pending || isBusy()), "secondary");
+      return panel("Trade #" + trade.id + " · " + headline,
+        "City: " + pretty(trade.city),
+        '<div class="trade-asset-details"><p><strong>' +
+        esc(trade.maker_name) + " offers:</strong> " +
+        tradeAssetSummary(trade.offer, trade.offer_gear) +
+        '</p><p><strong>' + esc(trade.recipient_name) + " provides:</strong> " +
+        tradeAssetSummary(trade.request, trade.request_gear) + '</p></div>' +
+        '<div class="button-group">' + controls + '</div>');
+    }).join('');
+    return heading("", "Trade", "") +
+      '<div class="stack">' +
+      panel("Propose a trade", "Gold, goods and equipment", form) +
+      panel("Open offers", "Review the exact assets before acceptance",
+        button("Refresh offers", 'data-ui="trade-refresh"', "ghost") +
+        existing + (!existing ? '<p class="small">No pending offers.</p>' : '')) +
       '</div>';
   }
 
@@ -1389,10 +1573,19 @@
   function chatDock() {
     if (!state || !state.started) return "";
     const chat = state.chat || { channels: [], messages: [] };
-    const selected = chat.channels.find(x => x.key === chatChannelKey) ||
-      chat.channels[0] || { key: "global", kind: "global", target: "", label: "Global" };
+    const available = chat.channels.slice();
+    if (multiMode && chatDirectTarget &&
+        !available.some(x => x.key === "direct:" + chatDirectTarget)) {
+      const user = (state.users || []).find(x => x.id === chatDirectTarget);
+      if (user && user.kind === "human") {
+        available.push({ key: "direct:" + chatDirectTarget, kind: "direct",
+                         target: chatDirectTarget, label: user.name });
+      }
+    }
+    const selected = available.find(x => x.key === chatChannelKey) ||
+      available[0] || { key: "global", kind: "global", target: "", label: "Global" };
     const posts = (chat.messages || []).filter(x => x.channel_key === selected.key);
-    const channels = chat.channels.map(channel =>
+    const channels = available.map(channel =>
       button(channel.label, 'data-ui="chat-channel" data-key="' + esc(channel.key) +
         '" aria-pressed="' + (selected.key === channel.key) + '"',
         selected.key === channel.key ? "secondary" : "ghost")).join('');
@@ -1404,12 +1597,17 @@
       '</button>' +
       (chatOpen ? '<div class="chat-content">' +
         '<div class="chat-channels">' + channels + '</div>' +
-        '<p class="chat-preview-notice">Local preview: only one human account is connected. ' +
-        'Live player-to-player chat requires separate authenticated accounts.</p>' +
+        '<p class="chat-preview-notice">' + (multiMode ?
+          'Local multi-account chat · Refresh to see messages from other players.' :
+          'Local preview: only one human account is connected. ' +
+          'Live player-to-player chat requires separate authenticated accounts.') +
+        (multiMode ? ' <button class="chat-refresh-link" type="button" ' +
+          'data-ui="chat-refresh">Refresh</button>' : '') + '</p>' +
         '<div class="chat-history" aria-live="polite">' +
         (posts.length ? posts.map(post =>
           '<div class="chat-post"><strong>' +
-          esc(post.sender === "hero" ? state.name : post.sender) +
+          esc(post.sender_name ||
+              (post.sender === (state.actor_id || "hero") ? state.name : post.sender)) +
           '</strong><p>' + esc(post.body) +
           '</p></div>').join('') :
           '<p class="small">No messages in this channel yet.</p>') +
@@ -1445,10 +1643,74 @@
       token = document.getElementById("access").value.trim();
       sessionStorage.setItem("medieval-world-token", token);
       await load();
+    } else if (event.target.id === "accountLoginForm") {
+      event.preventDefault();
+      await accountSubmit("/api/auth/login", {
+        username: document.getElementById("loginUsername").value.trim(),
+        password: document.getElementById("loginPassword").value
+      });
+    } else if (event.target.id === "accountRegisterForm") {
+      event.preventDefault();
+      await accountSubmit("/api/auth/register", {
+        username: document.getElementById("registerUsername").value.trim(),
+        display_name: document.getElementById("registerCharacter").value.trim(),
+        password: document.getElementById("registerPassword").value
+      });
+    } else if (event.target.id === "tradeOfferForm") {
+      event.preventDefault();
+      const field = id => document.getElementById(id).value;
+      const integer = id => Number(field(id));
+      const offerGold = integer("trade-offer-gold");
+      const requestGold = integer("trade-request-gold");
+      const offerQuantity = integer("trade-offer-quantity");
+      const requestQuantity = integer("trade-request-quantity");
+      const requestedGear = integer("trade-request-gear");
+      if (![offerGold, requestGold, offerQuantity, requestQuantity, requestedGear]
+          .every(n => Number.isSafeInteger(n) && n >= 0)) {
+        notify("Trade quantities must be nonnegative whole numbers", true);
+        return;
+      }
+      const offerItem = field("trade-offer-item");
+      const requestItem = field("trade-request-item");
+      if ((offerItem && !offerQuantity) || (!offerItem && offerQuantity) ||
+          (requestItem && !requestQuantity) || (!requestItem && requestQuantity)) {
+        notify("Choose an item and a quantity together", true);
+        return;
+      }
+      const offerGear = field("trade-offer-gear");
+      const offer = {
+        gold: offerGold,
+        items: offerItem ? [{ item: offerItem, quantity: offerQuantity }] : [],
+        gear_ids: offerGear ? [Number(offerGear)] : []
+      };
+      const request = {
+        gold: requestGold,
+        items: requestItem ? [{ item: requestItem, quantity: requestQuantity }] : [],
+        gear_ids: requestedGear ? [requestedGear] : []
+      };
+      if (!offer.gold && !offer.items.length && !offer.gear_ids.length &&
+          !request.gold && !request.items.length && !request.gear_ids.length) {
+        notify("A trade cannot be empty", true);
+        return;
+      }
+      await action("propose_trade", {
+        recipient_id: field("trade-recipient"), offer, request
+      }, "Offer sent and your assets placed in escrow");
     } else if (event.target.id === "chatComposeForm") {
       event.preventDefault();
-      const channel = (state.chat.channels || []).find(x => x.key === chatChannelKey) ||
-        state.chat.channels[0];
+      let channel = (state.chat.channels || []).find(x => x.key === chatChannelKey);
+      if (!channel && multiMode && chatDirectTarget &&
+          chatChannelKey === "direct:" + chatDirectTarget) {
+        const recipient = (state.users || []).find(person =>
+          person.id === chatDirectTarget && person.kind === "human" &&
+          person.id !== state.actor_id);
+        if (recipient) channel = { kind: "direct", target: recipient.id };
+      }
+      // Never silently fall back to Global when a private channel is missing:
+      // a message addressed to a person must not be broadcast accidentally.
+      if (!channel && chatChannelKey === "global") {
+        channel = (state.chat.channels || []).find(x => x.kind === "global");
+      }
       if (channel && chatDraft.trim() && !pending) {
         await action("send_chat", {
           kind: channel.kind, target: channel.target, message: chatDraft.trim()
@@ -1490,12 +1752,33 @@
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "account-logout":
+        (async () => {
+          try {
+            await request("/api/auth/logout", {});
+            state = null;
+            csrfToken = "";
+            authNeeded = true;
+            notify("Signed out");
+            render();
+          } catch (error) {
+            notify(error.message, true);
+          }
+        })(); break;
       case "chat-toggle":
         chatOpen = !chatOpen;
         render(); break;
       case "chat-channel":
+        if (chatChannelKey !== element.dataset.key) chatDraft = "";
         chatChannelKey = element.dataset.key;
         render(); break;
+      case "chat-refresh":
+        (async () => {
+          try {
+            state = await request("/api/state");
+            render();
+          } catch (error) { notify(error.message, true); }
+        })(); break;
       case "profile-open":
         selectedCharacterId = element.dataset.character;
         tab = "profile";
@@ -1503,10 +1786,24 @@
         window.scrollTo({ top: 0, behavior: "smooth" });
         break;
       case "profile-chat":
-        notify("Direct chat needs authenticated multiplayer accounts. NPCs do not have live private conversations.", true);
+        if (multiMode) {
+          chatDirectTarget = element.dataset.character;
+          if (chatChannelKey !== "direct:" + chatDirectTarget) chatDraft = "";
+          chatChannelKey = "direct:" + chatDirectTarget;
+          chatOpen = true;
+          render();
+        } else {
+          notify("Direct chat needs authenticated multiplayer accounts. NPCs cannot receive DMs.", true);
+        }
         break;
       case "profile-trade":
-        notify("Player-to-player trade is not enabled on this single-player server.", true);
+        if (multiMode) {
+          selectedCharacterId = element.dataset.character;
+          tab = "trade";
+          render();
+        } else {
+          notify("Player-to-player trading requires individual accounts.", true);
+        }
         break;
       case "dismiss-level":
         levelCelebration = null; render(); break;
@@ -1575,6 +1872,19 @@
         peopleQuery = document.getElementById("people-query").value.trim();
         searchScope = element.dataset.scope === "market" ? "market" : "players";
         render(); break;
+      case "trade-refresh":
+        (async () => {
+          try { state = await request("/api/state"); render(); }
+          catch (error) { notify(error.message, true); }
+        })(); break;
+      case "trade-accept":
+        action("accept_trade", {
+          trade_id: Number(element.dataset.tradeId),
+          terms_hash: element.dataset.termsHash
+        }, "Trade completed"); break;
+      case "trade-close":
+        action("close_trade", { trade_id: Number(element.dataset.tradeId) },
+          "Trade closed; escrow returned to maker"); break;
       case "player-attack":
         action("start_duel", { defender_id: element.dataset.player },
           "Challenge accepted · no entry stamina"); break;
