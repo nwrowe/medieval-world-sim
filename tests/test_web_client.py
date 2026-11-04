@@ -69,6 +69,21 @@ class WebSessionTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_public_character_search_does_not_disclose_private_battle_stats(self):
+        self.game.create("Local Hero")
+        view = self.game.snapshot()
+        self.assertFalse(view["multiplayer"])
+        for public in view["users"]:
+            self.assertIn("level", public)
+            self.assertIn("hp", public)
+            self.assertIn("max_hp", public)
+            self.assertIn("city", public)
+            self.assertNotIn("strength", public)
+            self.assertNotIn("defense", public)
+            self.assertNotIn("gold", public)
+            self.assertNotIn("gear_ids", public)
+            self.assertNotIn("inventory", public)
+
     def test_create_and_read_only_snapshot(self):
         self.assertFalse(self.game.snapshot()["started"])
         self.game.create("River Stone")

@@ -41,6 +41,7 @@
   let latestPractice = null;
   let latestContract = null;
   let peopleQuery = "";
+  let selectedCharacterId = null;
   let searchScope = "players";
   let pending = false;
   let authNeeded = false;
@@ -285,6 +286,7 @@
       cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
+      profile: renderProfile,
       guilds: renderGuilds, merits: renderMerits,
     };
     const view = state.duel ? renderDuel : (renderers[tab] || renderWorld);
@@ -743,7 +745,9 @@
         const recovering = person.recovering_minutes > 0;
         const text = self ? "Your character" :
           recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" : "Out of reach";
-        return '<div class="equipment-item"><div><h3>' + esc(person.name) +
+        return '<div class="equipment-item"><div><h3>' +
+          '<button type="button" class="character-name-link" data-ui="profile-open" ' +
+          'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
           ' · ' + (self ? 'You' : 'NPC adventurer') + ' · HP ' +
           person.hp + '/' + person.max_hp +
@@ -795,6 +799,45 @@
       (rows || '<p class="empty">No matches.</p>') +
       '<p class="small mt-13">' + esc(hint) + '</p>' +
       '</div></section>';
+  }
+
+  function renderProfile() {
+    const person = (state.users || []).find(user => user.id === selectedCharacterId);
+    if (!person) return heading("", "Character unavailable", "") +
+      panel("Search for characters", "", button("Back to Search", 'data-tab="people"', "secondary"));
+    const self = person.id === "hero";
+    const isNpc = person.kind === "npc";
+    const reachable = !self && person.can_attack;
+    const recovering = Number(person.recovering_minutes) > 0;
+    return heading("", esc(person.name), "") +
+      '<div class="profile-grid"><section class="panel character-public-profile">' +
+      '<div class="section-kicker">' +
+      (isNpc ? 'NPC adventurer' : self ? 'Your character' : 'Player adventurer') +
+      '</div>' +
+      '<h3>' + esc(person.name) + '</h3>' +
+      characterRow("Level", person.level) +
+      characterRow("Health", person.hp + " / " + person.max_hp) +
+      characterRow("Location", pretty(person.city)) +
+      characterRow("Status", recovering ?
+        "Recovering (" + dur(person.recovering_minutes) + ")" :
+        person.hp > 0 ? "Active" : "Defeated") +
+      '<p class="small">Equipment, combat attributes, inventory and personal finances are private.</p>' +
+      '</section>' +
+      panel("Interactions", "",
+        '<div class="button-group">' +
+        button("Attack", 'data-ui="player-attack" data-player="' + esc(person.id) + '"' +
+          disabled(!reachable || pending || isBusy()), "gold") +
+        button("Chat", 'data-ui="profile-chat" data-character="' + esc(person.id) + '"' +
+          disabled(self), "secondary") +
+        button("Trade", 'data-ui="profile-trade" data-character="' + esc(person.id) + '"' +
+          disabled(self), "secondary") +
+        '</div><p class="small">' + (isNpc ?
+          'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
+          'will require the upcoming authenticated multiplayer service.' :
+          (self ? 'You are viewing your own public profile.' :
+           'Messaging and trading with other players requires authenticated multiplayer accounts.')) + '</p>' +
+        button("Back to Search", 'data-tab="people"', "ghost")) +
+      '</div>';
   }
 
   function renderDuel() {
@@ -1386,6 +1429,18 @@
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "profile-open":
+        selectedCharacterId = element.dataset.character;
+        tab = "profile";
+        render();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        break;
+      case "profile-chat":
+        notify("Direct chat needs authenticated multiplayer accounts. NPCs do not have live private conversations.", true);
+        break;
+      case "profile-trade":
+        notify("Player-to-player trade is not enabled on this single-player server.", true);
+        break;
       case "dismiss-level":
         levelCelebration = null; render(); break;
       case "guild-found": {
