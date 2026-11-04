@@ -214,6 +214,16 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertIsNone(self.game.snapshot(self.alice)["duel"])
         self.game.world.assert_invariants()
 
+    def test_unattended_player_duel_does_not_freeze_shared_world_time(self):
+        self.begin()
+        self.assertEqual(self.game.world.minute, 0)
+        self.game.advance(self.carol, 20, "independent-clock")
+        self.assertEqual(self.game.world.minute, 20)
+        self.assertEqual(self.game.snapshot(self.alice)["duel"]["round"], 0)
+        self.assertEqual(self.game.snapshot(self.bob)["duel"]["role"], "defender")
+        self.command(self.bob, "flee_duel", {}, "defender-can-exit")
+        self.game.world.assert_invariants()
+
     def test_stream_owns_only_participating_character_duels(self):
         self.begin()
         defender = self.game.social_snapshot(self.bob)
