@@ -216,8 +216,13 @@ class MultiplayerGame:
                 result = action()
                 self.world.assert_invariants()
                 self.db.execute("COMMIT")
-                self._revision += 1
-                self._activity_changed.notify_all()
+                # Deduplicated command retries do not append a journal row:
+                # they must not manufacture new activity revisions.
+                revision = self.db.execute(
+                    "SELECT COUNT(*) FROM world_journal").fetchone()[0]
+                if revision != self._revision:
+                    self._revision = revision
+                    self._activity_changed.notify_all()
                 return result
             except BaseException:
                 try:
