@@ -399,8 +399,12 @@ class MultiplayerGame:
                 if type(params.get("minutes")) is not int or set(params) != {"minutes"} or not (
                         1 <= params["minutes"] <= ADVANCE_LIMIT):
                     raise ActionError("Time advancement must be 1–1440 minutes")
-                if self.world.state.duels:
-                    raise ActionError("Finish active combat before advancing world time")
+                # An attacker must not freeze the entire shared-world clock by
+                # opening a PvP duel and going offline. NPC turn-based fights
+                # retain their historical time-advance restriction.
+                if any(self.world.actors[duel.defender_id].kind == "npc"
+                       for duel in self.world.state.duels.values()):
+                    raise ActionError("Finish active NPC combat before advancing world time")
                 self.world.advance(params["minutes"])
                 outcome = None
             else:
