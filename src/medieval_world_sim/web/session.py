@@ -100,6 +100,7 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None, recorded_at=
         "course_started": f"Enrolled in {info.get('school')} course #{info.get('course_index', 0) + 1}",
         "course_completed": f"Finished {info.get('school')} course; +{info.get('bonus')} {info.get('stat')}",
         "school_graduated": f"Graduated from {info.get('school')}",
+        "school_capstone_perk": f"{info.get('school')} capstone: +{info.get('bonus')} {info.get('stat')}",
         "merit_claimed": f"Achievement claimed: {info.get('achievement')}",
         "merit_upgrade": f"Merit upgrade purchased: {info.get('perk')}",
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
@@ -572,6 +573,7 @@ class GameSession:
                 "last_duel": w.state.last_duels.get(PLAYER_ID),
                 "combat_stamina_cost": 0,
                 "guard_stamina_cost": 2,
+                "magic_stamina_cost": 6,
                 "combat_moves": combat_moves,
                 "church": {"price": 20, "available": (
                     actor.hp > 0 and actor.hp < actor.max_hp and
