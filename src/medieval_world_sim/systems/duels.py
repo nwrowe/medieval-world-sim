@@ -79,6 +79,15 @@ class DuelSystem:
                 description = f"You strike for {damage} damage"
             else:
                 label, slot, stamina_spent = w.combat.melee_option(attacker, move)
+                if getattr(w, "_legacy_guard_rules", False):
+                    # Ruleset 7 recorded the original fists/dagger costs.
+                    if move == "fists" or (move == "strike" and slot is None):
+                        stamina_spent = 1
+                    elif move == "dagger":
+                        stamina_spent = 2
+                    elif move == "strike" and slot == "weapon":
+                        kind = w.gear[attacker.equipped["weapon"]].kind
+                        stamina_spent = {"sword": 5, "axe": 7, "bow": 4}.get(kind, 5)
                 if attacker.stamina < stamina_spent:
                     raise ActionError(f"Not enough stamina for {label.lower()} attack")
                 attacker.stamina -= stamina_spent
