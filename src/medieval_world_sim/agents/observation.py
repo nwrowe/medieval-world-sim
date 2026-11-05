@@ -63,9 +63,23 @@ class NPCView:
     magic_practice: tuple[tuple[str, int], ...] = ()
     courses: tuple[tuple[str, int, int], ...] = ()
     studying: bool = False
+    combat_xp: int = 0
+    level_xp: int = 0
+    work_xp: int = 0
+    magic_xp: int = 0
+    courses_completed: int = 0
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
+
+    @property
+    def quoted_inventory_value(self) -> int:
+        """Illustrative capital-bid mark, not a liquidation guarantee.
+
+        Excludes equipment and ignores quotas and merchant funding.
+        """
+        bids = {q.item: q.player_sell_price for q in self.capital_quotes}
+        return sum(qty * bids.get(item, 0) for item, qty in self.inventory)
 
     def company(self, company_id: str) -> CompanyView | None:
         return next((company for company in self.companies if company.id == company_id), None)
@@ -104,7 +118,12 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
     practice: tuple[tuple[str, int], ...] = ()
     courses: tuple[tuple[str, int, int], ...] = ()
     studying = False
+    combat_xp = level_xp = work_xp = magic_xp = courses_completed = 0
     if include_progression:
+        combat_xp = actor.combat_xp
+        level_xp = actor.progression.level_xp
+        work_xp = sum(actor.work.experience.values())
+        magic_xp = sum(actor.magic.school_xp.values())
         contracts = tuple(contract['id'] for contract in world.city_contracts.view(actor_id)
                           if contract['can_pay'] and contract['cooldown_available']
                           and contract['has_material']
@@ -115,6 +134,7 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         practice = tuple((node.node_id, node.mana_cost) for node in nodes
                          if node.active and node.tier > 0)
         curriculum = world.curriculum_system.view(actor_id)
+        courses_completed = sum(school['completed'] for school in curriculum['schools'])
         studying = curriculum['active'] is not None
         if not studying:
             courses = tuple((school['id'], idx, course['tuition'])
@@ -135,4 +155,5 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         tuple(world.regional_quote("crownreach", good) for good in sorted(BASE_LOCAL_ASK)),
         tuple(sorted(actor.discovered_cities)), actor.level, actor.magic.mana,
         contracts, eligible, practice, courses, studying,
+        combat_xp, level_xp, work_xp, magic_xp, courses_completed,
     )

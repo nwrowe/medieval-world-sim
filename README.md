@@ -130,6 +130,11 @@ executes game actions.
 python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 42 --playtest --reflect-every 30 --report-file playtest-feedback.json
 ```
 
+For longer, reproducible A/B comparisons over several seeds, run
+`python -m medieval_world_sim.agents.compare --seeds 10 --days 30 --npcs 28 --report-file npc-compare.json`.
+This produces per-seed income, completed-route profit and character-growth metrics.
+The smaller `--seeds 3 --days 4` form is suitable for a quick check.
+
 This is an **offline playtest harness**, not autonomous ticking of NPCs on
 the hosted/multiplayer server. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
 for report fields, optional LLM configuration and limitations.

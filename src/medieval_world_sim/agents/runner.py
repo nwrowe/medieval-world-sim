@@ -16,7 +16,7 @@ from ..core.entities import Actor, Wage
 from ..errors import ActionError
 from .observation import observe
 from .policy import NPCProfile, RuleBasedPolicy, NPCAction
-from .cognition import NPCMemory, DecisionTrace
+from .cognition import NPCMemory
 from .critics import Critic, HeuristicCritic, PlaytestObserver, aggregate_issues, MAJOR_EVENTS
 
 
@@ -81,10 +81,28 @@ class AutonomousSimulation:
             emitted = tuple(e.kind for e in self.world.events[before_events:]
                             if e.data.get("actor_id") == profile.id
                             or e.data.get("attacker_id") == profile.id)
-            after = replace(view, gold=actor.gold, hp=actor.hp,
-                            level=actor.level, city=actor.city,
-                            discovered_cities=tuple(sorted(actor.discovered_cities)))
-            memory.record(view, after, proposal, emitted, error)
+            playtester = profile.role == "playtester"
+            after = replace(
+                view, gold=actor.gold, hp=actor.hp, level=actor.level,
+                city=actor.city, inventory=tuple(sorted(actor.inventory.items())),
+                gear=tuple((gid, self.world.gear[gid].kind,
+                            self.world.gear[gid].quality)
+                           for gid in sorted(actor.gear_ids)),
+                discovered_cities=tuple(sorted(actor.discovered_cities)),
+                combat_xp=actor.combat_xp if playtester else 0,
+                level_xp=actor.progression.level_xp if playtester else 0,
+                work_xp=sum(actor.work.experience.values()) if playtester else 0,
+                magic_xp=sum(actor.magic.school_xp.values()) if playtester else 0,
+                courses_completed=(sum(
+                    len(indices) for indices in
+                    self.world.state.chosen_courses.get(actor.id, {}).values())
+                    + sum(self.world.state.completed_courses.get(
+                        actor.id, {}).values())) if playtester else 0)
+            optimizer = profile.persona == "optimizer"
+            trade_profit = (memory.record_trade(view, after, proposal, error)
+                            if optimizer else None)
+            memory.record(view, after, proposal, emitted, error,
+                          defer_trade_credit=optimizer, trade_profit=trade_profit)
             if profile.id in self.observers:
                 reason = next((kind for kind in emitted if kind in MAJOR_EVENTS), "")
                 if not reason and memory.failures[proposal.name] >= 3 and error:
@@ -98,10 +116,7 @@ class AutonomousSimulation:
             actor = self.world.actors[profile.id]
             discovered = sorted(set(actor.discovered_cities) - memory.visited)
             for city in discovered:
-                memory.visited.add(city)
-                memory.recent.append(DecisionTrace(
-                    self.world.minute, "arrived", city, True, 0, 0, 0,
-                    (city,), ("arrived",)))
+                memory.record_arrival(self.world.minute, city)
             if discovered and profile.id in self.observers:
                 self.observers[profile.id].maybe_reflect(
                     observe(self.world, profile.id, include_progression=True),
@@ -189,8 +204,24 @@ class AutonomousSimulation:
         }
         if self.observers:
             report["playtesting"] = {
-                "agents": {key: observer.output()
-                           for key, observer in sorted(self.observers.items())},
+                "agents": {key: {
+                    **observer.output(),
+                    "outcomes": {
+                        "starting_gold": 240,
+                        "ending_gold": self.world.actors[key].gold,
+                        "cash_change": self.world.actors[key].gold - 240,
+                        "level": self.world.actors[key].level,
+                        "combat_xp": self.world.actors[key].combat_xp,
+                        "work_xp": sum(self.world.actors[key].work.experience.values()),
+                        "magic_xp": sum(self.world.actors[key].magic.school_xp.values()),
+                        "equipment_owned": len(self.world.actors[key].gear_ids),
+                        "cities_discovered": len(self.world.actors[key].discovered_cities),
+                        "trade_completed": observer.memory.trade_completed,
+                        "trade_net_profit": observer.memory.trade_net_profit,
+                        "trade_loss_cycles": observer.memory.trade_loss_cycles,
+                        "active_trade": observer.memory.active_route is not None,
+                    },
+                } for key, observer in sorted(self.observers.items())},
                 "aggregate": aggregate_issues(self.observers),
                 "notes": ("Critic reports are hypotheses from simulated agents, "
                           "not findings confirmed by human playtesters."),
