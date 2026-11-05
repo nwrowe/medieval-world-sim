@@ -27,8 +27,8 @@ python benchmarks/phase4_load.py --users 4 --actions 6 --workers 4
 python benchmarks/phase4_load.py --users 8 --actions 12 --workers 8
 ```
 
-The CI workflow also executes the four-user case as a non-regression smoke
-benchmark. The script reports request latency (p50/p95/p99/max), throughput,
+The CI workflow also executes four-user and eight-user cases as
+non-regression smoke benchmarks. The script reports request latency (p50/p95/p99/max), throughput,
 total elapsed time, response sizes, peak Python `tracemalloc` memory,
 durable receipts and journal rows. Any missing receipt or unsuccessful HTTP
 mutation fails the run; noisy per-run timing does not fail CI until a
