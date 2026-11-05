@@ -232,7 +232,8 @@ class GameHandler(BaseHTTPRequestHandler):
             return
         if route == "/api/health":
             self._json(200, {"ok": True, "mode": "multi-account-local",
-                             "invite_required": self.server.multiplayer.require_invites})
+                             "invite_required": self.server.multiplayer.require_invites,
+                             "dev_fast_forward": self.server.multiplayer.dev_fast_forward})
         elif route == "/api/auth/session":
             identity = self._multi_identity()
             self._json(200, {"authenticated": identity is not None,
@@ -385,6 +386,8 @@ def main(argv=None):
                         help="Issue one-time 7-day account invites to stdout and exit")
     parser.add_argument("--dev-open-registration", action="store_true",
                         help="UNSAFE for public use: skip one-time invitation requirement")
+    parser.add_argument("--dev-fast-forward", action="store_true",
+                        help="UNSAFE for public use: allow users to advance shared time manually")
     parser.add_argument("--access-token", default=None,
                         help="Optional access code; auto-generated for LAN binds")
     parser.add_argument("--colab-preview", action="store_true",
@@ -403,7 +406,8 @@ def main(argv=None):
         if args.colab_preview or args.access_token:
             parser.error("--multiplayer-db cannot use --access-token or --colab-preview")
         multi = MultiplayerGame(
-            args.multiplayer_db, require_invites=not args.dev_open_registration)
+            args.multiplayer_db, require_invites=not args.dev_open_registration,
+            dev_fast_forward=args.dev_fast_forward)
         try:
             if args.issue_invites:
                 for code in multi.issue_invites(args.issue_invites):
@@ -423,8 +427,8 @@ def main(argv=None):
         finally:
             multi.close()
         return
-    if args.issue_invites or args.dev_open_registration:
-        parser.error("Account invitation flags require --multiplayer-db")
+    if args.issue_invites or args.dev_open_registration or args.dev_fast_forward:
+        parser.error("Multiplayer development flags require --multiplayer-db")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:
         token = secrets.token_urlsafe(18)
