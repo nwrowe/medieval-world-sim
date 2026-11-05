@@ -95,7 +95,7 @@ def _decode(value, depth=0):
         present = set(value["values"])
         # The only tolerated legacy schema difference is the three newly
         # defaultable Actor fields. All other model/schema drift still fails.
-        migration_fields = {"lineage", "lineage_selected", "discovered_cities"}
+        migration_fields = {"lineage", "lineage_selected", "discovered_cities", "stored_gear"}
         if (present != expected and not (
                 cls is Actor and present <= expected and
                 expected - present <= migration_fields)):
