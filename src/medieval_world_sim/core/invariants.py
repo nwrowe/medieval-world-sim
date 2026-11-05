@@ -49,6 +49,10 @@ def validate_world(world: WorldEngine) -> None:
                           for item, qty in goods.items())
                    for city, goods in account.storage.items()):
                 raise AssertionError("Invalid personal city storage")
+            if any(city not in CITIES or type(ids) is not list
+                   or any(type(gid) is not int for gid in ids)
+                   for city, ids in account.stored_gear.items()):
+                raise AssertionError("Invalid stored equipment")
             world.magic_system.assert_valid(account, world.minute)
             world.housing_system.assert_valid(account)
             if account.destination is not None:
