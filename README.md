@@ -117,6 +117,23 @@ python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
 
 See [Architecture](docs/ARCHITECTURE.md) for module boundaries and the in-memory transaction trade-offs.
 
+## Autonomous NPC playtesting (opt-in)
+
+Two optional simulated characters — **Explorer** and **Optimizer** — now
+exercise validated gameplay actions using separate utility preferences. NPC
+needs, bounded short-term memory and simple action-value learning remain cheap;
+a separate observer produces structured evidence-based reports, either locally
+or with an explicitly enabled external LLM critique. An LLM never decides or
+executes game actions.
+
+\`\`\`bash
+python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 42 --playtest --reflect-every 30 --report-file playtest-feedback.json
+\`\`\`
+
+This is an **offline playtest harness**, not autonomous ticking of NPCs on
+the hosted/multiplayer server. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
+for report fields, optional LLM configuration and limitations.
+
 ## Autonomous NPC economy (rules-driven experiment)
 
 Independent NPCs gather regional resources, carry or trade materials, manage capital companies, earn wages, craft quality-bearing gear, buy equipment, and sometimes fight. Each NPC receives a seeded personality (greed, curiosity, risk, Gaussian decision noise); the policy returns **action proposals**, not state changes. Every proposal executes through the authoritative game command interface. This is intentionally not yet reinforcement learning.
