@@ -65,6 +65,7 @@
   let selectedAttunements = new Set();
   let token = sessionStorage.getItem("medieval-world-token") || "";
   let multiMode = false;
+  let inviteRequired = false;
   let csrfToken = "";
   let liveEvents = null;
 
@@ -171,6 +172,7 @@
     try {
       const health = await request("/api/health");
       multiMode = health.mode === "multi-account-local";
+      inviteRequired = Boolean(health.invite_required);
       if (multiMode) {
         const account = await request("/api/auth/session");
         csrfToken = account.csrf || "";
@@ -280,6 +282,10 @@
       'minlength="3" maxlength="24" required>' +
       '<label for="registerCharacter">Character name</label>' +
       '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
+      (inviteRequired ?
+      '<label for="registerInvite">Invitation code</label>' +
+      '<input id="registerInvite" class="field" autocomplete="off" ' +
+      'placeholder="One-time code from game operator" required>' : "") +
       '<label for="registerPassword">Password (12 characters minimum)</label>' +
       '<input id="registerPassword" class="field" type="password" ' +
       'autocomplete="new-password" minlength="12" maxlength="128" required>' +
@@ -1998,7 +2004,10 @@
       await accountSubmit("/api/auth/register", {
         username: document.getElementById("registerUsername").value.trim(),
         display_name: document.getElementById("registerCharacter").value.trim(),
-        password: document.getElementById("registerPassword").value
+        password: document.getElementById("registerPassword").value,
+        ...(inviteRequired ? {
+          invite: document.getElementById("registerInvite").value.trim()
+        } : {})
       });
     } else if (event.target.id === "tradeOfferForm") {
       event.preventDefault();
