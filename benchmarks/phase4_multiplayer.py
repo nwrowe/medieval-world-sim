@@ -15,8 +15,11 @@ import json
 import os
 from pathlib import Path
 import platform
-import resource
 import statistics
+try:
+    import resource
+except ImportError:  # Windows does not provide resource.getrusage.
+    resource = None
 import tempfile
 from time import perf_counter
 
@@ -119,7 +122,7 @@ def scenario(accounts: int, requests: int, workers: int, views: int) -> dict:
                 "mixed_read_throughput_per_s": round(requests / mixed_elapsed, 2),
                 "maxrss_kb_linux": (
                     resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-                    if platform.system() == "Linux" else None),
+                    if platform.system() == "Linux" and resource is not None else None),
                 "journal_entries": game._journal_count,
                 "reconciled": True,
             }
