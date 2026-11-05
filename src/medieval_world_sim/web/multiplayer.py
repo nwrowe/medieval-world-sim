@@ -62,6 +62,14 @@ class MultiplayerGame:
                  npc_enabled: bool = False):
         self.require_invites = require_invites
         self.dev_fast_forward = dev_fast_forward
+        if type(npc_enabled) is not bool:
+            raise ValueError("npc_enabled must be a boolean")
+        self.npc_enabled = npc_enabled
+        self._npc_stop = threading.Event()
+        self._npc_thread: threading.Thread | None = None
+        self._npc_memories = {}
+        self._npc_due = {}
+        self._npc_profiles = ()
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
