@@ -223,6 +223,10 @@ class ClockAndRandomnessTests(unittest.TestCase):
             old = game.world.execute(actor, "practice_magic", params, engine_id)
             legacy_roll = old.roll
             payload = json.dumps(params, sort_keys=True, separators=(",", ":"))
+            # Emulate a historical journal-only database, before Phase 3
+            # introduced the materialized ledger and immutable receipts.
+            game.db.execute(
+                "DELETE FROM world_meta WHERE name='durable_ledger_initialized'")
             game.db.execute(
                 "INSERT INTO world_journal("
                 "kind,actor_id,action,payload,request_id,result_json,recorded_at"

@@ -28,7 +28,7 @@ from ..errors import ActionError
 from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
-from . import social, accounts, journal
+from . import social, accounts, journal, ledger
 from .accounts import (AuthError, Identity, _digest, _password_hash,
                        MAX_ACCOUNTS, INVITE_VALID_SECONDS, MAX_INVITES_PER_BATCH,
                        SESSION_SECONDS, PASSWORD_N, PASSWORD_R, PASSWORD_P,
@@ -146,6 +146,9 @@ class MultiplayerGame:
             try:
                 result = action()
                 self.world.assert_invariants()
+                # The journal, durable receipts and current asset ownership
+                # commit together, or all roll back with the world state.
+                ledger.persist(self)
                 self.db.execute("COMMIT")
                 # Deduplicated command retries do not append a journal row:
                 # they must not manufacture new activity revisions.
@@ -200,7 +203,7 @@ class MultiplayerGame:
     def _existing_command(self, actor_id: str, request_id: str, kind: str,
                           action: str | None, payload: str):
         return self.db.execute(
-            "SELECT kind, action, payload, result_json FROM world_journal "
+            "SELECT kind, action, payload, result_json FROM durable_receipts "
             "WHERE actor_id=? AND request_id=?", (actor_id, request_id)).fetchone()
 
     def _tick_world_clock(self) -> None:
