@@ -128,6 +128,17 @@ class NPCPlanningTests(unittest.TestCase):
         self.assertNotIn("new_discovery", [x["code"] for x in
                          observer.reports[-1]["issues"]])
 
+    def test_multiseed_report_is_grounded_and_reproducible(self):
+        one = compare(first_seed=3, seeds=2, days=1, npcs=20)
+        two = compare(first_seed=3, seeds=2, days=1, npcs=20)
+        self.assertEqual(one, two)
+        self.assertTrue(one["gold_conserved_all"])
+        self.assertFalse(one["rejections_all"])
+        self.assertEqual(len(one["runs"]), 2)
+        self.assertIn("trade_net_profit", one["summary"]["optimizer"])
+        with self.assertRaises(ValueError):
+            compare(seeds=0)
+
     def test_multiseed_full_engine_preserves_gold_and_never_sells_locally(self):
         for seed in (7, 29, 42):
             with self.subTest(seed=seed):
