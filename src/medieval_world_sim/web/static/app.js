@@ -763,16 +763,16 @@ import { createWorldViews } from "/world-views.mjs";
         typeof EventSource === "undefined" || liveEvents) return;
     const stream = new EventSource("/api/events");
     liveEvents = stream;
-    stream.addEventListener("activity", event => {
+    const receiveActivity = event => {
       if (stream !== liveEvents || !state || !state.started) return;
       let update;
       try { update = JSON.parse(event.data); } catch { return; }
       if (update.actor_id !== state.actor_id ||
           update.revision < (state.activity_revision || 0)) return;
       state.activity_revision = update.revision;
-      state.chat = update.chat;
-      state.trades = update.trades;
-      state.minute = update.minute;
+      if ("chat" in update) state.chat = update.chat;
+      if ("trades" in update) state.trades = update.trades;
+      if ("minute" in update) state.minute = update.minute;
       if ("next_world_tick_seconds" in update) {
         state.next_world_tick_seconds = update.next_world_tick_seconds;
         clockSyncedAt = Date.now();
@@ -787,7 +787,9 @@ import { createWorldViews } from "/world-views.mjs";
       }
       if (chatOpen) markChannelRead(chatChannelKey);
       refreshLiveSurfaces();
-    });
+    };
+    stream.addEventListener("activity", receiveActivity);
+    stream.addEventListener("activity-delta", receiveActivity);
     // EventSource reconnects automatically and sends the session cookie.
     // This stream intentionally has no client-controlled actor identifier.
   }
