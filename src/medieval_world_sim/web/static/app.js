@@ -138,7 +138,7 @@
     const text = label + fullCountdown(seconds);
     const end = secureWorldClock && state && state.next_world_tick_seconds != null ?
       Date.now() + seconds * 1000 : 0;
-    return ' title="' + esc(text) + '" data-timer-label="' + esc(label) +
+    return ' data-hover-text="' + esc(text) + '" data-timer-label="' + esc(label) +
       '" data-timer-end="' + end + '" data-timer-fixed="' +
       (end ? "" : Math.ceil(seconds)) + '"';
   }
@@ -147,7 +147,7 @@
       const seconds = Number(item.dataset.timerEnd) > 0 ?
         (Number(item.dataset.timerEnd) - Date.now()) / 1000 :
         Number(item.dataset.timerFixed);
-      item.title = item.dataset.timerLabel + fullCountdown(seconds);
+      item.dataset.hoverText = item.dataset.timerLabel + fullCountdown(seconds);
     }
   }
   function simDuration(minutes) {
@@ -403,10 +403,14 @@
   function meterStat(label, value, max, kind, simSeconds) {
     const v = Number(value) || 0;
     const maximum = Math.max(1, Number(max) || 1);
+    const hospitalized = kind === "health" && v <= 0 &&
+      state && state.player.defeated_until != null &&
+      state.player.defeated_until > state.minute;
     const hint = v >= maximum ? "Full" :
+      hospitalized ? "Hospital recovery in " :
       simSeconds == null ? "No passive recovery available" : "Next increase in ";
     const timing = v < maximum && simSeconds != null ?
-      timerAttrs(hint, simSeconds) : ' title="' + esc(hint) + '"';
+      timerAttrs(hint, simSeconds) : ' data-hover-text="' + esc(hint) + '"';
     return '<div class="vital vital-' + kind +
       '"' + timing + ' tabindex="0" aria-label="' +
       esc(label + ': ' + v + ' of ' + maximum + '. ' +
