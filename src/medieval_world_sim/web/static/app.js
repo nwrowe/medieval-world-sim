@@ -38,6 +38,14 @@
   let tab = "character";
   let levelCelebration = null;
   let presenceTimer = null;
+  let lastUserActivity = Date.now();
+  for (const name of ["pointerdown", "keydown", "touchstart"]) {
+    document.addEventListener(name, () => {
+      const wasIdle = Date.now() - lastUserActivity >= 5 * 60 * 1000;
+      lastUserActivity = Date.now();
+      if (wasIdle) publishPresence();
+    }, { passive: true });
+  }
   let school = "restoration";
   let latestPractice = null;
   let latestContract = null;
@@ -1766,7 +1774,8 @@
     if (!multiMode || !csrfToken || !state || !state.started) return;
     try {
       await request("/api/presence", {
-        visible: document.visibilityState === "visible"
+        visible: document.visibilityState === "visible" &&
+          Date.now() - lastUserActivity < 5 * 60 * 1000
       });
     } catch { /* The connection can be interrupted; the next ping retries. */ }
   }
