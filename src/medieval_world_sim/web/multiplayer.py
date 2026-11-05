@@ -238,6 +238,8 @@ class MultiplayerGame:
                     self.world.state = previous
                     self.event_times = previous_event_times
                     self._clock_anchor = previous_clock_anchor
+                    self._npc_memories = previous_npc_memory
+                    self._npc_due = previous_npc_due
                 raise
             finally:
                 self.world._durable_tx_owns_rollback = False
