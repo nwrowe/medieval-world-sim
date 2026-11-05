@@ -65,7 +65,7 @@ class EnrollmentAbuseTests(unittest.TestCase):
         def attempt(i):
             try:
                 return self.game.register(
-                    f"player{i}", PASSWORD, f"Player {i}", code)
+                    f"player{i}", PASSWORD, f"Player {chr(65 + i)}", code)
             except ActionError:
                 return None
         with ThreadPoolExecutor(max_workers=8) as executor:
