@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 import hashlib
 import hmac
 import re
@@ -19,6 +19,9 @@ import uuid
 
 from ..errors import ActionError
 from .session import START_CITY
+
+if TYPE_CHECKING:
+    from .multiplayer import MultiplayerGame
 
 MAX_ACCOUNTS = 100
 INVITE_VALID_SECONDS = 7 * 86400
@@ -52,7 +55,7 @@ def _password_hash(password: str, salt: bytes) -> bytes:
                           maxmem=64 * 1024 * 1024)
 
 
-def validate_registration(username, password, display_name):
+def validate_registration(username: str, password: str, display_name: str) -> tuple[str, str]:
     if (not isinstance(username, str) or not re.fullmatch(
             r"[A-Za-z][A-Za-z0-9_]{2,23}", username)):
         raise ActionError("Username must be 3–24 letters, digits or underscores")
@@ -65,7 +68,7 @@ def validate_registration(username, password, display_name):
     return username.lower(), display_name.strip()
 
 
-def issue_invites(game, count: int = 1) -> list[str]:
+def issue_invites(game: MultiplayerGame, count: int = 1) -> list[str]:
     """Operator-only administration; never expose through the HTTP server."""
     if type(count) is not int or not 1 <= count <= MAX_INVITES_PER_BATCH:
         raise ValueError("Invalid invitation batch size")
@@ -79,7 +82,8 @@ def issue_invites(game, count: int = 1) -> list[str]:
     return codes
 
 
-def register(game, username, password, display_name, invite: str | None, encode_json: Callable[[object], str]):
+def register(game: MultiplayerGame, username: str, password: str, display_name: str,
+             invite: str | None, encode_json: Callable[[object], str]) -> str:
     username, display_name = game._validate_registration(
         username, password, display_name)
     salt = secrets.token_bytes(16)
@@ -134,7 +138,7 @@ def register(game, username, password, display_name, invite: str | None, encode_
         raise
 
 
-def login(game, username: str, password: str):
+def login(game: MultiplayerGame, username: str, password: str) -> tuple[str, str]:
     # Uniform error for missing usernames and bad passwords.
     if (not isinstance(username, str) or not isinstance(password, str)
             or len(username) > 24 or len(password) > 128):
@@ -164,14 +168,14 @@ def login(game, username: str, password: str):
         return game._issue_session(actor_id)
 
 
-def register_and_login(game, username, password, display_name,
-                       invite: str | None = None):
+def register_and_login(game: MultiplayerGame, username: str, password: str, display_name: str,
+                       invite: str | None = None) -> tuple[str, str]:
     actor_id = game.register(username, password, display_name, invite)
     with game._lock:
         return game._issue_session(actor_id)
 
 
-def _issue_session(game, actor_id: str):
+def _issue_session(game: MultiplayerGame, actor_id: str) -> tuple[str, str]:
     token = secrets.token_urlsafe(32)
     csrf = secrets.token_urlsafe(24)
     with game._lock:
@@ -181,7 +185,7 @@ def _issue_session(game, actor_id: str):
     return token, csrf
 
 
-def identity(game, token: str | None) -> Identity | None:
+def identity(game: MultiplayerGame, token: str | None) -> Identity | None:
     if not isinstance(token, str) or not 32 <= len(token) <= 128:
         return None
     with game._lock:
@@ -193,6 +197,6 @@ def identity(game, token: str | None) -> Identity | None:
     return Identity(*row) if row else None
 
 
-def logout(game, token: str):
+def logout(game: MultiplayerGame, token: str) -> None:
     with game._lock:
         game.db.execute("DELETE FROM sessions WHERE digest=?", (_digest(token),))
