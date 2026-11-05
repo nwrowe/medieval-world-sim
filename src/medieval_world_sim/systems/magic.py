@@ -48,6 +48,8 @@ class MagicPracticeResult:
     xp_gained: int
     school_xp: int
     insight_gained: int
+    level_xp_gained: int = 0
+    levels_gained: int = 0
 
 
 class MagicSystem:
