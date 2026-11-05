@@ -55,6 +55,45 @@ events may also trigger reflection after at least five new decisions.
 The runner produces final reflections at session end. World advancement is
 still the configured accelerated step, not an always-running hosted service.
 
+### Objective-based trade planning and richer diagnostics
+
+The **Optimizer** now treats regional arbitrage as a committed objective:
+buy raw material at its source city, travel to Crownreach, then sell into
+the capital's *currently funded* merchant demand. It never deliberately
+buys and immediately resells the same cargo locally. A route is completed
+only when the goods have been sold; the learning signal is **realized
+revenue minus actual purchase cost**. On partial sales or depleted city
+budgets, the optimizer retains its cargo objective and can perform local
+work while waiting for a funded sale.
+
+The source city still needs stock; arrival and market conditions can change.
+Profitable plans aren't guarantees of profit. Outstanding inventory is
+labeled an *unsettled position*, not a realized financial loss.
+
+Observers now track estimated inventory value at **published capital bids**
+(excludes equipment and ignores stock quotas and available funds), work/magic/
+combat XP, equipment acquired, education completed, level progression,
+completed trade cycles and real route profitability. This is a diagnostic
+mark only, **not withdrawable gold or an exact net-worth figure**.
+
+Critic findings now distinguish: failed local buy-sell loops, losing
+long-distance routes, ongoing unsold cargo, character-level stagnation,
+rejected commands and truly new discoveries since the previous reflection.
+The 0–10 ratings remain **proxies**, with explicit caveats: command acceptance
+does not establish UI clarity, social engagement is not measured, and
+action diversity is not necessarily an interesting decision.
+
+For a reproducible multi-seed summary with per-seed evidence, run:
+
+```bash
+python -m medieval_world_sim.agents.compare --seeds 10 --days 30 --npcs 28 --first-seed 42 --report-file npc-compare.json
+```
+
+The command is intentionally opt-in; ten 30-day simulations can take
+substantial computation time. Use `--seeds 3 --days 4` to get a quick
+smoke test. Each run is independent and starts the two test avatars at
+level one, without any paid model calls.
+
 ### Opt-in LLM reflections (network, credentials, cost)
 
 To send the limited *test telemetry* (NOT real account secrets) to an external
