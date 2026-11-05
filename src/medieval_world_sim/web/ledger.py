@@ -144,10 +144,29 @@ def persist(game: MultiplayerGame) -> None:
     if stored is not None and stored[0] == head:
         return  # Idempotent command retries do not manufacture a revision.
     rows = current_rows(game.world)
-    game.db.execute("DELETE FROM asset_ledger")
+    # Retain the authoritative full-state reconciliation, but write only
+    # changed holdings. A no-asset-change command (chat, presence) should
+    # not DELETE and INSERT hundreds of other players' balances or gear.
+    saved = {
+        row[:5]: row[5] for row in game.db.execute(
+            "SELECT " + ",".join(ASSET_FIELDS) + " FROM asset_ledger")
+    }
+    desired = {row[:5]: row[5] for row in rows}
+    removed = sorted(set(saved) - set(desired))
+    modified = sorted(
+        (*key, amount) for key, amount in desired.items()
+        if saved.get(key) != amount
+    )
+    game.db.executemany(
+        "DELETE FROM asset_ledger WHERE holder_type=? AND holder_id=? "
+        "AND location=? AND asset_type=? AND asset_id=?",
+        removed)
     game.db.executemany(
         "INSERT INTO asset_ledger(" + ",".join(ASSET_FIELDS) +
-        ") VALUES(?,?,?,?,?,?)", rows)
+        ") VALUES(?,?,?,?,?,?) "
+        "ON CONFLICT(holder_type,holder_id,location,asset_type,asset_id) "
+        "DO UPDATE SET quantity=excluded.quantity",
+        modified)
     game.db.execute(
         "INSERT INTO durable_receipts("
         "actor_id,request_id,kind,action,payload,result_json,journal_seq) "
