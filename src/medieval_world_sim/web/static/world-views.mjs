@@ -256,7 +256,7 @@ export function createWorldViews(ctx) {
   };
   function spellRow(node, nodes, p) {
     const state = ctx.getState();
-    const higherUnlocked = nodes.some(other => other.tier > node.tier && other.unlocked);
+    const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
     const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
