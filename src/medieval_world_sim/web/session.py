@@ -209,6 +209,7 @@ class GameSession:
             self.world._legacy_guard_rules = record.get("ruleset", 1) < 8
             self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
+            self.world._legacy_magic_leveling_rules = record.get("ruleset", 1) < 14
             self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
             try:
                 self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
