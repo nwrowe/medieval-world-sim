@@ -1,7 +1,8 @@
 """Durable SQLite schema evolution and replay of the shared multiplayer world.
 
-Only this module upgrades the database schema and interprets prior journal
-rows. New mechanics must retain replay metadata for historic save versions.
+This module owns the original command journal schema and historical replay.
+The asset ledger and checkpoint modules own their additional tables and
+recovery verification. New mechanics must retain versioned replay metadata.
 No credentials, HTTP transport or client-generated world-time mutations here.
 """
 from __future__ import annotations
