@@ -14,6 +14,7 @@ import time
 
 from ..core.commands import MULTIPLAYER_ACTIONS
 from .session import ADVANCE_LIMIT, LEGACY_START_CITY, START_CITY
+from . import ledger
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
@@ -98,6 +99,7 @@ def create_schema(game: MultiplayerGame) -> None:
         (str(int(time.time())).encode(),))
     game._clock_anchor = int(game.db.execute(
         "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
+    ledger.create_schema(game)
 
 
 def load_world(game: MultiplayerGame) -> None:
@@ -178,4 +180,5 @@ def load_world(game: MultiplayerGame) -> None:
     # snapshots and browser reconnects use it to reject stale updates.
     game._journal_count = len(rows)
     game._revision = len(rows)
+    ledger.initialize_or_verify(game)
 
