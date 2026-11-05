@@ -22,6 +22,7 @@ except ImportError:  # Windows does not provide resource.getrusage.
     resource = None
 import tempfile
 from time import perf_counter
+from unittest.mock import patch
 
 from medieval_world_sim.web.multiplayer import MultiplayerGame
 
@@ -52,11 +53,16 @@ def scenario(accounts: int, requests: int, workers: int, views: int) -> dict:
         game = MultiplayerGame(Path(folder) / "benchmark.sqlite3",
                                require_invites=False, dev_fast_forward=True)
         try:
-            players = [
-                game.register(f"user{i:03d}", "benchmark secure password",
-                              f"Hero {chr(65 + i // 26)}{chr(65 + i % 26)}")
-                for i in range(accounts)
-            ]
+            # Only this controlled benchmark bypasses the per-day signup
+            # quota to construct a realistic-sized world in one CI run.
+            # The real server's registration limits remain unchanged.
+            with patch("medieval_world_sim.web.accounts.MAX_NEW_ACCOUNTS_PER_DAY",
+                       max(100, accounts)):
+                players = [
+                    game.register(f"user{i:03d}", "benchmark secure password",
+                                  f"Hero {chr(65 + i // 26)}{chr(65 + i % 26)}")
+                    for i in range(accounts)
+                ]
             viewing_actor = players[0]
             full_latency = timed(lambda: game.snapshot(viewing_actor), views)
             live_latency = timed(lambda: game.social_snapshot(viewing_actor), views)
