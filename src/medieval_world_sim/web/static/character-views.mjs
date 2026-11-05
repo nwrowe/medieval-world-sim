@@ -91,7 +91,7 @@ export function createCharacterViews(ctx) {
       '<p class="home-scene">' + esc(scene[1]) + '</p>' +
       '<p class="home-scene-note">' + esc(scene[2]) + '</p>' +
       '<div class="home-hero-foot"><span>✦ ' + explored + ' of ' +
-      state.cities.length + ' cities charted</span>' +
+      (state.cities || []).length + ' cities charted</span>' +
       '<span>Level ' + p.level + ' · ' + esc(scene[0]) + '</span></div></div>' +
       '<div class="home-hero-crest" aria-hidden="true">✦</div></div>' +
       '<div class="profile-grid">' +
