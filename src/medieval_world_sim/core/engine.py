@@ -79,6 +79,9 @@ class WorldEngine:
         )
         self.state.initial_gold = self.total_gold
         self._current_action_id: str | None = None
+        # Set only while the multiplayer adapter owns the outer SQLite and
+        # in-memory rollback boundary; never set during single-player or replay.
+        self._external_transaction_active = False
         self._action_lock = RLock()
         self.travel = TravelSystem(self)
         self.resources = ResourceSystem(self)
