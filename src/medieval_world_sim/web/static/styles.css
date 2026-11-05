@@ -863,3 +863,8 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .home-hero-crest {display:none}
   .home-hero .home-scene {font-size:13px}
 }
+
+/* The login stays compact; the registration details expand when requested. */
+.entry-card:has(.account-register[open]) {max-width:720px}
+.account-register .lineage-option-body {min-height:0}
+@media(max-width:590px) {.account-register .lineage-grid {grid-template-columns:1fr}}
