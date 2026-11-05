@@ -47,7 +47,7 @@ def social_view(game: MultiplayerGame, actor_id: str,
     if projection is None:
         # An SSE update must never rebuild market, equipment, magic, housing,
         # and all other full-page state on every presence or chat revision.
-        activity = activity_projection(game.world, actor_id, game.npc_names,
+        activity = activity_projection(game.world, actor_id, game.names[actor_id], game.npc_names,
                                        game.names, game.event_times, True)
         projection = {
             "users": activity["users"], "events": activity["events"],
