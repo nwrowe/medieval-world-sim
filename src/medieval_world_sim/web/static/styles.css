@@ -760,3 +760,18 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .chronicle-filters {align-items:stretch;flex-direction:column;gap:6px;}
   .chronicle-filters .field {width:100%;max-width:none;flex:none;}
 }
+
+
+/* Readable local presence without exposing private login times. */
+.player-presence {display:inline-flex;align-items:center;gap:5px;
+  padding:2px 7px;margin-left:8px;border-radius:99px;font-size:10px;
+  font-weight:650;vertical-align:middle;white-space:nowrap;
+  background:#e9ede6;color:#657265;}
+.presence-dot {width:7px;height:7px;border-radius:50%;background:#87958b;}
+.player-presence.active {background:#e3f1e4;color:#285f3c;}
+.player-presence.active .presence-dot {background:#3f9b5b;}
+.player-presence.away {background:#f6efdf;color:#8a681f;}
+.player-presence.away .presence-dot {background:#dba63c;}
+.player-presence.offline {background:#e9e9e8;color:#666;}
+.activity-hospital {border-color:#d99a97;}
+.activity-hospital span {color:#e8adad;}

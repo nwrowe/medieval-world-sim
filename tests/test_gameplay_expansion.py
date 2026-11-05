@@ -2,6 +2,7 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from medieval_world_sim.catalog import CITIES, RAW_RESOURCES, EQUIPMENT, CONSUMABLES, PROCESSED_RESOURCES
 from medieval_world_sim.equipment import GEAR
@@ -52,7 +53,8 @@ class GameplayExpansionTests(unittest.TestCase):
                    if user["can_attack"])
         self.act("start_duel", {"defender_id": foe}, "start-fight")
         self.act("duel_turn", {"move": "strike", "node_id": ""}, "hit")
-        self.act("flee_duel", {}, "escape")
+        with patch("medieval_world_sim.web.session.secrets.randbits", return_value=1):
+            self.act("flee_duel", {}, "escape")
         missing = 24 - self.game.snapshot()["player"]["hp"]
         self.assertGreater(missing, 0)
         total = self.game.world.total_gold

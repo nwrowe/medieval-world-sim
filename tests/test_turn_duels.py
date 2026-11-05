@@ -2,6 +2,7 @@
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
@@ -66,7 +67,8 @@ class DuelWebTests(unittest.TestCase):
         for turn in range(7):
             self.do("duel_turn", {"move": "strike", "node_id": ""}, f"hurt-{turn}")
         self.assertEqual(self.game.snapshot()["player"]["hp"], 3)
-        self.do("flee_duel", {}, "escape")
+        with patch("medieval_world_sim.web.session.secrets.randbits", return_value=1):
+            self.do("flee_duel", {}, "escape")
         before = self.game.snapshot()["player"]["gold"]
         self.do("start_duel", {"defender_id": foes[1]}, "second-start")
         result = self.do("duel_turn", {"move": "strike", "node_id": ""}, "lose")
@@ -96,7 +98,8 @@ class DuelWebTests(unittest.TestCase):
         healed = self.do("duel_turn", {
             "move": "cast", "node_id": "restoration.soothe_wounds"}, "combat-heal")
         self.assertEqual(healed["outcome"], "ongoing")
-        self.do("flee_duel", {}, "flee")
+        with patch("medieval_world_sim.web.session.secrets.randbits", return_value=1):
+            self.do("flee_duel", {}, "flee")
         self.assertEqual(self.game.snapshot()["last_duel"]["outcome"], "fled")
         value = self.do("cast_spell", {"node_id": "restoration.soothe_wounds"}, "field-heal")
         self.assertGreater(value["amount"], 0)

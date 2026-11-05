@@ -85,6 +85,11 @@ class MultiplayerGame:
         self._lock = threading.RLock()
         self._activity_changed = threading.Condition(self._lock)
         self._revision = 0
+        self._journal_count = 0
+        # Presence is ephemeral: never stored in the replay journal or
+        # confused with the game-world clock.
+        self._presence = {}
+        self._presence_status = {}
         self._event_slots = threading.BoundedSemaphore(20)
         # A single process owns the in-memory simulation. SQLite exclusive
         # locking prevents two processes independently committing stale worlds.
@@ -143,6 +148,8 @@ class MultiplayerGame:
             "PRAGMA table_info(world_journal)")}
         if "recorded_at" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
+        if "flee_success" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -171,9 +178,9 @@ class MultiplayerGame:
         self.event_times = {}
         registered = set()
         rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id, recorded_at "
+            "SELECT kind, actor_id, action, payload, request_id, recorded_at, flee_success "
             "FROM world_journal ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id, recorded_at in rows:
+        for kind, actor_id, action, payload, request_id, recorded_at, flee_success in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -195,8 +202,19 @@ class MultiplayerGame:
             elif kind == "action":
                 if action not in MULTI_ACTIONS:
                     raise ValueError("Forbidden journal command")
-                self.world.execute(actor_id, action, params, self._engine_id(
-                    actor_id, request_id))
+                if action == "flee_duel":
+                    if flee_success is None:
+                        self.world._legacy_flee_rules = True
+                    elif flee_success not in (0, 1):
+                        raise ValueError("Invalid saved flee coin flip")
+                    else:
+                        self.world._flee_success = bool(flee_success)
+                try:
+                    self.world.execute(actor_id, action, params, self._engine_id(
+                        actor_id, request_id))
+                finally:
+                    self.world._legacy_flee_rules = False
+                    self.world._flee_success = None
             elif kind == "advance":
                 minutes = params.get("minutes")
                 if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
@@ -218,6 +236,7 @@ class MultiplayerGame:
             raise ValueError("Account and world registration journal differ")
         # The stream revision must remain stable after restart, as game
         # snapshots and browser reconnects use it to reject stale updates.
+        self._journal_count = len(rows)
         self._revision = len(rows)
 
     @staticmethod
@@ -241,8 +260,9 @@ class MultiplayerGame:
                 # they must not manufacture new activity revisions.
                 revision = self.db.execute(
                     "SELECT COUNT(*) FROM world_journal").fetchone()[0]
-                if revision != self._revision:
-                    self._revision = revision
+                if revision != self._journal_count:
+                    self._journal_count = revision
+                    self._revision += 1
                     self._activity_changed.notify_all()
                 return result
             except BaseException:
@@ -386,6 +406,7 @@ class MultiplayerGame:
             self._count_journal()
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
+            flee_success = None
             if kind == "action":
                 if name == "pvp_strike":
                     # Keep historical journal replay compatible, but prevent
@@ -393,8 +414,14 @@ class MultiplayerGame:
                     raise ActionError("Use start_duel for player combat")
                 if name not in MULTI_ACTIONS:
                     raise ActionError("Unavailable multiplayer action")
-                outcome = self.world.execute(actor_id, name, params,
-                                             self._engine_id(actor_id, request_id))
+                if name == "flee_duel":
+                    flee_success = secrets.randbits(1)
+                    self.world._flee_success = bool(flee_success)
+                try:
+                    outcome = self.world.execute(actor_id, name, params,
+                                                 self._engine_id(actor_id, request_id))
+                finally:
+                    self.world._flee_success = None
             elif kind == "advance":
                 if type(params.get("minutes")) is not int or set(params) != {"minutes"} or not (
                         1 <= params["minutes"] <= ADVANCE_LIMIT):
@@ -412,10 +439,10 @@ class MultiplayerGame:
             encoded_result = _canonical(_jsonable(outcome))
             self.db.execute(
                 "INSERT INTO world_journal("
-                "kind,actor_id,action,payload,request_id,result_json,recorded_at) "
-                "VALUES(?,?,?,?,?,?,?)",
+                "kind,actor_id,action,payload,request_id,result_json,recorded_at,flee_success) "
+                "VALUES(?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at))
+                 encoded_result, recorded_at, flee_success))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
@@ -427,6 +454,45 @@ class MultiplayerGame:
     def advance(self, actor_id: str, minutes: int, request_id: str):
         return self._run(actor_id, "advance", None, {"minutes": minutes}, request_id)
 
+    def _presence_state(self, actor_id: str, now: float) -> str:
+        entry = self._presence.get(actor_id)
+        if entry is None or now - entry[0] >= 90:
+            return "offline"
+        return "active" if entry[1] else "away"
+
+    def _refresh_presence(self) -> None:
+        now = time.monotonic()
+        changed = False
+        for actor_id in self.names:
+            current = self._presence_state(actor_id, now)
+            if self._presence_status.get(actor_id, "offline") != current:
+                self._presence_status[actor_id] = current
+                changed = True
+        if changed:
+            self._revision += 1
+            self._activity_changed.notify_all()
+
+    def presence_ping(self, actor_id: str, visible: bool) -> None:
+        """A session-verified browser reports foreground/hidden every 25 sec."""
+        if type(visible) is not bool:
+            raise ActionError("Invalid presence visibility")
+        with self._activity_changed:
+            if actor_id not in self.names:
+                raise AuthError("Unknown account")
+            self._presence[actor_id] = (time.monotonic(), visible)
+            self._refresh_presence()
+
+    def presence_logout(self, actor_id: str) -> None:
+        with self._activity_changed:
+            self._presence.pop(actor_id, None)
+            self._refresh_presence()
+
+    def _annotate_presence(self, projection: dict) -> None:
+        self._refresh_presence()
+        for user in projection["users"]:
+            if user["kind"] == "human":
+                user["presence"] = self._presence_status.get(user["id"], "offline")
+
     def _social_view(self, actor_id: str, projection: dict | None = None) -> dict:
         """Account-scoped streaming data; never broadcast raw world state."""
         if projection is None:
@@ -434,6 +500,7 @@ class MultiplayerGame:
                                         self.names[actor_id], self.npc_names,
                                         self.names, self.event_times, True)
         actor = self.world._actor(actor_id)
+        self._annotate_presence(projection)
         chat = self.world.chat_system.view(actor_id)
         for channel in chat["channels"]:
             if channel["kind"] == "direct":
@@ -468,6 +535,7 @@ class MultiplayerGame:
                 "stamina": actor.stamina, "max_stamina": actor.max_stamina,
                 "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
                 "gold": actor.gold, "city": actor.city,
+                "defeated_until": actor.defeated_until,
                 "destination": actor.destination,
                 "arrival_minute": actor.arrival_minute,
                 "cooldowns": {
@@ -486,8 +554,10 @@ class MultiplayerGame:
 
     def next_activity_revision(self, since: int, timeout: float = 12.0) -> int:
         with self._activity_changed:
+            self._refresh_presence()
             if since == self._revision:
                 self._activity_changed.wait(timeout=timeout)
+            self._refresh_presence()
             return self._revision
 
     def acquire_event_slot(self) -> bool:
