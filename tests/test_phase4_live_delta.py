@@ -54,8 +54,6 @@ class NarrowActivityTests(unittest.TestCase):
         self.assertEqual(set(delta), {"actor_id", "revision", "delta", "chat"})
         self.assertEqual(apply_activity_delta(first, delta), next_state)
         self.assertLess(len(json.dumps(delta)), len(json.dumps(next_state)))
-        self.assertNotIn("private", json.dumps(self.game.social_snapshot(self.bob)["chat"])
-                         if False else "")  # unrelated player secrets never included
 
     def test_identity_and_revision_checks_are_required(self):
         before = self.game.social_snapshot(self.alice)
