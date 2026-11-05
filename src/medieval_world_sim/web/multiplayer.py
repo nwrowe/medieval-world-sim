@@ -143,6 +143,8 @@ class MultiplayerGame:
             "PRAGMA table_info(world_journal)")}
         if "recorded_at" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
+        if "flee_success" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -171,9 +173,9 @@ class MultiplayerGame:
         self.event_times = {}
         registered = set()
         rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id, recorded_at "
+            "SELECT kind, actor_id, action, payload, request_id, recorded_at, flee_success "
             "FROM world_journal ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id, recorded_at in rows:
+        for kind, actor_id, action, payload, request_id, recorded_at, flee_success in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -195,8 +197,19 @@ class MultiplayerGame:
             elif kind == "action":
                 if action not in MULTI_ACTIONS:
                     raise ValueError("Forbidden journal command")
-                self.world.execute(actor_id, action, params, self._engine_id(
-                    actor_id, request_id))
+                if action == "flee_duel":
+                    if flee_success is None:
+                        self.world._legacy_flee_rules = True
+                    elif flee_success not in (0, 1):
+                        raise ValueError("Invalid saved flee coin flip")
+                    else:
+                        self.world._flee_success = bool(flee_success)
+                try:
+                    self.world.execute(actor_id, action, params, self._engine_id(
+                        actor_id, request_id))
+                finally:
+                    self.world._legacy_flee_rules = False
+                    self.world._flee_success = None
             elif kind == "advance":
                 minutes = params.get("minutes")
                 if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
@@ -386,6 +399,7 @@ class MultiplayerGame:
             self._count_journal()
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
+            flee_success = None
             if kind == "action":
                 if name == "pvp_strike":
                     # Keep historical journal replay compatible, but prevent
@@ -393,8 +407,14 @@ class MultiplayerGame:
                     raise ActionError("Use start_duel for player combat")
                 if name not in MULTI_ACTIONS:
                     raise ActionError("Unavailable multiplayer action")
-                outcome = self.world.execute(actor_id, name, params,
-                                             self._engine_id(actor_id, request_id))
+                if name == "flee_duel":
+                    flee_success = secrets.randbits(1)
+                    self.world._flee_success = bool(flee_success)
+                try:
+                    outcome = self.world.execute(actor_id, name, params,
+                                                 self._engine_id(actor_id, request_id))
+                finally:
+                    self.world._flee_success = None
             elif kind == "advance":
                 if type(params.get("minutes")) is not int or set(params) != {"minutes"} or not (
                         1 <= params["minutes"] <= ADVANCE_LIMIT):
@@ -412,10 +432,10 @@ class MultiplayerGame:
             encoded_result = _canonical(_jsonable(outcome))
             self.db.execute(
                 "INSERT INTO world_journal("
-                "kind,actor_id,action,payload,request_id,result_json,recorded_at) "
-                "VALUES(?,?,?,?,?,?,?)",
+                "kind,actor_id,action,payload,request_id,result_json,recorded_at,flee_success) "
+                "VALUES(?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at))
+                 encoded_result, recorded_at, flee_success))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
