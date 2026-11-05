@@ -14,7 +14,7 @@ from ..content.magic_tree import SCHOOLS
 from ..equipment import GEAR, suggested_value, effective_attack, effective_defense
 from ..systems.cooldowns import MAX_COOLDOWN_MINUTES, FOOD_MINUTES, POTION_MINUTES, remaining
 from ..systems.track import HORSES, RACE_STAMINA_COST, RACE_ENTRY, RACE_COOLDOWN
-from .chronicle import TRADE_EVENTS, COMBAT_EVENTS, _friendly_event
+from .activity import activity_projection
 
 def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                    npc_names: dict[str, str], human_names: dict[str, str],
@@ -117,109 +117,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "facilities": list(housing.facilities),
         "vehicles": list(housing.vehicles),
     }
-    gear_kinds = {}
-    equipped_kinds = {}
-    rendered_events = []
-    for event in w.events:
-        # A player's Chronicle must never expose another account's private
-        # purchases, inventory changes, employment or other action history.
-        if multiplayer:
-            data = event.data
-            participants = (
-                (data.get("maker_id"), data.get("recipient_id"))
-                if event.kind in TRADE_EVENTS else
-                (data.get("attacker_id"), data.get("defender_id"),
-                 data.get("winner_id"), data.get("loser_id"))
-                if event.kind in COMBAT_EVENTS else
-                (data.get("actor_id"),)
-            )
-            if actor_id not in participants:
-                continue
-        info = event.data
-        if event.kind in ("starter_purchase", "gear_created"):
-            gear_kinds[info.get("gear_id")] = info.get("item")
-        if event.kind == "equipped":
-            prior_slot = info.get("slot")
-            rendered = _friendly_event(
-                event, gear_kinds=gear_kinds,
-                equipped_kinds=equipped_kinds,
-                recorded_at=event_times.get(event.event_id),
-                human_names=human_names)
-            equipped_kinds[prior_slot] = gear_kinds.get(info.get("gear_id"), prior_slot)
-        else:
-            rendered = _friendly_event(
-                event, gear_kinds=gear_kinds,
-                equipped_kinds=equipped_kinds,
-                recorded_at=event_times.get(event.event_id),
-                human_names=human_names)
-            if event.kind == "unequipped":
-                equipped_kinds.pop(info.get("slot"), None)
-        rendered_events.append(rendered)
-    duel = w.state.duels.get(actor_id)
-    duel_role = "attacker" if duel else None
-    if multiplayer and not duel:
-        duel = next((d for d in w.state.duels.values()
-                     if d.defender_id == actor_id), None)
-        if duel:
-            duel_role = "defender"
-    active_duel = None
-    if duel:
-        opponent_id = (duel.defender_id if duel_role == "attacker"
-                       else duel.attacker_id)
-        foe = w.actors[opponent_id]
-        active_duel = {
-            "opponent_id": foe.id,
-            "opponent_name": npc_names.get(
-                foe.id, human_names.get(foe.id, foe.id)),
-            "opponent_hp": foe.hp, "opponent_max_hp": foe.max_hp,
-            "round": duel.round, "log": list(duel.log),
-            "attack_started": duel.first_attack,
-            "pending_ward": duel.pending_ward if duel_role == "attacker" else 0,
-            "role": duel_role,
-            "max_rounds": 10 if w.actors[duel.defender_id].kind == "human" else None,
-        }
-    characters = [{
-        "id": actor_id, "name": name, "city": actor.city,
-        "destination": actor.destination, "level": actor.level,
-        "kind": "human", "hp": actor.hp, "max_hp": actor.max_hp,
-        "can_attack": False, "recovering_minutes": max(0, (actor.defeated_until or 0) - now),
-    }]
-    for npc_id, npc_name in npc_names.items():
-        npc = w.actors[npc_id]
-        characters.append({
-            "id": npc.id, "name": npc_name, "city": npc.city,
-            "destination": npc.destination,
-            "level": npc.level, "kind": "npc", "hp": npc.hp, "max_hp": npc.max_hp,
-            "can_attack": (
-                npc.city == actor.city and npc.destination is None
-                and npc.hp > 0 and npc.defeated_until is None
-                and actor.hp > 0 and actor.defeated_until is None and not is_traveling
-                and active_duel is None and not any(
-                    npc.id in (d.attacker_id, d.defender_id)
-                    for d in w.state.duels.values())
-            ),
-            "recovering_minutes": max(0, (npc.defeated_until or 0) - now),
-        })
-    if multiplayer:
-        for human_id, human_name in human_names.items():
-            if human_id == actor_id:
-                continue
-            other = w.actors[human_id]
-            characters.append({
-                "id": other.id, "name": human_name, "city": other.city,
-                "destination": other.destination,
-                "level": other.level, "kind": "human",
-                "hp": other.hp, "max_hp": other.max_hp,
-                "can_attack": (
-                    other.city == actor.city and other.destination is None
-                    and other.hp > 0 and other.defeated_until is None
-                and actor.hp > 0 and actor.defeated_until is None and not is_traveling
-                    and active_duel is None and not any(
-                        other.id in (d.attacker_id, d.defender_id)
-                        for d in w.state.duels.values())
-                ),
-                "recovering_minutes": max(0, (other.defeated_until or 0) - now),
-            })
+    activity = activity_projection(
+        w, actor_id, name, npc_names, human_names, event_times, multiplayer)
     combat_moves = []
     for move in ("strike", "dagger", "fists"):
         if move == "strike" and "weapon" not in actor.equipped:
@@ -293,20 +192,17 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "ward_charge": actor.magic.ward_charge,
             # Durations are whole simulation minutes. The multiplayer client
             # subtracts the trusted server clock's partial minute for tooltips.
-            "stamina_next_sim_seconds": (
-                (5 - now % 5) * 60 if actor.stamina < actor.max_stamina else None),
-            "mana_next_sim_seconds": (
-                (10 - now % 10) * 60 if actor.magic.mana < actor.magic.max_mana else None),
-            "health_next_sim_seconds": (
-                (3 - now % 3) * 60 if actor.hp < actor.max_hp else None),
+            "stamina_next_sim_seconds": activity["stamina_next_sim_seconds"],
+            "mana_next_sim_seconds": activity["mana_next_sim_seconds"],
+            "health_next_sim_seconds": activity["health_next_sim_seconds"],
 
         },
         "cities": places,
         "contracts": w.city_contracts.view(actor_id),
-        "users": characters,
+        "users": activity["users"],
         "multiplayer": multiplayer,
-        "duel": active_duel,
-        "last_duel": w.state.last_duels.get(actor_id),
+        "duel": activity["duel"],
+        "last_duel": activity["last_duel"],
         "combat_stamina_cost": 0,
         "guard_stamina_cost": 2,
         "magic_stamina_cost": 6,
@@ -340,5 +236,5 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         ],
         "magic_schools": list(SCHOOLS),
         "magic_nodes": magic_nodes,
-        "events": rendered_events[-500:][::-1],
+        "events": activity["events"],
     }
