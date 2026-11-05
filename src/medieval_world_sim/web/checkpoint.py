@@ -177,7 +177,12 @@ def save(game: MultiplayerGame, *, force: bool = False) -> int | None:
         " VALUES(?,?,?,?,?)",
         (seq, CHECKPOINT_VERSION, payload, digest,
          datetime.now(timezone.utc).isoformat()))
-    # Do not prune old journal rows or receipts: they remain the full audit log.
+    # Bound snapshot storage: keep two recent recovery points, but never
+    # delete an audit journal entry, durable receipt, or asset holding.
+    game.db.execute(
+        "DELETE FROM world_checkpoints WHERE journal_seq NOT IN "
+        "(SELECT journal_seq FROM world_checkpoints "
+        "ORDER BY journal_seq DESC LIMIT 2)")
     return seq
 
 
