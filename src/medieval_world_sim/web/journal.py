@@ -164,6 +164,7 @@ def load_world(game: MultiplayerGame) -> None:
                 game.world._legacy_flee_rules = False
                 game.world._flee_success = None
                 game.world._private_rng_key = None
+                game.world._legacy_magic_leveling_rules = False
         elif kind == "advance":
             minutes = params.get("minutes")
             if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
