@@ -1,7 +1,10 @@
 """Atomic in-memory world actions and one auditable gold transfer primitive.
 
 The snapshot approach is intentionally simple for this small test harness.
-The future multi-user server must replace it with database transactions.
+The multiplayer adapter adds a durable SQLite journal, asset/escrow records,
+receipts and checkpoints in its outer transaction. This in-memory rollback
+still incurs a full state copy; replacing it with granular mutations belongs
+to the later scaling work.
 """
 from copy import deepcopy
 from functools import wraps

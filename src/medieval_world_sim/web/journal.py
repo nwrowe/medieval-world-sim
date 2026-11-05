@@ -1,7 +1,8 @@
 """Durable SQLite schema evolution and replay of the shared multiplayer world.
 
-Only this module upgrades the database schema and interprets prior journal
-rows. New mechanics must retain replay metadata for historic save versions.
+This module owns the original command journal schema and historical replay.
+The asset ledger and checkpoint modules own their additional tables and
+recovery verification. New mechanics must retain versioned replay metadata.
 No credentials, HTTP transport or client-generated world-time mutations here.
 """
 from __future__ import annotations
@@ -14,7 +15,7 @@ import time
 
 from ..core.commands import MULTIPLAYER_ACTIONS
 from .session import ADVANCE_LIMIT, LEGACY_START_CITY, START_CITY
-from . import ledger
+from . import ledger, checkpoint
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
@@ -100,17 +101,21 @@ def create_schema(game: MultiplayerGame) -> None:
     game._clock_anchor = int(game.db.execute(
         "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
     ledger.create_schema(game)
+    checkpoint.create_schema(game)
 
 
 def load_world(game: MultiplayerGame) -> None:
     game.world = game._seed_world()
     game.names = {}
     game.event_times = {}
-    registered = set()
+    # A checkpoint restores the owned world and account projection; replay
+    # only rows committed after that exact journal sequence.
+    restored_seq = checkpoint.restore_latest(game)
+    registered = set(game.names)
     rows = game.db.execute(
         "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
         "flee_success, secure_roll, server_clock, regen_version "
-        "FROM world_journal ORDER BY seq").fetchall()
+        "FROM world_journal WHERE seq>? ORDER BY seq", (restored_seq,)).fetchall()
     for (kind, actor_id, action, payload, request_id, recorded_at,
          flee_success, secure_roll, server_clock, regen_version) in rows:
         params = json.loads(payload)
@@ -178,7 +183,8 @@ def load_world(game: MultiplayerGame) -> None:
         raise ValueError("Account and world registration journal differ")
     # The stream revision must remain stable after restart, as game
     # snapshots and browser reconnects use it to reject stale updates.
-    game._journal_count = len(rows)
-    game._revision = len(rows)
+    count = game.db.execute("SELECT COUNT(*) FROM world_journal").fetchone()[0]
+    game._journal_count = count
+    game._revision = count
     ledger.initialize_or_verify(game)
 
