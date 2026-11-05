@@ -178,6 +178,14 @@ class MagicSystem:
         gained = earned_total - state.insight_earned
         state.insight_earned = earned_total
         state.insight += gained
+        # Every genuinely earned point of school XP can also advance the
+        # character, without mislabeling it as combat XP. Half-rate limits
+        # the level-speed advantage of repeatable, low-risk spell practice.
+        # Pre-change journals replay under their original rules.
+        level_gain = (max(1, awarded // 2) if awarded > 0
+                      and not getattr(self.world, "_legacy_magic_leveling_rules", False)
+                      else 0)
+        levels = self.world.combat_system._award_level_xp(actor, level_gain)
         self.world._emit("magic_practiced", actor.id, node.id, node.school,
                          success, roll, chance, node.mana_cost,
                          awarded, state.school_xp[node.school], gained)
