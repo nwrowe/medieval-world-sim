@@ -7,7 +7,8 @@ from ..content.magic_tree import MANA_REGEN_MINUTES
 from ..errors import ActionError
 
 HOUR = 60
-HEALTH_REGEN_MINUTES = 10
+HEALTH_REGEN_MINUTES = 3
+LEGACY_HEALTH_REGEN_MINUTES = 10
 DEPOSIT_CAP = 24
 TRAVEL_CARGO_LIMIT = 12  # Stricter than the 20-unit in-city inventory limit.
 
@@ -94,7 +95,12 @@ class TravelSystem:
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
         mana_ticks = end // MANA_REGEN_MINUTES - start_minute // MANA_REGEN_MINUTES
-        health_ticks = (end // HEALTH_REGEN_MINUTES - start_minute // HEALTH_REGEN_MINUTES
+        # Historic journal advances used +1 HP / 10 minutes. New advances
+        # restore ceil(10% of max HP) every three minutes. Version selection
+        # is transient replay metadata, not mutable user-controlled state.
+        legacy = getattr(self.world, "_health_regen_version", 2) == 1
+        interval = LEGACY_HEALTH_REGEN_MINUTES if legacy else HEALTH_REGEN_MINUTES
+        health_ticks = (end // interval - start_minute // interval
                         if not getattr(self.world, "_legacy_health_regen", False) else 0)
         self.world.minute = end
         self.world.curriculum_system.settle(end)
@@ -104,7 +110,8 @@ class TravelSystem:
             # Hospitalized characters recover at their release minute; passive
             # regeneration never circumvents that lockout.
             if actor.defeated_until is None and actor.hp > 0:
-                actor.hp = min(actor.max_hp, actor.hp + health_ticks)
+                gain_per_tick = 1 if legacy else (actor.max_hp + 9) // 10
+                actor.hp = min(actor.max_hp, actor.hp + health_ticks * gain_per_tick)
             if actor.defeated_until is not None and actor.defeated_until <= end:
                 actor.hp = actor.max_hp
                 actor.defeated_until = None

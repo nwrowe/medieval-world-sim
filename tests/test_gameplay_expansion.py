@@ -95,13 +95,13 @@ class GameplayExpansionTests(unittest.TestCase):
     def test_healing_regenerates_on_simulated_boundaries(self):
         world = WorldEngine([Actor("hero", "human", city="goldmeadow")])
         hero = world.actors["hero"]
-        hero.hp = 15
-        world.advance(9)
-        self.assertEqual(hero.hp, 15)
+        hero.hp = 5
+        world.advance(2)
+        self.assertEqual(hero.hp, 5)
         world.advance(1)
-        self.assertEqual(hero.hp, 16)
-        world.advance(20)
-        self.assertEqual(hero.hp, 18)
+        self.assertEqual(hero.hp, 8)
+        world.advance(6)
+        self.assertEqual(hero.hp, 14)
         hero.hp = 0
         hero.defeated_until = world.minute + 60
         world.advance(40)

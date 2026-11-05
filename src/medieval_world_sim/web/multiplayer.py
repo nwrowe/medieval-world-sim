@@ -181,6 +181,10 @@ class MultiplayerGame:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
         if "server_clock" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
+        if "regen_version" not in columns:
+            # Existing advances replay with the original health regen rule.
+            self.db.execute("ALTER TABLE world_journal "
+                            "ADD COLUMN regen_version INTEGER NOT NULL DEFAULT 1")
         # Keep RNG secret out of public API responses and source-controlled seed.
         # Existing journals replay old results with their historical RNG; only
         # newly committed actions opt in to the keyed outcome algorithm.
@@ -229,9 +233,10 @@ class MultiplayerGame:
         registered = set()
         rows = self.db.execute(
             "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
-            "flee_success, secure_roll, server_clock FROM world_journal ORDER BY seq").fetchall()
+            "flee_success, secure_roll, server_clock, regen_version "
+            "FROM world_journal ORDER BY seq").fetchall()
         for (kind, actor_id, action, payload, request_id, recorded_at,
-             flee_success, secure_roll, server_clock) in rows:
+             flee_success, secure_roll, server_clock, regen_version) in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -273,9 +278,14 @@ class MultiplayerGame:
             elif kind == "advance":
                 minutes = params.get("minutes")
                 if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
-                        or server_clock not in (None, 0, 1)):
+                        or server_clock not in (None, 0, 1)
+                        or regen_version not in (1, 2)):
                     raise ValueError("Invalid journal time advancement")
-                self.world.advance(minutes)
+                self.world._health_regen_version = regen_version
+                try:
+                    self.world.advance(minutes)
+                finally:
+                    self.world._health_regen_version = 2
             else:
                 raise ValueError("Invalid journal kind")
             if recorded_at is not None:
@@ -508,8 +518,8 @@ class MultiplayerGame:
                 self.world.advance(minutes)
                 self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
-                    "result_json,recorded_at,server_clock) "
-                    "VALUES('advance',?,?,?,?,?,1)",
+                    "result_json,recorded_at,server_clock,regen_version) "
+                    "VALUES('advance',?,?,?,?,?,1,2)",
                     (actor_id, _canonical({"minutes": minutes}),
                      f"__clock__:{old_anchor}", "null", timestamp))
                 self.db.execute(
@@ -608,9 +618,10 @@ class MultiplayerGame:
             self.db.execute(
                 "INSERT INTO world_journal("
                 "kind,actor_id,action,payload,request_id,result_json,recorded_at,"
-                "flee_success,secure_roll) VALUES(?,?,?,?,?,?,?,?,?)",
+                "flee_success,secure_roll,regen_version) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at, flee_success, secure_roll))
+                 encoded_result, recorded_at, flee_success, secure_roll,
+                 2 if kind == "advance" else 1))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
@@ -695,6 +706,7 @@ class MultiplayerGame:
         return {
             "actor_id": actor_id, "revision": self._revision,
             "chat": chat, "trades": trades, "minute": self.world.minute,
+            "next_world_tick_seconds": self._next_world_tick_seconds(),
             "users": projection["users"], "events": projection["events"],
             "duel": projection["duel"], "last_duel": projection["last_duel"],
             "course_active": self.world.curriculum_system.view(actor_id)["active"],
@@ -704,6 +716,9 @@ class MultiplayerGame:
                 "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
                 "gold": actor.gold, "city": actor.city,
                 "defeated_until": actor.defeated_until,
+                "health_next_sim_seconds": projection["player"]["health_next_sim_seconds"],
+                "stamina_next_sim_seconds": projection["player"]["stamina_next_sim_seconds"],
+                "mana_next_sim_seconds": projection["player"]["mana_next_sim_seconds"],
                 "destination": actor.destination,
                 "arrival_minute": actor.arrival_minute,
                 "cooldowns": {
@@ -713,6 +728,11 @@ class MultiplayerGame:
                 },
             },
         }
+
+    def _next_world_tick_seconds(self) -> int | None:
+        if self.dev_fast_forward:
+            return None
+        return max(1, 60 - min(59, max(0, int(time.time()) - self._clock_anchor)))
 
     def social_snapshot(self, actor_id: str) -> dict:
         self._tick_world_clock()
@@ -726,7 +746,13 @@ class MultiplayerGame:
         with self._activity_changed:
             self._refresh_presence()
             if since == self._revision:
-                self._activity_changed.wait(timeout=timeout)
+                # Wake at the next trusted minute boundary, not up to
+                # twelve seconds later, so regen and timers feel live.
+                next_tick = self._next_world_tick_seconds()
+                self._activity_changed.wait(
+                    timeout=min(timeout, next_tick) if next_tick is not None else timeout)
+        self._tick_world_clock()
+        with self._activity_changed:
             self._refresh_presence()
             return self._revision
 
@@ -749,4 +775,5 @@ class MultiplayerGame:
             result["chat"] = social["chat"]
             result["trades"] = social["trades"]
             result["activity_revision"] = self._revision
+            result["next_world_tick_seconds"] = self._next_world_tick_seconds()
             return result
