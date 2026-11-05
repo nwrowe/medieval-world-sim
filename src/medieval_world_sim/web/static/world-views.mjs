@@ -39,7 +39,7 @@ export function createWorldViews(ctx) {
       const current = city.id === p.city;
       const arriving = city.id === destination;
       const inactive = pending || Boolean(destination) || p.hp <= 0 ||
-        p.defeated_until != null || current;
+        p.defeated_until != null || p.cargo > p.cargo_limit || current;
       return '<button class="map-pin map-' + esc(city.id) +
         (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
         (!city.discovered && !current ? ' is-unexplored' : '') +
