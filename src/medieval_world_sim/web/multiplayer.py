@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import hmac
 import json
@@ -43,6 +43,10 @@ PASSWORD_P = 1
 MAX_FAILED_LOGINS = 6
 LOGIN_COOLDOWN = 900
 MAX_JOURNAL = 20000
+MAX_NEW_ACCOUNTS_PER_DAY = 24
+MAX_ACCOUNT_COMMANDS_PER_DAY = 400
+MAX_CHAT_COMMANDS_PER_DAY = 100
+MAX_GLOBAL_COMMANDS_PER_DAY = 4000
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
 MULTI_ACTIONS = UI_ACTIONS - {"enroll_course"} | {
@@ -175,6 +179,12 @@ class MultiplayerGame:
         self.db.execute(
             "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
             (secrets.token_bytes(32),))
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS journal_account_timestamp "
+            "ON world_journal(actor_id,recorded_at)")
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS journal_timestamp "
+            "ON world_journal(recorded_at)")
         self._rng_key = self.db.execute(
             "SELECT value FROM world_meta WHERE name='rng_key'").fetchone()[0]
         self.db.execute(
@@ -289,6 +299,7 @@ class MultiplayerGame:
         with self._lock:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
+            previous_clock_anchor = self._clock_anchor
             self._begin()
             try:
                 result = action()
@@ -311,6 +322,7 @@ class MultiplayerGame:
                     # uncommitted world visible to future requests.
                     self.world.state = previous
                     self.event_times = previous_event_times
+                    self._clock_anchor = previous_clock_anchor
                 raise
 
     @staticmethod
@@ -346,6 +358,10 @@ class MultiplayerGame:
         hashed = _password_hash(password, salt)
         actor_id = "player:" + uuid.uuid4().hex
         def perform():
+            if self.db.execute(
+                "SELECT COUNT(*) FROM accounts WHERE created_at>=?",
+                (int(time.time()) - 86400,)).fetchone()[0] >= MAX_NEW_ACCOUNTS_PER_DAY:
+                raise ActionError("Daily registration capacity reached")
             if self.require_invites:
                 if not isinstance(invite, str) or not 20 <= len(invite) <= 128:
                     raise ActionError("Valid invitation required")
@@ -496,6 +512,30 @@ class MultiplayerGame:
             self._tx(perform)
             self._clock_anchor = new_anchor
 
+    def _check_journal_budget(self, actor_id: str, name: str | None) -> None:
+        """Limit journal exhaustion using server timestamps, not user time."""
+        since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        own = self.db.execute(
+            "SELECT COUNT(*) FROM world_journal "
+            "WHERE actor_id=? AND recorded_at>=? AND kind IN ('action','advance') "
+            "AND COALESCE(server_clock,0)=0",
+            (actor_id, since)).fetchone()[0]
+        if own >= MAX_ACCOUNT_COMMANDS_PER_DAY:
+            raise ActionError("Daily account action limit reached")
+        world = self.db.execute(
+            "SELECT COUNT(*) FROM world_journal "
+            "WHERE recorded_at>=? AND kind IN ('action','advance') "
+            "AND COALESCE(server_clock,0)=0", (since,)).fetchone()[0]
+        if world >= MAX_GLOBAL_COMMANDS_PER_DAY:
+            raise ActionError("Daily shared-world command limit reached")
+        if name == "send_chat":
+            chat = self.db.execute(
+                "SELECT COUNT(*) FROM world_journal WHERE actor_id=? "
+                "AND action='send_chat' AND recorded_at>=?",
+                (actor_id, since)).fetchone()[0]
+            if chat >= MAX_CHAT_COMMANDS_PER_DAY:
+                raise ActionError("Daily chat limit reached")
+
     def _run(self, actor_id: str, kind: str, name: str | None,
              params: dict, request_id: str):
         if (not isinstance(request_id, str) or not 1 <= len(request_id) <= 80
@@ -518,6 +558,7 @@ class MultiplayerGame:
                     raise ActionError("Request ID was reused with different parameters")
                 return json.loads(prev_result)
             self._count_journal()
+            self._check_journal_budget(actor_id, name)
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
             flee_success = None
