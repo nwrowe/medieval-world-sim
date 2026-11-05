@@ -34,6 +34,16 @@ class CompanyView:
 
 
 @dataclass(frozen=True)
+class CombatTarget:
+    """Observable simulated NPC target, never a real player's private stats."""
+    id: str
+    hp: int
+    max_hp: int
+    level: int
+    armed: bool
+
+
+@dataclass(frozen=True)
 class NPCView:
     id: str
     city: str
@@ -68,6 +78,8 @@ class NPCView:
     work_xp: int = 0
     magic_xp: int = 0
     courses_completed: int = 0
+    travel_cargo_limit: int = 12
+    combat_targets: tuple[CombatTarget, ...] = ()
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
@@ -113,6 +125,14 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
     opponents = tuple(sorted(a.id for a in world.actors.values()
                              if a.id != actor.id and a.city == actor.city
                              and a.destination is None and a.hp > 0))
+    # The autonomous offline simulator may attack its own NPC accounts;
+    # do not leak a human player's health, assets or gear through this field.
+    combat_targets = tuple(sorted((
+        CombatTarget(a.id, a.hp, a.max_hp, a.level, bool(a.equipped.get("weapon")))
+        for a in world.actors.values()
+        if a.id != actor.id and a.kind == "npc" and a.city == actor.city
+        and a.destination is None and a.hp > 0 and a.defeated_until is None
+    ), key=lambda a: a.id))
     contracts: tuple[str, ...] = ()
     eligible: tuple[str, ...] = ()
     practice: tuple[tuple[str, int], ...] = ()
@@ -156,4 +176,5 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         tuple(sorted(actor.discovered_cities)), actor.level, actor.magic.mana,
         contracts, eligible, practice, courses, studying,
         combat_xp, level_xp, work_xp, magic_xp, courses_completed,
+        world.housing_system.travel_cargo_limit(actor), combat_targets,
     )
