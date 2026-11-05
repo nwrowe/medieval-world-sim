@@ -24,8 +24,14 @@ def next_sse_activity(response):
             event_name = line[7:]
         elif line.startswith("data: "):
             data = json.loads(line[6:])
-        elif not line and event_name == "activity" and data is not None:
-            return data
+        elif not line and event_name in ("activity", "activity-delta") and data is not None:
+            if event_name == "activity":
+                response._last_activity = data
+            else:
+                from medieval_world_sim.web.live_delta import apply_activity_delta
+                response._last_activity = apply_activity_delta(
+                    response._last_activity, data)
+            return response._last_activity
     raise AssertionError("Activity event missing")
 
 
