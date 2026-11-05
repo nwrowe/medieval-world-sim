@@ -470,7 +470,8 @@ def main(argv=None):
             parser.error("--multiplayer-db cannot use --access-token or --colab-preview")
         multi = MultiplayerGame(
             args.multiplayer_db, require_invites=not args.dev_open_registration,
-            dev_fast_forward=args.dev_fast_forward)
+            dev_fast_forward=args.dev_fast_forward,
+            npc_enabled=not args.no_npcs)
         try:
             if args.issue_invites:
                 for code in multi.issue_invites(args.issue_invites):
