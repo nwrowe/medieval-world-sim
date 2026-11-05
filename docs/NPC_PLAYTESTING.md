@@ -66,8 +66,8 @@ python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 42 --playtest
 ```
 
 This optional connector uses a fixed HTTPS endpoint, a short timeout, a
-bounded JSON response and a strictly validated structured schema. It can
-incur model-usage charges. Model availability and model-specific parameter
+bounded JSON response and a strictly validated structured schema, with at most 12 external
+reflections per agent per run. It can incur model-usage charges. Model availability and model-specific parameter
 support must be confirmed before using a real provider. Network/API errors
 fall back to local telemetry and are reported as `critic_errors`. No
 automatic model calls occur without this explicit option.
