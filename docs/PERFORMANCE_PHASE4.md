@@ -58,6 +58,38 @@ these are observational results, **not certified guarantees** or a reliable
 estimate for a public deployment. RSS is essentially unchanged; no
 measurable memory reduction is claimed.
 
+## Larger-world stress probe
+
+The same fully combined code was also benchmarked on
+[CI run #42044594569](https://github.com/nwrowe/medieval-world-sim/actions/runs/42044594569)
+at both 40 and 80 registered accounts. The 80-account case used **16
+concurrent workers and 120 commands**; the 40-account case retained the
+original 12 workers and 80 commands.
+
+| Observed metric | 40 accounts / 12 workers | 80 accounts / 16 workers |
+| --- | ---: | ---: |
+| Command throughput | 211.67/s | 129.86/s |
+| Concurrent command p95 | 167.331 ms | 498.592 ms |
+| Live projection p95 | 0.051 ms | 0.063 ms |
+| Mixed read throughput | 1726.15/s | 1578.11/s |
+| Full world snapshot bytes | 47,311 | 55,791 |
+| Initial live payload bytes | 11,763 | 20,243 |
+| Presence-only delta bytes | **158** | **158** |
+| Linux maximum RSS | 63,908 KiB | 65,204 KiB |
+
+This is a **capacity warning** as well as a success for the SSE changes:
+larger worlds and higher contention noticeably increase mutation p95
+latency (near 500 ms in the 80-account run). Cached projections and sparse
+presence traffic remain inexpensive, but the global world lock, remaining
+full-state rollback copy, and per-command asset scans limit write scaling.
+A benchmark at 80 accounts is **not** evidence that 80 simultaneous browser
+sessions or 80 SSE sockets are supported; the server separately caps live
+streams at 20 connections.
+
+The 40-account command p95 also varied between optimized runs
+(67.257 ms, 115.068 ms, and 167.331 ms). Shared-runner effects and workload
+contention make a single p95 observation unsuitable as an SLA.
+
 ## Changes with explicit safety ownership
 
 1. The SSE server sends a complete, account-scoped frame on connection, then
@@ -88,8 +120,10 @@ measurable memory reduction is claimed.
 ## Provisional local performance targets
 
 Use the same 40-account/12-worker workload before judging regressions:
-- Action throughput around **100 commands/s or more** and p95 around
-  **150 ms or lower** on a comparable CI runner.
+- At 40 accounts, command throughput around **100 commands/s or more**
+  and p95 around **200 ms or lower** on a comparable CI runner. At 80
+  accounts, a provisional stress guardrail is **100 commands/s** and
+  **600 ms p95**; either target needs repeated runs before acceptance.
 - Live in-process projection p95 around **0.2 ms or lower** for a cached
   actor, with presence-only SSE payload around **256 bytes or less**.
 - Combined read throughput around **1,000 reads/s or more**.
@@ -98,8 +132,10 @@ Use the same 40-account/12-worker workload before judging regressions:
 
 These are *engineering targets*, not hard CI gates or production SLAs.
 Collect multiple runs before treating deviations as regressions. Workload
-mix matters: 80 mostly chat commands do not represent hundreds of
-simultaneous trades, complex combat, or continuous world-clock advances.
+mix matters: 80–120 mostly chat commands do not represent hundreds of
+simultaneous trades, complex combat, continuous world-clock advances, or
+20 persistent SSE streams. The observed increase in 80-account p95 latency
+is a reason to retain the existing deployment/account limits.
 
 ## Known limits and next scaling boundary
 
