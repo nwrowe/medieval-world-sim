@@ -85,6 +85,12 @@ health or ownership.
 6. Extend the lint rules in `pyproject.toml` incrementally as legacy code
    is cleaned; new modules should conform from their first commit.
 
+## Phase 4 performance guidance
+
+See [Phase 4 measured performance](PERFORMANCE_PHASE4.md) for reproducible
+authenticated HTTP benchmarks, configured local-server capacity limits,
+and documented remaining transaction, checkpoint and event-stream hot spots.
+
 ## Validation
 
 ```bash
