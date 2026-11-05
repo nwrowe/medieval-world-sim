@@ -194,6 +194,41 @@ class PersistentNPCAutonomyTests(TestCase):
         self.game.world.assert_invariants()
         ledger.verify(self.game)
 
+    def test_trusted_server_clock_advances_npcs_without_a_browser_request(self):
+        secure_path = Path(self.temp.name) / "secure-clock.sqlite3"
+        game = MultiplayerGame(secure_path, require_invites=False,
+                               dev_fast_forward=False, npc_enabled=True)
+        try:
+            game.register("clocktest", "secure test password", "Clock Keeper")
+            anchor = game._clock_anchor
+            with patch("medieval_world_sim.web.multiplayer.time.time",
+                       return_value=anchor + 120):
+                game._tick_world_clock()
+            self.assertEqual(game.world.minute, 2)
+            self.assertEqual(game.db.execute(
+                "SELECT COUNT(*) FROM npc_steps").fetchone()[0], 1)
+            self.assertEqual(game.db.execute(
+                "SELECT COUNT(*) FROM accounts").fetchone()[0], 1)
+            ledger.verify(game)
+        finally:
+            game.close()
+
+    def test_hired_npc_uses_worker_policy_not_old_profession(self):
+        from types import SimpleNamespace
+        from medieval_world_sim.core.entities import Company, Wage
+        from medieval_world_sim.web.npc_runtime import _assigned_profile
+        profile = next(p for p in self.game._npc_profiles
+                       if p.role == "hauler")
+        company = Company("human-forge", self.player, "forge")
+        company.employees[profile.id] = Wage(gold=3)
+        game_view = SimpleNamespace(world=SimpleNamespace(
+            companies={company.id: company}))
+        assigned = _assigned_profile(game_view, profile)
+        self.assertEqual(assigned.role, "worker")
+        self.assertEqual(assigned.company_id, company.id)
+        company.employees.clear()
+        self.assertEqual(_assigned_profile(game_view, profile).role, "hauler")
+
     def test_npc_memory_encoding_is_bounded_and_rejects_corruption(self):
         memory = self.game._npc_memories[next(iter(self.game._npc_memories))]
         self.assertEqual(_unpack_memory(_pack_memory(memory)).decision_count, 0)
