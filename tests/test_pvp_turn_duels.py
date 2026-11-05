@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.multiplayer import MultiplayerGame
@@ -62,7 +63,8 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertEqual(self.game.world.total_gold, initial_total)
 
         # Defender is not locked into an attacker's online presence.
-        ended = self.command(self.bob, "flee_duel", {}, "defender-retreat")
+        with patch("medieval_world_sim.web.multiplayer.secrets.randbits", return_value=1):
+            ended = self.command(self.bob, "flee_duel", {}, "defender-retreat")
         self.assertEqual(ended["outcome"], "fled")
         self.assertIsNone(self.game.snapshot(self.alice)["duel"])
         self.assertIsNone(self.game.snapshot(self.bob)["duel"])
@@ -194,8 +196,9 @@ class MultiplayerDuelTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.command(self.bob, "start_duel",
                          {"defender_id": self.carol}, "collision-three")
-        self.assertEqual(self.command(self.alice, "flee_duel", {}, "alice-flee")
-                         ["outcome"], "fled")
+        with patch("medieval_world_sim.web.multiplayer.secrets.randbits", return_value=1):
+            escaped = self.command(self.alice, "flee_duel", {}, "alice-flee")
+        self.assertEqual(escaped["outcome"], "fled")
         self.assertIsNone(self.game.snapshot(self.bob)["duel"])
         self.game.world.assert_invariants()
 
