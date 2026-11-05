@@ -377,27 +377,27 @@ class RuleBasedPolicy:
         for gid, kind, quality in v.gear:
             slot = GEAR[kind].slot
             if slot not in equipped:
-                choices.append(self._action(18, "equip", gear_id=gid))
+                choices.append(self._action(22, "equip", gear_id=gid))
         # The autonomous "attack" action uses the primary weapon slot.
         # A secondary-slot dagger is useful for turn-based attacks but does
         # not increase the damage of this NPC-only automatic strike.
         if not any(k in owned for k in ("sword", "axe", "bow")):
             if v.gold >= GEAR["sword"].base_value:
-                choices.append(self._action(19, "buy_starter_gear", kind="sword"))
+                choices.append(self._action(16, "buy_starter_gear", kind="sword"))
             elif "dagger" not in owned and v.gold >= GEAR["dagger"].base_value:
                 choices.append(self._action(15, "buy_starter_gear", kind="dagger"))
             for offer in v.local_offers():
                 if offer.gear_id is not None and offer.item in ("sword", "axe", "bow") and (
                     offer.price <= v.gold * 0.5):
                     choices.append(self._action(
-                        13 - offer.price / 50, "accept_offer", buyer_id=v.id,
+                        23 - offer.price / 50, "accept_offer", buyer_id=v.id,
                         offer_id=offer.id, quantity=1))
         if not any(k in owned for k in ("leather_armor", "plate_armor")):
             for offer in v.local_offers():
                 if offer.gear_id is not None and offer.item in ("leather_armor", "plate_armor") and (
                     offer.price <= v.gold * 0.45):
                     choices.append(self._action(
-                        11 - offer.price / 75, "accept_offer", buyer_id=v.id,
+                        21 - offer.price / 75, "accept_offer", buyer_id=v.id,
                         offer_id=offer.id, quantity=1))
         return choices
 
