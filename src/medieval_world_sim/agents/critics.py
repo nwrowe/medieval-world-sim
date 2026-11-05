@@ -30,6 +30,7 @@ MAJOR_EVENTS = frozenset({
 MAX_HISTORY = 30
 MAX_ISSUES = 6
 MAX_REPORTS = 24
+MAX_MODEL_REFLECTIONS = 12  # Explicit upper bound on external calls per agent/run.
 
 
 @dataclass(frozen=True)
@@ -230,6 +231,7 @@ class PlaytestObserver:
     last_reflected: int = 0
     summary: str = ""
     errors: list[str] = field(default_factory=list)
+    model_reflections: int = 0
 
     def __post_init__(self) -> None:
         if type(self.every) is not int or not 1 <= self.every <= 1000:
@@ -251,9 +253,16 @@ class PlaytestObserver:
             dict(sorted(self.memory.attempts.items())),
             dict(sorted(self.memory.failures.items())),
             recent, self.summary)
+        assessor = self.critic
+        if isinstance(assessor, OpenAIChatCritic):
+            if self.model_reflections >= MAX_MODEL_REFLECTIONS:
+                assessor = HeuristicCritic()
+            else:
+                self.model_reflections += 1
         try:
-            assessment = validate_model_report(self.critic.assess(request)) if (
-                isinstance(self.critic, OpenAIChatCritic)) else self.critic.assess(request)
+            result = assessor.assess(request)
+            assessment = (validate_model_report(result) if
+                          isinstance(assessor, OpenAIChatCritic) else result)
         except (ValueError, KeyError, TypeError, OSError, TimeoutError) as exc:
             self.errors.append(type(exc).__name__ + ": " + str(exc)[:140])
             assessment = HeuristicCritic().assess(request)
@@ -275,6 +284,7 @@ class PlaytestObserver:
     def output(self) -> dict:
         return {"persona": self.persona, "memory": self.memory.summary(),
                 "reports": self.reports,
+                "model_reflections": self.model_reflections,
                 "critic_errors": self.errors[-8:]}
 
 
