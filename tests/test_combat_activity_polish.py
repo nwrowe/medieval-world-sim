@@ -9,6 +9,8 @@ from importlib.resources import files
 from medieval_world_sim.web.multiplayer import MultiplayerGame
 from medieval_world_sim.web.session import GameSession
 from medieval_world_sim.errors import ActionError
+from test_multiplayer_auth import serve
+from test_web_client import api
 
 PASSWORD = "correct horse battery staple"
 
@@ -93,6 +95,30 @@ class EscapesAndPresence(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.game.presence_ping(self.bob, "true")
         self.assertNotIn("password", json.dumps(self.game.social_snapshot(self.alice)))
+
+    def test_presence_http_requires_session_csrf_and_valid_visibility(self):
+        token, csrf = self.game.login("bob", PASSWORD)
+        cookie = {"Cookie": "oathmere_session=" + token}
+        with serve(self.game) as port:
+            status, _, _ = api(port, "POST", "/api/presence", {"visible": True})
+            self.assertEqual(status, 401)
+            status, _, _ = api(port, "POST", "/api/presence",
+                               {"visible": True}, headers=cookie)
+            self.assertEqual(status, 403)
+            headers = {**cookie, "X-CSRF-Token": csrf}
+            status, _, _ = api(port, "POST", "/api/presence",
+                               {"visible": "true"}, headers=headers)
+            self.assertEqual(status, 400)
+            status, result, _ = api(port, "POST", "/api/presence",
+                                    {"visible": True}, headers=headers)
+            self.assertEqual(status, 200)
+            self.assertTrue(result["ok"])
+            status, observed, _ = api(port, "GET", "/api/state",
+                                      headers={"Cookie": "oathmere_session=" +
+                                          self.game.login("alice", PASSWORD)[0]})
+            self.assertEqual(status, 200)
+            other = next(x for x in observed["users"] if x["id"] == self.bob)
+            self.assertEqual(other["presence"], "active")
 
     def test_notification_only_after_combat_round_starts(self):
         self.duel("duel3")
