@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from dataclasses import dataclass, field
 
-from ..catalog import CAPITAL
+from ..catalog import CAPITAL, CITIES
 from .observation import NPCView
 
 
@@ -67,6 +67,7 @@ class DecisionTrace:
     equipment_delta: int = 0
     trade_profit: int | None = None
     city: str = ""
+    quantity: int = 0
 
 
 @dataclass
@@ -160,7 +161,6 @@ class NPCMemory:
             # Track real purchase cost and received quantity. The source must
             # actually produce the raw material; food/gear purchases don't
             # become speculative cargo objectives.
-            from ..catalog import CITIES
             if item not in CITIES[before.city].deposits:
                 return None
             qty = after.stock(item) - before.stock(item)
@@ -276,7 +276,9 @@ class NPCMemory:
             magic_xp_delta=magic_delta, combat_xp_delta=combat_delta,
             level_xp_delta=level_xp_delta, courses_delta=courses_delta,
             equipment_delta=equipment_delta, trade_profit=trade_profit,
-            city=before.city)
+            city=before.city,
+            quantity=(action.params.get("quantity", 0)
+                      if type(action.params.get("quantity", 0)) is int else 0))
         self.recent.append(trace)
         return trace
 
@@ -333,7 +335,8 @@ class NPCMemory:
                  "level_xp_delta": t.level_xp_delta,
                  "courses_delta": t.courses_delta,
                  "equipment_delta": t.equipment_delta,
-                 "trade_profit": t.trade_profit, "city": t.city}
+                 "trade_profit": t.trade_profit, "city": t.city,
+                 "quantity": t.quantity}
                 for t in list(self.recent)[-30:]
             ],
         }
