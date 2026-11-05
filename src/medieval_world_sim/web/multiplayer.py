@@ -189,6 +189,7 @@ class MultiplayerGame:
     def _load_world(self):
         """Replay the existing SQLite journal into the authoritative world."""
         journal.load_world(self)
+        npc_runtime.load(self)
 
     @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
