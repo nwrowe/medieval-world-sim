@@ -55,8 +55,12 @@ class BrowserEntrypointTests(unittest.TestCase):
             "static", "app.js").read_text(encoding="utf-8")
         table = re.search(r"const renderers = \{(.*?)\};", source, re.S)
         self.assertIsNotNone(table)
-        views = files("medieval_world_sim.web").joinpath(
-            "static", "world-views.mjs").read_text(encoding="utf-8")
+        views = "".join(
+            files("medieval_world_sim.web").joinpath("static", module).read_text(
+                encoding="utf-8")
+            for module in ("world-views.mjs", "community-views.mjs", "city-views.mjs",
+                           "character-views.mjs")
+        )
         for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
             self.assertRegex(source + views, rf"function {name}\s*\(")
         self.assertNotIn("renderHealer", source)
@@ -304,6 +308,9 @@ class WebHTTPTests(unittest.TestCase):
                 ("/", b'<script type="module" src="/app.js"'),
                 ("/app.js", b"createWorldViews"),
                 ("/world-views.mjs", b"school-overview"),
+                ("/community-views.mjs", b"createCommunityViews"),
+                ("/city-views.mjs", b"createCityViews"),
+                ("/character-views.mjs", b"createCharacterViews"),
                 ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/favicon.svg", b"<svg"),
