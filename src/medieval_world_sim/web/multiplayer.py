@@ -58,7 +58,8 @@ def _canonical(value):
 class MultiplayerGame:
     def __init__(self, db_path: str | Path, *,
                  require_invites: bool = True,
-                 dev_fast_forward: bool = False):
+                 dev_fast_forward: bool = False,
+                 npc_enabled: bool = False):
         self.require_invites = require_invites
         self.dev_fast_forward = dev_fast_forward
         self.db_path = Path(db_path).expanduser()
