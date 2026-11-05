@@ -432,7 +432,7 @@
       '<span aria-hidden="true">✚</span><strong>' +
       esc(simDuration(hospitalMinutes)) + '</strong></button>' : "";
     const defenderAlert = defendant && defendant.role === "defender" &&
-      defendant.round > 0 ?
+      defendant.attack_started ?
       '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
       'data-ui="activity-duel" title="' +
       esc("Under attack by " + state.duel.opponent_name +
