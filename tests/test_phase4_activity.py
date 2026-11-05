@@ -1,4 +1,6 @@
 """Phase 4: lightweight private activity views and field-delta SSE contracts."""
+import http.client
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +9,8 @@ from unittest.mock import patch
 from medieval_world_sim.web.multiplayer import MultiplayerGame
 from medieval_world_sim.web.social import activity_projection
 from medieval_world_sim.web.server import activity_delta
+from test_multiplayer_auth import serve
+from test_live_activity import next_sse_activity
 
 
 class ActivityProjectionTests(unittest.TestCase):
@@ -106,6 +110,31 @@ class ActivityProjectionTests(unittest.TestCase):
                    wraps=activity_projection) as project:
             self.game.social_snapshot(self.alice)
             self.assertEqual(project.call_count, 1)
+
+    def test_real_sse_presence_frame_is_sparse_and_authorized(self):
+        token, _ = self.game.login("alice", "long secure password")
+        with serve(self.game) as port:
+            connection = http.client.HTTPConnection("127.0.0.1", port, timeout=6)
+            connection.request(
+                "GET", "/api/events",
+                headers={"Cookie": "oathmere_session=" + token})
+            response = connection.getresponse()
+            try:
+                self.assertEqual(response.status, 200)
+                initial = next_sse_activity(response)
+                self.assertIn("users", initial)
+                self.game.presence_ping(self.bob, True)
+                patch = next_sse_activity(response)
+                self.assertEqual(patch["actor_id"], self.alice)
+                self.assertNotIn("users", patch)
+                self.assertEqual(patch["presence_updates"],
+                                 [{"id": self.bob, "presence": "active"}])
+                self.assertLess(len(json.dumps(patch).encode("utf-8")), 256)
+                self.assertNotIn("chat", patch)
+                self.assertNotIn("trades", patch)
+            finally:
+                response.close()
+                connection.close()
 
     def test_presence_changes_do_not_expose_other_accounts(self):
         self.game.presence_ping(self.bob, True)
