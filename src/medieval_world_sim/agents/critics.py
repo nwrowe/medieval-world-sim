@@ -170,7 +170,8 @@ class HeuristicCritic:
                 f"{flips[0][1]}g.", "high"))
         if request.active_trade:
             route = request.active_trade
-            if route.get("remaining", 0) > 0:
+            if (route.get("remaining", 0) > 0
+                    and request.world_minute - route.get("start_minute", 0) >= 4320):
                 issues.append(_issue(
                     "unsettled_trade", "Balance concern",
                     "Cargo remains committed to a trade route at reflection time.",
