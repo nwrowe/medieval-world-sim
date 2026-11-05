@@ -112,7 +112,9 @@ const novice = {
   eligible: false, active: true, mastered: true,
   can_practice: false
 };
-state = { ...state, magic_schools: ["restoration"], magic_nodes: [novice],
+state = { ...state, cities: [{ id: "crownreach", name: "Crownreach",
+  is_current: true, discovered: true, minutes: 0 }], gatherable: {},
+  magic_schools: ["restoration"], magic_nodes: [novice],
   player: { ...state.player, attuned_paths: [],
     school_xp: { restoration: 80 }, mana: 100,
     cargo: 14, cargo_limit: 12 } };
