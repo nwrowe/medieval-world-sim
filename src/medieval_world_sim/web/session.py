@@ -52,6 +52,9 @@ class SaveError(Exception):
 
 
 
+from ..content.lineages import LINEAGES, select_lineage
+
+
 class GameSession:
     def __init__(self, save_path: str | Path):
         self.save_path = Path(save_path).expanduser()
@@ -60,6 +63,7 @@ class GameSession:
         self.name = ""
         self.seed = 42
         self.start_city = START_CITY
+        self.lineage: str | None = None
         self.npc_names: dict[str, str] = {}
         self.records: list[dict] = []
         self.event_times: dict[int, str] = {}
@@ -74,7 +78,10 @@ class GameSession:
         rng = random.Random(self.seed)
         names = list(NPC_NAMES)
         rng.shuffle(names)
-        actors = [Actor(PLAYER_ID, "human", city=self.start_city, gold=INITIAL_GOLD)]
+        hero = Actor(PLAYER_ID, "human", city=self.start_city, gold=INITIAL_GOLD)
+        if self.lineage is not None:
+            select_lineage(hero, self.lineage)
+        actors = [hero]
         self.npc_names = {}
         for city in CITIES:
             for idx in range(3):
@@ -83,7 +90,7 @@ class GameSession:
                 self.npc_names[npc_id] = names.pop()
         return WorldEngine(actors, seed=self.seed)
 
-    def create(self, name: str) -> None:
+    def create(self, name: str, lineage: str = "human") -> None:
         with self._lock:
             if self.started or self.save_path.exists():
                 raise ActionError("A saved character already exists on this server")
@@ -92,7 +99,10 @@ class GameSession:
             name = name.strip()
             if not re.fullmatch(r"[A-Za-z][A-Za-z '’-]{1,27}", name):
                 raise ActionError("Use 2–28 letters, spaces, hyphens or apostrophes")
+            if not isinstance(lineage, str) or lineage not in LINEAGES:
+                raise ActionError("Choose a valid lineage")
             self.name = name
+            self.lineage = lineage
             self.seed = secrets.randbelow(2**31)
             self.start_city = START_CITY
             self.world = self._new_world()
@@ -105,7 +115,8 @@ class GameSession:
     def _document(self) -> dict:
         return {
             "version": SAVE_VERSION, "name": self.name, "seed": self.seed,
-            "start_city": self.start_city, "records": self.records,
+            "start_city": self.start_city, "lineage": self.lineage,
+            "records": self.records,
         }
 
     def _save(self) -> None:
@@ -140,6 +151,9 @@ class GameSession:
             self.start_city = data.get("start_city", LEGACY_START_CITY)
             if self.start_city not in CITIES:
                 raise ValueError("Unknown initial city")
+            self.lineage = data.get("lineage")
+            if self.lineage is not None and self.lineage not in LINEAGES:
+                raise ValueError("Unknown lineage in save")
             self.name = data["name"]
             self.world = self._new_world()
             for record in data["records"]:
