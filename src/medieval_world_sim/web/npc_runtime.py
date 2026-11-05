@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections import Counter, deque
 from copy import deepcopy
-from dataclasses import asdict, fields
+from dataclasses import asdict, fields, replace
 from hashlib import sha256
 import json
 import random
@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 NPC_ACTIONS = frozenset({
     "travel", "gather", "post_offer", "accept_offer", "regional_buy",
     "regional_sell", "consume", "buy_starter_gear", "equip",
-    "attack", "store_goods", "retrieve_goods",
+    "attack", "store_goods", "retrieve_goods", "shift",
 })
 MAX_ACTIONS_PER_ADVANCE = 3
 DECISION_INTERVAL_MINUTES = 180
@@ -235,6 +235,19 @@ def _persist(game: MultiplayerGame, npc_id: str, seq: int) -> None:
          game._npc_due[npc_id], seq))
 
 
+def _assigned_profile(game: MultiplayerGame, base: NPCProfile) -> NPCProfile:
+    """NPCs hired by a human-run company genuinely become workers.
+
+    The employer still controls hiring, compensation and funds through the
+    normal company rules. NPCs may leave their former economic profession while
+    employed, then return to it if employment ends.
+    """
+    for company in sorted(game.world.companies.values(), key=lambda c: c.id):
+        if base.id in company.employees:
+            return replace(base, role="worker", company_id=company.id)
+    return base
+
+
 def step(game: MultiplayerGame, journal_seq: int) -> int:
     """Run at most three NPC decisions in a single already-open advance tx.
 
@@ -249,6 +262,7 @@ def step(game: MultiplayerGame, journal_seq: int) -> int:
                  if game.world.minute >= game._npc_due[p.id])
     batch = []
     for _, npc_id, profile in due[:MAX_ACTIONS_PER_ADVANCE]:
+        profile = _assigned_profile(game, profile)
         memory = game._npc_memories[npc_id]
         before = observe(game.world, npc_id)
         # Stable independent stream for each individual NPC decision.
