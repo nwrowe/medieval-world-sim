@@ -103,6 +103,10 @@ class Actor:
     # Keep new fields at the end to preserve historical positional constructor calls.
     storage: dict[str, dict[str, int]] = field(default_factory=dict)
     cooldowns: Cooldowns = field(default_factory=Cooldowns)
+    # Old saves/accounts remain unselected until their owner chooses once.
+    lineage: str = "human"
+    lineage_selected: bool = False
+    discovered_cities: set[str] = field(default_factory=set)
 
     @property
     def hp(self) -> int:

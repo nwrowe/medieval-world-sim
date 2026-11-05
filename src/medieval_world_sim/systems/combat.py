@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from ..equipment import GEAR, effective_attack, effective_defense
 from ..errors import ActionError
+from ..content.lineages import combat_modifiers
 from ..core.transactions import transfer_gold
 
 ATTACK_STAMINA_COST = 20
@@ -96,10 +97,12 @@ class CombatSystem:
         # Fists are always available; even an unarmed defender counterattacks.
         base_attack = effective_attack(self.world.gear[weapon_id]) if weapon_id is not None else 3
         armor_ids = [defender.equipped.get(slot) for slot in ARMOR_SLOTS]
-        defense = defender.defense + sum(
+        attack_bonus, _ = combat_modifiers(attacker)
+        _, defense_bonus = combat_modifiers(defender)
+        defense = defender.defense + defense_bonus + sum(
             effective_defense(self.world.gear[g_id]) for g_id in armor_ids if g_id is not None
         )
-        damage = max(1, base_attack + attacker.strength - 1 - defense // 2)
+        damage = max(1, base_attack + attacker.strength + attack_bonus - 1 - defense // 2)
         defender.hp = max(0, defender.hp - damage)
         if weapon_id is not None:
             self._wear(attacker, weapon_id)

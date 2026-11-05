@@ -18,6 +18,21 @@ export function createWorldViews(ctx) {
     const pending = ctx.getPending();
     const p = state.player;
     const destination = p.destination;
+    // The underlying atlas remains a fixed image. Server-owned discovery
+    // determines what can be seen; the player cannot reveal places by UI state.
+    const fogHoles = state.cities.filter(city => city.discovered || city.is_current).map(city => {
+      const point = mapLocations[city.id];
+      return point ? '<circle cx="' + (point.x * 10) + '" cy="' +
+        (point.y * 6.2) + '" r="145" fill="url(#atlas-clearing)"/>' : '';
+    }).join('');
+    const fog = '<svg class="atlas-fog" viewBox="0 0 1000 620" preserveAspectRatio="none" ' +
+      'aria-hidden="true"><defs><radialGradient id="atlas-clearing">' +
+      '<stop offset="0%" stop-color="black"/>' +
+      '<stop offset="63%" stop-color="black"/>' +
+      '<stop offset="100%" stop-color="white"/></radialGradient>' +
+      '<mask id="atlas-discovery"><rect width="1000" height="620" fill="white"/>' +
+      fogHoles + '</mask></defs><rect width="1000" height="620" ' +
+      'fill="#26362e" opacity=".94" mask="url(#atlas-discovery)"/></svg>';
     const pins = state.cities.map(city => {
       const point = mapLocations[city.id];
       if (!point) return "";
@@ -27,10 +42,11 @@ export function createWorldViews(ctx) {
         p.defeated_until != null || current;
       return '<button class="map-pin map-' + esc(city.id) +
         (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
+        (!city.discovered && !current ? ' is-unexplored' : '') +
         '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
         '" title="' + esc(city.name) +
         (current ? " — you are here" : arriving ? " — destination" :
-          " — " + dur(city.minutes) + " away, click to travel") +
+          " — " + dur(city.minutes) + " away, click to explore") +
         '"' + disabled(inactive) + '>' +
         '<span class="map-pin-light"></span><strong>' + esc(city.name.replace(" (capital)", "")) +
         '</strong>' + (current ? '<small>You are here</small>' :
@@ -38,8 +54,8 @@ export function createWorldViews(ctx) {
     }).join("");
     return '<section class="world-atlas" aria-label="Illustrated map of the Five Cities">' +
       '<div class="atlas-canvas"><img src="/world-map.svg" alt="Antique ink-drawn fantasy realm with mountains, rivers, forests and royal roads">' +
-      pins + '</div><div class="atlas-footer"><span>✦ Blue lights mark the cities</span>' +
-      '<span>Click a city to begin traveling · Your location glows gold</span></div></section>';
+      fog + pins + '</div><div class="atlas-footer"><span>✦ The golden light marks your location</span>' +
+      '<span>Uncharted places emerge when you reach them</span></div></section>';
   }
 
   function renderWorld() {
@@ -54,9 +70,10 @@ export function createWorldViews(ctx) {
     const destinations = state.cities.filter(c => !c.is_current).map(city =>
       '<div class="mini-card"><div class="mini-card-top">' +
       '<div><div class="mini-card-title">' + esc(city.name) + '</div>' +
-      '<div class="mini-card-sub">' + esc(dur(city.minutes)) + ' by your current route</div></div>' +
+      '<div class="mini-card-sub">' + esc(dur(city.minutes)) +
+      (city.discovered ? ' along the royal roads' : ' into uncharted territory') + '</div></div>' +
       '<span class="muted">◈</span></div>' +
-      button("Travel", 'data-ui="travel" data-target="' + esc(city.id) + '"' +
+      button(city.discovered ? "Travel" : "Explore", 'data-ui="travel" data-target="' + esc(city.id) + '"' +
         disabled(isBusy()), "full secondary") + '</div>'
     ).join("");
     const gathering = Object.entries(state.gatherable).map(([item, available]) => {
@@ -79,10 +96,10 @@ export function createWorldViews(ctx) {
           disabled(pending))) + '</section>'
       : defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your character ' +
         'has recovered before beginning another activity.</div>' : "";
-    return heading("", "World Map", "") +
+    return heading("", "World Map", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
       worldMap() +
       '<div class="two-col"><div class="stack">' + journey +
-      panel("Choose your destination", "All routes connect through the royal capital.",
+      panel("Roads and unexplored settlements", "Travel to a location to add it to your personal atlas.",
         '<div class="card-grid">' + destinations + '</div>') +
       panel("Gather nearby resources", "Collect resources to sell locally or take to another city.",
         '<div class="resource-list">' + gathering + '</div>' +
@@ -101,8 +118,9 @@ export function createWorldViews(ctx) {
       '</div><aside class="stack">' +
       panel("Roads of the Five Cities", "Current road network",
         '<div class="route-map"><strong>✦ Crownreach</strong>' +
-        '<span>↙ Goldmeadow</span><span>↖ Ironvale</span>' +
-        '<span>↗ Greenhollow</span><span>↘ Emberfall</span></div>' +
+        state.cities.filter(city => city.id !== 'crownreach').map(city =>
+          '<span>✦ ' + esc(city.discovered ? city.name : 'Unexplored road') + '</span>'
+        ).join('') + '</div>' +
         '<p class="small">All roads presently lead through the royal capital. ' +
         'Travel times account for your current vehicle.</p>') +
       '</aside></div>';

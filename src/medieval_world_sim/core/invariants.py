@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..catalog import CITIES, GOODS
+from ..content.lineages import LINEAGES
 from ..combat import MAX_STAMINA
 from ..core.entities import Actor
 from ..equipment import GEAR
@@ -33,6 +34,11 @@ def validate_world(world: WorldEngine) -> None:
         if account.gold < 0 or any(k not in GOODS or v < 0 for k, v in account.inventory.items()):
             raise AssertionError("Negative or invalid asset")
         if isinstance(account, Actor):
+            if (account.lineage not in LINEAGES or type(account.lineage_selected) is not bool
+                    or type(account.discovered_cities) is not set
+                    or not account.discovered_cities <= CITIES.keys()
+                    or account.city not in account.discovered_cities):
+                raise AssertionError("Invalid lineage or explored atlas")
             if any(type(getattr(account.cooldowns, channel)) is not int
                    or getattr(account.cooldowns, channel) < 0
                    or max(0, getattr(account.cooldowns, channel) - world.minute) > 1440

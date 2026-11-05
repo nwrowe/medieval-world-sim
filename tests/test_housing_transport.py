@@ -144,6 +144,7 @@ class HousingTests(unittest.TestCase):
         self.assertEqual(actor.housing.xp_remainders["magic:alchemy"], 5)
         # Remote practice gets no benefit; no free XP without real training.
         actor.city = "ironvale"
+        actor.discovered_cities.add("ironvale")  # Manual relocation mirrors arrival discovery.
         self.assertEqual(w.housing_system.training_xp(actor, 3, "work:smith"), 3)
         self.assertEqual(actor.housing.xp_remainders["work:smith"], 0)
         w.assert_invariants()

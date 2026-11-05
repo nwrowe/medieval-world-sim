@@ -10,6 +10,7 @@ EVENT_FIELDS = {
         "quality",
         "origin"
     ],
+    "lineage_chosen": ["actor_id", "lineage"],
     "travel_started": [
         "actor_id",
         "origin",

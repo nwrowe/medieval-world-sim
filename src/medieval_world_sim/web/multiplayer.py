@@ -135,11 +135,16 @@ class MultiplayerGame:
                 self.npc_names[npc_id] = names.pop()
         return WorldEngine(actors, seed=42)
 
-    def _join_actor(self, actor_id: str, city: str = LEGACY_START_CITY):
+    def _join_actor(self, actor_id: str, city: str = LEGACY_START_CITY,
+                    lineage: str | None = None):
         if actor_id in self.world.actors:
             raise ValueError("Duplicate player registration in world")
-        self.world.actors[actor_id] = Actor(actor_id, "human", city=city,
-                                            gold=INITIAL_GOLD)
+        actor = Actor(actor_id, "human", city=city, gold=INITIAL_GOLD)
+        actor.discovered_cities.add(city)
+        if lineage is not None:
+            from ..content.lineages import select_lineage
+            select_lineage(actor, lineage)
+        self.world.actors[actor_id] = actor
         self.world.state.initial_gold += INITIAL_GOLD
         self.world.assert_invariants()
 
@@ -210,15 +215,18 @@ class MultiplayerGame:
     def issue_invites(self, count: int = 1) -> list[str]:
         return accounts.issue_invites(self, count)
 
-    def register(self, username, password, display_name, invite: str | None = None):
-        return accounts.register(self, username, password, display_name, invite, _canonical)
+    def register(self, username, password, display_name, invite: str | None = None,
+                 lineage: str = "human"):
+        return accounts.register(self, username, password, display_name, invite,
+                                 _canonical, lineage)
 
     def login(self, username: str, password: str):
         return accounts.login(self, username, password)
 
     def register_and_login(self, username, password, display_name,
-                           invite: str | None = None):
-        return accounts.register_and_login(self, username, password, display_name, invite)
+                           invite: str | None = None, lineage: str = "human"):
+        return accounts.register_and_login(self, username, password, display_name,
+                                           invite, lineage)
 
     def _issue_session(self, actor_id: str):
         return accounts._issue_session(self, actor_id)

@@ -21,6 +21,7 @@ import sqlite3
 from urllib.parse import urlsplit
 
 from ..errors import ActionError
+from ..content.lineages import LINEAGES
 from .session import GameSession, SaveError
 from .multiplayer import MultiplayerGame, AuthError, SESSION_SECONDS
 from .rate_limit import RateLimiter
@@ -38,6 +39,7 @@ ASSETS = {
     "/world-map.svg": ("world-map.svg", "image/svg+xml"),
 }
 MAX_JSON_BYTES = 16 * 1024
+LINEAGE_CATALOG = [{"id": key, **asdict(spec)} for key, spec in LINEAGES.items()]
 
 
 def _serializable(result):
@@ -252,7 +254,8 @@ class GameHandler(BaseHTTPRequestHandler):
         if route == "/api/health":
             self._json(200, {"ok": True, "mode": "multi-account-local",
                              "invite_required": self.server.multiplayer.require_invites,
-                             "dev_fast_forward": self.server.multiplayer.dev_fast_forward})
+                             "dev_fast_forward": self.server.multiplayer.dev_fast_forward,
+                             "lineages": LINEAGE_CATALOG})
         elif route == "/api/auth/session":
             identity = self._multi_identity()
             self._json(200, {"authenticated": identity is not None,
@@ -309,12 +312,12 @@ class GameHandler(BaseHTTPRequestHandler):
         try:
             data = self._body()
             if route == "/api/auth/register":
-                if (set(data) - {"username", "password", "display_name", "invite"}
+                if (set(data) - {"username", "password", "display_name", "invite", "lineage"}
                         or not {"username", "password", "display_name"} <= set(data)):
                     raise ActionError("Invalid registration fields")
                 token, csrf = self.server.multiplayer.register_and_login(
                     data["username"], data["password"], data["display_name"],
-                    data.get("invite"))
+                    data.get("invite"), data.get("lineage", "human"))
                 identity = self.server.multiplayer.identity(token)
                 self._json(200, {"result": {"registered": True}, "csrf": csrf,
                                  "state": self.server.multiplayer.snapshot(identity.actor_id)},
@@ -380,7 +383,8 @@ class GameHandler(BaseHTTPRequestHandler):
             self._multi_get(route)
             return
         if route == "/api/health":
-            self._json(200, {"ok": True, "mode": "single-player"})
+            self._json(200, {"ok": True, "mode": "single-player",
+                             "lineages": LINEAGE_CATALOG})
         elif route == "/api/state":
             if self._authorized():
                 self._json(200, self.server.game.snapshot())
@@ -404,9 +408,9 @@ class GameHandler(BaseHTTPRequestHandler):
         try:
             data = self._body()
             if route == "/api/new":
-                if set(data) != {"name"}:
-                    raise ActionError("Character request must contain name only")
-                self.server.game.create(data["name"])
+                if not {"name"} <= set(data) or set(data) - {"name", "lineage"}:
+                    raise ActionError("Character request requires name and lineage")
+                self.server.game.create(data["name"], data.get("lineage", "human"))
                 result = {"created": True}
             elif route == "/api/action":
                 if set(data) != {"action", "params", "id"}:

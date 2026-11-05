@@ -131,7 +131,7 @@ def load_world(game: MultiplayerGame) -> None:
             city = params.get("city", LEGACY_START_CITY)
             if city not in (LEGACY_START_CITY, START_CITY):
                 raise ValueError("Invalid registered starting city")
-            game._join_actor(actor_id, city)
+            game._join_actor(actor_id, city, params.get("lineage"))
             game.names[actor_id] = account[0]
             registered.add(actor_id)
         elif actor_id not in registered:

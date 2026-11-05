@@ -47,6 +47,9 @@ from .quality import CompanyQuality
 from .invariants import validate_world
 from .commands import COMMAND_SPECS
 
+from ..content.lineages import LINEAGES, select_lineage
+
+
 class WorldEngine:
     """In-memory simulation. Domain actions validate then mutate atomically."""
 
@@ -60,6 +63,11 @@ class WorldEngine:
                 raise ValueError("Invalid starting assets")
             if not a.id:
                 raise ValueError("Empty actor ID")
+            if (a.lineage not in LINEAGES or type(a.lineage_selected) is not bool
+                    or not isinstance(a.discovered_cities, set)
+                    or not a.discovered_cities.issubset(CITIES.keys())):
+                raise ValueError("Invalid lineage or discovered cities")
+            a.discovered_cities.add(a.city)
             if a.destination is not None or a.arrival_minute is not None or a.gear_ids or a.equipped:
                 raise ValueError("Actors must start stationary without externally minted equipment")
             if (a.hp != 24 or a.max_hp != 24 or a.stamina != MAX_STAMINA or
@@ -245,6 +253,16 @@ class WorldEngine:
 
     def travel_minutes(self, origin: str, destination: str) -> int:
         return self.travel.travel_minutes(origin, destination)
+
+    @atomic_action
+    def choose_lineage(self, actor_id: str, lineage: str) -> None:
+        actor = self._actor(actor_id)
+        self._at_city(actor)
+        if any(actor_id in (duel.attacker_id, duel.defender_id)
+               for duel in self.state.duels.values()):
+            raise ActionError("Finish combat before selecting a lineage")
+        select_lineage(actor, lineage)
+        self._emit("lineage_chosen", actor_id, lineage)
 
     @atomic_action
     def start_travel(self, actor_id: str, destination: str) -> int:

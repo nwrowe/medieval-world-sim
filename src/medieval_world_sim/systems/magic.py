@@ -15,6 +15,7 @@ from ..content.magic_tree import (
     PRACTICE_XP_CEILING, branch_for,
 )
 from ..errors import ActionError
+from ..content.lineages import magic_experience_bonus
 
 
 @dataclass(frozen=True)
@@ -151,7 +152,8 @@ class MagicSystem:
         ceiling = PRACTICE_XP_CEILING[node.tier]
         awarded = min((3 * node.tier + 3 if success else 1), max(0, ceiling - skill))
         awarded = min(self.world.housing_system.training_xp(
-            actor, awarded, f"magic:{node.school}"), max(0, ceiling - skill))
+            actor, awarded, f"magic:{node.school}") + magic_experience_bonus(actor),
+            max(0, ceiling - skill))
         state.school_xp[node.school] = skill + awarded
         earned_total = sum(state.school_xp.values()) // INSIGHT_XP_INTERVAL
         gained = earned_total - state.insight_earned
