@@ -426,13 +426,16 @@ class MultiplayerGame:
             else:
                 raise ActionError("Unknown command kind")
             encoded_result = _canonical(_jsonable(outcome))
-            self.db.execute(
+            row = self.db.execute(
                 "INSERT INTO world_journal("
                 "kind,actor_id,action,payload,request_id,result_json,recorded_at,"
-                "flee_success,secure_roll,regen_version) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "flee_success,secure_roll,regen_version,xp_version)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
                  encoded_result, recorded_at, flee_success, secure_roll,
-                 3 if kind == "advance" else 1))
+                 3 if kind == "advance" else 1, 2))
+            if kind == "advance":
+                npc_runtime.step(self, row.lastrowid)
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
