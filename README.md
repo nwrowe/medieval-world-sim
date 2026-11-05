@@ -126,9 +126,9 @@ a separate observer produces structured evidence-based reports, either locally
 or with an explicitly enabled external LLM critique. An LLM never decides or
 executes game actions.
 
-\`\`\`bash
+```bash
 python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 42 --playtest --reflect-every 30 --report-file playtest-feedback.json
-\`\`\`
+```
 
 This is an **offline playtest harness**, not autonomous ticking of NPCs on
 the hosted/multiplayer server. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
