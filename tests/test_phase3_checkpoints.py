@@ -168,6 +168,23 @@ class DurableCheckpointTests(TestCase):
         self.game.advance(alice, 3, "failed")
         self.assertEqual(self.game.world.minute, 3)
 
+    def test_checkpoint_retention_is_bounded_without_pruning_receipts(self):
+        alice = self.player("Alice")
+        with patch("medieval_world_sim.web.checkpoint.CHECKPOINT_INTERVAL", 2):
+            for i in range(6):
+                self.game.advance(alice, 1, f"clock-{i}")
+        saved = self.game.db.execute(
+            "SELECT journal_seq FROM world_checkpoints "
+            "ORDER BY journal_seq").fetchall()
+        self.assertEqual(saved, [(4,), (6,)])
+        self.assertEqual(self.game.db.execute(
+            "SELECT COUNT(*) FROM durable_receipts").fetchone()[0], 6)
+        self.assertEqual(self.game.db.execute(
+            "SELECT COUNT(*) FROM world_journal").fetchone()[0], 7)
+        self.restart()
+        self.assertEqual(self.game.world.minute, 6)
+        ledger.verify(self.game)
+
     def test_automatic_checkpoint_on_interval(self):
         alice = self.player("Alice")
         with patch("medieval_world_sim.web.checkpoint.CHECKPOINT_INTERVAL", 3):
