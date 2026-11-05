@@ -118,7 +118,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "vehicles": list(housing.vehicles),
     }
     activity = activity_projection(
-        w, actor_id, npc_names, human_names, event_times, multiplayer)
+        w, actor_id, name, npc_names, human_names, event_times, multiplayer)
     combat_moves = []
     for move in ("strike", "dagger", "fists"):
         if move == "strike" and "weapon" not in actor.equipped:
