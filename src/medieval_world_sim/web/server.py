@@ -481,6 +481,8 @@ def main(argv=None):
                                 multiplayer=multi) as server:
                 print(f"Oathmere multi-account local server: http://127.0.0.1:{server.server_port}", flush=True)
                 print(f"Database: {Path(args.multiplayer_db).expanduser()}", flush=True)
+                print("Autonomous NPCs: " + ("paused" if args.no_npcs else "enabled"),
+                      flush=True)
                 print("Development only: localhost. Do NOT expose directly to the internet.",
                       flush=True)
                 print("Press Ctrl+C to stop.", flush=True)
