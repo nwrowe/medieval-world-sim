@@ -808,3 +808,58 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   opacity:1;
   visibility:visible;
 }
+
+
+/* Lineage selection: compact information with explicit, keyboard-accessible choice. */
+.entry-card.lineage-entry {max-width:760px;text-align:left}
+.lineage-entry>.entry-seal,.lineage-entry>h1,.lineage-entry>p {text-align:center}
+.lineage-fieldset {border:0;padding:0;margin:15px 0 20px;text-align:left;min-width:0}
+.lineage-fieldset legend {font:600 17px Georgia,serif;color:#27483c;padding:0 0 8px}
+.lineage-intro {font-size:12px!important;color:#5a6c60;margin:0 0 13px!important}
+.lineage-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.lineage-option {position:relative;display:block;cursor:pointer}
+.lineage-option input {position:absolute;top:14px;left:12px;accent-color:#496c4f;z-index:1}
+.lineage-option-body {display:flex;flex-direction:column;gap:6px;padding:12px 12px 12px 35px;
+  border:1px solid #c4cdbd;border-radius:11px;background:#fffdf7;min-height:148px;
+  transition:background .15s,border-color .15s}
+.lineage-option input:checked+.lineage-option-body {background:#eaf0e3;border-color:#456f54;
+  box-shadow:inset 0 0 0 1px #456f54}
+.lineage-option input:focus-visible+.lineage-option-body {outline:3px solid #bd9244;outline-offset:2px}
+.lineage-option-body strong {font:600 18px Georgia,serif;color:#244739}
+.lineage-option-body small {font-size:11px;line-height:1.45;color:#5b6e61}
+.lineage-stats,.lineage-trait {font-size:10px;line-height:1.5;color:#4a6554}
+.lineage-trait {color:#84622d}
+.account-register .lineage-fieldset legend {font-size:15px}
+.account-register .lineage-option-body {min-height:136px}
+@media(max-width:580px) {.lineage-grid {grid-template-columns:1fr}
+  .lineage-option-body {min-height:unset;padding-bottom:13px}
+  .entry-card.lineage-entry {padding:21px 16px}
+}
+
+/* Cartography: dark, textured unexplored territories with revealing clearings. */
+.atlas-fog {position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.map-pin {z-index:2}
+.map-pin.is-unexplored {color:#f0e5c7;background:#344138;
+  border:1px dashed #a9a184;text-shadow:none}
+.map-pin.is-unexplored .map-pin-light {background:#8e947d;border-color:#d4d5be;
+  box-shadow:0 0 0 2px rgba(36,43,32,.55),0 0 8px #a2a789}
+.map-pin.is-unexplored:not(:disabled):hover,
+.map-pin.is-unexplored:not(:disabled):focus-visible {background:#465746}
+.world-atlas {border-color:#8a805f}
+.atlas-footer {background:#e7dcc2;color:#5c654f}
+
+/* A location-first Home greeting, not a second statistics dashboard. */
+.profile-hero.home-hero {position:relative;overflow:hidden;min-height:205px;
+  background-image:linear-gradient(100deg,rgba(21,42,35,.97) 8%,rgba(27,54,43,.9) 65%,rgba(27,54,43,.66)),
+  url('/world-map.svg');background-position:center,center;background-size:cover;
+  align-items:center;justify-content:space-between;padding:28px}
+.home-hero-content {position:relative;z-index:1;max-width:650px}
+.home-hero .home-scene {font:400 15px/1.6 Georgia,serif;color:#f1e7d0;margin:8px 0}
+.home-hero .home-scene-note {font-size:12px;line-height:1.6;color:#b9d1c4}
+.home-hero-foot {display:flex;gap:15px;flex-wrap:wrap;margin-top:19px;color:#d3bd86;
+  font-size:11px;font-weight:650;letter-spacing:.015em}
+.home-hero-crest {font:80px Georgia,serif;color:#e0c384;opacity:.25;padding:0 18px}
+@media(max-width:640px) {.profile-hero.home-hero {padding:20px;min-height:180px}
+  .home-hero-crest {display:none}
+  .home-hero .home-scene {font-size:13px}
+}
