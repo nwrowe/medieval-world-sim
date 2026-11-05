@@ -156,7 +156,13 @@ class MultiplayerGame:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
             previous_clock_anchor = self._clock_anchor
+            # Only the outer durable transaction may elide the nested
+            # WorldEngine.atomic_action rollback copy. We still restore
+            # the complete world on every exception, including SQL errors.
+            if getattr(self.world, "_durable_tx_owns_rollback", False):
+                raise RuntimeError("Nested multiplayer durable transaction")
             self._begin()
+            self.world._durable_tx_owns_rollback = True
             try:
                 result = action()
                 self.world.assert_invariants()
@@ -184,6 +190,8 @@ class MultiplayerGame:
                     self.event_times = previous_event_times
                     self._clock_anchor = previous_clock_anchor
                 raise
+            finally:
+                self.world._durable_tx_owns_rollback = False
 
     @staticmethod
     def _validate_registration(username, password, display_name):
@@ -295,6 +303,18 @@ class MultiplayerGame:
         payload = _canonical(params)
         if len(payload) > 8192:
             raise ActionError("Command exceeds size limit")
+        # A committed retry is a read-only receipt lookup. Check under the
+        # same serialized world lock before allocating a rollback snapshot.
+        # The transaction repeats this check, retaining race protection.
+        with self._lock:
+            if actor_id not in self.names:
+                raise AuthError("Unknown player account")
+            prior = self._existing_command(actor_id, request_id, kind, name, payload)
+            if prior:
+                prev_kind, prev_action, prev_payload, prev_result = prior
+                if (prev_kind, prev_action, prev_payload) != (kind, name, payload):
+                    raise ActionError("Request ID was reused with different parameters")
+                return json.loads(prev_result)
         def perform():
             if actor_id not in self.names:
                 raise AuthError("Unknown player account")
