@@ -32,6 +32,10 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m unittest discover -s tests -v
+      - name: Profile authenticated concurrent multiplayer requests
+        env:
+          PYTHONPATH: src
+        run: python benchmarks/phase4_load.py --users 4 --actions 6 --workers 4
       - name: Smoke test CLI
         env:
           PYTHONPATH: src
