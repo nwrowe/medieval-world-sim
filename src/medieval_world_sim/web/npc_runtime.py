@@ -68,11 +68,11 @@ def _profiles(game: MultiplayerGame) -> tuple[NPCProfile, ...]:
                 or parts[1] not in CITIES or parts[2] not in ("0", "1", "2")):
             raise ValueError("Unrecognized seeded NPC")
         home, slot = parts[1], int(parts[2])
-        role = ("adventurer" if slot == 2 or (home == CAPITAL and slot == 0)
-                else "hauler" if slot == 1
-                else "gatherer")
+        role = ("adventurer" if home == CAPITAL or slot == 2
+                else "hauler" if slot == 1 else "gatherer")
+        # Haulers and gatherers both need a specific home-city resource.
         resource = (next(iter(CITIES[home].deposits))
-                    if role == "gatherer" else None)
+                    if role in ("hauler", "gatherer") else None)
         digest = sha256(actor_id.encode("utf-8")).digest()
         profiles.append(NPCProfile(
             actor_id, role, home=home, resource=resource,
