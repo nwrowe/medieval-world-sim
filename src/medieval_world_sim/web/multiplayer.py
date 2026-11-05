@@ -34,6 +34,8 @@ from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INI
 # Deliberately bounded until rate limiting, moderation and deployment hardening
 # have been reviewed in a dedicated public-server milestone.
 MAX_ACCOUNTS = 100
+INVITE_VALID_SECONDS = 7 * 86400
+MAX_INVITES_PER_BATCH = 25
 SESSION_SECONDS = 86400
 PASSWORD_N = 1 << 15
 PASSWORD_R = 8
@@ -79,7 +81,11 @@ def _password_hash(password: str, salt: bytes) -> bytes:
 
 
 class MultiplayerGame:
-    def __init__(self, db_path: str | Path):
+    def __init__(self, db_path: str | Path, *,
+                 require_invites: bool = True,
+                 dev_fast_forward: bool = False):
+        self.require_invites = require_invites
+        self.dev_fast_forward = dev_fast_forward
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -114,6 +120,11 @@ class MultiplayerGame:
 
     def _create_schema(self):
         self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS registration_invites(
+                digest BLOB PRIMARY KEY,
+                expires INTEGER NOT NULL,
+                redeemed_by TEXT UNIQUE REFERENCES accounts(actor_id)
+            );
             CREATE TABLE IF NOT EXISTS accounts(
                 actor_id TEXT PRIMARY KEY,
                 username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -306,13 +317,34 @@ class MultiplayerGame:
             raise ActionError("Password must contain 12–128 characters")
         return username.lower(), display_name.strip()
 
-    def register(self, username, password, display_name):
+    def issue_invites(self, count: int = 1) -> list[str]:
+        """Operator-only administration; never expose through the HTTP server."""
+        if type(count) is not int or not 1 <= count <= MAX_INVITES_PER_BATCH:
+            raise ValueError("Invalid invitation batch size")
+        codes = [secrets.token_urlsafe(24) for _ in range(count)]
+        expiry = int(time.time()) + INVITE_VALID_SECONDS
+        with self._lock:
+            for code in codes:
+                self.db.execute(
+                    "INSERT INTO registration_invites(digest,expires) VALUES(?,?)",
+                    (_digest(code), expiry))
+        return codes
+
+    def register(self, username, password, display_name, invite: str | None = None):
         username, display_name = self._validate_registration(
             username, password, display_name)
         salt = secrets.token_bytes(16)
         hashed = _password_hash(password, salt)
         actor_id = "player:" + uuid.uuid4().hex
         def perform():
+            if self.require_invites:
+                if not isinstance(invite, str) or not 20 <= len(invite) <= 128:
+                    raise ActionError("Valid invitation required")
+                row = self.db.execute(
+                    "SELECT redeemed_by,expires FROM registration_invites WHERE digest=?",
+                    (_digest(invite),)).fetchone()
+                if row is None or row[0] is not None or row[1] <= int(time.time()):
+                    raise ActionError("Invitation invalid, expired, or already used")
             if self.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] >= MAX_ACCOUNTS:
                 raise ActionError("Development account limit reached")
             try:
@@ -324,6 +356,11 @@ class MultiplayerGame:
                 raise ActionError("Username or character name is already taken") from None
             self._join_actor(actor_id, START_CITY)
             self.names[actor_id] = display_name
+            if self.require_invites:
+                self.db.execute(
+                    "UPDATE registration_invites SET redeemed_by=? "
+                    "WHERE digest=? AND redeemed_by IS NULL",
+                    (actor_id, _digest(invite)))
             self.db.execute(
                 "INSERT INTO world_journal(kind, actor_id, payload, recorded_at) "
                 "VALUES('join', ?, ?, ?)",
@@ -365,8 +402,9 @@ class MultiplayerGame:
                             "WHERE actor_id=?", (actor_id,))
             return self._issue_session(actor_id)
 
-    def register_and_login(self, username, password, display_name):
-        actor_id = self.register(username, password, display_name)
+    def register_and_login(self, username, password, display_name,
+                           invite: str | None = None):
+        actor_id = self.register(username, password, display_name, invite)
         with self._lock:
             return self._issue_session(actor_id)
 
