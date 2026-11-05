@@ -29,6 +29,9 @@ PASSWORD_R = 8
 PASSWORD_P = 1
 MAX_FAILED_LOGINS = 6
 LOGIN_COOLDOWN = 900
+MAX_NEW_ACCOUNTS_PER_DAY = 24
+
+
 class AuthError(ActionError):
     """Untrusted or missing account credentials."""
 
