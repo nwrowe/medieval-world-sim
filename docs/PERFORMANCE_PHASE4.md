@@ -51,6 +51,30 @@ at least three times on the same machine and report the median measured
 p95 and throughput, plus uncertainty. Real online load also needs login,
 world travel, market trades, battles, SSE readers and network delay.
 
+## First measured CI baseline
+
+The following is **one actual GitHub Actions Linux runner sample** from the
+4-user / 6-actions / 4-worker profile on the pre-optimization main baseline
+(commit `e7ea611` lineage), not a guaranteed capacity ceiling:
+
+| Measurement | Observed |
+| --- | ---: |
+| Successful authenticated action requests | 24 / 24 |
+| Throughput | 29.39 requests/s |
+| HTTP latency p50 / p95 / p99 | 135.85 / 140.64 / 144.60 ms |
+| HTTP latency maximum | 145.46 ms |
+| HTTP response body p50 / p95 | 41,684 / 43,025 bytes |
+| Python `tracemalloc` peak | 1.0 MiB |
+| Final journal rows / action receipts | 28 / 24 |
+
+[CI benchmark run](https://github.com/nwrowe/medieval-world-sim/actions/runs/42046993675)
+
+`tracemalloc` captures traced Python allocations during the timed section,
+not total RSS or SQLite-native memory. The benchmark includes full HTTP
+response snapshots, so the large response bytes are expected. This baseline
+must be repeated on a consistent host to assess performance improvements
+rather than attributing incidental GitHub runner variance to code changes.
+
 ## Existing hard limits, not measured capacity
 
 - **100 registered accounts** in this development world
