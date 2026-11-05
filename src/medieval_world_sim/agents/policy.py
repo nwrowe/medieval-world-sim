@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import random
 
-from ..catalog import CAPITAL, RECIPES
+from ..catalog import CAPITAL, CITIES, RECIPES
+from ..equipment import GEAR
+from .cognition import NPCMemory, Needs
 from ..core.entities import Wage
 from .observation import NPCView
 
@@ -39,6 +41,8 @@ class NPCProfile:
     risk: float = 0.3
     curiosity: float = 0.2
     volatility: float = 0.7
+    # Only isolated playtest actors use a persona; ordinary NPCs keep their profession.
+    persona: str | None = None
 
 
 @dataclass(frozen=True)
@@ -57,7 +61,8 @@ class RuleBasedPolicy:
     def __init__(self, rng: random.Random):
         self.rng = rng
 
-    def choose(self, profile: NPCProfile, view: NPCView) -> NPCAction | None:
+    def choose(self, profile: NPCProfile, view: NPCView,
+               memory: NPCMemory | None = None) -> NPCAction | None:
         """Observe, score, select. Gaussian perturbations avoid identical NPCs."""
         if view.hp <= 0 or view.destination is not None:
             return None
@@ -91,6 +96,7 @@ class RuleBasedPolicy:
             "manager": self._manager,
             "worker": self._worker,
             "adventurer": self._adventurer,
+            "playtester": self._playtester,
         }.get(profile.role)
         if method is None:
             raise ValueError(f"Unknown NPC role: {profile.role}")
@@ -103,8 +109,17 @@ class RuleBasedPolicy:
         # score noise (rather than uniformly selecting nonsensical actions).
         if len(candidates) > 1 and self.rng.random() < profile.curiosity * 0.20:
             return self.rng.choice(candidates).action
-        return max(candidates, key=lambda c: c.score + self.rng.gauss(
-            0, profile.volatility)).action
+        needs = Needs.from_view(view, profile.curiosity)
+        def utility(candidate: Candidate) -> float:
+            action = candidate.action
+            bonus = memory.utility_modifier(action, view, profile.curiosity) if memory else 0.0
+            # Common needs influence proposals without bypassing eligibility.
+            if action.name in ("complete_city_contract", "regional_sell"):
+                bonus += needs.liquidity * profile.greed
+            if action.name == "travel":
+                bonus += needs.exploration * 0.4
+            return candidate.score + bonus + self.rng.gauss(0, profile.volatility)
+        return max(candidates, key=utility).action
 
     @staticmethod
     def _action(score: float, name: str, **kwargs: object) -> Candidate:
@@ -291,3 +306,98 @@ class RuleBasedPolicy:
             if eligible:
                 choices.append(self._action(8, "attack", defender_id=self.rng.choice(eligible)))
         return choices
+
+
+    def _playtester(self, p: NPCProfile, v: NPCView) -> list[Candidate]:
+        """Choose actual server-validated actions for two contrasting critics.
+
+        The agent intentionally tries a few expensive/slow systems. It cannot
+        adjust stats or assets and can only request the same typed commands
+        that a player can. Personas affect utility, not permissions.
+        """
+        explorer = p.persona == "explorer"
+        if p.persona not in ("explorer", "optimizer"):
+            raise ValueError("Playtester requires an explorer or optimizer persona")
+        actions: list[Candidate] = []
+        load = sum(q for _, q in v.inventory) + len(v.gear)
+        equipped = dict(v.equipped)
+        for gid, kind, _ in v.gear:
+            slot = GEAR[kind].slot
+            if slot not in equipped:
+                actions.append(self._action(22, "equip", gear_id=gid))
+        for name in v.contracts:
+            # The optimiser focuses on immediate income, explorer tries variety.
+            base = 15 if not explorer else 10
+            if name == "labor_shift":
+                base += 2 if not explorer else 0
+            if name == "mage_copywork" and explorer:
+                base += 3
+            actions.append(self._action(base, "complete_city_contract", contract_id=name))
+        for name in v.magic_eligible:
+            if explorer:
+                actions.append(self._action(13, "unlock_magic", node_id=name))
+        for name, mana_cost in v.magic_practice:
+            if explorer and v.mana >= mana_cost:
+                actions.append(self._action(10, "practice_magic", node_id=name))
+        if not v.studying and v.gold >= 30:
+            for school, index, cost in v.courses:
+                if v.gold >= cost:
+                    actions.append(self._action(
+                        (8 if explorer else 4) + (2 if school == "commerce" else 0),
+                        "enroll_course_choice", school=school, index=index))
+        owned_kinds = {kind for _, kind, _ in v.gear}
+        if v.city == CAPITAL and "sword" not in owned_kinds and v.gold >= GEAR["sword"].base_value:
+            actions.append(self._action(
+                11 if explorer else 14, "buy_starter_gear", kind="sword"))
+        if v.city == CAPITAL and explorer and "dagger" not in owned_kinds and (
+                v.gold >= GEAR["dagger"].base_value):
+            actions.append(self._action(9, "buy_starter_gear", kind="dagger"))
+        # Finite regional prices, treasury capacity and travel cargo all apply.
+        for q in v.regional_quotes:
+            stock = v.stock(q.item)
+            if stock and q.buy_capacity and q.city_gold >= q.player_sell_price:
+                qty = min(stock, q.buy_capacity, q.city_gold // q.player_sell_price, 6)
+                if qty:
+                    actions.append(self._action(
+                        (11 if explorer else 16), "regional_sell", item=q.item, quantity=qty))
+            capital = v.regional_quote(q.item, capital=True)
+            if (v.city != CAPITAL and q.sell_capacity and capital is not None
+                    and capital.player_sell_price > q.player_buy_price
+                    and capital.buy_capacity and v.gold >= q.player_buy_price):
+                qty = min(q.sell_capacity, v.gold // q.player_buy_price, max(0, 12 - load), 4)
+                if qty:
+                    margin = capital.player_sell_price - q.player_buy_price
+                    actions.append(self._action(
+                        (8 if explorer else 17) + min(3, margin / 2),
+                        "regional_buy", item=q.item, quantity=qty))
+        if v.minute >= v.ready_minute and load < 12:
+            for item, available in v.deposits:
+                qty = min(2, available, 12 - load)
+                if qty:
+                    actions.append(self._action(
+                        12 if explorer else 8, "gather", item=item, quantity=qty))
+        # Unknown cities are enticing to an explorer. The optimiser travels
+        # for trade opportunities, but is willing to try unfamiliar roads too.
+        if load <= 12:
+            unknown = [city for city in CITIES if city not in v.discovered_cities]
+            for city in unknown:
+                if city != v.city:
+                    actions.append(self._action(
+                        (19 if explorer else 5), "travel", destination=city))
+            if v.city != CAPITAL:
+                actions.append(self._action(
+                    10 if explorer else (20 if sum(q for _, q in v.inventory) else 9),
+                    "travel", destination=CAPITAL))
+            elif explorer and len(v.discovered_cities) == len(CITIES):
+                for city in CITIES:
+                    if city != CAPITAL:
+                        actions.append(self._action(5, "travel", destination=city))
+        if (explorer and v.stamina >= 30 and v.hp >= v.max_hp - 3
+                and v.city == CAPITAL and self.rng.random() < p.risk * 0.12):
+            # Offline playtest combat targets ONLY baseline NPC adventurers.
+            targets = [target for target in v.opponents
+                       if target.startswith("adventurer_")]
+            if targets:
+                actions.append(self._action(
+                    7, "attack", defender_id=self.rng.choice(targets)))
+        return actions
