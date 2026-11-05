@@ -167,6 +167,8 @@ class MultiplayerGame:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
         if "secure_roll" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
+        if "server_clock" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
         # Keep RNG secret out of public API responses and source-controlled seed.
         # Existing journals replay old results with their historical RNG; only
         # newly committed actions opt in to the keyed outcome algorithm.
@@ -175,6 +177,11 @@ class MultiplayerGame:
             (secrets.token_bytes(32),))
         self._rng_key = self.db.execute(
             "SELECT value FROM world_meta WHERE name='rng_key'").fetchone()[0]
+        self.db.execute(
+            "INSERT OR IGNORE INTO world_meta(name,value) VALUES('clock_anchor', ?)",
+            (str(int(time.time())).encode(),))
+        self._clock_anchor = int(self.db.execute(
+            "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -204,8 +211,9 @@ class MultiplayerGame:
         registered = set()
         rows = self.db.execute(
             "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
-            "flee_success, secure_roll FROM world_journal ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id, recorded_at, flee_success, secure_roll in rows:
+            "flee_success, secure_roll, server_clock FROM world_journal ORDER BY seq").fetchall()
+        for (kind, actor_id, action, payload, request_id, recorded_at,
+             flee_success, secure_roll, server_clock) in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -246,7 +254,8 @@ class MultiplayerGame:
                     self.world._private_rng_key = None
             elif kind == "advance":
                 minutes = params.get("minutes")
-                if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
+                if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
+                        or server_clock not in (None, 0, 1)):
                     raise ValueError("Invalid journal time advancement")
                 self.world.advance(minutes)
             else:
@@ -361,6 +370,13 @@ class MultiplayerGame:
                     "UPDATE registration_invites SET redeemed_by=? "
                     "WHERE digest=? AND redeemed_by IS NULL",
                     (actor_id, _digest(invite)))
+            # New worlds may be idle for days before their first account joins.
+            # Start the wall-clock timeline at the first actual registration.
+            if len(self.names) == 1:
+                self._clock_anchor = int(time.time())
+                self.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
+                    (str(self._clock_anchor).encode(),))
             self.db.execute(
                 "INSERT INTO world_journal(kind, actor_id, payload, recorded_at) "
                 "VALUES('join', ?, ?, ?)",
@@ -442,11 +458,53 @@ class MultiplayerGame:
             "SELECT kind, action, payload, result_json FROM world_journal "
             "WHERE actor_id=? AND request_id=?", (actor_id, request_id)).fetchone()
 
+    def _tick_world_clock(self) -> None:
+        """Reconcile trusted server wall time in capped, replayable increments.
+
+        World time may be advanced by the server's own clock, never by an
+        untrusted HTTP request. The development override retains historical
+        fast-forward behavior so existing demos/tests can move time quickly.
+        """
+        if self.dev_fast_forward:
+            return
+        with self._lock:
+            if not self.names:
+                return
+            now = int(time.time())
+            minutes = min(max(0, now - self._clock_anchor) // 60, ADVANCE_LIMIT)
+            if minutes == 0:
+                return
+            old_anchor = self._clock_anchor
+            new_anchor = old_anchor + minutes * 60
+            actor_id = next(iter(self.names))
+            prior_events = len(self.world.events)
+            timestamp = datetime.now(timezone.utc).isoformat()
+            def perform():
+                self._count_journal()
+                self.world.advance(minutes)
+                self.db.execute(
+                    "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
+                    "result_json,recorded_at,server_clock) "
+                    "VALUES('advance',?,?,?,?,?,1)",
+                    (actor_id, _canonical({"minutes": minutes}),
+                     f"__clock__:{old_anchor}", "null", timestamp))
+                self.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
+                    (str(new_anchor).encode(),))
+                for event in self.world.events[prior_events:]:
+                    self.event_times[event.event_id] = timestamp
+            self._tx(perform)
+            self._clock_anchor = new_anchor
+
     def _run(self, actor_id: str, kind: str, name: str | None,
              params: dict, request_id: str):
         if (not isinstance(request_id, str) or not 1 <= len(request_id) <= 80
+                or request_id.startswith("__clock__:")
                 or not isinstance(params, dict)):
             raise ActionError("Invalid command")
+        self._tick_world_clock()
+        if kind == "advance" and not self.dev_fast_forward:
+            raise ActionError("World time advances automatically; manual fast-forward is disabled")
         payload = _canonical(params)
         if len(payload) > 8192:
             raise ActionError("Command exceeds size limit")
@@ -608,12 +666,14 @@ class MultiplayerGame:
         }
 
     def social_snapshot(self, actor_id: str) -> dict:
+        self._tick_world_clock()
         with self._lock:
             if actor_id not in self.names:
                 raise AuthError("Unknown account")
             return self._social_view(actor_id)
 
     def next_activity_revision(self, since: int, timeout: float = 12.0) -> int:
+        self._tick_world_clock()
         with self._activity_changed:
             self._refresh_presence()
             if since == self._revision:
@@ -628,6 +688,7 @@ class MultiplayerGame:
         self._event_slots.release()
 
     def snapshot(self, actor_id: str):
+        self._tick_world_clock()
         with self._lock:
             if actor_id not in self.names:
                 raise AuthError("Unknown account")
