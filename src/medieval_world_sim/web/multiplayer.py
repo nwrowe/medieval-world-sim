@@ -209,7 +209,8 @@ class MultiplayerGame:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
             previous_clock_anchor = self._clock_anchor
-            previous_npc_memory = deepcopy(self._npc_memories)
+            previous_npc_memory = (deepcopy(self._npc_memories)
+                                   if self.npc_enabled else None)
             previous_npc_due = dict(self._npc_due)
             # Only the outer durable transaction may elide the nested
             # WorldEngine.atomic_action rollback copy. We still restore
