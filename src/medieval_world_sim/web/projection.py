@@ -242,8 +242,12 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             if quantity and item in RAW_RESOURCES:
                 trade_goods_value += quantity * w.regional_quote(
                     storage_city, item).player_sell_price
+    stored_equipment_value = sum(
+        suggested_value(w.gear[gid])
+        for ids in actor.stored_gear.values() for gid in ids)
     net_worth = (actor.gold + property_value + facility_value + vehicle_value
-                 + trade_goods_value + sum(item["value"] for item in owned_gear))
+                 + trade_goods_value + sum(item["value"] for item in owned_gear)
+                 + stored_equipment_value)
     housing_data = {
         **asdict(housing),
         "facilities": list(housing.facilities),
