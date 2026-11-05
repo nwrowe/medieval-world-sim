@@ -155,7 +155,12 @@ class MultiplayerGame:
         self.db.execute("BEGIN IMMEDIATE")
 
     def _tx(self, action):
-        """Both SQL persistence and world mutation succeed, or neither does."""
+        """Atomically commit SQL and world state under a single rollback owner.
+
+        Inspect the journal revision BEFORE committing. A post-commit query
+        failure must never trigger in-memory rollback of already-durable gold,
+        gear or escrow mutations.
+        """
         with self._lock:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
@@ -174,16 +179,10 @@ class MultiplayerGame:
                 # commit together, or all roll back with the world state.
                 ledger.persist(self)
                 checkpoint.save(self)
-                self.db.execute("COMMIT")
-                # Deduplicated command retries do not append a journal row:
-                # they must not manufacture new activity revisions.
+                # No database reads or changes should be needed after COMMIT.
                 revision = self.db.execute(
                     "SELECT COUNT(*) FROM world_journal").fetchone()[0]
-                if revision != self._journal_count:
-                    self._journal_count = revision
-                    self._revision += 1
-                    self._activity_changed.notify_all()
-                return result
+                self.db.execute("COMMIT")
             except BaseException:
                 try:
                     self.db.execute("ROLLBACK")
@@ -196,6 +195,13 @@ class MultiplayerGame:
                 raise
             finally:
                 self.world._durable_tx_owns_rollback = False
+            # Notification is deliberately outside the rollback handler:
+            # committed SQLite transactions cannot be undone in memory.
+            if revision != self._journal_count:
+                self._journal_count = revision
+                self._revision += 1
+                self._activity_changed.notify_all()
+            return result
 
     @staticmethod
     def _validate_registration(username, password, display_name):
