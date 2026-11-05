@@ -129,6 +129,7 @@ class MultiplayerGame:
         """Replay the existing SQLite journal into the authoritative world."""
         journal.load_world(self)
 
+    @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
         return hashlib.sha256((actor_id + ":" + request_id).encode("utf-8")).hexdigest()
 
