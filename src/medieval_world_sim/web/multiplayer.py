@@ -110,7 +110,35 @@ class MultiplayerGame:
             self.db.close()
             raise
 
+    def start_npc_loop(self) -> None:
+        """Operator-owned clock worker; only the server starts it."""
+        if not self.npc_enabled or self.dev_fast_forward:
+            return
+        with self._lock:
+            if self._npc_thread is not None:
+                return
+            self._npc_stop.clear()
+            self._npc_thread = threading.Thread(
+                target=self._npc_clock_worker, name="oathmere-npcs", daemon=True)
+            self._npc_thread.start()
+
+    def _npc_clock_worker(self) -> None:
+        # World time is still strictly the trusted clock, not this thread's
+        # wake-up cadence. With no signed-up players the clock stays frozen.
+        while not self._npc_stop.wait(15):
+            try:
+                self._tick_world_clock()
+            except Exception:
+                # Stop on ledger/journal errors instead of replaying a
+                # partially failed operation forever.
+                logging.exception("Server NPC clock stopped after an update failure")
+                return
+
     def close(self):
+        self._npc_stop.set()
+        worker = self._npc_thread
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=5)
         with self._lock:
             self.db.close()
 
