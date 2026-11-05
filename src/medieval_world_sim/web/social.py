@@ -13,6 +13,35 @@ from typing import TYPE_CHECKING
 from ..systems.cooldowns import remaining
 from .projection import activity_projection
 
+MAX_ACTIVITY_CACHE = 32
+
+
+def cached_activity(game: MultiplayerGame, actor_id: str) -> dict:
+    """Return an actor's scoped Chronicle, roster and duel at journal revision.
+
+    Only committed world changes invalidate the data. Ephemeral presence
+    changes use a copy-on-projection overlay rather than rebuilding Chronicle
+    history or mutating entries other clients might later receive.
+
+    Call only while holding MultiplayerGame's shared lock.
+    """
+    cached = game._live_activity_cache.get(actor_id)
+    if cached is None or cached[0] != game._journal_count:
+        events, duel, users = activity_projection(
+            game.world, actor_id, game.names[actor_id], game.npc_names,
+            game.names, game.event_times, True)
+        fresh = {
+            "events": events, "duel": duel,
+            "last_duel": game.world.state.last_duels.get(actor_id),
+            "users": users,
+        }
+        game._live_activity_cache[actor_id] = (game._journal_count, fresh)
+        if len(game._live_activity_cache) > MAX_ACTIVITY_CACHE:
+            game._live_activity_cache.pop(next(iter(game._live_activity_cache)))
+        return fresh
+    return cached[1]
+
+
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
 
@@ -45,14 +74,14 @@ def social_view(game: MultiplayerGame, actor_id: str,
                 projection: dict | None = None) -> dict:
     """Account-scoped streaming data; never broadcast raw world state."""
     if projection is None:
-        events, duel, users = activity_projection(
-            game.world, actor_id, game.names[actor_id], game.npc_names,
-            game.names, game.event_times, True)
+        activity = cached_activity(game, actor_id)
         actor_state = game.world.actors[actor_id]
         now = game.world.minute
         projection = {
-            "users": users, "events": events, "duel": duel,
-            "last_duel": game.world.state.last_duels.get(actor_id),
+            "users": [dict(user) for user in activity["users"]],
+            "events": list(activity["events"]),
+            "duel": activity["duel"],
+            "last_duel": activity["last_duel"],
             "player": {
                 "health_next_sim_seconds": (
                     (3 - now % 3) * 60 if actor_state.hp < actor_state.max_hp else None),
