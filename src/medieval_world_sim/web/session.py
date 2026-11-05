@@ -335,15 +335,18 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 12) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 13) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
+            self.world._health_regen_version = (
+                1 if record.get("ruleset", 1) < 12 else 2)
             self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
             try:
                 self._advance_world(record["minutes"])
             finally:
                 self.world._legacy_health_regen = False
+                self.world._health_regen_version = 2
                 self.world._legacy_equipment_wear = False
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
@@ -410,6 +413,8 @@ class GameSession:
                 "leave_guild", "claim_merit", "buy_merit_upgrade"
             }:
                 ruleset = 6
+            if record["kind"] == "advance":
+                ruleset = 12
             if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
                 ruleset = 8
             if record.get("name") == "enroll_course":
@@ -750,8 +755,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "defeated_until": actor.defeated_until,
             "road_charm": actor.magic.road_charm,
             "ward_charge": actor.magic.ward_charge,
-            # Simulation seconds: the world currently advances on player actions,
-            # not elapsed real time. The client must label these honestly.
+            # Durations are whole simulation minutes. The multiplayer client
+            # subtracts the trusted server clock's partial minute for tooltips.
             "stamina_next_sim_seconds": (
                 (5 - now % 5) * 60 if actor.stamina < actor.max_stamina else None),
             "mana_next_sim_seconds": (
@@ -759,7 +764,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "health_next_sim_seconds": (
                 (actor.defeated_until - now) * 60
                 if actor.hp <= 0 and actor.defeated_until is not None else
-                (10 - now % 10) * 60 if 0 < actor.hp < actor.max_hp else None),
+                (3 - now % 3) * 60 if 0 < actor.hp < actor.max_hp else None),
 
         },
         "cities": places,
