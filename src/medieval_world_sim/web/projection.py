@@ -313,6 +313,9 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "attuned_paths": list(actor.magic.attuned_paths),
             "inventory": dict(actor.inventory),
             "stored_here": dict(actor.storage.get(actor.city, {})),
+            "stored_gear_cities": {
+                city: len(ids) for city, ids in actor.stored_gear.items()
+            },
             "storage_cities": {
                 city: sum(contents.values())
                 for city, contents in actor.storage.items()
