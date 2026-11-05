@@ -80,9 +80,9 @@ class HeuristicCritic:
         counts = Counter(x["action"] for x in recent)
         errors = [x for x in recent if not x["ok"]]
         spent = sum(x["gold_delta"] for x in recent)
-        progress = sum(x["gold_delta"] > 0 or x["level_delta"] > 0
-                       or x["discovered"] or "magic_practiced" in x["events"]
-                       or "course_completed" in x["events"]
+        progress = sum(bool(x["gold_delta"] > 0 or x["level_delta"] > 0
+                            or x["discovered"] or "magic_practiced" in x["events"]
+                            or "course_completed" in x["events"])
                        for x in recent)
         variety = len(counts)
         dominant = max(counts.values(), default=0)
