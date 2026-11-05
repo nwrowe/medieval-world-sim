@@ -535,6 +535,7 @@ class MultiplayerGame:
                 "stamina": actor.stamina, "max_stamina": actor.max_stamina,
                 "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
                 "gold": actor.gold, "city": actor.city,
+                "defeated_until": actor.defeated_until,
                 "destination": actor.destination,
                 "arrival_minute": actor.arrival_minute,
                 "cooldowns": {
