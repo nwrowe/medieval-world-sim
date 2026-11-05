@@ -52,13 +52,35 @@ def activity_delta(previous: dict | None, current: dict) -> dict:
     """
     if previous is None:
         return current
-    return {
+    changed = {
         "actor_id": current["actor_id"],
         "revision": current["revision"],
         **{key: value for key, value in current.items()
            if key not in ("actor_id", "revision")
            and previous.get(key) != value},
     }
+    # A simple foreground/away/offline transition must not resend every
+    # character's city, HP and combat eligibility. Send just the changed
+    # presence IDs; when anything else changes use the full authorized roster.
+    prior_users, new_users = previous.get("users"), current.get("users")
+    if ("users" in changed and isinstance(prior_users, list)
+            and isinstance(new_users, list)
+            and len(prior_users) == len(new_users)):
+        updates = []
+        for old, new in zip(prior_users, new_users):
+            without_presence = lambda user: {
+                key: value for key, value in user.items() if key != "presence"
+            }
+            if without_presence(old) != without_presence(new):
+                break
+            if old.get("presence") != new.get("presence"):
+                updates.append({"id": new["id"],
+                                "presence": new.get("presence", "offline")})
+        else:
+            changed.pop("users")
+            if updates:
+                changed["presence_updates"] = updates
+    return changed
 
 
 class GameHTTPServer(ThreadingHTTPServer):
