@@ -376,29 +376,46 @@ class RuleBasedPolicy:
         choices: list[Candidate] = []
         for gid, kind, quality in v.gear:
             slot = GEAR[kind].slot
-            if slot not in equipped:
+            equipped_id = equipped.get(slot)
+            current_quality = next((q for current_gid, _, q in v.gear
+                                    if current_gid == equipped_id), -1)
+            if equipped_id is None or quality >= current_quality + 10:
                 choices.append(self._action(22, "equip", gear_id=gid))
         # The autonomous "attack" action uses the primary weapon slot.
         # A secondary-slot dagger is useful for turn-based attacks but does
         # not increase the damage of this NPC-only automatic strike.
-        if not any(k in owned for k in ("sword", "axe", "bow")):
+        main_kinds = ("sword", "axe", "bow")
+        best_weapon = max((q for _, kind, q in v.gear
+                           if kind in main_kinds), default=0)
+        if best_weapon == 0:
             if v.gold >= GEAR["sword"].base_value:
                 choices.append(self._action(16, "buy_starter_gear", kind="sword"))
             elif "dagger" not in owned and v.gold >= GEAR["dagger"].base_value:
                 choices.append(self._action(15, "buy_starter_gear", kind="dagger"))
-            for offer in v.local_offers():
-                if offer.gear_id is not None and offer.item in ("sword", "axe", "bow") and (
-                    offer.price <= v.gold * 0.5):
-                    choices.append(self._action(
-                        23 - offer.price / 50, "accept_offer", buyer_id=v.id,
-                        offer_id=offer.id, quantity=1))
-        if not any(k in owned for k in ("leather_armor", "plate_armor")):
-            for offer in v.local_offers():
-                if offer.gear_id is not None and offer.item in ("leather_armor", "plate_armor") and (
-                    offer.price <= v.gold * 0.45):
-                    choices.append(self._action(
-                        21 - offer.price / 75, "accept_offer", buyer_id=v.id,
-                        offer_id=offer.id, quantity=1))
+        # Starter equipment is low quality and should not crowd the real
+        # player/NPC-crafted market out of existence. Buy only a meaningful
+        # quality upgrade, not an endless series of same-grade weapons.
+        for offer in v.local_offers():
+            if (offer.gear_id is not None and offer.item in main_kinds
+                    and offer.quality is not None
+                    and offer.quality >= best_weapon + 10
+                    and offer.price <= v.gold * 0.5
+                    and len(v.gear) < 5):
+                choices.append(self._action(
+                    23 - offer.price / 50, "accept_offer", buyer_id=v.id,
+                    offer_id=offer.id, quantity=1))
+        best_armor = max((q for _, kind, q in v.gear
+                          if kind in ("leather_armor", "plate_armor")), default=0)
+        for offer in v.local_offers():
+            if (offer.gear_id is not None
+                    and offer.item in ("leather_armor", "plate_armor")
+                    and offer.quality is not None
+                    and offer.quality >= best_armor + 10
+                    and offer.price <= v.gold * 0.45
+                    and len(v.gear) < 5):
+                choices.append(self._action(
+                    21 - offer.price / 75, "accept_offer", buyer_id=v.id,
+                    offer_id=offer.id, quantity=1))
         return choices
 
 
