@@ -311,7 +311,11 @@ class RuleBasedPolicy:
         if v.minute < v.ready_minute:
             return []
         recipe = RECIPES[c.industry]
-        if all(c.stock(item) >= qty for item, qty in recipe.inputs.items()) and c.gold >= 2:
+        actual_wage = next((wage for worker, wage, _ in c.employee_pay
+                            if worker == v.id), None)
+        if (actual_wage is not None
+                and all(c.stock(item) >= qty for item, qty in recipe.inputs.items())
+                and c.gold >= actual_wage + c.training_fee):
             return [self._action(16, "shift", company_id=c.id)]
         return []
 
