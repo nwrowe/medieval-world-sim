@@ -54,6 +54,15 @@ class NPCView:
     opponents: tuple[str, ...]
     regional_quotes: tuple[RegionalQuote, ...]
     capital_quotes: tuple[RegionalQuote, ...]
+    # Optional test-agent progression fields; legacy economy observations are cheap.
+    discovered_cities: tuple[str, ...] = ()
+    level: int = 1
+    mana: int = 100
+    contracts: tuple[str, ...] = ()
+    magic_eligible: tuple[str, ...] = ()
+    magic_practice: tuple[tuple[str, int], ...] = ()
+    courses: tuple[tuple[str, int, int], ...] = ()
+    studying: bool = False
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
@@ -70,7 +79,7 @@ class NPCView:
                      and (item is None or o.item == item))
 
 
-def observe(world, actor_id: str) -> NPCView:
+def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCView:
     """Copy only public decision inputs, not mutable Actor/Company/World objects."""
     actor = world.actors[actor_id]
     offers = tuple(OfferView(
@@ -90,6 +99,28 @@ def observe(world, actor_id: str) -> NPCView:
     opponents = tuple(sorted(a.id for a in world.actors.values()
                              if a.id != actor.id and a.city == actor.city
                              and a.destination is None and a.hp > 0))
+    contracts: tuple[str, ...] = ()
+    eligible: tuple[str, ...] = ()
+    practice: tuple[tuple[str, int], ...] = ()
+    courses: tuple[tuple[str, int, int], ...] = ()
+    studying = False
+    if include_progression:
+        contracts = tuple(contract['id'] for contract in world.city_contracts.view(actor_id)
+                          if contract['can_pay'] and contract['cooldown_available']
+                          and contract['has_material']
+                          and actor.stamina >= contract['stamina']
+                          and actor.magic.mana >= contract['mana'])
+        nodes = world.magic_tree(actor_id)
+        eligible = tuple(node.node_id for node in nodes if node.eligible)
+        practice = tuple((node.node_id, node.mana_cost) for node in nodes
+                         if node.active and node.tier > 0)
+        curriculum = world.curriculum_system.view(actor_id)
+        studying = curriculum['active'] is not None
+        if not studying:
+            courses = tuple((school['id'], idx, course['tuition'])
+                            for school in curriculum['schools']
+                            for idx, course in enumerate(school['courses'])
+                            if course['available'] and idx == 0)
     return NPCView(
         actor.id, actor.city, actor.destination, actor.gold,
         tuple(sorted(actor.inventory.items())),
@@ -101,5 +132,7 @@ def observe(world, actor_id: str) -> NPCView:
         tuple(sorted(world.cities[actor.city].deposits.items())),
         offers, companies, opponents,
         tuple(world.regional_quote(actor.city, good) for good in sorted(BASE_LOCAL_ASK)),
-        tuple(world.regional_quote("crownreach", good) for good in sorted(BASE_LOCAL_ASK))
+        tuple(world.regional_quote("crownreach", good) for good in sorted(BASE_LOCAL_ASK)),
+        tuple(sorted(actor.discovered_cities)), actor.level, actor.magic.mana,
+        contracts, eligible, practice, courses, studying,
     )
