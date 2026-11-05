@@ -10,7 +10,7 @@ rules-based utility policy and are not connected to real user accounts.
 1. **Action selection:** Read-only observations → needs (health, hunger,
    fatigue, finances, curiosity) → profession/persona candidates → utility
    scores modified by personality, bounded recent memory, Gaussian RNG →
-   a validated \`WorldEngine.execute(actor_id, action, params, request_id)\`.
+   a validated `WorldEngine.execute(actor_id, action, params, request_id)`.
 2. **Learning:** A bounded, 48-decision trace per character learns action-family
    payoffs and repeated failure penalties. It cannot change stats, money,
    inventory, combat calculations or permissions. This is a small EMA, not RL.
@@ -43,14 +43,14 @@ server AI.
 
 No third-party packages or external API credentials are needed:
 
-\`\`\`bash
+```bash
 python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 42 --playtest --reflect-every 30 --report-file playtest-feedback.json
 python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 43 --playtest --json
-\`\`\`
+```
 
-The \`--npcs\` flag counts *ordinary* NPCs. \`--playtest\` adds exactly two
+The `--npcs` flag counts *ordinary* NPCs. `--playtest` adds exactly two
 avatars, each starting at level 1 with 240 gold in Crownreach. The
-\`--reflect-every\` interval counts meaningful attempted actions; major
+`--reflect-every` interval counts meaningful attempted actions; major
 events may also trigger reflection after at least five new decisions.
 The runner produces final reflections at session end. World advancement is
 still the configured accelerated step, not an always-running hosted service.
@@ -60,16 +60,16 @@ still the configured accelerated step, not an always-running hosted service.
 To send the limited *test telemetry* (NOT real account secrets) to an external
 model, explicitly provide a model and API key:
 
-\`\`\`bash
+```bash
 export OPENAI_API_KEY="YOUR_KEY"
 python -m medieval_world_sim.agents.demo --npcs 28 --days 8 --seed 42 --playtest --llm-model YOUR_SUPPORTED_MODEL --report-file playtest-feedback.json
-\`\`\`
+```
 
 This optional connector uses a fixed HTTPS endpoint, a short timeout, a
 bounded JSON response and a strictly validated structured schema. It can
 incur model-usage charges. Model availability and model-specific parameter
 support must be confirmed before using a real provider. Network/API errors
-fall back to local telemetry and are reported as \`critic_errors\`. No
+fall back to local telemetry and are reported as `critic_errors`. No
 automatic model calls occur without this explicit option.
 
 ### What a structured result means
