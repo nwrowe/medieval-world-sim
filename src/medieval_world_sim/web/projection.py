@@ -280,6 +280,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                            "local raw-goods resale quotes (including city storage), "
                            "and estimated equipment value",
         "gear": owned_gear,
+        "stored_gear_here": stored_gear_here,
         "equipment_catalog": gear_catalog,
         "world_items": world_items,
         "guilds": w.guild_system.view(actor_id),
