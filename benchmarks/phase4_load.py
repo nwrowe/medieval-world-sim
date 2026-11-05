@@ -74,7 +74,8 @@ def measure(users: int = 8, actions: int = 12, concurrency: int = 8) -> dict:
         game = MultiplayerGame(db, require_invites=False, dev_fast_forward=True)
         credentials = [
             game.register_and_login(
-                "user" + str(i), "benchmark only password", "Test Player " + str(i))
+                "user" + str(i), "benchmark only password",
+                "Test Player " + chr(65 + i // 26) + chr(65 + i % 26))
             for i in range(users)
         ]
         tasks = [(i, j) for j in range(actions) for i in range(users)]
