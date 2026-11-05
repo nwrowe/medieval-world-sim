@@ -19,6 +19,7 @@ import uuid
 
 from ..errors import ActionError
 from .session import START_CITY
+from ..content.lineages import LINEAGES
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
@@ -83,9 +84,12 @@ def issue_invites(game: MultiplayerGame, count: int = 1) -> list[str]:
 
 
 def register(game: MultiplayerGame, username: str, password: str, display_name: str,
-             invite: str | None, encode_json: Callable[[object], str]) -> str:
+             invite: str | None, encode_json: Callable[[object], str],
+             lineage: str = "human") -> str:
     username, display_name = game._validate_registration(
         username, password, display_name)
+    if not isinstance(lineage, str) or lineage not in LINEAGES:
+        raise ActionError("Choose a valid lineage")
     salt = secrets.token_bytes(16)
     hashed = _password_hash(password, salt)
     actor_id = "player:" + uuid.uuid4().hex
@@ -111,7 +115,7 @@ def register(game: MultiplayerGame, username: str, password: str, display_name: 
                 (actor_id, username, display_name, salt, hashed, int(time.time())))
         except sqlite3.IntegrityError:
             raise ActionError("Username or character name is already taken") from None
-        game._join_actor(actor_id, START_CITY)
+        game._join_actor(actor_id, START_CITY, lineage)
         game.names[actor_id] = display_name
         if game.require_invites:
             game.db.execute(
@@ -128,7 +132,7 @@ def register(game: MultiplayerGame, username: str, password: str, display_name: 
         game.db.execute(
             "INSERT INTO world_journal(kind, actor_id, payload, recorded_at) "
             "VALUES('join', ?, ?, ?)",
-            (actor_id, encode_json({"city": START_CITY}),
+            (actor_id, encode_json({"city": START_CITY, "lineage": lineage}),
              datetime.now(timezone.utc).isoformat()))
         return actor_id
     try:
@@ -169,8 +173,8 @@ def login(game: MultiplayerGame, username: str, password: str) -> tuple[str, str
 
 
 def register_and_login(game: MultiplayerGame, username: str, password: str, display_name: str,
-                       invite: str | None = None) -> tuple[str, str]:
-    actor_id = game.register(username, password, display_name, invite)
+                       invite: str | None = None, lineage: str = "human") -> tuple[str, str]:
+    actor_id = game.register(username, password, display_name, invite, lineage)
     with game._lock:
         return game._issue_session(actor_id)
 
