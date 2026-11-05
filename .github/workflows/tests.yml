@@ -32,6 +32,12 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m unittest discover -s tests -v
+      - name: Measure concurrent multiplayer performance (observational)
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m benchmarks.phase4_multiplayer --accounts 40 --requests 80 --workers 12 --views 32
+          python -m benchmarks.phase4_multiplayer --accounts 80 --requests 120 --workers 16 --views 32
       - name: Smoke test CLI
         env:
           PYTHONPATH: src
