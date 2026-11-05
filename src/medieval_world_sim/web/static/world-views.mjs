@@ -267,7 +267,7 @@ export function createWorldViews(ctx) {
       "Requires Insight";
     let control;
     if (node.unlocked) {
-      control = button(higherUnlocked ? "Mastered" : "Practice · " + node.mana_cost + " mana",
+      control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
         disabled(higherUnlocked || !node.active || isBusy() || p.mana < node.mana_cost),
         higherUnlocked ? "ghost" : "secondary") +
