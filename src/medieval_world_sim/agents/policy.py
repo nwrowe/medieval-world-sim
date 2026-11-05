@@ -14,7 +14,8 @@ from ..equipment import GEAR
 from .cognition import NPCMemory, Needs
 from ..core.entities import Wage
 from .observation import NPCView
-from .planning import deliver_route, route_candidates
+from .planning import deliver_route, recover_route, route_candidates
+from ..systems.combat import ATTACK_STAMINA_COST
 
 
 BASE_PRICES = {
@@ -94,13 +95,32 @@ class RuleBasedPolicy:
         # A funded purchase commits the Optimizer to delivering its cargo.
         # While a sale is temporarily blocked by city quota or liquidity, it
         # may work locally but cannot trade away or abandon that cargo.
-        committed = (profile.role == "playtester" and
-                     profile.persona == "optimizer" and memory is not None
+        committed = (profile.role == "playtester" and memory is not None
                      and memory.active_route is not None)
         if committed:
-            next_leg = deliver_route(view, memory.active_route)
+            route = memory.active_route
+            next_leg = deliver_route(view, route)
             if next_leg:
-                return NPCAction(next_leg.name, next_leg.params)
+                # A completed route uses the actual quoted bid. If a now
+                # depleted market produces a losing sale, hold for recovery.
+                if next_leg.name != "regional_sell" or (
+                        view.regional_quote(route.item).player_sell_price
+                        * route.remaining + route.revenue >= route.cost):
+                    return NPCAction(next_leg.name, next_leg.params)
+            recovery = recover_route(view, route)
+            if recovery:
+                return NPCAction(recovery.name, recovery.params)
+        cargo = sum(q for _, q in view.inventory) + len(view.gear)
+        if cargo > view.travel_cargo_limit:
+            excluded = {memory.active_route.item} if committed else set()
+            storable = sorted(
+                ((q, item) for item, q in view.inventory
+                 if q and item not in excluded), reverse=True)
+            if storable:
+                count, item = storable[0]
+                return NPCAction("store_goods", {
+                    "item": item,
+                    "quantity": min(count, cargo - view.travel_cargo_limit)})
         method = {
             "gatherer": self._gatherer,
             "hauler": self._hauler,
@@ -112,6 +132,8 @@ class RuleBasedPolicy:
         if method is None:
             raise ValueError(f"Unknown NPC role: {profile.role}")
         candidates = method(profile, view)
+        if profile.role in ("adventurer", "playtester"):
+            candidates.extend(self._combat_candidates(profile, view, memory))
         if committed:
             candidates = [candidate for candidate in candidates if
                           candidate.action.name not in
@@ -122,7 +144,7 @@ class RuleBasedPolicy:
         # Greedy most often, but distinct personalities sometimes explore
         # less-rewarding valid actions. A Gaussian gives bounded-in-practice
         # score noise (rather than uniformly selecting nonsensical actions).
-        if len(candidates) > 1 and self.rng.random() < profile.curiosity * 0.20:
+        if len(candidates) > 1 and self.rng.random() < profile.curiosity * 0.12:
             return self.rng.choice(candidates).action
         needs = Needs.from_view(view, profile.curiosity)
         def utility(candidate: Candidate) -> float:
@@ -293,6 +315,40 @@ class RuleBasedPolicy:
             return [self._action(16, "shift", company_id=c.id)]
         return []
 
+    def _combat_candidates(self, p: NPCProfile, v: NPCView,
+                           memory: NPCMemory | None) -> list[Candidate]:
+        """Risk-aware, strictly simulation-NPC targets; no hidden player data.
+
+        Combat rewards XP on every valid strike but loot is limited and only
+        awarded on victory. Spread targets out to avoid a 6-hour spawn camp.
+        """
+        if (v.stamina < ATTACK_STAMINA_COST or v.hp < max(14, v.max_hp * .8)
+                or not v.combat_targets):
+            return []
+        if p.role == "playtester" and memory is not None:
+            cap = 0.23 if p.persona == "explorer" else 0.13
+            if memory.attempts.get("attack", 0) >= max(
+                    1, int(memory.decision_count * cap)):
+                return []
+        recent = {x.target for x in list(memory.recent)[-10:]
+                  if x.action == "attack" and v.minute - x.minute < 1440} if memory else set()
+        armed = "weapon" in dict(v.equipped)
+        targets = [t for t in v.combat_targets if (
+            t.id not in recent and
+            t.hp <= v.hp * (1.35 if armed else 0.85) and
+            t.level <= v.level + (1 if armed else 0))]
+        if not targets:
+            return []
+        targets.sort(key=lambda x: (x.hp, x.armed, x.level, x.id))
+        chosen = targets[:3]
+        score = (18 if p.role == "adventurer" else
+                 17 if p.persona == "explorer" else 15)
+        # The agent values leveling as well as loot, while equipment makes
+        # taking a risk more attractive; low health always takes priority.
+        return [self._action(score - i * .5 + (1.5 if armed else 0),
+                             "attack", defender_id=t.id)
+                for i, t in enumerate(chosen)]
+
     def _adventurer(self, p: NPCProfile, v: NPCView) -> list[Candidate]:
         if v.city != CAPITAL:
             return [self._action(12, "travel", destination=CAPITAL)]
@@ -304,7 +360,9 @@ class RuleBasedPolicy:
                 "body" if kind in ("leather_armor", "plate_armor") else None)
             if slot and slot not in equipped:
                 choices.append(self._action(18, "equip", gear_id=gid))
-        if not any(k in owned for k in ("sword", "axe", "bow")):
+        if not any(k in owned for k in ("sword", "axe", "bow", "dagger")):
+            if v.gold >= GEAR["dagger"].base_value:
+                choices.append(self._action(17, "buy_starter_gear", kind="dagger"))
             for offer in v.local_offers():
                 if offer.gear_id is not None and offer.item in ("sword", "axe", "bow") and (
                     offer.price <= v.gold * 0.5):
@@ -318,13 +376,6 @@ class RuleBasedPolicy:
                     choices.append(self._action(
                         11 - offer.price / 75, "accept_offer", buyer_id=v.id,
                         offer_id=offer.id, quantity=1))
-        if (v.stamina >= 20 and v.hp >= 16
-                and self.rng.random() < p.risk * 0.07):
-            # Combatants fight consenting-to-risk occupations within the
-            # policy; the engine itself permits unrestricted attacks.
-            eligible = [name for name in v.opponents if name.startswith("adventurer_")]
-            if eligible:
-                choices.append(self._action(8, "attack", defender_id=self.rng.choice(eligible)))
         return choices
 
 
@@ -374,10 +425,10 @@ class RuleBasedPolicy:
             actions.append(self._action(9, "buy_starter_gear", kind="dagger"))
         # Explorer samples local markets; Optimizer trades only as a complete
         # source-to-capital route with actual profit credited on delivery.
-        if not explorer:
-            actions.extend(Candidate(option.score,
-                                     NPCAction(option.name, option.params))
-                           for option in route_candidates(v))
+        actions.extend(Candidate(
+            option.score * (.72 if explorer else 1.0),
+            NPCAction(option.name, option.params))
+            for option in route_candidates(v))
         # Finite regional prices, treasury capacity and travel cargo all apply.
         for q in v.regional_quotes:
             stock = v.stock(q.item)
@@ -387,24 +438,17 @@ class RuleBasedPolicy:
                     actions.append(self._action(
                         (15 if explorer else 21), "regional_sell", item=q.item, quantity=qty))
             capital = v.regional_quote(q.item, capital=True)
-            if (explorer and v.city != CAPITAL and q.sell_capacity and capital is not None
-                    and capital.player_sell_price > q.player_buy_price
-                    and capital.buy_capacity and v.gold >= q.player_buy_price):
-                qty = min(q.sell_capacity, v.gold // q.player_buy_price, max(0, 12 - load), 4)
-                if qty:
-                    margin = capital.player_sell_price - q.player_buy_price
-                    actions.append(self._action(
-                        (8 if explorer else 17) + min(3, margin / 2),
-                        "regional_buy", item=q.item, quantity=qty))
-        if v.minute >= v.ready_minute and load < 12:
+            # Purchases for both test personas come from route_candidates:
+            # never add an uncommitted buy action with a different policy.
+        if v.minute >= v.ready_minute and load < v.travel_cargo_limit:
             for item, available in v.deposits:
-                qty = min(2, available, 12 - load)
+                qty = min(2, available, v.travel_cargo_limit - load)
                 if qty:
                     actions.append(self._action(
                         12 if explorer else 8, "gather", item=item, quantity=qty))
         # Unknown cities are enticing to an explorer. The optimiser travels
         # for trade opportunities, but is willing to try unfamiliar roads too.
-        if load <= 12:
+        if load <= v.travel_cargo_limit:
             unknown = [city for city in CITIES if city not in v.discovered_cities]
             for city in unknown:
                 if city != v.city:
@@ -418,12 +462,4 @@ class RuleBasedPolicy:
                 for city in CITIES:
                     if city != CAPITAL:
                         actions.append(self._action(5, "travel", destination=city))
-        if (explorer and v.stamina >= 30 and v.hp >= v.max_hp - 3
-                and v.city == CAPITAL and self.rng.random() < p.risk * 0.12):
-            # Offline playtest combat targets ONLY baseline NPC adventurers.
-            targets = [target for target in v.opponents
-                       if target.startswith("adventurer_")]
-            if targets:
-                actions.append(self._action(
-                    7, "attack", defender_id=self.rng.choice(targets)))
         return actions
