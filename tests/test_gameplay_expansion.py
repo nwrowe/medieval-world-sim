@@ -105,9 +105,11 @@ class GameplayExpansionTests(unittest.TestCase):
         hero.hp = 0
         hero.defeated_until = world.minute + 60
         world.advance(40)
-        self.assertEqual(hero.hp, 0)
+        self.assertEqual(hero.hp, hero.max_hp)
+        self.assertIsNotNone(hero.defeated_until)
         world.advance(20)
         self.assertEqual(hero.hp, hero.max_hp)
+        self.assertIsNone(hero.defeated_until)
         world.assert_invariants()
 
     def test_legacy_advance_does_not_rewrite_prior_health(self):
