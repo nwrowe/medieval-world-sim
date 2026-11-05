@@ -132,6 +132,8 @@ class DuelSystem:
             if stamina_spent:
                 description += f" ({stamina_spent} stamina)"
         duel.round += 1
+        if move in ("strike", "fists", "dagger") or (move == "cast" and damage > 0):
+            duel.first_attack = True
         duel.xp_earned += max(1, damage // 4) if damage else 0
         retaliation = 0
         if defender.hp:
