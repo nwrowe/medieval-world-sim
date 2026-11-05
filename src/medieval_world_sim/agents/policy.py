@@ -14,6 +14,7 @@ from ..equipment import GEAR
 from .cognition import NPCMemory, Needs
 from ..core.entities import Wage
 from .observation import NPCView
+from .planning import deliver_route, route_candidates
 
 
 BASE_PRICES = {
@@ -90,6 +91,16 @@ class RuleBasedPolicy:
             if affordable:
                 return NPCAction("accept_offer", {
                     "buyer_id": view.id, "offer_id": affordable[0].id, "quantity": 1})
+        # A funded purchase commits the Optimizer to delivering its cargo.
+        # While a sale is temporarily blocked by city quota or liquidity, it
+        # may work locally but cannot trade away or abandon that cargo.
+        committed = (profile.role == "playtester" and
+                     profile.persona == "optimizer" and memory is not None
+                     and memory.active_route is not None)
+        if committed:
+            next_leg = deliver_route(view, memory.active_route)
+            if next_leg:
+                return NPCAction(next_leg.name, next_leg.params)
         method = {
             "gatherer": self._gatherer,
             "hauler": self._hauler,
@@ -101,6 +112,10 @@ class RuleBasedPolicy:
         if method is None:
             raise ValueError(f"Unknown NPC role: {profile.role}")
         candidates = method(profile, view)
+        if committed:
+            candidates = [candidate for candidate in candidates if
+                          candidate.action.name not in
+                          ("travel", "regional_buy", "regional_sell", "gather")]
         # Neither luck nor curiosity can bypass the engine's validation.
         if not candidates:
             return None
@@ -326,7 +341,7 @@ class RuleBasedPolicy:
             if slot not in equipped:
                 actions.append(self._action(22, "equip", gear_id=gid))
         for name in v.contracts:
-            # The optimiser focuses on immediate income, explorer tries variety.
+            # The optimiser focuses on income, explorer tries variety.
             base = 15 if not explorer else 10
             if name == "labor_shift":
                 base += 2 if not explorer else 0
@@ -352,16 +367,22 @@ class RuleBasedPolicy:
         if v.city == CAPITAL and explorer and "dagger" not in owned_kinds and (
                 v.gold >= GEAR["dagger"].base_value):
             actions.append(self._action(9, "buy_starter_gear", kind="dagger"))
+        # Explorer samples local markets; Optimizer trades only as a complete
+        # source-to-capital route with actual profit credited on delivery.
+        if not explorer:
+            actions.extend(Candidate(option.score,
+                                     NPCAction(option.name, option.params))
+                           for option in route_candidates(v))
         # Finite regional prices, treasury capacity and travel cargo all apply.
         for q in v.regional_quotes:
             stock = v.stock(q.item)
-            if stock and q.buy_capacity and q.city_gold >= q.player_sell_price:
+            if explorer and stock and q.buy_capacity and q.city_gold >= q.player_sell_price:
                 qty = min(stock, q.buy_capacity, q.city_gold // q.player_sell_price, 6)
                 if qty:
                     actions.append(self._action(
                         (15 if explorer else 21), "regional_sell", item=q.item, quantity=qty))
             capital = v.regional_quote(q.item, capital=True)
-            if (v.city != CAPITAL and q.sell_capacity and capital is not None
+            if (explorer and v.city != CAPITAL and q.sell_capacity and capital is not None
                     and capital.player_sell_price > q.player_buy_price
                     and capital.buy_capacity and v.gold >= q.player_buy_price):
                 qty = min(q.sell_capacity, v.gold // q.player_buy_price, max(0, 12 - load), 4)
