@@ -29,7 +29,7 @@ def route_candidates(view: NPCView) -> tuple[RouteOption, ...]:
     postpone or prevent liquidation.
     """
     load = sum(view.stock(k) for k, _ in view.inventory) + len(view.gear)
-    capacity = max(0, 12 - load)
+    capacity = max(0, view.travel_cargo_limit - load)
     if capacity == 0 or view.gold < 5:
         return ()
     proposals: list[RouteOption] = []
@@ -84,7 +84,7 @@ def deliver_route(view: NPCView, plan) -> RouteOption | None:
         return None
     if view.city != plan.destination:
         load = sum(q for _, q in view.inventory) + len(view.gear)
-        if load <= 12:
+        if load <= view.travel_cargo_limit:
             return RouteOption("travel", {"destination": plan.destination}, 100)
         return None
     bid = view.regional_quote(plan.item)
@@ -95,3 +95,29 @@ def deliver_route(view: NPCView, plan) -> RouteOption | None:
     if quantity <= 0:
         return None
     return RouteOption("regional_sell", {"item": plan.item, "quantity": quantity}, 100)
+
+
+def recover_route(view: NPCView, plan) -> RouteOption | None:
+    """Bounded fallback for a funded route whose destination has dried up.
+
+    Never pretend to have sold cargo. Try one other importer after three days,
+    then locally store unliquidated cargo after seven days, preserving ownership
+    and cost-basis diagnostics instead of trapping the agent indefinitely.
+    """
+    if plan is None or view.stock(plan.item) < plan.remaining:
+        return None
+    age = view.minute - plan.start_minute
+    if age >= 7 * 1440:
+        return RouteOption("store_goods", {
+            "item": plan.item, "quantity": plan.remaining}, 99)
+    if (age < 3 * 1440 or plan.recovery_attempts
+            or view.city != CAPITAL or plan.destination != CAPITAL):
+        return None
+    # The other city's bid is an estimate, not a promised sale. No private
+    # treasury balances or inaccessible inventory are observed remotely.
+    alternatives = [city for city, spec in sorted(CITIES.items())
+                    if city not in (CAPITAL, plan.source)
+                    and plan.item not in spec.deposits]
+    if not alternatives:
+        return None
+    return RouteOption("travel", {"destination": alternatives[0]}, 98)
