@@ -185,7 +185,7 @@ class MagicSystem:
         level_gain = (max(1, awarded // 2) if awarded > 0
                       and not getattr(self.world, "_legacy_magic_leveling_rules", False)
                       else 0)
-        levels = self.world.combat_system._award_level_xp(actor, level_gain)
+        levels = self.world.combat._award_level_xp(actor, level_gain)
         self.world._emit("magic_practiced", actor.id, node.id, node.school,
                          success, roll, chance, node.mana_cost,
                          awarded, state.school_xp[node.school], gained)
