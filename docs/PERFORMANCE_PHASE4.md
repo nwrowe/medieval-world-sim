@@ -55,7 +55,7 @@ world travel, market trades, battles, SSE readers and network delay.
 
 The following is **one actual GitHub Actions Linux runner sample** from the
 4-user / 6-actions / 4-worker profile on the pre-optimization main baseline
-(commit `e7ea611` lineage), not a guaranteed capacity ceiling:
+(baseline main before Phase 4 optimization; merge `66e3d07`), not a guaranteed capacity ceiling:
 
 | Measurement | Observed |
 | --- | ---: |
