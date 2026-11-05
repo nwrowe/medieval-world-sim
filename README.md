@@ -201,6 +201,13 @@ See [property and travel rules](docs/HOUSING_AND_TRANSPORT.md).
 
 **Security boundary:** Multiplayer login/cookies are served only on `127.0.0.1` in this phase. The separate single-player LAN mode uses a shared access code and HTTP; use it only on a trusted network. Neither mode is safe for public internet hosting.
 
+The multiplayer development server can now schedule its named NPCs during
+trusted world-time advances and safely persist/replay those actions and
+bounded cognition on restart. Humans retain exclusive account credentials
+and API command authority. Combat and earned magic school XP both advance
+character levels; money and combat-loot rules are unchanged. See
+[local multi-account development](docs/MULTIPLAYER_LOCAL_DEVELOPMENT.md).
+
 The project includes a **responsive browser client** for single-player and localhost multi-account development. The Python world engine remains authoritative; the browser sends the same validated actions and displays its actual prices, inventory, travel time and magic progression. A JSON action journal automatically saves after every successful action and reconstructs the world when restarted. No frontend framework or external service is needed.
 
 ```bash
