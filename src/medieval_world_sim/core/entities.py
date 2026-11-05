@@ -214,6 +214,7 @@ class DuelState:
     attacker_id: str
     defender_id: str
     round: int = 0
+    first_attack: bool = False
     pending_ward: int = 0
     xp_earned: int = 0
     log: list[str] = field(default_factory=list)
