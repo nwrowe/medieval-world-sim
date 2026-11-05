@@ -40,6 +40,7 @@ import { createWorldViews } from "/world-views.mjs";
     { id: "people", icon: "⌕", title: "Search" },
   ];
   let state = null;
+  let lineageCatalog = [];
   let tab = "character";
   let levelCelebration = null;
   let presenceTimer = null;
@@ -229,6 +230,7 @@ import { createWorldViews } from "/world-views.mjs";
       const health = await request("/api/health");
       multiMode = health.mode === "multi-account-local";
       inviteRequired = Boolean(health.invite_required);
+      lineageCatalog = Array.isArray(health.lineages) ? health.lineages : [];
       secureWorldClock = multiMode && !Boolean(health.dev_fast_forward);
       if (multiMode) {
         const account = await request("/api/auth/session");
@@ -318,6 +320,34 @@ import { createWorldViews } from "/world-views.mjs";
       { minutes: Number(minutes) }, "World time advanced");
   }
 
+  function lineagePicker() {
+    return '<fieldset class="lineage-fieldset"><legend>Choose your lineage</legend>' +
+      '<p class="lineage-intro">Your ancestry determines starting work aptitudes, ' +
+      'a modest combat advantage and a unique trait earned at level 3.</p>' +
+      '<div class="lineage-grid">' + lineageCatalog.map(spec =>
+        '<label class="lineage-option"><input type="radio" name="lineage" value="' +
+        esc(spec.id) + '" required>' +
+        '<span class="lineage-option-body"><strong>' + esc(spec.title) +
+        '</strong><small>' + esc(spec.description) + '</small>' +
+        '<span class="lineage-stats">Work: +' + spec.work[0] + ' Manual · +' +
+        spec.work[1] + ' Intellect · +' + spec.work[2] + ' Endurance' +
+        ' | Combat: +' + spec.attack + ' Attack / +' + spec.defense + ' Defense</span>' +
+        '<span class="lineage-trait">Level ' + spec.trait_level + ' trait — ' +
+        esc(spec.trait) + ': ' + esc(spec.trait_description) +
+        '</span></span></label>').join('') + '</div></fieldset>';
+  }
+
+  function lineagePromptPage() {
+    return '<div class="entry"><div class="entry-card lineage-entry">' +
+      '<div class="entry-seal">✦</div><h1>Choose your lineage</h1>' +
+      '<p>This existing character predates lineages. Choose once to gain a ' +
+      'birthright; your possessions and adventures are preserved.</p>' +
+      '<form id="lineageChoiceForm">' + lineagePicker() +
+      '<button class="button full gold" type="submit">Confirm lineage</button></form>' +
+      (multiMode ? '<button class="logout-link" data-ui="account-logout" type="button">Sign out</button>' : '') +
+      '</div></div>';
+  }
+
   function authPage() {
     if (multiMode) return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Local multi-account world</div>' +
@@ -339,6 +369,7 @@ import { createWorldViews } from "/world-views.mjs";
       'minlength="3" maxlength="24" required>' +
       '<label for="registerCharacter">Character name</label>' +
       '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
+      lineagePicker() +
       (inviteRequired ?
       '<label for="registerInvite">Invitation code</label>' +
       '<input id="registerInvite" class="field" autocomplete="off" ' +
@@ -389,14 +420,15 @@ import { createWorldViews } from "/world-views.mjs";
   function newCharacterPage() {
     return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Welcome, traveler</div>' +
-      '<h1>Your story begins here.</h1>' +
-      '<p>Five cities. Many ways to earn your fortune. Buy and sell goods, learn the arcane arts, ' +
-      'and work toward a home of your own.</p>' +
-      '<form id="newGameForm"><label class="sr" for="heroName">Character name</label>' +
+      '<h1>Your story begins in Crownreach.</h1>' +
+      '<p>Enter the royal capital as an unknown traveler. Choose your ancestry, ' +
+      'then chart the roads beyond its walls.</p>' +
+      '<form id="newGameForm"><label for="heroName">Character name</label>' +
       '<input class="field" id="heroName" maxlength="28" autocomplete="off" placeholder="Choose your character name" required>' +
+      lineagePicker() +
       '<button class="button full gold" type="submit"' + disabled(pending) +
       '>Begin your adventure</button></form>' +
-      '<p class="small">Starts in Goldmeadow with 240 gold. Your progress saves on this computer.</p>' +
+      '<p class="small">Begin in Crownreach with 240 gold. Unexplored cities are hidden on your map.</p>' +
       '</div></div>';
   }
   function offlinePage() {
@@ -955,6 +987,8 @@ import { createWorldViews } from "/world-views.mjs";
     if (authNeeded) root.innerHTML = authPage();
     else if (offline) root.innerHTML = offlinePage();
     else if (state && !state.started) root.innerHTML = newCharacterPage();
+    else if (state && state.started && !state.player.lineage_selected)
+      root.innerHTML = lineagePromptPage();
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
@@ -965,7 +999,12 @@ import { createWorldViews } from "/world-views.mjs";
     if (event.target.id === "newGameForm") {
       event.preventDefault();
       const name = document.getElementById("heroName").value.trim();
-      if (name) await send("/api/new", { name }, "Welcome to the Five Cities!");
+      const lineage = new FormData(event.target).get("lineage");
+      if (name && lineage) await send("/api/new", { name, lineage }, "Welcome to Crownreach!");
+    } else if (event.target.id === "lineageChoiceForm") {
+      event.preventDefault();
+      const lineage = new FormData(event.target).get("lineage");
+      if (lineage) await action("choose_lineage", { lineage }, "Your lineage is now part of your story");
     } else if (event.target.id === "accessForm") {
       event.preventDefault();
       token = document.getElementById("access").value.trim();
@@ -982,6 +1021,7 @@ import { createWorldViews } from "/world-views.mjs";
       await accountSubmit("/api/auth/register", {
         username: document.getElementById("registerUsername").value.trim(),
         display_name: document.getElementById("registerCharacter").value.trim(),
+        lineage: new FormData(event.target).get("lineage"),
         password: document.getElementById("registerPassword").value,
         ...(inviteRequired ? {
           invite: document.getElementById("registerInvite").value.trim()
