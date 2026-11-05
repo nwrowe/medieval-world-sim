@@ -269,8 +269,8 @@ export function createWorldViews(ctx) {
     if (node.unlocked) {
       control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-        disabled(higherUnlocked || !node.active || isBusy() || p.mana < node.mana_cost),
-        higherUnlocked ? "ghost" : "secondary") +
+        disabled(mastered || !node.can_practice || isBusy() || p.mana < node.mana_cost),
+        mastered ? "ghost" : "secondary") +
         button("Cast · " + node.mana_cost + " mana",
           'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
           disabled(!node.active || isBusy() || p.mana < node.mana_cost), "gold");
