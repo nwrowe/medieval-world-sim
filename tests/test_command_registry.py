@@ -40,7 +40,7 @@ class CommandRegistryTests(unittest.TestCase):
             COMMAND_SPECS["travel"].method = "gather"
 
     def test_execute_preserves_validation_and_deduplication(self):
-        world = WorldEngine([Actor("hero", "human")])
+        world = WorldEngine([Actor("hero", "human", city="goldmeadow")])
         with self.assertRaisesRegex(ActionError, "parameter mismatch"):
             world.execute("hero", "gather", {"item": "grain"}, "bad")
         with self.assertRaisesRegex(ActionError, "Unknown or forbidden"):
