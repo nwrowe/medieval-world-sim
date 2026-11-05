@@ -176,6 +176,7 @@ def load_world(game: MultiplayerGame) -> None:
                 game.world.advance(minutes)
             finally:
                 game.world._health_regen_version = 3
+            npc_runtime.replay(game, seq)
         else:
             raise ValueError("Invalid journal kind")
         if recorded_at is not None:
