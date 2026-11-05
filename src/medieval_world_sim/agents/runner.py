@@ -70,8 +70,9 @@ class AutonomousSimulation:
             action_id = f"npc:{self.ticks}:{profile.id}"
             before_events = len(self.world.events)
             error = ""
+            result = None
             try:
-                self.world.execute(profile.id, proposal.name, proposal.params, action_id)
+                result = self.world.execute(profile.id, proposal.name, proposal.params, action_id)
                 self.attempts[proposal.name] += 1
             except ActionError as exc:
                 # The same engine rejection path applies to AI and players.
@@ -81,6 +82,9 @@ class AutonomousSimulation:
             emitted = tuple(e.kind for e in self.world.events[before_events:]
                             if e.data.get("actor_id") == profile.id
                             or e.data.get("attacker_id") == profile.id)
+            if (proposal.name == "attack" and result is not None
+                    and result.opponent_defeated):
+                emitted += ("combat_victory",)
             playtester = profile.role == "playtester"
             after = replace(
                 view, gold=actor.gold, hp=actor.hp, level=actor.level,
@@ -98,11 +102,14 @@ class AutonomousSimulation:
                     self.world.state.chosen_courses.get(actor.id, {}).values())
                     + sum(self.world.state.completed_courses.get(
                         actor.id, {}).values())) if playtester else 0)
-            optimizer = profile.persona == "optimizer"
+            playtest_route = profile.role == "playtester"
+            route_step = (memory.active_route is not None
+                          or proposal.name == "regional_buy")
             trade_profit = (memory.record_trade(view, after, proposal, error)
-                            if optimizer else None)
+                            if playtest_route else None)
             memory.record(view, after, proposal, emitted, error,
-                          defer_trade_credit=optimizer, trade_profit=trade_profit)
+                          defer_trade_credit=playtest_route and route_step,
+                          trade_profit=trade_profit)
             if profile.id in self.observers:
                 reason = next((kind for kind in emitted if kind in MAJOR_EVENTS), "")
                 if not reason and memory.failures[proposal.name] >= 3 and error:
@@ -220,6 +227,33 @@ class AutonomousSimulation:
                         "trade_net_profit": observer.memory.trade_net_profit,
                         "trade_loss_cycles": observer.memory.trade_loss_cycles,
                         "active_trade": observer.memory.active_route is not None,
+                        "unsettled_positions": observer.memory.trade_abandoned,
+                        "combat_attacks": observer.memory.attempts.get("attack", 0),
+                        "combat_victories": observer.memory.combat_victories,
+                        "combat_loot": observer.memory.combat_loot,
+                        "gold_per_day": round(
+                            (self.world.actors[key].gold - 240) /
+                            max(1, self.elapsed_minutes / 1440), 2),
+                        "trade_profit_per_day": round(
+                            observer.memory.trade_net_profit /
+                            max(1, self.elapsed_minutes / 1440), 2),
+                        "goal_actions": sum(
+                            observer.memory.attempts.get(action, 0) for action in
+                            (("travel", "unlock_magic", "practice_magic",
+                              "enroll_course_choice", "attack")
+                             if observer.persona == "explorer" else
+                             ("regional_buy", "regional_sell", "complete_city_contract",
+                              "attack"))),
+                        "goal_action_pct": round(
+                            100 * sum(
+                                observer.memory.attempts.get(action, 0)
+                                for action in
+                                (("travel", "unlock_magic", "practice_magic",
+                                  "enroll_course_choice", "attack")
+                                 if observer.persona == "explorer" else
+                                 ("regional_buy", "regional_sell",
+                                  "complete_city_contract", "attack"))
+                            ) / max(1, observer.memory.decision_count), 1),
                     },
                 } for key, observer in sorted(self.observers.items())},
                 "aggregate": aggregate_issues(self.observers),
