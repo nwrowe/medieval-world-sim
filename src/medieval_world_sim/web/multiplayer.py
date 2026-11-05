@@ -66,6 +66,10 @@ class MultiplayerGame:
         self._activity_changed = threading.Condition(self._lock)
         self._revision = 0
         self._journal_count = 0
+        # The cache stores strictly actor-scoped activity at a committed
+        # journal revision; presence changes are overlaid on fresh row copies.
+        # It is non-durable and rebuilt after every process restart.
+        self._live_activity_cache = {}
         # Presence is ephemeral: never stored in the replay journal or
         # confused with the game-world clock.
         self._presence = {}
