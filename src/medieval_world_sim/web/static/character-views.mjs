@@ -191,14 +191,31 @@ export function createCharacterViews(ctx) {
         '/' + gear.max_durability +
         ' · Attack +' + gear.attack + ' · Defense +' + gear.defense +
         '</p></div>' +
+        '<div class="button-group">' +
         button(inUse ? "Equipped" : "Equip", 'data-ui="equip" data-gear-id="' +
-          gear.id + '"' + disabled(inUse || isBusy()), "s secondary") + '</div>';
+          gear.id + '"' + disabled(inUse || isBusy()), "s secondary") +
+        button("Store", 'data-ui="store-gear" data-gear-id="' +
+          gear.id + '"' + disabled(inUse || isBusy()), "s ghost") +
+        '</div></div>';
     }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
+    const storedGear = (state.stored_gear_here || []).map(gear =>
+      '<div class="equipment-item"><div><h3>' +
+      esc(pretty(gear.kind)) + ' · #' + gear.id + '</h3><p>Quality ' +
+      gear.quality + ' · Durability ' + gear.durability +
+      ' · Stored in ' + esc(pretty(p.city)) + '</p></div>' +
+      button("Retrieve", 'data-ui="retrieve-gear" data-gear-id="' +
+        gear.id + '"' + disabled(isBusy()), "s secondary") + '</div>').join('') ||
+      '<p class="small">No equipment stored in this city.</p>';
+    const otherStores = Object.entries(p.stored_gear_cities || {})
+      .filter(([city, count]) => city !== p.city && count > 0)
+      .map(([city, count]) => esc(pretty(city)) + ': ' + count).join(' · ');
     return heading("", "Equipment", "") +
       '<div class="profile-grid">' +
       panel("Equipped Gear", "", equipmentMannequin(owned, equipped) + slotRows) +
-      panel("Owned Equipment", "", gearRows) +
-      '</div>';
+      panel("Owned Equipment", "Only carried equipment counts against your road cargo limit.", gearRows) +
+      '</div>' +
+      panel("Stored Equipment", "Unlimited in Crownreach and other settlements; retrieve it in the same city.", storedGear +
+        (otherStores ? '<p class="small">Other city armories: ' + otherStores + '</p>' : ''));
   }
   function renderArmory() {
     const state = ctx.getState();
