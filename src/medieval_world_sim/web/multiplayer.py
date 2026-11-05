@@ -28,7 +28,7 @@ from ..errors import ActionError
 from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
-from . import social, accounts
+from . import social, accounts, journal
 from .accounts import (AuthError, Identity, _digest, _password_hash,
                        MAX_ACCOUNTS, INVITE_VALID_SECONDS, MAX_INVITES_PER_BATCH,
                        SESSION_SECONDS, PASSWORD_N, PASSWORD_R, PASSWORD_P,
@@ -101,79 +101,8 @@ class MultiplayerGame:
             self.db.close()
 
     def _create_schema(self):
-        self.db.executescript("""
-            CREATE TABLE IF NOT EXISTS registration_invites(
-                digest BLOB PRIMARY KEY,
-                expires INTEGER NOT NULL,
-                redeemed_by TEXT UNIQUE REFERENCES accounts(actor_id)
-            );
-            CREATE TABLE IF NOT EXISTS accounts(
-                actor_id TEXT PRIMARY KEY,
-                username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                display_name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                salt BLOB NOT NULL,
-                password_hash BLOB NOT NULL,
-                created_at INTEGER NOT NULL,
-                failed_logins INTEGER NOT NULL DEFAULT 0,
-                blocked_until INTEGER NOT NULL DEFAULT 0
-            );
-            CREATE TABLE IF NOT EXISTS world_meta(
-                name TEXT PRIMARY KEY,
-                value BLOB NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS sessions(
-                digest BLOB PRIMARY KEY,
-                actor_id TEXT NOT NULL REFERENCES accounts(actor_id),
-                csrf TEXT NOT NULL,
-                expires INTEGER NOT NULL
-            );
-            CREATE INDEX IF NOT EXISTS session_expiration ON sessions(expires);
-            CREATE TABLE IF NOT EXISTS world_journal(
-                seq INTEGER PRIMARY KEY AUTOINCREMENT,
-                kind TEXT NOT NULL CHECK(kind IN ('join','action','advance')),
-                actor_id TEXT NOT NULL REFERENCES accounts(actor_id),
-                action TEXT,
-                payload TEXT NOT NULL,
-                request_id TEXT,
-                result_json TEXT,
-                UNIQUE(actor_id, request_id)
-            );
-        """)
-        # Previous multi-account databases lack an event wall-clock column.
-        # Add it without rewriting or inventing timestamps for older rows.
-        columns = {column[1] for column in self.db.execute(
-            "PRAGMA table_info(world_journal)")}
-        if "recorded_at" not in columns:
-            self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
-        if "flee_success" not in columns:
-            self.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
-        if "secure_roll" not in columns:
-            self.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
-        if "server_clock" not in columns:
-            self.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
-        if "regen_version" not in columns:
-            # Existing advances replay with the original health regen rule.
-            self.db.execute("ALTER TABLE world_journal "
-                            "ADD COLUMN regen_version INTEGER NOT NULL DEFAULT 1")
-        # Keep RNG secret out of public API responses and source-controlled seed.
-        # Existing journals replay old results with their historical RNG; only
-        # newly committed actions opt in to the keyed outcome algorithm.
-        self.db.execute(
-            "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
-            (secrets.token_bytes(32),))
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS journal_account_timestamp "
-            "ON world_journal(actor_id,recorded_at)")
-        self.db.execute(
-            "CREATE INDEX IF NOT EXISTS journal_timestamp "
-            "ON world_journal(recorded_at)")
-        self._rng_key = self.db.execute(
-            "SELECT value FROM world_meta WHERE name='rng_key'").fetchone()[0]
-        self.db.execute(
-            "INSERT OR IGNORE INTO world_meta(name,value) VALUES('clock_anchor', ?)",
-            (str(int(time.time())).encode(),))
-        self._clock_anchor = int(self.db.execute(
-            "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
+        """Create and migrate the local SQLite journal schema."""
+        journal.create_schema(self)
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -197,85 +126,9 @@ class MultiplayerGame:
         self.world.assert_invariants()
 
     def _load_world(self):
-        self.world = self._seed_world()
-        self.names = {}
-        self.event_times = {}
-        registered = set()
-        rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
-            "flee_success, secure_roll, server_clock, regen_version "
-            "FROM world_journal ORDER BY seq").fetchall()
-        for (kind, actor_id, action, payload, request_id, recorded_at,
-             flee_success, secure_roll, server_clock, regen_version) in rows:
-            params = json.loads(payload)
-            prior_events = len(self.world.events)
-            if kind == "join":
-                if actor_id in registered:
-                    raise ValueError("Repeated registered actor")
-                account = self.db.execute(
-                    "SELECT display_name FROM accounts WHERE actor_id=?",
-                    (actor_id,)).fetchone()
-                if account is None:
-                    raise ValueError("Registered actor has no account")
-                city = params.get("city", LEGACY_START_CITY)
-                if city not in (LEGACY_START_CITY, START_CITY):
-                    raise ValueError("Invalid registered starting city")
-                self._join_actor(actor_id, city)
-                self.names[actor_id] = account[0]
-                registered.add(actor_id)
-            elif actor_id not in registered:
-                raise ValueError("Journal command before account registration")
-            elif kind == "action":
-                if action not in MULTI_ACTIONS:
-                    raise ValueError("Forbidden journal command")
-                if action == "flee_duel":
-                    if flee_success is None:
-                        self.world._legacy_flee_rules = True
-                    elif flee_success not in (0, 1):
-                        raise ValueError("Invalid saved flee coin flip")
-                    else:
-                        self.world._flee_success = bool(flee_success)
-                if secure_roll not in (None, 0, 1):
-                    raise ValueError("Invalid recorded RNG policy")
-                self.world._private_rng_key = self._rng_key if secure_roll == 1 else None
-                try:
-                    self.world.execute(actor_id, action, params, self._engine_id(
-                        actor_id, request_id))
-                finally:
-                    self.world._legacy_flee_rules = False
-                    self.world._flee_success = None
-                    self.world._private_rng_key = None
-            elif kind == "advance":
-                minutes = params.get("minutes")
-                if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
-                        or server_clock not in (None, 0, 1)
-                        or regen_version not in (1, 2, 3)):
-                    raise ValueError("Invalid journal time advancement")
-                self.world._health_regen_version = regen_version
-                try:
-                    self.world.advance(minutes)
-                finally:
-                    self.world._health_regen_version = 3
-            else:
-                raise ValueError("Invalid journal kind")
-            if recorded_at is not None:
-                try:
-                    stamp = datetime.fromisoformat(recorded_at)
-                    if stamp.tzinfo is None:
-                        raise ValueError("Timezone required")
-                except (TypeError, ValueError) as exc:
-                    raise ValueError("Invalid saved action timestamp") from exc
-                for event in self.world.events[prior_events:]:
-                    self.event_times[event.event_id] = recorded_at
-        self.world.assert_invariants()
-        if self.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] != len(registered):
-            raise ValueError("Account and world registration journal differ")
-        # The stream revision must remain stable after restart, as game
-        # snapshots and browser reconnects use it to reject stale updates.
-        self._journal_count = len(rows)
-        self._revision = len(rows)
+        """Replay the existing SQLite journal into the authoritative world."""
+        journal.load_world(self)
 
-    @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
         return hashlib.sha256((actor_id + ":" + request_id).encode("utf-8")).hexdigest()
 
