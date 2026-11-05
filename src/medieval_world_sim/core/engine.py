@@ -44,6 +44,7 @@ from ..systems.magic import MagicSystem, MagicNodeStatus, MagicPracticeResult
 from ..systems.housing import HousingSystem, HousingView
 from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
+from .commands import COMMAND_SPECS
 
 class WorldEngine:
     """In-memory simulation. Domain actions validate then mutate atomically."""
@@ -545,65 +546,10 @@ class WorldEngine:
             if not isinstance(params, dict):
                 raise ActionError("Command parameters must be a mapping")
             self._actor(principal_id)
-            command_specs = {
-                "travel": ("start_travel", ("destination",)),
-                "gather": ("gather", ("item", "quantity")),
-                "store_goods": ("store_goods", ("item", "quantity")),
-                "retrieve_goods": ("retrieve_goods", ("item", "quantity")),
-                "regional_buy": ("regional_buy", ("item", "quantity")),
-                "regional_sell": ("regional_sell", ("item", "quantity")),
-                "unlock_magic": ("unlock_magic", ("node_id",)),
-                "attune_magic": ("attune_magic", ("paths",)),
-                "practice_magic": ("practice_magic", ("node_id",)),
-                "buy_home": ("buy_home", ("tier",)),
-                "upgrade_home": ("upgrade_home", ("tier",)),
-                "build_home_facility": ("build_home_facility", ("facility",)),
-                "buy_vehicle": ("buy_vehicle", ("vehicle",)),
-                "select_vehicle": ("select_vehicle", ("vehicle",)),
-                "found_company": ("found_company", ("company_id", "industry", "investment")),
-                "shift": ("shift", ("company_id",)),
-                "post_offer": ("post_offer", ("seller_id", "item", "quantity", "unit_price")),
-                "post_equipment_offer": ("post_equipment_offer", ("seller_id", "gear_id", "unit_price")),
-                "accept_offer": ("accept_offer", ("buyer_id", "offer_id", "quantity")),
-                "cancel_offer": ("cancel_offer", ("offer_id",)),
-                "propose_trade": ("propose_trade", ("recipient_id", "offer", "request")),
-                "accept_trade": ("accept_trade", ("trade_id", "terms_hash")),
-                "close_trade": ("close_trade", ("trade_id",)),
-                "complete_city_contract": ("complete_city_contract", ("contract_id",)),
-                "buy_starter_gear": ("buy_starter_gear", ("kind",)),
-                "equip": ("equip", ("gear_id",)),
-                "unequip": ("unequip", ("slot",)),
-                "attack": ("attack", ("defender_id",)),
-                "start_duel": ("start_duel", ("defender_id",)),
-                "pvp_strike": ("pvp_strike", ("defender_id",)),
-                "duel_turn": ("duel_turn", ("move", "node_id")),
-                "flee_duel": ("flee_duel", ()),
-                "cast_spell": ("cast_spell", ("node_id",)),
-                "church_heal": ("church_heal", ()),
-                "buy_racehorse": ("buy_racehorse", ("breed",)),
-                "race_horse": ("race_horse", ("breed",)),
-                "found_guild": ("found_guild", ("name",)),
-                "invite_guild": ("invite_guild", ("candidate_id",)),
-                "join_guild": ("join_guild", ("guild_id",)),
-                "set_guild_role": ("set_guild_role", ("member_id", "role")),
-                "leave_guild": ("leave_guild", ()),
-                "claim_merit": ("claim_merit", ("achievement",)),
-                "enroll_course": ("enroll_course", ("school",)),
-                "enroll_course_choice": ("enroll_course_choice", ("school", "index")),
-                "buy_merit_upgrade": ("buy_merit_upgrade", ("perk",)),
-                "send_chat": ("send_chat", ("kind", "target", "message")),
-                "create_chat_room": ("create_chat_room", ("name", "members")),
-                "consume": ("consume", ("item",)),
-                "propose_job": ("propose_job", ("company_id", "worker_id", "wage")),
-                "accept_job": ("accept_job", ("company_id",)),
-                "leave_job": ("leave_job", ("company_id",)),
-                "set_wage": ("set_wage", ("company_id", "worker_id", "wage")),
-                "set_perks": ("set_perks", ("company_id", "perks")),
-                "upgrade_facility": ("upgrade_facility", ("company_id",)),
-            }
-            if action not in command_specs:
+            spec = COMMAND_SPECS.get(action)
+            if spec is None:
                 raise ActionError("Unknown or forbidden command")
-            method_name, fields = command_specs[action]
+            method_name, fields = spec.method, spec.fields
             if set(params) != set(fields):
                 raise ActionError("Command parameter mismatch")
             signature = (principal_id, action, tuple((field, repr(params[field])) for field in fields))
