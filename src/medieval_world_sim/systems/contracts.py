@@ -2,6 +2,7 @@
 from dataclasses import asdict, dataclass
 from ..content.contracts import CONTRACTS
 from ..errors import ActionError
+from ..content.lineages import work_experience_bonus
 from ..core.transactions import transfer_gold
 from ..systems.regional_trade import MERCHANT_STOCK_CAP
 from .cooldowns import can_add, stack
@@ -64,6 +65,7 @@ class CityContractSystem:
             self.world.combat._award_xp(actor, xp)
         else:
             xp = self.world.housing_system.training_xp(actor, 1, "work:" + contract.xp_kind)
+            xp += work_experience_bonus(actor)
             actor.work.experience[contract.xp_kind] = min(100,
                 actor.work.experience.get(contract.xp_kind, 0) + xp)
             actor.work.shifts += 1
