@@ -128,6 +128,11 @@ class RuleBasedPolicy:
         def utility(candidate: Candidate) -> float:
             action = candidate.action
             bonus = memory.utility_modifier(action, view, profile.curiosity) if memory else 0.0
+            # Completed-route profit/loss modifies future purchase appetite,
+            # not the artificial raw cash value of each buy/sell step.
+            if (profile.persona == "optimizer" and memory is not None
+                    and action.name == "regional_buy"):
+                bonus += 1.5 * memory.values.get("trade_route", 0.0)
             # Common needs influence proposals without bypassing eligibility.
             if action.name in ("complete_city_contract", "regional_sell"):
                 bonus += needs.liquidity * profile.greed
