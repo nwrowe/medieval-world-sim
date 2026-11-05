@@ -65,7 +65,7 @@ class SaveError(Exception):
 TRADE_EVENTS = {"trade_proposed", "trade_settled", "trade_closed"}
 COMBAT_EVENTS = {"pvp_strike", "duel_started", "duel_round",
                  "duel_finished", "duel_fled", "duel_defender_fled",
-                 "duel_draw", "combat", "spell_cast"}
+                 "duel_draw", "duel_flee_attempt", "combat", "spell_cast"}
 UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
                      "school_graduated", "school_capstone_perk", "school_martial_perk"}
 TRAVEL_EVENTS = {"travel_started", "arrived"}
@@ -197,6 +197,10 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "duel_finished": (
             f"{info.get('winner_id')} defeated {info.get('loser_id')} "
             f"and claimed {info.get('gold')} gold"
+        ),
+        "duel_flee_attempt": (
+            f"{'Successful' if info.get('success') else 'Failed'} escape attempt "
+            f"in combat round {info.get('round')}"
         ),
         "duel_fled": "Attacker retreated from combat",
         "duel_defender_fled": "Defending player withdrew from combat",
@@ -330,8 +334,8 @@ class GameSession:
             except ValueError as exc:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
-        valid_keys = set(record) - {"recorded_at", "ruleset"}
-        if record.get("ruleset", 1) not in (1, 2, 3, 4, 5, 6, 7, 8, 9, 10) or type(record.get("ruleset", 1)) is not int:
+        valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
+        if record.get("ruleset", 1) not in range(1, 12) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -347,6 +351,13 @@ class GameSession:
             self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
             self.world._legacy_curriculum_rules = (record.get("ruleset", 1) <= 8
                                                     and record["name"] == "enroll_course")
+            self.world._legacy_flee_rules = (
+                record["name"] == "flee_duel" and record.get("ruleset", 1) < 11
+            )
+            if record["name"] == "flee_duel" and not self.world._legacy_flee_rules:
+                if type(record.get("flee_success")) is not bool:
+                    raise ValueError("Missing or invalid saved flee roll")
+                self.world._flee_success = record["flee_success"]
             self.world._legacy_guard_rules = record.get("ruleset", 1) < 8
             self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
             self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
@@ -356,6 +367,8 @@ class GameSession:
             finally:
                 self.world._legacy_equipment_wear = False
                 self.world._legacy_curriculum_rules = False
+                self.world._legacy_flee_rules = False
+                self.world._flee_success = None
                 self.world._legacy_guard_rules = False
                 self.world._legacy_duel_rules = False
                 self.world._legacy_magic_rules = False
@@ -377,8 +390,15 @@ class GameSession:
             if record["kind"] == "advance":
                 result = self._advance_world(record["minutes"])
             else:
-                result = self.world.execute(
-                    PLAYER_ID, record["name"], record["params"], record["id"])
+                if record.get("name") == "flee_duel":
+                    self.world._flee_success = bool(secrets.randbits(1))
+                try:
+                    result = self.world.execute(
+                        PLAYER_ID, record["name"], record["params"], record["id"])
+                finally:
+                    # Store this exact roll in the journal before clearing it.
+                    if record.get("name") != "flee_duel":
+                        self.world._flee_success = None
             # Retain ruleset 3 for established actions; old journal assertions and
             # replay semantics must not shift when the new combat commands arrive.
             ruleset = (5 if record["kind"] == "advance" or
@@ -398,8 +418,12 @@ class GameSession:
                 ruleset = 9
             if record.get("name") in {"send_chat", "create_chat_room"}:
                 ruleset = 10
+            if record.get("name") == "flee_duel":
+                ruleset = 11
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
+            if record.get("name") == "flee_duel":
+                stored_record["flee_success"] = bool(self.world._flee_success)
             self.records.append(stored_record)
             try:
                 self._save()
@@ -408,9 +432,11 @@ class GameSession:
                 raise
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = stored_record["recorded_at"]
+            self.world._flee_success = None
             return result
         except Exception:
             self.world.state = snapshot
+            self.world._flee_success = None
             raise
 
     def action(self, name: str, params: dict, request_id: str) -> object:
