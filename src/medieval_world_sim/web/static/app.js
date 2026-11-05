@@ -67,6 +67,7 @@
   let multiMode = false;
   let inviteRequired = false;
   let secureWorldClock = false;
+  let clockSyncedAt = Date.now();
   let csrfToken = "";
   let liveEvents = null;
 
@@ -90,7 +91,17 @@
     timeZone: "America/New_York", month: "short", day: "numeric",
     year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   });
-  function easternNow() { return easternFormatter.format(new Date()); }
+  const headerClockFormatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York", hourCycle: "h23",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    month: "numeric", day: "numeric", year: "2-digit",
+  });
+  function easternNow() {
+    const parts = Object.fromEntries(headerClockFormatter.formatToParts(new Date())
+      .filter(part => part.type !== "literal").map(part => [part.type, part.value]));
+    return parts.hour + ":" + parts.minute + ":" + parts.second + " - " +
+      parts.month + "/" + parts.day + "/" + parts.year;
+  }
   function eventTime(event) {
     if (!event.recorded_at) return "Earlier · timestamp unavailable";
     const date = new Date(event.recorded_at);
@@ -104,6 +115,40 @@
   function dur(minutes) {
     const h = Math.floor(minutes / 60), m = minutes % 60;
     return h ? (h + "h " + (m ? m + "m" : "")) : m + "m";
+  }
+  function fullCountdown(seconds) {
+    const value = Math.max(0, Math.ceil(Number(seconds) || 0));
+    const hours = Math.floor(value / 3600);
+    return String(hours).padStart(2, "0") + ":" +
+      String(Math.floor((value % 3600) / 60)).padStart(2, "0") + ":" +
+      String(value % 60).padStart(2, "0");
+  }
+  function timerSeconds(simSeconds) {
+    const total = Math.max(0, Number(simSeconds) || 0);
+    if (!secureWorldClock || !state || state.next_world_tick_seconds == null)
+      return total;
+    // State durations are integral world minutes. The server provides the
+    // partial minute so hover timers can count down to the exact second.
+    const partial = 60 - Number(state.next_world_tick_seconds);
+    return Math.max(0, total - partial -
+      Math.max(0, (Date.now() - clockSyncedAt) / 1000));
+  }
+  function timerAttrs(label, simSeconds) {
+    const seconds = timerSeconds(simSeconds);
+    const text = label + fullCountdown(seconds);
+    const end = secureWorldClock && state && state.next_world_tick_seconds != null ?
+      Date.now() + seconds * 1000 : 0;
+    return ' title="' + esc(text) + '" data-timer-label="' + esc(label) +
+      '" data-timer-end="' + end + '" data-timer-fixed="' +
+      (end ? "" : Math.ceil(seconds)) + '"';
+  }
+  function updateHoverTimers() {
+    for (const item of document.querySelectorAll("[data-timer-label]")) {
+      const seconds = Number(item.dataset.timerEnd) > 0 ?
+        (Number(item.dataset.timerEnd) - Date.now()) / 1000 :
+        Number(item.dataset.timerFixed);
+      item.title = item.dataset.timerLabel + fullCountdown(seconds);
+    }
   }
   function simDuration(minutes) {
     const total = Math.max(0, Math.ceil(Number(minutes) || 0));
@@ -162,6 +207,10 @@
     const response = await fetch(url, options);
     let data;
     try { data = await response.json(); } catch { throw Error("The server sent an invalid response"); }
+    if ((url === "/api/state" && data.next_world_tick_seconds !== undefined) ||
+        (data.state && data.state.next_world_tick_seconds !== undefined)) {
+      clockSyncedAt = Date.now();
+    }
     if (response.status === 401) authNeeded = true;
     if (!response.ok) throw Error(data.error || "Request failed");
     authNeeded = false;
@@ -354,14 +403,14 @@
   function meterStat(label, value, max, kind, simSeconds) {
     const v = Number(value) || 0;
     const maximum = Math.max(1, Number(max) || 1);
-    let hint = "Full";
-    if (v < maximum) hint = simSeconds == null ?
-      "No passive recovery available" :
-      "Next increase in " + simSeconds +
-      " simulated seconds — use Rest or advance world time";
+    const hint = v >= maximum ? "Full" :
+      simSeconds == null ? "No passive recovery available" : "Next increase in ";
+    const timing = v < maximum && simSeconds != null ?
+      timerAttrs(hint, simSeconds) : ' title="' + esc(hint) + '"';
     return '<div class="vital vital-' + kind +
-      '" title="' + esc(hint) + '" tabindex="0" aria-label="' +
-      esc(label + ': ' + v + ' of ' + maximum + '. ' + hint) + '">' +
+      '"' + timing + ' tabindex="0" aria-label="' +
+      esc(label + ': ' + v + ' of ' + maximum + '. ' +
+        (simSeconds == null ? hint : hint + fullCountdown(timerSeconds(simSeconds)))) + '">' +
       '<div class="vital-caption"><span class="vital-icon" aria-hidden="true">' +
       (kind === "health" ? "+" : kind === "stamina" ?
         '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
@@ -387,10 +436,10 @@
     const remaining = data ? data.remaining_minutes : 0;
     const max = data ? data.max_minutes : 1440;
     if (remaining <= 0) return "";
-    const tip = config.label + " cooldown: " + cooldownClock(remaining) +
-      " simulated time remaining. Advances with game time.";
+    const tip = config.label + " cooldown: ";
     return '<div class="cooldown-chip ' + (remaining >= max ? 'at-cap' : '') +
-      '" title="' + esc(tip) + '" tabindex="0" aria-label="' + esc(tip) +
+      '"' + timerAttrs(tip, remaining * 60) +
+      ' tabindex="0" aria-label="' + esc(tip + fullCountdown(timerSeconds(remaining * 60))) +
       '"><span aria-hidden="true">' + config.symbol + '</span><strong>' +
       cooldownClock(remaining) + '</strong></div>';
   }
@@ -410,8 +459,7 @@
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
-      'title="' + esc("Traveling to " + pretty(p.destination) + " · " +
-        simDuration(tripMinutes) + " of simulated time remaining") + '" ' +
+      timerAttrs("Traveling to " + pretty(p.destination) + " · ", tripMinutes * 60) + ' ' +
       'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
       '<span aria-hidden="true">♞</span><strong>' + esc(simDuration(tripMinutes)) +
       '</strong></button>' : "";
@@ -422,11 +470,12 @@
       const school = (hall.schools || []).find(s => s.id === current.school);
       const course = school && school.courses[current.index];
       const label = "University: " + (school ? school.name : pretty(current.school)) +
-        (course ? " · " + course.name : "") + " · " +
-        simDuration(current.remaining_minutes) + " simulated time remaining";
+        (course ? " · " + course.name : "") + " · ";
       university = '<button class="cooldown-chip activity-clickable" type="button" ' +
-        'data-ui="activity-university" title="' + esc(label) + '" aria-label="' +
-        esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
+        'data-ui="activity-university"' +
+        timerAttrs(label, current.remaining_minutes * 60) + ' aria-label="' +
+        esc(label + fullCountdown(timerSeconds(current.remaining_minutes * 60))) +
+        '"><span aria-hidden="true">✤</span><strong>' +
         Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
     }
     const defendant = state.duel;
@@ -434,9 +483,9 @@
       Number(p.defeated_until || 0) - Number(state.minute || 0));
     const hospital = p.hp <= 0 && hospitalMinutes > 0 ?
       '<button type="button" class="cooldown-chip activity-clickable activity-hospital" ' +
-      'data-ui="activity-hospital" title="' +
-      esc("Hospitalized · " + simDuration(hospitalMinutes) +
-        " of simulated time remaining") + '" aria-label="Hospitalized">' +
+      'data-ui="activity-hospital"' +
+      timerAttrs("Hospitalized · ", hospitalMinutes * 60) +
+      ' aria-label="Hospitalized">' +
       '<span aria-hidden="true">✚</span><strong>' +
       esc(simDuration(hospitalMinutes)) + '</strong></button>' : "";
     const defenderAlert = defendant && defendant.role === "defender" &&
@@ -1353,8 +1402,7 @@
         characterRow("Health", p.hp + " / " + p.max_hp) +
         characterRow("Stamina", p.stamina + " / " + p.max_stamina) +
         characterRow("Mana", p.mana + " / " + p.max_mana) +
-        characterRow("Days played (simulated)", state.days_played) +
-        characterRow("Elapsed world time", clock(state.minute))) +
+        characterRow("World age (shared)", clock(state.minute))) +
       panel("Combat Attributes", "",
         characterRow("Strength", p.strength) +
         characterRow("Defense", p.defense) +
@@ -1832,6 +1880,10 @@
       state.chat = update.chat;
       state.trades = update.trades;
       state.minute = update.minute;
+      if ("next_world_tick_seconds" in update) {
+        state.next_world_tick_seconds = update.next_world_tick_seconds;
+        clockSyncedAt = Date.now();
+      }
       if ("duel" in update) state.duel = update.duel;
       if ("last_duel" in update) state.last_duel = update.last_duel;
       if (state.training_hall) state.training_hall.active = update.course_active;
@@ -1850,6 +1902,16 @@
     if (!state || !state.started) return;
     const strip = document.querySelector(".activity-strip");
     if (strip) strip.innerHTML = activityIcons();
+    // Pushed clock ticks also change the health, stamina and mana values.
+    const p = state.player;
+    for (const [kind, label, value, maximum, next] of [
+      ["health", "Health", p.hp, p.max_hp, p.health_next_sim_seconds],
+      ["stamina", "Stamina", p.stamina, p.max_stamina, p.stamina_next_sim_seconds],
+      ["mana", "Mana", p.mana, p.max_mana, p.mana_next_sim_seconds],
+    ]) {
+      const old = document.querySelector(".vital-" + kind);
+      if (old) old.outerHTML = meterStat(label, value, maximum, kind, next);
+    }
     const dock = document.querySelector(".chat-dock");
     if (dock) {
       const fragment = document.createElement("div");
@@ -2349,5 +2411,8 @@
   });
 
   load();
-  setInterval(updateEasternClock, 15000);
+  setInterval(() => {
+    updateEasternClock();
+    updateHoverTimers();
+  }, 1000);
 })();
