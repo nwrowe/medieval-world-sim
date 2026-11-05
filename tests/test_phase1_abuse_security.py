@@ -58,6 +58,25 @@ class EnrollmentAbuseTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.game.register("carol", PASSWORD, "Carol Vale", codes[1])
 
+    def test_concurrent_invite_redemption_never_duplicates_starter_gold(self):
+        from concurrent.futures import ThreadPoolExecutor
+        code = self.game.issue_invites(1)[0]
+        baseline = self.game.world.initial_gold
+        def attempt(i):
+            try:
+                return self.game.register(
+                    f"player{i}", PASSWORD, f"Player {i}", code)
+            except ActionError:
+                return None
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(attempt, range(8)))
+        self.assertEqual(sum(x is not None for x in results), 1)
+        self.assertEqual(self.game.world.initial_gold, baseline + 240)
+        self.assertEqual(self.game.world.total_gold, baseline + 240)
+        self.assertEqual(self.game.db.execute(
+            "SELECT COUNT(*) FROM accounts").fetchone()[0], 1)
+        self.game.world.assert_invariants()
+
     def test_admin_codes_are_not_stored_plaintext(self):
         token = self.game.issue_invites(1)[0]
         db_data = self.db.read_bytes()
@@ -235,6 +254,26 @@ class RequestAndJournalExhaustionTests(unittest.TestCase):
             self.assertEqual(game.db.execute(
                 "SELECT COUNT(*) FROM world_journal WHERE kind='action'"
             ).fetchone()[0], 1)
+            game.world.assert_invariants()
+            game.close()
+
+    def test_account_chat_and_global_daily_budgets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            game = MultiplayerGame(Path(folder) / "budget.db",
+                                   require_invites=False, dev_fast_forward=True)
+            alice = game.register("alice", PASSWORD, "Alice River")
+            bob = game.register("bobby", PASSWORD, "Bobby Stone")
+            params = {"kind": "global", "target": "", "message": "hello"}
+            game.action(alice, "send_chat", params, "one")
+            with patch(REPO_MODE + ".MAX_CHAT_COMMANDS_PER_DAY", 1):
+                with self.assertRaises(ActionError):
+                    game.action(alice, "send_chat", params, "two")
+                # Another player still has their own chat budget.
+                game.action(bob, "send_chat", params, "bob-one")
+            with patch(REPO_MODE + ".MAX_GLOBAL_COMMANDS_PER_DAY", 2):
+                with self.assertRaises(ActionError):
+                    game.action(alice, "send_chat", params, "three")
+            self.assertEqual(len(game.snapshot(alice)["chat"]["messages"]), 2)
             game.world.assert_invariants()
             game.close()
 
