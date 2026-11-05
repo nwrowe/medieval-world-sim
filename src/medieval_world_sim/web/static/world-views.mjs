@@ -20,7 +20,7 @@ export function createWorldViews(ctx) {
     const destination = p.destination;
     // The underlying atlas remains a fixed image. Server-owned discovery
     // determines what can be seen; the player cannot reveal places by UI state.
-    const fogHoles = state.cities.filter(city => city.discovered).map(city => {
+    const fogHoles = state.cities.filter(city => city.discovered || city.is_current).map(city => {
       const point = mapLocations[city.id];
       return point ? '<circle cx="' + (point.x * 10) + '" cy="' +
         (point.y * 6.2) + '" r="145" fill="url(#atlas-clearing)"/>' : '';
@@ -42,7 +42,7 @@ export function createWorldViews(ctx) {
         p.defeated_until != null || current;
       return '<button class="map-pin map-' + esc(city.id) +
         (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
-        (!city.discovered ? ' is-unexplored' : '') +
+        (!city.discovered && !current ? ' is-unexplored' : '') +
         '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
         '" title="' + esc(city.name) +
         (current ? " — you are here" : arriving ? " — destination" :
@@ -96,7 +96,7 @@ export function createWorldViews(ctx) {
           disabled(pending))) + '</section>'
       : defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your character ' +
         'has recovered before beginning another activity.</div>' : "";
-    return heading("", "The Realm Beyond Crownreach", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
+    return heading("", "World Map", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
       worldMap() +
       '<div class="two-col"><div class="stack">' + journey +
       panel("Roads and unexplored settlements", "Travel to a location to add it to your personal atlas.",
