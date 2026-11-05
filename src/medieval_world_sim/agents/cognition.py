@@ -148,14 +148,34 @@ class NPCMemory:
             self.values["trade_route"] = max(
                 -4.0, self.values.get("trade_route", 0.0) * 0.7 - 0.35)
             return None
-        if (action.name == "regional_buy" and before.city != CAPITAL
-                and self.active_route is None):
-            qty = int(action.params["quantity"])
+        if before.city != CAPITAL and action.name in ("regional_buy", "accept_offer"):
+            if action.name == "accept_offer":
+                if action.params.get("buyer_id") != before.id:
+                    return None
+                offer = next((o for o in before.offers
+                              if o.id == action.params.get("offer_id")), None)
+                if offer is None:
+                    return None
+                item = offer.item
+            # Track real purchase cost and received quantity. The source must
+            # actually produce the raw material; food/gear purchases don't
+            # become speculative cargo objectives.
+            from ..catalog import CITIES
+            if item not in CITIES[before.city].deposits:
+                return None
+            qty = after.stock(item) - before.stock(item)
             spent = before.gold - after.gold
-            if qty > 0 and spent > 0 and after.stock(item) >= qty:
-                self.active_route = TradeRoute(
-                    before.city, CAPITAL, str(item), qty, qty, spent,
-                    before.minute)
+            if qty > 0 and spent > 0:
+                route = self.active_route
+                if route is None:
+                    self.active_route = TradeRoute(
+                        before.city, CAPITAL, str(item), qty, qty, spent,
+                        before.minute)
+                elif (route.source == before.city and route.item == item
+                      and route.destination == CAPITAL and not route.recovery_attempts):
+                    route.quantity += qty
+                    route.remaining += qty
+                    route.cost += spent
             return None
         route = self.active_route
         if not (route and action.name == "regional_sell"
