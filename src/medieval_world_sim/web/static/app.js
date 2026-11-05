@@ -418,7 +418,7 @@ import { createWorldViews } from "/world-views.mjs";
   }
 
   function newCharacterPage() {
-    return '<div class="entry"><div class="entry-card">' +
+    return '<div class="entry"><div class="entry-card lineage-entry">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Welcome, traveler</div>' +
       '<h1>Your story begins in Crownreach.</h1>' +
       '<p>Enter the royal capital as an unknown traveler. Choose your ancestry, ' +
