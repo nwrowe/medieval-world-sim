@@ -129,6 +129,57 @@ follow-up experiment. LLM suggestions are labeled unverified hypotheses.
 The report also aggregates issue codes observed by *both* playtesters.
 Keep the results in versioned JSON files when comparing seeds or releases.
 
+## Follow-up: smarter NPC decisions and capital storage
+
+**Magic mastery.** The server now emits `mastered` and `can_practice`
+for each magic node. Both the UI practice button and autonomous NPC action
+proposals use these server-owned flags. At a tier's training XP ceiling, or
+after a higher tier in the school is learned, practice is disabled and
+rejected; learned spells remain available for *casting* as before. The
+existing replay migration for historical magic commands remains intact.
+
+**City inventory and roads.** Both humans and NPCs can hold an unlimited
+number of ordinary goods in any city, and can stash unlimited goods in
+Crownreach or another settlement. An *outbound road departure* still checks
+the total cargo count against the selected vehicle's capacity. Only
+carried goods and carried equipment count; stashed items stay in their
+respective city. Unequipped armor/weapons can now be deposited into and
+retrieved from local city armories. Each storage command checks account
+ownership; the asset ledger, invariant checker and checkpoints include
+stored gear. Equipment must be retrieved before it can be traded or equipped.
+A large armory does not enlarge road capacity.
+
+**Economic policies.** Ordinary haulers already used funded source/capital
+price comparisons; they now also remember actual paid quantities and costs
+(including offers from NPC gatherers) and hold goods if the destination bid
+would produce a known loss. Their realized profit, losing cycles and pending
+shipments are reported separately. Gatherers sell material they produce and
+companies pay workers/make items: those roles have different business risks.
+Explorer and Optimizer both use committed multi-city trade routes; they
+do not propose an untracked source-city buy and immediate local resale.
+When a destination bid stays unavailable, the agent may try one alternative
+importer after three days, or store unsold goods locally after seven days.
+A stored position is **not** counted as a profitable completed route and its
+unrecovered cost remains visible in report telemetry.
+
+**Combat incentives.** Ordinary adventurers now buy starter arms when
+available and consider fighting same-city, alive simulated NPC opponents
+frequently enough to train combat. The Explorer and Optimizer can also test
+combat while keeping distinct progression/trading priorities. All combat
+passes through the real engine and its HP, stamina, defeat-recovery and
+**maximum 10-gold NPC-attack loot** enforcement. Playtesters and human
+accounts are not exposed as automatic combat victims. No combat action is
+issued by the optional LLM critic. These simulated NPC combat behaviors
+are **not** yet deployed as unattended actions in the live multiplayer server.
+
+**Evidence and score limitations.** Multi-seed reports now include cash gained
+per simulated day, trade profit per day, combat strikes/victories/loot,
+pending stored trade positions and the fraction of decisions aligned with
+each playtester's assigned goals (`goal_action_pct`). These are telemetry
+proxies, not measurements of player fun. A local buy-sell loss now requires
+a matching resource, city, purchase/sale quantity and same visit to avoid
+false alarms from partial sales and legitimate intercity trade.
+
 ## Limitations and next steps
 
 - An LLM is a critic, not a substitute for genuine new-player feedback.
