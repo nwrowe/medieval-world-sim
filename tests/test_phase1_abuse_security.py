@@ -293,5 +293,60 @@ class RequestAndJournalExhaustionTests(unittest.TestCase):
             game.close()
 
 
+class TradePropertyAdversaries(unittest.TestCase):
+    def test_randomized_hostile_trade_sequences_never_mutate_other_balances(self):
+        import random
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "adversarial.db"
+            game = MultiplayerGame(path, require_invites=False,
+                                   dev_fast_forward=True)
+            ids = [game.register(username, PASSWORD, name)
+                   for username, name in (
+                       ("alice", "Alice River"),
+                       ("bryn", "Bryn Stone"),
+                       ("carol", "Carol Vale"))]
+            rng = random.Random(117)
+            baseline = game.world.total_gold
+            for step in range(120):
+                maker = rng.choice(ids)
+                recipient = rng.choice(ids)
+                proposals = list(game.world.state.trades.values())
+                if not proposals or rng.randrange(4) < 3:
+                    offer = {"gold": rng.randrange(0, 65),
+                             "items": [], "gear_ids": []}
+                    request = {"gold": rng.randrange(0, 65),
+                               "items": [], "gear_ids": []}
+                    if not offer["gold"] and not request["gold"]:
+                        offer["gold"] = 1
+                    action, params = "propose_trade", {
+                        "recipient_id": recipient, "offer": offer,
+                        "request": request}
+                else:
+                    trade = rng.choice(proposals)
+                    action = "accept_trade" if rng.randrange(2) else "close_trade"
+                    params = ({"trade_id": trade.id, "terms_hash": (
+                        trade.terms_hash if rng.randrange(4) else "forged")}
+                        if action == "accept_trade" else {"trade_id": trade.id})
+                try:
+                    game.action(maker, action, params, f"adversarial-{step}")
+                except ActionError:
+                    pass
+                # Both valid and intentionally invalid API-level requests must
+                # preserve total world assets and exclusive equipment ownership.
+                game.world.assert_invariants()
+                self.assertEqual(game.world.total_gold, baseline)
+            before = {actor: game.snapshot(actor)["player"]["gold"]
+                      for actor in ids}
+            open_ids = sorted(game.world.state.trades)
+            game.close()
+            game = MultiplayerGame(path, require_invites=False,
+                                   dev_fast_forward=True)
+            self.assertEqual({actor: game.snapshot(actor)["player"]["gold"]
+                              for actor in ids}, before)
+            self.assertEqual(sorted(game.world.state.trades), open_ids)
+            game.world.assert_invariants()
+            game.close()
+
+
 if __name__ == "__main__":
     unittest.main()
