@@ -359,7 +359,7 @@ class RuleBasedPolicy:
                 qty = min(stock, q.buy_capacity, q.city_gold // q.player_sell_price, 6)
                 if qty:
                     actions.append(self._action(
-                        (11 if explorer else 16), "regional_sell", item=q.item, quantity=qty))
+                        (15 if explorer else 21), "regional_sell", item=q.item, quantity=qty))
             capital = v.regional_quote(q.item, capital=True)
             if (v.city != CAPITAL and q.sell_capacity and capital is not None
                     and capital.player_sell_price > q.player_buy_price
