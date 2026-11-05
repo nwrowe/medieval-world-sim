@@ -118,8 +118,8 @@ def load_world(game: MultiplayerGame) -> None:
     restored_seq = checkpoint.restore_latest(game)
     registered = set(game.names)
     rows = game.db.execute(
-        "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
-        "flee_success, secure_roll, server_clock, regen_version "
+        "SELECT seq, kind, actor_id, action, payload, request_id, recorded_at, "
+        "flee_success, secure_roll, server_clock, regen_version, xp_version "
         "FROM world_journal WHERE seq>? ORDER BY seq", (restored_seq,)).fetchall()
     for (kind, actor_id, action, payload, request_id, recorded_at,
          flee_success, secure_roll, server_clock, regen_version) in rows:
