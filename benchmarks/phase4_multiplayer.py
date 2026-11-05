@@ -54,7 +54,7 @@ def scenario(accounts: int, requests: int, workers: int, views: int) -> dict:
         try:
             players = [
                 game.register(f"user{i:03d}", "benchmark secure password",
-                              f"Hero {i:03d}")
+                              f"Hero {chr(65 + i // 26)}{chr(65 + i % 26)}")
                 for i in range(accounts)
             ]
             viewing_actor = players[0]
