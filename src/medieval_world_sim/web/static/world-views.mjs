@@ -98,6 +98,10 @@ export function createWorldViews(ctx) {
         'has recovered before beginning another activity.</div>' : "";
     return heading("", "World Map", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
       worldMap() +
+      (p.cargo > p.cargo_limit ?
+        '<div class="callout"><strong>Travel cargo exceeded</strong>You have ' +
+        p.cargo + ' of ' + p.cargo_limit + ' road cargo units. ' +
+        'Store extra goods in the city inventory before departure; city storage is unlimited.</div>' : '') +
       '<div class="two-col"><div class="stack">' + journey +
       panel("Roads and unexplored settlements", "Travel to a location to add it to your personal atlas.",
         '<div class="card-grid">' + destinations + '</div>') +
