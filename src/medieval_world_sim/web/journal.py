@@ -121,8 +121,10 @@ def load_world(game: MultiplayerGame) -> None:
         "SELECT seq, kind, actor_id, action, payload, request_id, recorded_at, "
         "flee_success, secure_roll, server_clock, regen_version, xp_version "
         "FROM world_journal WHERE seq>? ORDER BY seq", (restored_seq,)).fetchall()
-    for (kind, actor_id, action, payload, request_id, recorded_at,
-         flee_success, secure_roll, server_clock, regen_version) in rows:
+    for (seq, kind, actor_id, action, payload, request_id, recorded_at,
+         flee_success, secure_roll, server_clock, regen_version, xp_version) in rows:
+        if xp_version not in (1, 2):
+            raise ValueError("Invalid recorded experience ruleset")
         params = json.loads(payload)
         prior_events = len(game.world.events)
         if kind == "join":
