@@ -68,6 +68,23 @@ class ActivityProjectionTests(unittest.TestCase):
         self.assertEqual(change["chat"], updated["chat"])
         self.assertEqual(change["revision"], updated["revision"])
 
+    def test_presence_changes_send_sparse_patch_not_full_roster(self):
+        prior = self.game.social_snapshot(self.alice)
+        self.game.presence_ping(self.bob, True)
+        after = self.game.social_snapshot(self.alice)
+        update = activity_delta(prior, after)
+        self.assertNotIn("users", update)
+        self.assertEqual(update["presence_updates"],
+                         [{"id": self.bob, "presence": "active"}])
+        self.assertNotIn("chat", update)
+        # If a character travels, a full authorized roster is required,
+        # because city and attack eligibility changed as well.
+        self.game.action(self.bob, "travel",
+                         {"destination": "goldmeadow"}, "bob-travels")
+        moving = activity_delta(after, self.game.social_snapshot(self.alice))
+        self.assertIn("users", moving)
+        self.assertNotIn("presence_updates", moving)
+
     def test_presence_only_revisions_use_cached_projection_and_copy_overlay(self):
         first = self.game.social_snapshot(self.alice)
         cached = self.game._live_activity_cache[self.alice][1]
