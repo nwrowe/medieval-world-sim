@@ -31,6 +31,7 @@ ASSETS = {
     "/world-views.mjs": ("world-views.mjs", "application/javascript; charset=utf-8"),
     "/community-views.mjs": ("community-views.mjs", "application/javascript; charset=utf-8"),
     "/city-views.mjs": ("city-views.mjs", "application/javascript; charset=utf-8"),
+    "/character-views.mjs": ("character-views.mjs", "application/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/favicon.svg": ("favicon.svg", "image/svg+xml"),
     "/world-map.svg": ("world-map.svg", "image/svg+xml"),
