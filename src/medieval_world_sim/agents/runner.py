@@ -6,7 +6,7 @@ same WorldEngine APIs; the controller uses a seeded RNG only for decisions.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import random
 from statistics import median
 
@@ -16,6 +16,8 @@ from ..core.entities import Actor, Wage
 from ..errors import ActionError
 from .observation import observe
 from .policy import NPCProfile, RuleBasedPolicy, NPCAction
+from .cognition import NPCMemory, DecisionTrace
+from .critics import Critic, HeuristicCritic, PlaytestObserver, aggregate_issues, MAJOR_EVENTS
 
 
 INDUSTRIES = ("steelworks", "forge", "tannery", "leatherworker", "bakery", "apothecary")
@@ -44,6 +46,8 @@ class AutonomousSimulation:
     idle: int = 0
     ticks: int = 0
     elapsed_minutes: int = 0
+    memories: dict[str, NPCMemory] = field(default_factory=dict, repr=False)
+    observers: dict[str, PlaytestObserver] = field(default_factory=dict, repr=False)
 
     def step(self, step_minutes: int = 360) -> None:
         if not isinstance(step_minutes, int) or isinstance(step_minutes, bool) or step_minutes <= 0:
@@ -54,19 +58,54 @@ class AutonomousSimulation:
         order = list(self.profiles)
         self.rng.shuffle(order)
         for profile in order:
-            view = observe(self.world, profile.id)
-            proposal = controller.choose(profile, view)
+            memory = self.memories.setdefault(profile.id, NPCMemory())
+            view = observe(self.world, profile.id,
+                           include_progression=profile.role == "playtester")
+            memory.visited.update(view.discovered_cities)
+            proposal = controller.choose(profile, view, memory)
             if proposal is None:
                 self.idle += 1
+                memory.record_idle(view.city)
                 continue
             action_id = f"npc:{self.ticks}:{profile.id}"
+            before_events = len(self.world.events)
+            error = ""
             try:
                 self.world.execute(profile.id, proposal.name, proposal.params, action_id)
                 self.attempts[proposal.name] += 1
             except ActionError as exc:
-                # NPCs are not allowed to silently bypass engine validation.
-                self.rejected[type(exc).__name__ + ":" + str(exc)] += 1
+                # The same engine rejection path applies to AI and players.
+                error = type(exc).__name__ + ": " + str(exc)
+                self.rejected[error] += 1
+            actor = self.world.actors[profile.id]
+            emitted = tuple(e.kind for e in self.world.events[before_events:]
+                            if e.data.get("actor_id") == profile.id
+                            or e.data.get("attacker_id") == profile.id)
+            after = replace(view, gold=actor.gold, hp=actor.hp,
+                            level=actor.level, city=actor.city,
+                            discovered_cities=tuple(sorted(actor.discovered_cities)))
+            memory.record(view, after, proposal, emitted, error)
+            if profile.id in self.observers:
+                reason = next((kind for kind in emitted if kind in MAJOR_EVENTS), "")
+                if not reason and memory.failures[proposal.name] >= 3 and error:
+                    reason = "repeated_rejection"
+                self.observers[profile.id].maybe_reflect(after, reason=reason)
         self.world.advance(step_minutes)
+        # Arrivals happen during time advancement, not at travel initiation.
+        # Register actual discoveries only after the authoritative tick settles.
+        for profile in self.profiles:
+            memory = self.memories[profile.id]
+            actor = self.world.actors[profile.id]
+            discovered = sorted(set(actor.discovered_cities) - memory.visited)
+            for city in discovered:
+                memory.visited.add(city)
+                memory.recent.append(DecisionTrace(
+                    self.world.minute, "arrived", city, True, 0, 0, 0,
+                    (city,), ("arrived",)))
+            if discovered and profile.id in self.observers:
+                self.observers[profile.id].maybe_reflect(
+                    observe(self.world, profile.id, include_progression=True),
+                    reason="arrived")
         self.elapsed_minutes += step_minutes
         self.ticks += 1
         self.world.assert_invariants()
@@ -79,6 +118,9 @@ class AutonomousSimulation:
             raise ValueError("step_minutes must be a positive divisor of 1440")
         for _ in range(days * 1440 // step_minutes):
             self.step(step_minutes)
+        for agent_id, observer in self.observers.items():
+            observer.maybe_reflect(observe(self.world, agent_id, include_progression=True),
+                                   final=True)
         return self.report()
 
     def report(self) -> dict:
@@ -100,7 +142,7 @@ class AutonomousSimulation:
         ore = sum(e.data["quantity"] for e in events if e.kind == "gathered")
         minted = sum(e.kind == "gear_created" and e.data["origin"] == "crafted"
                      for e in events)
-        return {
+        report = {
             "seed": self.seed,
             "npcs": len(self.profiles),
             "simulated_days": round(self.elapsed_minutes / 1440, 3),
@@ -145,29 +187,46 @@ class AutonomousSimulation:
             "rejections": dict(sorted(self.rejected.items())),
             "idle_decisions": self.idle,
         }
+        if self.observers:
+            report["playtesting"] = {
+                "agents": {key: observer.output()
+                           for key, observer in sorted(self.observers.items())},
+                "aggregate": aggregate_issues(self.observers),
+                "notes": ("Critic reports are hypotheses from simulated agents, "
+                          "not findings confirmed by human playtesters."),
+            }
+        return report
 
 
 
-def create_simulation(npcs: int = 50, seed: int = 42) -> AutonomousSimulation:
+def create_simulation(npcs: int = 50, seed: int = 42, *,
+                      playtesters: bool = False, reflection_every: int = 30,
+                      critic: Critic | None = None) -> AutonomousSimulation:
     """Seed 4 staffed companies and independent workers across 5 cities.
 
     All initial gold is explicitly assigned, never silently minted during play.
     """
     if not isinstance(npcs, int) or npcs < 20 or npcs > 150:
         raise ValueError("Choose 20 to 150 NPCs for this bounded prototype")
+    if type(playtesters) is not bool:
+        raise ValueError("playtesters must be a boolean")
+    if type(reflection_every) is not int or not 1 <= reflection_every <= 1000:
+        raise ValueError("reflection_every must be 1–1000")
     rng = random.Random(seed)
     actors: list[Actor] = []
     profiles: list[NPCProfile] = []
 
     def register(actor_id: str, role: str, city: str, gold: int,
-                 resource: str | None = None, company_id: str | None = None):
-        actors.append(Actor(actor_id, "npc", city=city, gold=gold))
+                 resource: str | None = None, company_id: str | None = None,
+                 *, persona: str | None = None, actor_kind: str = "npc"):
+        actors.append(Actor(actor_id, actor_kind, city=city, gold=gold))
         profiles.append(NPCProfile(
             actor_id, role, city, resource, company_id,
             greed=round(rng.uniform(0.9, 1.08), 3),
             risk=round(rng.uniform(0.15, 0.75), 3),
             curiosity=round(rng.uniform(0.1, 0.85), 3),
             volatility=round(rng.uniform(0.3, 1.8), 3),
+            persona=persona,
         ))
 
     for industry in INDUSTRIES:
@@ -185,10 +244,29 @@ def create_simulation(npcs: int = 50, seed: int = 42) -> AutonomousSimulation:
         city, resource = RESOURCES[i % len(RESOURCES)]
         register(f"gatherer_{i}", "gatherer", city, 40, resource)
 
+    if playtesters:
+        # Isolated offline avatars use the real playable-actor rules, including
+        # player-only commands, but are NEVER registered on a live server.
+        register("playtest_explorer", "playtester", CAPITAL, 240,
+                 persona="explorer", actor_kind="human")
+        register("playtest_optimizer", "playtester", CAPITAL, 240,
+                 persona="optimizer", actor_kind="human")
     world = WorldEngine(actors, seed=seed)
+    if playtesters:
+        world.choose_lineage("playtest_explorer", "elf")
+        world.choose_lineage("playtest_optimizer", "human")
     for industry in INDUSTRIES:
         owner = f"owner_{industry}"
         company = f"{industry}_co"
         world.found_company(owner, company, industry, investment=430)
         world.hire(owner, company, f"worker_{industry}", Wage(gold=2))
-    return AutonomousSimulation(world, tuple(profiles), seed, random.Random(seed + 9999))
+    simulation = AutonomousSimulation(world, tuple(profiles), seed, random.Random(seed + 9999))
+    if playtesters:
+        for persona in ("explorer", "optimizer"):
+            actor_id = "playtest_" + persona
+            memory = NPCMemory()
+            simulation.memories[actor_id] = memory
+            simulation.observers[actor_id] = PlaytestObserver(
+                actor_id, persona, memory, critic=critic or HeuristicCritic(),
+                every=reflection_every)
+    return simulation
