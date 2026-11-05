@@ -56,3 +56,11 @@ New multiplayer journal commands now store timezone-aware UTC wall-clock timesta
 The authenticated event stream now sends the requesting account's public character directory (name, city, level, health and ability to attack), alongside its authorized Chronicle and social notifications. When someone arrives in a city, other nearby players immediately see updated location and combat eligibility. Private inventories, funds and combat attributes remain excluded.
 
 The compact refresh icon beside Chat requests a full current game snapshot (market, city, public characters, Chronicle, and inventory) without changing screens. This provides a manual way to re-sync pages beyond the pushed chat and character presence fields.
+
+## Player combat, availability and notifications
+
+Fleeing is now a **server-controlled 50/50 coin flip**. Each attempt uses one duel round. A failed escape permits an automatic zero-stamina counterattack, and a successful escape ends the encounter without defeat loot. The actual outcome is saved in the action journal for exact restart replay. Historical journal entries from before this change retain their original guaranteed-escape behavior; no account or combat history is reset.
+
+A defending player's **Under Attack** notification appears after the first real combat action, not merely when an attacker opens an encounter. A defeated character displays a hospital indicator and simulated remaining recovery time alongside active cooldowns.
+
+The Search character list is scoped to the current city. Active/Away/Offline indicators on human profiles and search results reflect **ephemeral authenticated browser presence**, never hidden combat attributes: **Active** means a recent heartbeat from a visible, non-idle tab; **Away** means a background tab or a visible tab with five minutes of no interaction; **Offline** means no heartbeat within approximately ninety seconds. Heartbeats are delivered only to the localhost development server with session and CSRF validation. Presence is not a promise of immediate response, and it is not written to the world simulation journal.
