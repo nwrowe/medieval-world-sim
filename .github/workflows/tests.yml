@@ -25,6 +25,7 @@ jobs:
           node tests/test_browser_views.mjs
           node --check src/medieval_world_sim/web/static/community-views.mjs
           node --check src/medieval_world_sim/web/static/city-views.mjs
+          node --check src/medieval_world_sim/web/static/character-views.mjs
           node tests/test_feature_views.mjs
       - name: Run standard-library unit tests
         env:
