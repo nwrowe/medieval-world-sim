@@ -375,13 +375,17 @@ class RuleBasedPolicy:
         equipped = dict(v.equipped)
         choices: list[Candidate] = []
         for gid, kind, quality in v.gear:
-            slot = "weapon" if kind in ("sword", "axe", "bow") else (
-                "body" if kind in ("leather_armor", "plate_armor") else None)
-            if slot and slot not in equipped:
+            slot = GEAR[kind].slot
+            if slot not in equipped:
                 choices.append(self._action(18, "equip", gear_id=gid))
-        if not any(k in owned for k in ("sword", "axe", "bow", "dagger")):
-            if v.gold >= GEAR["dagger"].base_value:
-                choices.append(self._action(17, "buy_starter_gear", kind="dagger"))
+        # The autonomous "attack" action uses the primary weapon slot.
+        # A secondary-slot dagger is useful for turn-based attacks but does
+        # not increase the damage of this NPC-only automatic strike.
+        if not any(k in owned for k in ("sword", "axe", "bow")):
+            if v.gold >= GEAR["sword"].base_value:
+                choices.append(self._action(19, "buy_starter_gear", kind="sword"))
+            elif "dagger" not in owned and v.gold >= GEAR["dagger"].base_value:
+                choices.append(self._action(15, "buy_starter_gear", kind="dagger"))
             for offer in v.local_offers():
                 if offer.gear_id is not None and offer.item in ("sword", "axe", "bow") and (
                     offer.price <= v.gold * 0.5):
