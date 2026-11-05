@@ -17,7 +17,9 @@ journal replay. Neither is production/public-internet hosting.
 | `web/session.py`, `web/chronicle.py`, `web/projection.py` | JSON replay, Chronicle formatting and common actor-scoped browser snapshots |
 | `web/multiplayer.py` | Shared lock/transaction boundary, trusted clock, command dispatch, event streams |
 | `web/accounts.py` | Credentials, invite redemption, lockout, sessions and identities |
-| `web/journal.py` | SQLite schema migrations and versioned multiplayer replay |
+| `web/journal.py` | SQLite command-journal schema and historical command replay, including checkpoint-tail replay |
+| `web/ledger.py` | Atomically materialized gold, item and gear ownership/escrow plus durable request receipts |
+| `web/checkpoint.py` | Versioned, checksum-attested typed JSON world snapshots and bounded restart recovery |
 | `web/social.py` | Ephemeral presence and account-scoped chat/trade/status projections |
 | `web/server.py`, `web/rate_limit.py` | HTTP transport, auth/cookie/CSRF checks, rate limiting and SSE |
 | `web/static/app.js` | Client networking, session state, actions, live events and page navigation |
@@ -49,19 +51,21 @@ health or ownership.
   JSON, writes it atomically, and replays with explicit historical ruleset
   versions. It is not a multi-user security boundary.
 - **Local multi-account:** `MultiplayerGame` retains the serialized SQLite/world
-  transaction boundary, trusted clock and command receipts. `accounts.py` owns
-  password hashing, authentication and one-time invitations; `journal.py`
-  owns schema evolution and versioned replay; `social.py` builds actor-scoped
-  projections. This mode remains localhost-only, with invite-gated registration
-  by default.
+  transaction boundary and trusted clock. `accounts.py` owns authentication
+  and invitations. `journal.py` owns historical commands and replay; `ledger.py`
+  records ownership and durable request receipts within the same SQLite commit;
+  `checkpoint.py` restores versioned world state and replays only subsequent
+  commands. `social.py` builds actor-scoped projections. See
+  [Phase 3 durability](DURABILITY_PHASE3.md). This mode remains localhost-only.
 - **HTTP:** `GameHTTPServer` and `GameHandler` provide no public TLS,
   reverse-proxy trust or distributed rate limit. This is **not** an
   internet-ready deployment. SSE and presence are projections scoped to the
   authenticated actor.
 - **Transactions:** The in-memory world still relies on copied
-  `WorldState` for rollback. SQLite protects the journal in local
-  multiplayer, but large-scale production requires finer-grained persistence,
-  deployment hardening, and performance evaluation.
+  `WorldState` for rollback, while SQLite atomically commits journal entries,
+  materialized asset/escrow ownership, receipts and periodic checkpoints.
+  Startup reconciles all records and fails on divergence. Whole-state copies,
+  materialization scans and one-process locking remain Phase 4 scaling limits.
 
 ## Extension guidelines
 
