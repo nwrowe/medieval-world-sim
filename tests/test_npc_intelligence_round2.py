@@ -12,6 +12,8 @@ from medieval_world_sim.catalog import CAPITAL
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
+from medieval_world_sim.web.checkpoint import _encode, _decode
+from medieval_world_sim.web.ledger import current_rows
 
 
 class NPCIntelligenceRoundTwoTests(unittest.TestCase):
@@ -81,6 +83,10 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
         world.store_gear("hero", sword.id)
         self.assertNotIn(sword.id, world.actors["hero"].gear_ids)
         self.assertIn(sword.id, world.actors["hero"].stored_gear[CAPITAL])
+        snapshot = _decode(_encode(world.state))
+        self.assertEqual(snapshot.actors["hero"].stored_gear[CAPITAL], [sword.id])
+        self.assertIn(("gear_storage", "hero", CAPITAL, "gear",
+                       str(sword.id), 1), current_rows(world))
         with self.assertRaises(ActionError):
             world.store_gear("hero", sword.id)
         with self.assertRaises(ActionError):
@@ -160,6 +166,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
                 sim = create_simulation(20, seed=seed, playtesters=True)
                 report = sim.run(5)
                 self.assertTrue(report["gold_conserved"])
+                self.assertEqual(report["hauler_losing_trade_cycles"], 0)
                 self.assertNotIn("ActionError: This school tier is mastered; "
                                  "practice a higher tier", report["rejections"])
                 for key in ("playtest_explorer", "playtest_optimizer"):
