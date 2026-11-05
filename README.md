@@ -44,6 +44,18 @@ For machine-readable results:
 python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
 ```
 
+## New: lineages and the explored atlas
+
+New players begin in Crownreach, select Human, Elf, Dwarf or Orc lineage,
+and initially see only their known city through the map's fog of war.
+Lineage provides small, server-calculated work and physical combat bonuses,
+plus a unique passive trait at level 3. Exploring another city reveals it
+permanently on that character's map. Older saves and local multiplayer
+accounts choose a lineage once without losing historical progress.
+
+See [Lineages and Exploration](docs/LINEAGES_AND_EXPLORATION.md) for rules,
+compatibility, limitations and future dungeon/party plans.
+
 ## Read next
 
 - [Product brief](docs/PRODUCT_BRIEF.md) — audience, vision, principles, and open questions.
