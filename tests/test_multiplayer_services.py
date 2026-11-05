@@ -50,6 +50,24 @@ class MultiplayerServiceTests(unittest.TestCase):
         self.assertNotIn("work", other)
         self.assertEqual(view["player_status"]["gold"], self.game.world.actors[a].gold)
 
+    def test_sqlite_replay_and_session_persist_across_restart(self):
+        actor_id = self.game.register(
+            "alice", "long correct password", "Alice Meadows",
+            self.game.issue_invites(1)[0])
+        token, _ = self.game.login("alice", "long correct password")
+        self.game.advance(actor_id, 3, "three-minutes")
+        original = self.game.snapshot(actor_id)
+        self.game.close()
+        self.game = MultiplayerGame(self.db, require_invites=True, dev_fast_forward=True)
+        replayed = self.game.snapshot(actor_id)
+        self.assertEqual(replayed["minute"], original["minute"])
+        self.assertEqual(replayed["player"]["gold"], original["player"]["gold"])
+        self.assertEqual(self.game.identity(token).actor_id, actor_id)
+        self.assertEqual(
+            self.game.db.execute("SELECT COUNT(*) FROM world_journal").fetchone()[0],
+            2)
+
+
 
 if __name__ == "__main__":
     unittest.main()
