@@ -220,7 +220,9 @@ def load(game: MultiplayerGame) -> None:
     # NPCs themselves already exist in the world's historic deterministic seed.
     for idx, profile in enumerate(profiles):
         game._npc_memories.setdefault(profile.id, NPCMemory())
-        game._npc_due.setdefault(profile.id, game.world.minute + (idx // 3) + 1)
+        # Unsaved NPCs retain their stable seed schedule after any restart.
+        # Otherwise a restart postpones NPCs who have not yet had a turn.
+        game._npc_due.setdefault(profile.id, (idx // 3) + 1)
 
 
 def _persist(game: MultiplayerGame, npc_id: str, seq: int) -> None:
