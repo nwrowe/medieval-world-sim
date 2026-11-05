@@ -299,8 +299,9 @@ class WebHTTPTests(unittest.TestCase):
         self.game.create("Pine Brook")
         with running_server(self.game) as port:
             for path, marker in (
-                ("/", b'<meta name="viewport"'),
-                ("/app.js", b"school-overview"),
+                ("/", b'<script type="module" src="/app.js"'),
+                ("/app.js", b"createWorldViews"),
+                ("/world-views.mjs", b"school-overview"),
                 ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/favicon.svg", b"<svg"),
