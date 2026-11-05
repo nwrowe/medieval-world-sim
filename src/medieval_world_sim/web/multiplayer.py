@@ -28,7 +28,7 @@ from ..errors import ActionError
 from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
-from . import social, accounts, journal, ledger
+from . import social, accounts, journal, ledger, checkpoint
 from .accounts import (AuthError, Identity, _digest, _password_hash,
                        MAX_ACCOUNTS, INVITE_VALID_SECONDS, MAX_INVITES_PER_BATCH,
                        SESSION_SECONDS, PASSWORD_N, PASSWORD_R, PASSWORD_P,
@@ -100,6 +100,20 @@ class MultiplayerGame:
         with self._lock:
             self.db.close()
 
+    def create_checkpoint(self) -> int | None:
+        """Operator-only durable checkpoint; never expose via player HTTP."""
+        with self._lock:
+            self.world.assert_invariants()
+            ledger.verify(self)
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                seq = checkpoint.save(self, force=True)
+                self.db.execute("COMMIT")
+                return seq
+            except BaseException:
+                self.db.execute("ROLLBACK")
+                raise
+
     def _create_schema(self):
         """Create and migrate the local SQLite journal schema."""
         journal.create_schema(self)
@@ -149,6 +163,7 @@ class MultiplayerGame:
                 # The journal, durable receipts and current asset ownership
                 # commit together, or all roll back with the world state.
                 ledger.persist(self)
+                checkpoint.save(self)
                 self.db.execute("COMMIT")
                 # Deduplicated command retries do not append a journal row:
                 # they must not manufacture new activity revisions.
