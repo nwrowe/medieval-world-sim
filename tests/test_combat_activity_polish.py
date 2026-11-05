@@ -100,8 +100,14 @@ class EscapesAndPresence(unittest.TestCase):
         self.assertEqual(first["round"], 0)
         self.game.action(self.alice, "duel_turn",
                          {"move": "guard", "node_id": ""}, "first-move")
+        guarded = self.game.social_snapshot(self.bob)["duel"]
+        self.assertEqual(guarded["round"], 1)
+        self.assertFalse(guarded["attack_started"])
+        self.game.action(self.alice, "duel_turn",
+                         {"move": "fists", "node_id": ""}, "first-swing")
         moved = self.game.social_snapshot(self.bob)["duel"]
-        self.assertEqual(moved["round"], 1)
+        self.assertEqual(moved["round"], 2)
+        self.assertTrue(moved["attack_started"])
 
     def test_hospitalization_timer_projected_on_player(self):
         self.duel("duel4")
@@ -145,7 +151,7 @@ class LegacyFleeReplay(unittest.TestCase):
         code = files("medieval_world_sim.web").joinpath(
             "static", "app.js").read_text(encoding="utf-8")
         self.assertIn("person.city === state.player.city", code)
-        self.assertIn("defendant.round > 0", code)
+        self.assertIn("defendant.attack_started", code)
         self.assertIn('data-ui="activity-hospital"', code)
         self.assertIn("function presenceBadge(", code)
         self.assertIn("state.player.max_hp - oldStats.hp", code)
