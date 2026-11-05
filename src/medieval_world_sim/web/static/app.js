@@ -770,9 +770,11 @@ import { createWorldViews } from "/world-views.mjs";
       if (update.actor_id !== state.actor_id ||
           update.revision < (state.activity_revision || 0)) return;
       state.activity_revision = update.revision;
-      state.chat = update.chat;
-      state.trades = update.trades;
-      state.minute = update.minute;
+      // Server-Sent Events are field-level deltas after the first frame.
+      // Omitted keys retain their previous value; explicit null clears them.
+      if ("chat" in update) state.chat = update.chat;
+      if ("trades" in update) state.trades = update.trades;
+      if ("minute" in update) state.minute = update.minute;
       if ("next_world_tick_seconds" in update) {
         state.next_world_tick_seconds = update.next_world_tick_seconds;
         clockSyncedAt = Date.now();
