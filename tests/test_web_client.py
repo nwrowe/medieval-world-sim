@@ -58,7 +58,8 @@ class BrowserEntrypointTests(unittest.TestCase):
         views = "".join(
             files("medieval_world_sim.web").joinpath("static", module).read_text(
                 encoding="utf-8")
-            for module in ("world-views.mjs", "community-views.mjs", "city-views.mjs")
+            for module in ("world-views.mjs", "community-views.mjs", "city-views.mjs",
+                           "character-views.mjs")
         )
         for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
             self.assertRegex(source + views, rf"function {name}\s*\(")
