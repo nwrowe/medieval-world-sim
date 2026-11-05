@@ -309,12 +309,12 @@ class GameHandler(BaseHTTPRequestHandler):
         try:
             data = self._body()
             if route == "/api/auth/register":
-                if (set(data) - {"username", "password", "display_name", "invite"}
+                if (set(data) - {"username", "password", "display_name", "invite", "lineage"}
                         or not {"username", "password", "display_name"} <= set(data)):
                     raise ActionError("Invalid registration fields")
                 token, csrf = self.server.multiplayer.register_and_login(
                     data["username"], data["password"], data["display_name"],
-                    data.get("invite"))
+                    data.get("invite"), data.get("lineage", "human"))
                 identity = self.server.multiplayer.identity(token)
                 self._json(200, {"result": {"registered": True}, "csrf": csrf,
                                  "state": self.server.multiplayer.snapshot(identity.actor_id)},
@@ -404,9 +404,9 @@ class GameHandler(BaseHTTPRequestHandler):
         try:
             data = self._body()
             if route == "/api/new":
-                if set(data) != {"name"}:
-                    raise ActionError("Character request must contain name only")
-                self.server.game.create(data["name"])
+                if not {"name"} <= set(data) or set(data) - {"name", "lineage"}:
+                    raise ActionError("Character request requires name and lineage")
+                self.server.game.create(data["name"], data.get("lineage", "human"))
                 result = {"created": True}
             elif route == "/api/action":
                 if set(data) != {"action", "params", "id"}:
