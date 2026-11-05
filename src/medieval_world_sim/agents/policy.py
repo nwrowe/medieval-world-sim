@@ -132,6 +132,21 @@ class RuleBasedPolicy:
         if method is None:
             raise ValueError(f"Unknown NPC role: {profile.role}")
         candidates = method(profile, view)
+        if (profile.role == "hauler" and memory is not None
+                and memory.active_route is not None and view.city == CAPITAL):
+            # Ordinary haulers also honor actual paid basis. When bids dry up
+            # they hold the shipment rather than liquidating at a known loss.
+            route = memory.active_route
+            quote = view.regional_quote(route.item)
+            if (quote is None or quote.player_sell_price * route.remaining
+                    + route.revenue < route.cost):
+                candidates = [candidate for candidate in candidates
+                              if candidate.action.name not in
+                              ("regional_sell", "post_offer")]
+            # An unfunded merchant must not force an untracked escrow listing.
+            elif not quote.buy_capacity or quote.city_gold < quote.player_sell_price:
+                candidates = [candidate for candidate in candidates
+                              if candidate.action.name != "post_offer"]
         if profile.role in ("adventurer", "playtester"):
             candidates.extend(self._combat_candidates(profile, view, memory))
         if committed:
