@@ -335,18 +335,19 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 13) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 14) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
             self.world._health_regen_version = (
-                1 if record.get("ruleset", 1) < 12 else 2)
+                1 if record.get("ruleset", 1) < 12 else
+                2 if record.get("ruleset", 1) == 12 else 3)
             self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
             try:
                 self._advance_world(record["minutes"])
             finally:
                 self.world._legacy_health_regen = False
-                self.world._health_regen_version = 2
+                self.world._health_regen_version = 3
                 self.world._legacy_equipment_wear = False
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
@@ -414,7 +415,7 @@ class GameSession:
             }:
                 ruleset = 6
             if record["kind"] == "advance":
-                ruleset = 12
+                ruleset = 13
             if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
                 ruleset = 8
             if record.get("name") == "enroll_course":
@@ -502,7 +503,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
     for city_id, city in CITIES.items():
         places.append({
             "id": city_id, "name": city.name, "is_current": city_id == actor.city,
-            "minutes": (0 if is_traveling or actor.hp <= 0
+            "minutes": (0 if is_traveling or actor.hp <= 0 or actor.defeated_until is not None
                         else w.estimated_travel_minutes(actor_id, city_id)),
         })
     quote_list = [
@@ -658,7 +659,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "level": npc.level, "kind": "npc", "hp": npc.hp, "max_hp": npc.max_hp,
             "can_attack": (
                 npc.city == actor.city and npc.destination is None
-                and npc.hp > 0 and actor.hp > 0 and not is_traveling
+                and npc.hp > 0 and npc.defeated_until is None
+                and actor.hp > 0 and actor.defeated_until is None and not is_traveling
                 and active_duel is None and not any(
                     npc.id in (d.attacker_id, d.defender_id)
                     for d in w.state.duels.values())
@@ -677,7 +679,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                 "hp": other.hp, "max_hp": other.max_hp,
                 "can_attack": (
                     other.city == actor.city and other.destination is None
-                    and other.hp > 0 and actor.hp > 0 and not is_traveling
+                    and other.hp > 0 and other.defeated_until is None
+                and actor.hp > 0 and actor.defeated_until is None and not is_traveling
                     and active_duel is None and not any(
                         other.id in (d.attacker_id, d.defender_id)
                         for d in w.state.duels.values())
@@ -762,9 +765,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "mana_next_sim_seconds": (
                 (10 - now % 10) * 60 if actor.magic.mana < actor.magic.max_mana else None),
             "health_next_sim_seconds": (
-                (actor.defeated_until - now) * 60
-                if actor.hp <= 0 and actor.defeated_until is not None else
-                (3 - now % 3) * 60 if 0 < actor.hp < actor.max_hp else None),
+                (3 - now % 3) * 60 if actor.hp < actor.max_hp else None),
 
         },
         "cities": places,
@@ -778,7 +779,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "magic_stamina_cost": 6,
         "combat_moves": combat_moves,
         "church": {"price": 20, "available": (
-            actor.hp > 0 and actor.hp < actor.max_hp and
+            actor.hp > 0 and actor.defeated_until is None
+            and actor.hp < actor.max_hp and
             w.state.church_healed_day.get(actor_id) != now // 1440),
             "used_today": w.state.church_healed_day.get(actor_id) == now // 1440},
         "track": {"horses": [

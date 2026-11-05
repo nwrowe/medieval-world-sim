@@ -95,10 +95,12 @@ class TravelSystem:
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
         mana_ticks = end // MANA_REGEN_MINUTES - start_minute // MANA_REGEN_MINUTES
-        # Historic journal advances used +1 HP / 10 minutes. New advances
-        # restore ceil(10% of max HP) every three minutes. Version selection
-        # is transient replay metadata, not mutable user-controlled state.
-        legacy = getattr(self.world, "_health_regen_version", 2) == 1
+        # Version 1: +1 HP / 10 min (historical). Version 2: +10% / 3 min,
+        # but frozen HP in hospital and full HP on release. Version 3:
+        # +10% / 3 min even in hospital, with independent release cooldown.
+        # Replay versioning preserves exact prior saved-world outcomes.
+        version = getattr(self.world, "_health_regen_version", 3)
+        legacy = version == 1
         interval = LEGACY_HEALTH_REGEN_MINUTES if legacy else HEALTH_REGEN_MINUTES
         health_ticks = (end // interval - start_minute // interval
                         if not getattr(self.world, "_legacy_health_regen", False) else 0)
@@ -107,13 +109,15 @@ class TravelSystem:
         for actor in self.world.actors.values():
             actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
             actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)
-            # Hospitalized characters recover at their release minute; passive
-            # regeneration never circumvents that lockout.
-            if actor.defeated_until is None and actor.hp > 0:
+            # HP recovery and the hospital lock are distinct in version 3:
+            # HP can recover to full while the player remains hospitalized.
+            if health_ticks and (version == 3 or
+                                 (actor.defeated_until is None and actor.hp > 0)):
                 gain_per_tick = 1 if legacy else (actor.max_hp + 9) // 10
                 actor.hp = min(actor.max_hp, actor.hp + health_ticks * gain_per_tick)
             if actor.defeated_until is not None and actor.defeated_until <= end:
-                actor.hp = actor.max_hp
+                if version < 3:
+                    actor.hp = actor.max_hp
                 actor.defeated_until = None
                 self.world._emit("recovered", actor.id)
         self.world.assert_invariants()

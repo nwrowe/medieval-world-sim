@@ -37,9 +37,46 @@ class HealthRecoveryTests(unittest.TestCase):
         hero.hp = 0
         hero.defeated_until = world.minute + 7
         world.advance(3)
-        self.assertEqual(hero.hp, 0)
+        self.assertEqual(hero.hp, 0)  # previous frozen hospital recovery
         world.advance(4)
         self.assertEqual(hero.hp, hero.max_hp)
+
+    def test_hospital_hp_ticking_and_release_are_independent(self):
+        from medieval_world_sim.errors import ActionError
+
+        world = WorldEngine([Actor("hero", "human")])
+        hero = world.actors["hero"]
+        hero.hp = 0
+        hero.defeated_until = 20
+        world.advance(2)
+        self.assertEqual(hero.hp, 0)
+        with self.assertRaises(ActionError):
+            world._at_city(hero)
+        world.advance(1)
+        self.assertEqual(hero.hp, 3)
+        self.assertEqual(hero.defeated_until, 20)
+        with self.assertRaises(ActionError):
+            world._at_city(hero)
+        world.advance(12)
+        self.assertEqual(hero.hp, 15)
+        self.assertEqual(hero.defeated_until, 20)
+        world.advance(5)
+        self.assertEqual(hero.hp, 18)  # no forced full HP on release
+        self.assertIsNone(hero.defeated_until)
+        self.assertEqual(world._at_city(hero), hero.city)
+
+    def test_full_hp_does_not_release_hospitalized_player_early(self):
+        from medieval_world_sim.errors import ActionError
+
+        world = WorldEngine([Actor("hero", "human")])
+        hero = world.actors["hero"]
+        hero.hp = 23
+        hero.defeated_until = 20
+        world.advance(3)
+        self.assertEqual(hero.hp, hero.max_hp)
+        self.assertEqual(hero.defeated_until, 20)
+        with self.assertRaises(ActionError):
+            world._at_city(hero)
 
     def test_single_player_records_new_recovery_ruleset(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -47,7 +84,7 @@ class HealthRecoveryTests(unittest.TestCase):
             game = GameSession(path)
             game.create("Local Hero")
             game.advance(3)
-            self.assertEqual(game.records[-1]["ruleset"], 12)
+            self.assertEqual(game.records[-1]["ruleset"], 13)
             self.assertEqual(GameSession(path).snapshot(), game.snapshot())
 
     def test_multiplayer_journal_versions_new_advances(self):
@@ -58,11 +95,28 @@ class HealthRecoveryTests(unittest.TestCase):
             game.advance(actor, 3, "three-minutes")
             self.assertEqual(game.db.execute(
                 "SELECT regen_version FROM world_journal WHERE request_id=?",
-                ("three-minutes",)).fetchone()[0], 2)
+                ("three-minutes",)).fetchone()[0], 3)
             game.close()
             game = MultiplayerGame(path, require_invites=False, dev_fast_forward=True)
             self.assertEqual(game.snapshot(actor)["minute"], 3)
             game.close()
+
+    def test_health_tooltip_counts_hp_regen_even_when_hospitalized(self):
+        from medieval_world_sim.web.session import world_snapshot
+
+        world = WorldEngine([Actor("hero", "human")])
+        hero = world.actors["hero"]
+        hero.hp = 8
+        view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 180)
+        world.advance(1)
+        view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 120)
+        hero.hp = 0
+        hero.defeated_until = world.minute + 20
+        view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 120)
+        self.assertEqual(view["player"]["defeated_until"], world.minute + 20)
 
     def test_multiplayer_reports_subminute_clock_progress(self):
         with tempfile.TemporaryDirectory() as tmp:

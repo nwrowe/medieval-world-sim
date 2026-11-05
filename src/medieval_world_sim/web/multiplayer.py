@@ -279,13 +279,13 @@ class MultiplayerGame:
                 minutes = params.get("minutes")
                 if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
                         or server_clock not in (None, 0, 1)
-                        or regen_version not in (1, 2)):
+                        or regen_version not in (1, 2, 3)):
                     raise ValueError("Invalid journal time advancement")
                 self.world._health_regen_version = regen_version
                 try:
                     self.world.advance(minutes)
                 finally:
-                    self.world._health_regen_version = 2
+                    self.world._health_regen_version = 3
             else:
                 raise ValueError("Invalid journal kind")
             if recorded_at is not None:
@@ -519,7 +519,7 @@ class MultiplayerGame:
                 self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
                     "result_json,recorded_at,server_clock,regen_version) "
-                    "VALUES('advance',?,?,?,?,?,1,2)",
+                    "VALUES('advance',?,?,?,?,?,1,3)",
                     (actor_id, _canonical({"minutes": minutes}),
                      f"__clock__:{old_anchor}", "null", timestamp))
                 self.db.execute(
@@ -621,7 +621,7 @@ class MultiplayerGame:
                 "flee_success,secure_roll,regen_version) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
                  encoded_result, recorded_at, flee_success, secure_roll,
-                 2 if kind == "advance" else 1))
+                 3 if kind == "advance" else 1))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)

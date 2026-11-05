@@ -138,7 +138,7 @@
     const text = label + fullCountdown(seconds);
     const end = secureWorldClock && state && state.next_world_tick_seconds != null ?
       Date.now() + seconds * 1000 : 0;
-    return ' title="' + esc(text) + '" data-timer-label="' + esc(label) +
+    return ' data-hover-text="' + esc(text) + '" data-timer-label="' + esc(label) +
       '" data-timer-end="' + end + '" data-timer-fixed="' +
       (end ? "" : Math.ceil(seconds)) + '"';
   }
@@ -147,7 +147,7 @@
       const seconds = Number(item.dataset.timerEnd) > 0 ?
         (Number(item.dataset.timerEnd) - Date.now()) / 1000 :
         Number(item.dataset.timerFixed);
-      item.title = item.dataset.timerLabel + fullCountdown(seconds);
+      item.dataset.hoverText = item.dataset.timerLabel + fullCountdown(seconds);
     }
   }
   function simDuration(minutes) {
@@ -161,7 +161,8 @@
   }
   function isBusy() {
     return pending || !state || !state.started ||
-      Boolean(state.player.destination) || state.player.hp <= 0 || Boolean(state.duel);
+      Boolean(state.player.destination) || state.player.hp <= 0 ||
+      state.player.defeated_until != null || Boolean(state.duel);
   }
   function button(text, attrs = "", variant = "") {
     return '<button class="button ' + variant + '" ' + attrs + '>' + esc(text) + '</button>';
@@ -406,7 +407,7 @@
     const hint = v >= maximum ? "Full" :
       simSeconds == null ? "No passive recovery available" : "Next increase in ";
     const timing = v < maximum && simSeconds != null ?
-      timerAttrs(hint, simSeconds) : ' title="' + esc(hint) + '"';
+      timerAttrs(hint, simSeconds) : ' data-hover-text="' + esc(hint) + '"';
     return '<div class="vital vital-' + kind +
       '"' + timing + ' tabindex="0" aria-label="' +
       esc(label + ': ' + v + ' of ' + maximum + '. ' +
@@ -481,7 +482,7 @@
     const defendant = state.duel;
     const hospitalMinutes = Math.max(0,
       Number(p.defeated_until || 0) - Number(state.minute || 0));
-    const hospital = p.hp <= 0 && hospitalMinutes > 0 ?
+    const hospital = hospitalMinutes > 0 ?
       '<button type="button" class="cooldown-chip activity-clickable activity-hospital" ' +
       'data-ui="activity-hospital"' +
       timerAttrs("Hospitalized · ", hospitalMinutes * 60) +
@@ -611,7 +612,8 @@
       if (!point) return "";
       const current = city.id === p.city;
       const arriving = city.id === destination;
-      const inactive = pending || Boolean(destination) || p.hp <= 0 || current;
+      const inactive = pending || Boolean(destination) || p.hp <= 0 ||
+        p.defeated_until != null || current;
       return '<button class="map-pin map-' + esc(city.id) +
         (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
         '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
@@ -632,7 +634,7 @@
   function renderWorld() {
     const p = state.player;
     const traveling = Boolean(p.destination);
-    const defeated = p.hp <= 0;
+    const defeated = p.hp <= 0 || p.defeated_until != null;
     const timeToArrival = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
     const ready = !traveling && !defeated && state.minute >= p.ready_minute;
     const destinations = state.cities.filter(c => !c.is_current).map(city =>

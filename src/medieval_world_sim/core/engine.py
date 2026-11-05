@@ -207,7 +207,7 @@ class WorldEngine:
         if isinstance(account, Actor):
             if account.destination is not None:
                 raise ActionError("Cannot act while traveling")
-            if account.hp <= 0:
+            if account.hp <= 0 or account.defeated_until is not None:
                 raise ActionError("Cannot act while recovering from defeat")
         return account.city
 
@@ -764,7 +764,9 @@ class WorldEngine:
                 raise AssertionError('Invalid active duel')
             attacker, defender = self.actors[duel.attacker_id], self.actors[duel.defender_id]
             if (attacker.city != defender.city or attacker.destination or defender.destination
-                    or attacker.hp <= 0 or defender.hp <= 0):
+                    or attacker.hp <= 0 or defender.hp <= 0
+                    or attacker.defeated_until is not None
+                    or defender.defeated_until is not None):
                 raise AssertionError('Invalid duel participants')
             participants.extend((duel.attacker_id, duel.defender_id))
         if len(participants) != len(set(participants)):
