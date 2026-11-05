@@ -184,6 +184,15 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         }
         for gid in actor.gear_ids
     ]
+    stored_gear_here = [
+        {
+            "id": gid, "kind": w.gear[gid].kind,
+            "slot": GEAR[w.gear[gid].kind].slot,
+            "quality": w.gear[gid].quality,
+            "durability": w.gear[gid].durability,
+        }
+        for gid in sorted(actor.stored_gear.get(actor.city, []))
+    ]
     gear_catalog = [
         {"kind": kind, "slot": spec.slot, "price": spec.base_value,
          "attack": round(spec.attack * 0.85),
@@ -233,8 +242,12 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             if quantity and item in RAW_RESOURCES:
                 trade_goods_value += quantity * w.regional_quote(
                     storage_city, item).player_sell_price
+    stored_equipment_value = sum(
+        suggested_value(w.gear[gid])
+        for ids in actor.stored_gear.values() for gid in ids)
     net_worth = (actor.gold + property_value + facility_value + vehicle_value
-                 + trade_goods_value + sum(item["value"] for item in owned_gear))
+                 + trade_goods_value + sum(item["value"] for item in owned_gear)
+                 + stored_equipment_value)
     housing_data = {
         **asdict(housing),
         "facilities": list(housing.facilities),
@@ -271,6 +284,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                            "local raw-goods resale quotes (including city storage), "
                            "and estimated equipment value",
         "gear": owned_gear,
+        "stored_gear_here": stored_gear_here,
         "equipment_catalog": gear_catalog,
         "world_items": world_items,
         "guilds": w.guild_system.view(actor_id),
@@ -303,6 +317,9 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "attuned_paths": list(actor.magic.attuned_paths),
             "inventory": dict(actor.inventory),
             "stored_here": dict(actor.storage.get(actor.city, {})),
+            "stored_gear_cities": {
+                city: len(ids) for city, ids in actor.stored_gear.items()
+            },
             "storage_cities": {
                 city: sum(contents.values())
                 for city, contents in actor.storage.items()

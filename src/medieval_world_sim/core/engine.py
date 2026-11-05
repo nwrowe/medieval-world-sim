@@ -301,6 +301,30 @@ class WorldEngine:
         self._emit("goods_retrieved", actor_id, city, item, quantity)
 
     @atomic_action
+    def store_gear(self, actor_id: str, gear_id: int) -> None:
+        """Keep unequipped gear in the current city; ownership never changes."""
+        actor = self._actor(actor_id)
+        city = self._at_city(actor)
+        if type(gear_id) is not int or gear_id not in actor.gear_ids:
+            raise ActionError("You do not carry this equipment")
+        if gear_id in actor.equipped.values():
+            raise ActionError("Unequip this item before storing it")
+        actor.gear_ids.remove(gear_id)
+        actor.stored_gear.setdefault(city, []).append(gear_id)
+        self._emit("gear_stored", actor_id, city, gear_id)
+
+    @atomic_action
+    def retrieve_gear(self, actor_id: str, gear_id: int) -> None:
+        """Withdraw only this account's locally stored equipment."""
+        actor = self._actor(actor_id)
+        city = self._at_city(actor)
+        if type(gear_id) is not int or gear_id not in actor.stored_gear.get(city, []):
+            raise ActionError("Equipment is not stored here")
+        actor.stored_gear[city].remove(gear_id)
+        actor.gear_ids.append(gear_id)
+        self._emit("gear_retrieved", actor_id, city, gear_id)
+
+    @atomic_action
     def found_company(self, owner_id: str, company_id: str, industry: str, investment: int) -> None:
         return self.companies_system.found_company(owner_id, company_id, industry, investment)
 

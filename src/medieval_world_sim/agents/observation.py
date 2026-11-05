@@ -28,9 +28,20 @@ class CompanyView:
     employees: tuple[str, ...]
     employee_pay: tuple[tuple[str, int, int], ...]
     facility_level: int
+    training_fee: int = 0
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
+
+
+@dataclass(frozen=True)
+class CombatTarget:
+    """Observable simulated NPC target, never a real player's private stats."""
+    id: str
+    hp: int
+    max_hp: int
+    level: int
+    armed: bool
 
 
 @dataclass(frozen=True)
@@ -68,6 +79,8 @@ class NPCView:
     work_xp: int = 0
     magic_xp: int = 0
     courses_completed: int = 0
+    travel_cargo_limit: int = 12
+    combat_targets: tuple[CombatTarget, ...] = ()
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
@@ -108,11 +121,19 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         tuple(sorted(c.employees)),
         tuple((aid, wage.gold, suggested_wage(world.actors[aid], c.industry))
               for aid, wage in sorted(c.employees.items())),
-        c.facility_level
+        c.facility_level, int("training" in c.perks)
     ) for c in sorted(world.companies.values(), key=lambda c: c.id))
     opponents = tuple(sorted(a.id for a in world.actors.values()
                              if a.id != actor.id and a.city == actor.city
                              and a.destination is None and a.hp > 0))
+    # The autonomous offline simulator may attack its own NPC accounts;
+    # do not leak a human player's health, assets or gear through this field.
+    combat_targets = tuple(sorted((
+        CombatTarget(a.id, a.hp, a.max_hp, a.level, bool(a.equipped.get("weapon")))
+        for a in world.actors.values()
+        if a.id != actor.id and a.kind == "npc" and a.city == actor.city
+        and a.destination is None and a.hp > 0 and a.defeated_until is None
+    ), key=lambda a: a.id))
     contracts: tuple[str, ...] = ()
     eligible: tuple[str, ...] = ()
     practice: tuple[tuple[str, int], ...] = ()
@@ -132,7 +153,7 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         nodes = world.magic_tree(actor_id)
         eligible = tuple(node.node_id for node in nodes if node.eligible)
         practice = tuple((node.node_id, node.mana_cost) for node in nodes
-                         if node.active and node.tier > 0)
+                         if node.can_practice)
         curriculum = world.curriculum_system.view(actor_id)
         courses_completed = sum(school['completed'] for school in curriculum['schools'])
         studying = curriculum['active'] is not None
@@ -156,4 +177,5 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         tuple(sorted(actor.discovered_cities)), actor.level, actor.magic.mana,
         contracts, eligible, practice, courses, studying,
         combat_xp, level_xp, work_xp, magic_xp, courses_completed,
+        world.housing_system.travel_cargo_limit(actor), combat_targets,
     )

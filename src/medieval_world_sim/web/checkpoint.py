@@ -93,9 +93,9 @@ def _decode(value, depth=0):
             raise ValueError("Unknown checkpoint class")
         expected = {f.name for f in fields(cls)}
         present = set(value["values"])
-        # The only tolerated legacy schema difference is the three newly
-        # defaultable Actor fields. All other model/schema drift still fails.
-        migration_fields = {"lineage", "lineage_selected", "discovered_cities"}
+        # Only allow explicitly defaultable Actor fields added after the
+        # original schema; all other model/schema drift must still fail.
+        migration_fields = {"lineage", "lineage_selected", "discovered_cities", "stored_gear"}
         if (present != expected and not (
                 cls is Actor and present <= expected and
                 expected - present <= migration_fields)):

@@ -11,8 +11,11 @@ from statistics import mean, median
 from .runner import create_simulation
 
 
-METRICS = ("cash_change", "trade_completed", "trade_net_profit",
-           "trade_loss_cycles", "combat_xp", "work_xp", "magic_xp",
+METRICS = ("cash_change", "gold_per_day", "goal_action_pct",
+           "trade_completed", "trade_net_profit", "trade_profit_per_day",
+           "trade_loss_cycles", "unsettled_positions",
+           "combat_attacks", "combat_victories", "combat_loot",
+           "combat_xp", "work_xp", "magic_xp",
            "equipment_owned", "cities_discovered")
 
 

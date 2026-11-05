@@ -39,7 +39,7 @@ export function createWorldViews(ctx) {
       const current = city.id === p.city;
       const arriving = city.id === destination;
       const inactive = pending || Boolean(destination) || p.hp <= 0 ||
-        p.defeated_until != null || current;
+        p.defeated_until != null || p.cargo > p.cargo_limit || current;
       return '<button class="map-pin map-' + esc(city.id) +
         (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
         (!city.discovered && !current ? ' is-unexplored' : '') +
@@ -74,7 +74,7 @@ export function createWorldViews(ctx) {
       (city.discovered ? ' along the royal roads' : ' into uncharted territory') + '</div></div>' +
       '<span class="muted">◈</span></div>' +
       button(city.discovered ? "Travel" : "Explore", 'data-ui="travel" data-target="' + esc(city.id) + '"' +
-        disabled(isBusy()), "full secondary") + '</div>'
+        disabled(isBusy() || p.cargo > p.cargo_limit), "full secondary") + '</div>'
     ).join("");
     const gathering = Object.entries(state.gatherable).map(([item, available]) => {
       const quantity = Math.min(2, available);
@@ -98,6 +98,10 @@ export function createWorldViews(ctx) {
         'has recovered before beginning another activity.</div>' : "";
     return heading("", "World Map", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
       worldMap() +
+      (p.cargo > p.cargo_limit ?
+        '<div class="callout"><strong>Travel cargo exceeded</strong>You have ' +
+        p.cargo + ' of ' + p.cargo_limit + ' road cargo units. ' +
+        'Store extra goods in the city inventory before departure; city storage is unlimited.</div>' : '') +
       '<div class="two-col"><div class="stack">' + journey +
       panel("Roads and unexplored settlements", "Travel to a location to add it to your personal atlas.",
         '<div class="card-grid">' + destinations + '</div>') +
@@ -256,7 +260,7 @@ export function createWorldViews(ctx) {
   };
   function spellRow(node, nodes, p) {
     const state = ctx.getState();
-    const higherUnlocked = nodes.some(other => other.tier > node.tier && other.unlocked);
+    const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
     const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
@@ -267,10 +271,10 @@ export function createWorldViews(ctx) {
       "Requires Insight";
     let control;
     if (node.unlocked) {
-      control = button(higherUnlocked ? "Mastered" : "Practice · " + node.mana_cost + " mana",
+      control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-        disabled(higherUnlocked || !node.active || isBusy() || p.mana < node.mana_cost),
-        higherUnlocked ? "ghost" : "secondary") +
+        disabled(mastered || !node.can_practice || isBusy() || p.mana < node.mana_cost),
+        mastered ? "ghost" : "secondary") +
         button("Cast · " + node.mana_cost + " mana",
           'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
           disabled(!node.active || isBusy() || p.mana < node.mana_cost), "gold");

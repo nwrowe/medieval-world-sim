@@ -43,9 +43,10 @@ export function createCharacterViews(ctx) {
       .map(([city, count]) => characterRow(pretty(city), count + " items")).join("");
     return heading("", "Inventory", "") +
       '<div class="callout mb-20"><strong>Carrying ' + p.cargo + ' items · Road limit ' +
-      p.cargo_limit + '</strong>Your carried inventory has no fixed city limit. ' +
-      'Store goods locally before traveling if your carried load exceeds ' +
-      'your road capacity. Stored goods stay in their city until you return.</div>' +
+      p.cargo_limit + '</strong>Crownreach offers unlimited goods storage, ' +
+      'as do the other settlements. Your carried goods have no town limit, ' +
+      'but departure is blocked when cargo exceeds road capacity. ' +
+      'Store goods here before traveling; each city stash is accessible only when you return.</div>' +
       '<div class="two-col"><div class="stack">' +
       panel("Carried goods", "Choose what to take on the road", carryRows) +
       panel("City storage", "Available in " + pretty(p.city), stashRows) +
@@ -190,14 +191,31 @@ export function createCharacterViews(ctx) {
         '/' + gear.max_durability +
         ' · Attack +' + gear.attack + ' · Defense +' + gear.defense +
         '</p></div>' +
+        '<div class="button-group">' +
         button(inUse ? "Equipped" : "Equip", 'data-ui="equip" data-gear-id="' +
-          gear.id + '"' + disabled(inUse || isBusy()), "s secondary") + '</div>';
+          gear.id + '"' + disabled(inUse || isBusy()), "s secondary") +
+        button("Store", 'data-ui="store-gear" data-gear-id="' +
+          gear.id + '"' + disabled(inUse || isBusy()), "s ghost") +
+        '</div></div>';
     }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
+    const storedGear = (state.stored_gear_here || []).map(gear =>
+      '<div class="equipment-item"><div><h3>' +
+      esc(pretty(gear.kind)) + ' · #' + gear.id + '</h3><p>Quality ' +
+      gear.quality + ' · Durability ' + gear.durability +
+      ' · Stored in ' + esc(pretty(p.city)) + '</p></div>' +
+      button("Retrieve", 'data-ui="retrieve-gear" data-gear-id="' +
+        gear.id + '"' + disabled(isBusy()), "s secondary") + '</div>').join('') ||
+      '<p class="small">No equipment stored in this city.</p>';
+    const otherStores = Object.entries(p.stored_gear_cities || {})
+      .filter(([city, count]) => city !== p.city && count > 0)
+      .map(([city, count]) => esc(pretty(city)) + ': ' + count).join(' · ');
     return heading("", "Equipment", "") +
       '<div class="profile-grid">' +
       panel("Equipped Gear", "", equipmentMannequin(owned, equipped) + slotRows) +
-      panel("Owned Equipment", "", gearRows) +
-      '</div>';
+      panel("Owned Equipment", "Only carried equipment counts against your road cargo limit.", gearRows) +
+      '</div>' +
+      panel("Stored Equipment", "Unlimited in Crownreach and other settlements; retrieve it in the same city.", storedGear +
+        (otherStores ? '<p class="small">Other city armories: ' + otherStores + '</p>' : ''));
   }
   function renderArmory() {
     const state = ctx.getState();

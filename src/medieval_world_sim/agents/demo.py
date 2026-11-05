@@ -56,6 +56,20 @@ def main() -> None:
             summary = report["playtesting"]["aggregate"]
             print("Playtest reflections: " + str(summary["report_counts"]))
             print("Shared issue signals: " + str(summary["common_issue_codes"]))
+            for persona in ("explorer", "optimizer"):
+                outcome = report["playtesting"]["agents"]["playtest_" + persona]["outcomes"]
+                print(f"{persona.title()}: +{outcome['cash_change']}g, "
+                      f"{outcome['combat_attacks']} attacks, "
+                      f"{outcome['combat_victories']} victories, "
+                      f"{outcome['combat_loot']}g loot, "
+                      f"{outcome['trade_completed']} completed routes, "
+                      f"{outcome['trade_net_profit']}g trade profit, "
+                      f"{outcome['unsettled_positions']} stored positions, "
+                      f"{outcome['goal_action_pct']}% goal-aligned actions")
+            print(f"Ordinary haulers: {report['hauler_realized_trade_profit']}g "
+                  f"realized route profit, "
+                  f"{report['hauler_losing_trade_cycles']} losing completed routes, "
+                  f"{report['hauler_pending_shipments']} pending shipments")
             if args.report_file:
                 print("Structured feedback saved to " + str(args.report_file))
 

@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import Counter, deque
 from dataclasses import dataclass, field
 
-from ..catalog import CAPITAL
+from ..catalog import CAPITAL, CITIES
 from .observation import NPCView
 
 
@@ -42,6 +42,7 @@ class TradeRoute:
     cost: int
     start_minute: int
     revenue: int = 0
+    recovery_attempts: int = 0
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,7 @@ class DecisionTrace:
     equipment_delta: int = 0
     trade_profit: int | None = None
     city: str = ""
+    quantity: int = 0
 
 
 @dataclass
@@ -95,6 +97,10 @@ class NPCMemory:
     trade_completed: int = 0
     trade_net_profit: int = 0
     trade_loss_cycles: int = 0
+    trade_abandoned: int = 0
+    pending_cargo: deque[dict] = field(default_factory=lambda: deque(maxlen=24))
+    combat_loot: int = 0
+    combat_victories: int = 0
 
     @staticmethod
     def key(action) -> str:
@@ -121,14 +127,55 @@ class NPCMemory:
         if error:
             return None
         item = action.params.get("item")
-        if (action.name == "regional_buy" and before.city != CAPITAL
-                and self.active_route is None):
-            qty = int(action.params["quantity"])
+        # A successful reroute is a new delivery destination, not a new cargo
+        # purchase. Keep the original cost basis and whole-route credit.
+        route = self.active_route
+        if (route and action.name == "travel" and before.city == route.destination
+                and action.params.get("destination") != route.destination):
+            route.destination = str(action.params["destination"])
+            route.recovery_attempts += 1
+            return None
+        if (route and action.name == "store_goods" and item == route.item
+                and before.stock(item) - after.stock(item) >= route.remaining):
+            self.trade_abandoned += 1
+            self.pending_cargo.append({
+                "city": before.city, "item": route.item,
+                "quantity": route.remaining, "cost": route.cost,
+                "revenue": route.revenue,
+                "age_minutes": after.minute - route.start_minute,
+                "status": "stored_unsold",
+            })
+            self.active_route = None
+            self.values["trade_route"] = max(
+                -4.0, self.values.get("trade_route", 0.0) * 0.7 - 0.35)
+            return None
+        if before.city != CAPITAL and action.name in ("regional_buy", "accept_offer"):
+            if action.name == "accept_offer":
+                if action.params.get("buyer_id") != before.id:
+                    return None
+                offer = next((o for o in before.offers
+                              if o.id == action.params.get("offer_id")), None)
+                if offer is None:
+                    return None
+                item = offer.item
+            # Track real purchase cost and received quantity. The source must
+            # actually produce the raw material; food/gear purchases don't
+            # become speculative cargo objectives.
+            if item not in CITIES[before.city].deposits:
+                return None
+            qty = after.stock(item) - before.stock(item)
             spent = before.gold - after.gold
-            if qty > 0 and spent > 0 and after.stock(item) >= qty:
-                self.active_route = TradeRoute(
-                    before.city, CAPITAL, str(item), qty, qty, spent,
-                    before.minute)
+            if qty > 0 and spent > 0:
+                route = self.active_route
+                if route is None:
+                    self.active_route = TradeRoute(
+                        before.city, CAPITAL, str(item), qty, qty, spent,
+                        before.minute)
+                elif (route.source == before.city and route.item == item
+                      and route.destination == CAPITAL and not route.recovery_attempts):
+                    route.quantity += qty
+                    route.remaining += qty
+                    route.cost += spent
             return None
         route = self.active_route
         if not (route and action.name == "regional_sell"
@@ -172,6 +219,10 @@ class NPCMemory:
             self.failures[name] += 1
         else:
             self.successes[name] += 1
+            if name == "attack":
+                self.combat_loot += max(0, after.gold - before.gold)
+                self.combat_victories += int(
+                    "combat_victory" in events)
         discovered = tuple(sorted(set(after.discovered_cities)
                                   - set(before.discovered_cities)))
         gold_delta = after.gold - before.gold
@@ -214,7 +265,8 @@ class NPCMemory:
                      or action.params.get("contract_id")
                      or action.params.get("node_id")
                      or action.params.get("school")
-                     or action.params.get("item") or "")
+                     or action.params.get("item")
+                     or action.params.get("defender_id") or "")
         self.sequence += 1
         trace = DecisionTrace(
             before.minute, name, target[:72], not bool(error),
@@ -224,7 +276,9 @@ class NPCMemory:
             magic_xp_delta=magic_delta, combat_xp_delta=combat_delta,
             level_xp_delta=level_xp_delta, courses_delta=courses_delta,
             equipment_delta=equipment_delta, trade_profit=trade_profit,
-            city=before.city)
+            city=before.city,
+            quantity=(action.params.get("quantity", 0)
+                      if type(action.params.get("quantity", 0)) is int else 0))
         self.recent.append(trace)
         return trace
 
@@ -252,6 +306,10 @@ class NPCMemory:
             "trade_completed": self.trade_completed,
             "trade_net_profit": self.trade_net_profit,
             "trade_loss_cycles": self.trade_loss_cycles,
+            "trade_abandoned": self.trade_abandoned,
+            "pending_cargo": list(self.pending_cargo),
+            "combat_loot": self.combat_loot,
+            "combat_victories": self.combat_victories,
             "trade_cycles": list(self.trade_cycles),
             "active_trade": (
                 None if self.active_route is None else {
@@ -262,7 +320,8 @@ class NPCMemory:
                     "remaining": self.active_route.remaining,
                     "cost": self.active_route.cost,
                     "revenue": self.active_route.revenue,
-                    "start_minute": self.active_route.start_minute}),
+                    "start_minute": self.active_route.start_minute,
+                    "recovery_attempts": self.active_route.recovery_attempts}),
             "recent": [
                 {"minute": t.minute, "action": t.action, "target": t.target,
                  "ok": t.success, "gold_delta": t.gold_delta,
@@ -276,7 +335,8 @@ class NPCMemory:
                  "level_xp_delta": t.level_xp_delta,
                  "courses_delta": t.courses_delta,
                  "equipment_delta": t.equipment_delta,
-                 "trade_profit": t.trade_profit, "city": t.city}
+                 "trade_profit": t.trade_profit, "city": t.city,
+                 "quantity": t.quantity}
                 for t in list(self.recent)[-30:]
             ],
         }

@@ -85,6 +85,9 @@ def current_rows(world) -> list[tuple[str, str, str, str, str, int]]:
             add("actor", actor.id, "", "gear", gear_id, 1)
         for city, goods in actor.storage.items():
             bag("storage", actor.id, city, goods)
+        for city, ids in actor.stored_gear.items():
+            for gid in ids:
+                add("gear_storage", actor.id, city, "gear", gid, 1)
     for company in world.companies.values():
         add("company", company.id, "", "gold", "gold", company.gold)
         bag("company", company.id, "", company.inventory)
