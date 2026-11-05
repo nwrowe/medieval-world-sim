@@ -161,7 +161,8 @@
   }
   function isBusy() {
     return pending || !state || !state.started ||
-      Boolean(state.player.destination) || state.player.hp <= 0 || Boolean(state.duel);
+      Boolean(state.player.destination) || state.player.hp <= 0 ||
+      state.player.defeated_until != null || Boolean(state.duel);
   }
   function button(text, attrs = "", variant = "") {
     return '<button class="button ' + variant + '" ' + attrs + '>' + esc(text) + '</button>';
@@ -403,11 +404,7 @@
   function meterStat(label, value, max, kind, simSeconds) {
     const v = Number(value) || 0;
     const maximum = Math.max(1, Number(max) || 1);
-    const hospitalized = kind === "health" && v <= 0 &&
-      state && state.player.defeated_until != null &&
-      state.player.defeated_until > state.minute;
     const hint = v >= maximum ? "Full" :
-      hospitalized ? "Hospital recovery in " :
       simSeconds == null ? "No passive recovery available" : "Next increase in ";
     const timing = v < maximum && simSeconds != null ?
       timerAttrs(hint, simSeconds) : ' data-hover-text="' + esc(hint) + '"';
@@ -485,7 +482,7 @@
     const defendant = state.duel;
     const hospitalMinutes = Math.max(0,
       Number(p.defeated_until || 0) - Number(state.minute || 0));
-    const hospital = p.hp <= 0 && hospitalMinutes > 0 ?
+    const hospital = hospitalMinutes > 0 ?
       '<button type="button" class="cooldown-chip activity-clickable activity-hospital" ' +
       'data-ui="activity-hospital"' +
       timerAttrs("Hospitalized · ", hospitalMinutes * 60) +
@@ -615,7 +612,8 @@
       if (!point) return "";
       const current = city.id === p.city;
       const arriving = city.id === destination;
-      const inactive = pending || Boolean(destination) || p.hp <= 0 || current;
+      const inactive = pending || Boolean(destination) || p.hp <= 0 ||
+        p.defeated_until != null || current;
       return '<button class="map-pin map-' + esc(city.id) +
         (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
         '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
@@ -636,7 +634,7 @@
   function renderWorld() {
     const p = state.player;
     const traveling = Boolean(p.destination);
-    const defeated = p.hp <= 0;
+    const defeated = p.hp <= 0 || p.defeated_until != null;
     const timeToArrival = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
     const ready = !traveling && !defeated && state.minute >= p.ready_minute;
     const destinations = state.cities.filter(c => !c.is_current).map(city =>
