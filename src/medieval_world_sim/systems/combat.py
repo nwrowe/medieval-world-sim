@@ -132,7 +132,14 @@ class CombatSystem:
             self.world._emit("gear_broken", owner.id, gear_id, item.kind)
 
     def _award_xp(self, actor, amount: int) -> int:
+        """Combat training contributes both combat skill and character level."""
         actor.combat_xp += amount
+        return self._award_level_xp(actor, amount)
+
+    def _award_level_xp(self, actor, amount: int) -> int:
+        """Common character progression; skill-specific XP remains separate."""
+        if type(amount) is not int or amount < 0:
+            raise ValueError("Level experience must be a nonnegative integer")
         actor.level_xp += amount
         levels = 0
         while actor.level_xp >= xp_to_next_level(actor.level):

@@ -12,6 +12,7 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone, timedelta
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 import random
@@ -28,7 +29,7 @@ from ..errors import ActionError
 from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
-from . import social, accounts, journal, ledger, checkpoint
+from . import social, accounts, journal, ledger, checkpoint, npc_runtime
 from .accounts import (AuthError, Identity, _digest, _password_hash,
                        MAX_ACCOUNTS, INVITE_VALID_SECONDS, MAX_INVITES_PER_BATCH,
                        SESSION_SECONDS, PASSWORD_N, PASSWORD_R, PASSWORD_P,
@@ -57,9 +58,18 @@ def _canonical(value):
 class MultiplayerGame:
     def __init__(self, db_path: str | Path, *,
                  require_invites: bool = True,
-                 dev_fast_forward: bool = False):
+                 dev_fast_forward: bool = False,
+                 npc_enabled: bool = False):
         self.require_invites = require_invites
         self.dev_fast_forward = dev_fast_forward
+        if type(npc_enabled) is not bool:
+            raise ValueError("npc_enabled must be a boolean")
+        self.npc_enabled = npc_enabled
+        self._npc_stop = threading.Event()
+        self._npc_thread: threading.Thread | None = None
+        self._npc_memories = {}
+        self._npc_due = {}
+        self._npc_profiles = ()
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -100,7 +110,35 @@ class MultiplayerGame:
             self.db.close()
             raise
 
+    def start_npc_loop(self) -> None:
+        """Operator-owned clock worker; only the server starts it."""
+        if not self.npc_enabled or self.dev_fast_forward:
+            return
+        with self._lock:
+            if self._npc_thread is not None:
+                return
+            self._npc_stop.clear()
+            self._npc_thread = threading.Thread(
+                target=self._npc_clock_worker, name="oathmere-npcs", daemon=True)
+            self._npc_thread.start()
+
+    def _npc_clock_worker(self) -> None:
+        # World time is still strictly the trusted clock, not this thread's
+        # wake-up cadence. With no signed-up players the clock stays frozen.
+        while not self._npc_stop.wait(15):
+            try:
+                self._tick_world_clock()
+            except Exception:
+                # Stop on ledger/journal errors instead of replaying a
+                # partially failed operation forever.
+                logging.exception("Server NPC clock stopped after an update failure")
+                return
+
     def close(self):
+        self._npc_stop.set()
+        worker = self._npc_thread
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=5)
         with self._lock:
             self.db.close()
 
@@ -151,6 +189,7 @@ class MultiplayerGame:
     def _load_world(self):
         """Replay the existing SQLite journal into the authoritative world."""
         journal.load_world(self)
+        npc_runtime.load(self)
 
     @staticmethod
     def _engine_id(actor_id: str, request_id: str) -> str:
@@ -170,6 +209,9 @@ class MultiplayerGame:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
             previous_clock_anchor = self._clock_anchor
+            previous_npc_memory = (deepcopy(self._npc_memories)
+                                   if self.npc_enabled else dict(self._npc_memories))
+            previous_npc_due = dict(self._npc_due)
             # Only the outer durable transaction may elide the nested
             # WorldEngine.atomic_action rollback copy. We still restore
             # the complete world on every exception, including SQL errors.
@@ -197,6 +239,8 @@ class MultiplayerGame:
                     self.world.state = previous
                     self.event_times = previous_event_times
                     self._clock_anchor = previous_clock_anchor
+                    self._npc_memories = previous_npc_memory
+                    self._npc_due = previous_npc_due
                 raise
             finally:
                 self.world._durable_tx_owns_rollback = False
@@ -271,12 +315,13 @@ class MultiplayerGame:
             def perform():
                 self._count_journal()
                 self.world.advance(minutes)
-                self.db.execute(
+                row = self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
                     "result_json,recorded_at,server_clock,regen_version) "
                     "VALUES('advance',?,?,?,?,?,1,3)",
                     (actor_id, _canonical({"minutes": minutes}),
                      f"__clock__:{old_anchor}", "null", timestamp))
+                npc_runtime.step(self, row.lastrowid)
                 self.db.execute(
                     "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
                     (str(new_anchor).encode(),))
@@ -382,13 +427,16 @@ class MultiplayerGame:
             else:
                 raise ActionError("Unknown command kind")
             encoded_result = _canonical(_jsonable(outcome))
-            self.db.execute(
+            row = self.db.execute(
                 "INSERT INTO world_journal("
                 "kind,actor_id,action,payload,request_id,result_json,recorded_at,"
-                "flee_success,secure_roll,regen_version) VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "flee_success,secure_roll,regen_version,xp_version)"
+                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
                  encoded_result, recorded_at, flee_success, secure_roll,
-                 3 if kind == "advance" else 1))
+                 3 if kind == "advance" else 1, 2))
+            if kind == "advance":
+                npc_runtime.step(self, row.lastrowid)
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)

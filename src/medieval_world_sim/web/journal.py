@@ -15,7 +15,7 @@ import time
 
 from ..core.commands import MULTIPLAYER_ACTIONS
 from .session import ADVANCE_LIMIT, LEGACY_START_CITY, START_CITY
-from . import ledger, checkpoint
+from . import ledger, checkpoint, npc_runtime
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
@@ -77,6 +77,10 @@ def create_schema(game: MultiplayerGame) -> None:
         game.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
     if "server_clock" not in columns:
         game.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
+    if "xp_version" not in columns:
+        # Historic magic training must replay without retroactive level XP.
+        game.db.execute("ALTER TABLE world_journal "
+                        "ADD COLUMN xp_version INTEGER NOT NULL DEFAULT 1")
     if "regen_version" not in columns:
         # Existing advances replay with the original health regen rule.
         game.db.execute("ALTER TABLE world_journal "
@@ -102,6 +106,7 @@ def create_schema(game: MultiplayerGame) -> None:
         "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
     ledger.create_schema(game)
     checkpoint.create_schema(game)
+    npc_runtime.create_schema(game)
 
 
 def load_world(game: MultiplayerGame) -> None:
@@ -113,11 +118,13 @@ def load_world(game: MultiplayerGame) -> None:
     restored_seq = checkpoint.restore_latest(game)
     registered = set(game.names)
     rows = game.db.execute(
-        "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
-        "flee_success, secure_roll, server_clock, regen_version "
+        "SELECT seq, kind, actor_id, action, payload, request_id, recorded_at, "
+        "flee_success, secure_roll, server_clock, regen_version, xp_version "
         "FROM world_journal WHERE seq>? ORDER BY seq", (restored_seq,)).fetchall()
-    for (kind, actor_id, action, payload, request_id, recorded_at,
-         flee_success, secure_roll, server_clock, regen_version) in rows:
+    for (seq, kind, actor_id, action, payload, request_id, recorded_at,
+         flee_success, secure_roll, server_clock, regen_version, xp_version) in rows:
+        if xp_version not in (1, 2):
+            raise ValueError("Invalid recorded experience ruleset")
         params = json.loads(payload)
         prior_events = len(game.world.events)
         if kind == "join":
@@ -149,6 +156,7 @@ def load_world(game: MultiplayerGame) -> None:
             if secure_roll not in (None, 0, 1):
                 raise ValueError("Invalid recorded RNG policy")
             game.world._private_rng_key = game._rng_key if secure_roll == 1 else None
+            game.world._legacy_magic_leveling_rules = xp_version == 1
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))
@@ -156,6 +164,7 @@ def load_world(game: MultiplayerGame) -> None:
                 game.world._legacy_flee_rules = False
                 game.world._flee_success = None
                 game.world._private_rng_key = None
+                game.world._legacy_magic_leveling_rules = False
         elif kind == "advance":
             minutes = params.get("minutes")
             if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
@@ -167,6 +176,7 @@ def load_world(game: MultiplayerGame) -> None:
                 game.world.advance(minutes)
             finally:
                 game.world._health_regen_version = 3
+            npc_runtime.replay(game, seq)
         else:
             raise ValueError("Invalid journal kind")
         if recorded_at is not None:

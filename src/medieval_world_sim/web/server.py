@@ -64,6 +64,8 @@ class GameHTTPServer(ThreadingHTTPServer):
         self.token = token
         self.colab_preview = colab_preview
         super().__init__(address, GameHandler)
+        if multiplayer is not None:
+            multiplayer.start_npc_loop()
 
 
 class GameHandler(BaseHTTPRequestHandler):
@@ -447,6 +449,8 @@ def main(argv=None):
                         help="UNSAFE for public use: skip one-time invitation requirement")
     parser.add_argument("--dev-fast-forward", action="store_true",
                         help="UNSAFE for public use: allow users to advance shared time manually")
+    parser.add_argument("--no-npcs", action="store_true",
+                        help="Pause autonomous NPC decisions in multiplayer (existing world/NPCs remain)")
     parser.add_argument("--access-token", default=None,
                         help="Optional access code; auto-generated for LAN binds")
     parser.add_argument("--colab-preview", action="store_true",
@@ -466,7 +470,8 @@ def main(argv=None):
             parser.error("--multiplayer-db cannot use --access-token or --colab-preview")
         multi = MultiplayerGame(
             args.multiplayer_db, require_invites=not args.dev_open_registration,
-            dev_fast_forward=args.dev_fast_forward)
+            dev_fast_forward=args.dev_fast_forward,
+            npc_enabled=not args.no_npcs)
         try:
             if args.issue_invites:
                 for code in multi.issue_invites(args.issue_invites):
@@ -476,6 +481,8 @@ def main(argv=None):
                                 multiplayer=multi) as server:
                 print(f"Oathmere multi-account local server: http://127.0.0.1:{server.server_port}", flush=True)
                 print(f"Database: {Path(args.multiplayer_db).expanduser()}", flush=True)
+                print("Autonomous NPCs: " + ("paused" if args.no_npcs else "enabled"),
+                      flush=True)
                 print("Development only: localhost. Do NOT expose directly to the internet.",
                       flush=True)
                 print("Press Ctrl+C to stop.", flush=True)
@@ -486,7 +493,8 @@ def main(argv=None):
         finally:
             multi.close()
         return
-    if args.issue_invites or args.dev_open_registration or args.dev_fast_forward:
+    if (args.issue_invites or args.dev_open_registration
+            or args.dev_fast_forward or args.no_npcs):
         parser.error("Multiplayer development flags require --multiplayer-db")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:

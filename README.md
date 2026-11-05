@@ -135,8 +135,10 @@ For longer, reproducible A/B comparisons over several seeds, run
 This produces per-seed income, completed-route profit and character-growth metrics.
 The smaller `--seeds 3 --days 4` form is suitable for a quick check.
 
-This is an **offline playtest harness**, not autonomous ticking of NPCs on
-the hosted/multiplayer server. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
+This is an **offline playtest harness**, separate from the new persistent
+multiplayer NPC scheduler. The 15 existing named NPCs in local multiplayer
+now autonomously gather, trade and fight with journaled, bounded server-only
+decisions; Explorer and Optimizer remain isolated comparison agents. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
 for report fields, optional LLM configuration and limitations.
 
 ## Autonomous NPC economy (rules-driven experiment)
@@ -198,6 +200,13 @@ See [property and travel rules](docs/HOUSING_AND_TRANSPORT.md).
 ## Play the web prototype (phone or desktop)
 
 **Security boundary:** Multiplayer login/cookies are served only on `127.0.0.1` in this phase. The separate single-player LAN mode uses a shared access code and HTTP; use it only on a trusted network. Neither mode is safe for public internet hosting.
+
+The multiplayer development server can now schedule its named NPCs during
+trusted world-time advances and safely persist/replay those actions and
+bounded cognition on restart. Humans retain exclusive account credentials
+and API command authority. Combat and earned magic school XP both advance
+character levels; money and combat-loot rules are unchanged. See
+[local multi-account development](docs/MULTIPLAYER_LOCAL_DEVELOPMENT.md).
 
 The project includes a **responsive browser client** for single-player and localhost multi-account development. The Python world engine remains authoritative; the browser sends the same validated actions and displays its actual prices, inventory, travel time and magic progression. A JSON action journal automatically saves after every successful action and reconstructs the world when restarted. No frontend framework or external service is needed.
 
