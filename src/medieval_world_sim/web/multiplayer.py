@@ -114,6 +114,14 @@ class MultiplayerGame:
             if os.name != "nt":
                 os.chmod(self.db_path, 0o600)
             self._load_world()
+            if self.dev_fast_forward:
+                # The explicit local test override uses a manually accelerated
+                # timeline. Do not also accrue elapsed wall time while it is on:
+                # otherwise switching to secure mode would count time twice.
+                self._clock_anchor = int(time.time())
+                self.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
+                    (str(self._clock_anchor).encode(),))
         except Exception:
             self.db.close()
             raise
