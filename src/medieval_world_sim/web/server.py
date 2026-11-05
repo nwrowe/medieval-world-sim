@@ -24,6 +24,7 @@ from ..errors import ActionError
 from .session import GameSession, SaveError
 from .multiplayer import MultiplayerGame, AuthError, SESSION_SECONDS
 from .rate_limit import RateLimiter
+from .live_delta import activity_delta
 
 ASSETS = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -219,6 +220,7 @@ class GameHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 2500\n\n")
             self.wfile.flush()
             previous = -1
+            previous_payload = None
             while True:
                 revision = game.next_activity_revision(previous)
                 fresh = game.identity(token)
@@ -228,9 +230,12 @@ class GameHandler(BaseHTTPRequestHandler):
                     self.wfile.write(b": heartbeat\n\n")
                 else:
                     payload = game.social_snapshot(identity.actor_id)
-                    output = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
-                    self.wfile.write(("event: activity\ndata: " + output +
+                    update = activity_delta(previous_payload, payload)
+                    output = json.dumps(update, separators=(",", ":"), ensure_ascii=False)
+                    event_kind = "activity-delta" if previous_payload is not None else "activity"
+                    self.wfile.write(("event: " + event_kind + "\ndata: " + output +
                                       "\n\n").encode("utf-8"))
+                    previous_payload = payload
                     previous = payload["revision"]
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):
