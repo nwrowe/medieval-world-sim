@@ -149,18 +149,26 @@ class HeuristicCritic:
                 f"{losses[0]['source']} to {losses[0]['destination']}, "
                 f"{losses[0]['item']}: spent {losses[0]['spent']}g, "
                 f"received {losses[0]['revenue']}g.", "high"))
-        # Also detect legacy/unplanned buy-sell loops to catch future regressions.
+        # Only match equal-quantity lots in the *same visit*. A buy of four
+        # followed by a sale of one, or a sale after a cross-city delivery,
+        # cannot prove a losing local round-trip from cash deltas alone.
         purchases = {}
         flips = []
         for x in decisions:
+            if x["action"] == "travel":
+                purchases.clear()
+                continue
             key = (x.get("city", ""), x["target"])
-            if x["action"] == "regional_buy" and x["ok"]:
-                purchases[key] = x["gold_delta"]
+            qty = x.get("quantity", 0)
+            if x["action"] == "regional_buy" and x["ok"] and qty > 0:
+                purchases[key] = (qty, x["gold_delta"], x["minute"])
             elif (x["action"] == "regional_sell" and x["ok"]
-                  and key in purchases and key[0]):
-                net = purchases.pop(key) + x["gold_delta"]
-                if net < 0:
-                    flips.append((key, net))
+                  and key in purchases and key[0] and qty > 0):
+                bought_qty, paid, minute = purchases.pop(key)
+                if qty == bought_qty and x["minute"] - minute <= 1440:
+                    net = paid + x["gold_delta"]
+                    if net < 0:
+                        flips.append((key, net))
         if flips:
             issues.append(_issue(
                 "same_city_trade_loss", "Bug",
