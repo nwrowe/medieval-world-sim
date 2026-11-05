@@ -33,7 +33,7 @@ class PvPSkirmishTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "test.db"
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.alice = self.game.identity(self.game.register_and_login(
             "alice", PASSWORD, "Alice River")[0]).actor_id
         self.bob = self.game.identity(self.game.register_and_login(
@@ -65,7 +65,7 @@ class PvPSkirmishTests(unittest.TestCase):
         self.assertEqual(self.game.action(self.alice, "duel_turn",
                          {"move": "fists", "node_id": ""}, "pvp-turn"), outcome)
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["duel"]["round"], 1)
         self.assertEqual(self.game.snapshot(self.bob)["duel"]["round"], 1)
         self.assertEqual(self.game.snapshot(self.alice)["player"]["stamina"], 98)
@@ -103,7 +103,7 @@ class PvPSkirmishTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot(self.alice)["player"]["gold"],
                          before["player"]["gold"] - cost)
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["training_hall"]["active"],
                          after["training_hall"]["active"])
         self.game.world.assert_invariants()
@@ -112,7 +112,7 @@ class PvPSkirmishTests(unittest.TestCase):
 class LiveEventTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.game = MultiplayerGame(Path(self.temp.name) / "stream.db")
+        self.game = MultiplayerGame(Path(self.temp.name) / "stream.db", require_invites=False, dev_fast_forward=True)
         self.alice_token, _ = self.game.register_and_login(
             "alice", PASSWORD, "Alice River")
         self.bob_token, _ = self.game.register_and_login(

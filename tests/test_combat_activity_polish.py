@@ -19,7 +19,7 @@ class EscapesAndPresence(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.db = Path(self.folder.name) / "players.db"
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         self.alice = self.game.identity(self.game.register_and_login(
             "alice", PASSWORD, "Alice River")[0]).actor_id
         self.bob = self.game.identity(self.game.register_and_login(
@@ -50,7 +50,7 @@ class EscapesAndPresence(unittest.TestCase):
         self.assertEqual(self.game.action(self.alice, "flee_duel", {}, "flee-1"), failed)
         self.assertEqual(self.game.snapshot(self.alice)["duel"]["round"], 1)
         self.game.close()
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["duel"]["round"], 1)
         self.assertEqual(self.game.snapshot(self.alice)["player"]["hp"],
                          start["player"]["hp"] - failed["retaliation"])
@@ -62,7 +62,7 @@ class EscapesAndPresence(unittest.TestCase):
         self.assertIsNone(self.game.snapshot(self.bob)["duel"])
         self.assertEqual(self.game.snapshot(self.alice)["last_duel"]["gold"], 0)
         self.game.close()
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["last_duel"]["rounds"], 2)
 
     def test_defender_failed_escape_invites_attacker_counter(self):
