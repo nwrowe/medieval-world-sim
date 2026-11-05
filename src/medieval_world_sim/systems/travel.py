@@ -88,6 +88,7 @@ class TravelSystem:
                 if arrival == moment:
                     a = self.world.actors[actor_id]
                     a.city = a.destination  # type: ignore[assignment]
+                    a.discovered_cities.add(a.city)
                     a.destination = None
                     a.arrival_minute = None
                     self.world._emit("arrived", actor_id, a.city)
