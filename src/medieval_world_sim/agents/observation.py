@@ -121,7 +121,7 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         tuple(sorted(c.employees)),
         tuple((aid, wage.gold, suggested_wage(world.actors[aid], c.industry))
               for aid, wage in sorted(c.employees.items())),
-        c.facility_level
+        c.facility_level, int("training" in c.perks)
     ) for c in sorted(world.companies.values(), key=lambda c: c.id))
     opponents = tuple(sorted(a.id for a in world.actors.values()
                              if a.id != actor.id and a.city == actor.city
