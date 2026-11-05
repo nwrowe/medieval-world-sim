@@ -221,6 +221,7 @@ class GameSession:
                 self.world._legacy_guard_rules = False
                 self.world._legacy_duel_rules = False
                 self.world._legacy_magic_rules = False
+                self.world._legacy_magic_leveling_rules = False
                 self.world._legacy_cooldown_rules = False
         else:
             raise ValueError("Unknown journal record")
