@@ -1218,7 +1218,8 @@
           "Your character counterattacks every attacking move without spending stamina.",
           '<p>Your opponent controls the offensive turns. You can watch the battle ' +
           'or flee at any time; you do not need to respond manually.</p>' +
-          button("Flee", 'data-ui="duel-flee"' + disabled(pending), "ghost")) :
+          button("Flee · 50% chance", 'data-ui="duel-flee" title="Uses one round. A failed escape invites an automatic counterattack."' +
+            disabled(pending), "ghost")) :
       panel("Choose your move", "Attack stamina is paid once per swing. Defensive counterstrikes cost none.",
         '<div class="combat-actions">' +
         (state.combat_moves || []).map(option =>
@@ -1229,7 +1230,8 @@
         button("Guard · " + state.guard_stamina_cost + " stamina",
           'data-ui="duel-guard"' + disabled(pending ||
             p.stamina < state.guard_stamina_cost), "secondary") +
-        button("Flee", 'data-ui="duel-flee"' + disabled(pending), "ghost") +
+        button("Flee · 50% chance", 'data-ui="duel-flee" title="Uses one round. A failed escape invites an automatic counterattack."' +
+            disabled(pending), "ghost") +
         '</div><h4>Combat magic</h4>' +
         '<div class="combat-actions">' +
         (casts || '<p class="small">Unlock spells on the Magic page to use them here.</p>') +
