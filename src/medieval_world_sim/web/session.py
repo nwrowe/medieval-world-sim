@@ -179,7 +179,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 14) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 15) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
