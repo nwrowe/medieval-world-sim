@@ -134,6 +134,23 @@ def create_schema(game: MultiplayerGame) -> None:
     """)
 
 
+def _journal_digest(game: MultiplayerGame, seq: int) -> str:
+    """Attest the immutable journal prefix, including join and clock rows.
+
+    This scan is substantially cheaper than applying historic gameplay,
+    though a future chained hash index can make it O(1) per checkpoint.
+    """
+    sha = hashlib.sha256()
+    for row in game.db.execute(
+            "SELECT seq,kind,actor_id,action,payload,request_id,result_json,"
+            "recorded_at,flee_success,secure_roll,server_clock,regen_version "
+            "FROM world_journal WHERE seq<=? ORDER BY seq", (seq,)):
+        sha.update(json.dumps(row, separators=(",", ":"), ensure_ascii=False,
+                              allow_nan=False).encode("utf-8"))
+        sha.update(b"\\n")
+    return sha.hexdigest()
+
+
 def save(game: MultiplayerGame, *, force: bool = False) -> int | None:
     """Write a checkpoint inside an already-open SQLite transaction."""
     seq = game.db.execute(
@@ -148,7 +165,8 @@ def save(game: MultiplayerGame, *, force: bool = False) -> int | None:
     state = replace(game.world.state, command_receipts={})
     snapshot = {"schema_version": CHECKPOINT_VERSION,
                 "seq": seq, "state": _encode(state),
-                "event_times": _encode(game.event_times)}
+                "event_times": _encode(game.event_times),
+                "journal_digest": _journal_digest(game, seq)}
     payload = json.dumps(snapshot, sort_keys=True, separators=(",", ":"),
                          ensure_ascii=False, allow_nan=False)
     if len(payload.encode("utf-8")) > MAX_BYTES:
@@ -183,12 +201,14 @@ def restore_latest(game: MultiplayerGame) -> int:
         raise ValueError("World checkpoint checksum mismatch")
     stored = json.loads(payload)
     if (type(stored) is not dict or set(stored) !=
-            {"schema_version", "seq", "state", "event_times"} or
+            {"schema_version", "seq", "state", "event_times", "journal_digest"} or
             stored["schema_version"] != CHECKPOINT_VERSION or stored["seq"] != seq):
         raise ValueError("World checkpoint metadata mismatch")
     if seq > game.db.execute(
             "SELECT COALESCE(MAX(seq),0) FROM world_journal").fetchone()[0]:
         raise ValueError("Checkpoint is newer than command journal")
+    if stored["journal_digest"] != _journal_digest(game, seq):
+        raise ValueError("Checkpoint journal prefix checksum mismatch")
     state = _decode(stored["state"])
     event_times = _decode(stored["event_times"])
     if not isinstance(state, WorldState) or type(event_times) is not dict:
