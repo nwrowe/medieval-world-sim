@@ -19,6 +19,7 @@ import uuid
 
 from ..catalog import CAPITAL, CITIES
 from ..core.engine import WorldEngine
+from ..core.commands import SINGLE_PLAYER_ACTIONS
 from ..core.entities import Actor
 from ..errors import ActionError
 
@@ -33,18 +34,8 @@ START_CITY = CAPITAL
 LEGACY_START_CITY = "goldmeadow"
 MAX_RECORDS = 20000
 ADVANCE_LIMIT = 1440
-UI_ACTIONS = {
-    "travel", "gather", "regional_buy", "regional_sell",
-    "consume", "buy_home", "upgrade_home", "build_home_facility",
-    "buy_vehicle", "select_vehicle", "unlock_magic", "practice_magic",
-    "attune_magic", "buy_starter_gear", "equip", "unequip",
-    "complete_city_contract", "store_goods", "retrieve_goods",
-    "start_duel", "duel_turn", "flee_duel", "cast_spell",
-    "church_heal", "buy_racehorse", "race_horse",
-    "found_guild", "invite_guild", "join_guild", "set_guild_role",
-    "leave_guild", "claim_merit", "buy_merit_upgrade", "enroll_course",
-    "enroll_course_choice", "send_chat", "create_chat_room",
-}
+# Legacy public alias; policy is registered once beside engine commands.
+UI_ACTIONS = SINGLE_PLAYER_ACTIONS
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
 NPC_NAMES = (
