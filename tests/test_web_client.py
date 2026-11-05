@@ -145,7 +145,7 @@ class WebSessionTests(unittest.TestCase):
         self.assertEqual(first["net_worth_estimate"], 240)
         self.assertEqual(first["player"]["strength"], 1)
         self.assertEqual(first["player"]["defense"], 1)
-        self.assertEqual(first["player"]["work"]["manual"], 10)
+        self.assertEqual(first["player"]["work"]["manual"], 11)  # Human lineage: +1 Manual
         self.assertEqual(first["gear"], [])
         self.assertEqual(first["equipped"], {})
         self.assertTrue(first["equipment_catalog"])
