@@ -779,8 +779,16 @@ import { createWorldViews } from "/world-views.mjs";
       }
       if ("duel" in update) state.duel = update.duel;
       if ("last_duel" in update) state.last_duel = update.last_duel;
-      if (state.training_hall) state.training_hall.active = update.course_active;
+      if ("course_active" in update && state.training_hall) {
+        state.training_hall.active = update.course_active;
+      }
       if (Array.isArray(update.users)) state.users = update.users;
+      if (Array.isArray(update.presence_updates) && Array.isArray(state.users)) {
+        const presenceById = new Map(update.presence_updates.map(item =>
+          [item.id, item.presence]));
+        state.users = state.users.map(user => presenceById.has(user.id) ?
+          { ...user, presence: presenceById.get(user.id) } : user);
+      }
       if (Array.isArray(update.events)) state.events = update.events;
       if (update.player_status) {
         Object.assign(state.player, update.player_status);

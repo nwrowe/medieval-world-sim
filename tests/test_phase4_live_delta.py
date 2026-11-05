@@ -75,7 +75,10 @@ class NarrowActivityTests(unittest.TestCase):
         self.game.presence_ping(self.bob, True)
         b = self.game.social_snapshot(self.alice)
         delta = activity_delta(a, b)
-        self.assertEqual(set(delta), {"actor_id", "revision", "delta", "users"})
+        self.assertEqual(set(delta),
+                         {"actor_id", "revision", "delta", "presence_updates"})
+        self.assertEqual(delta["presence_updates"],
+                         [{"id": self.bob, "presence": "active"}])
         self.assertEqual(apply_activity_delta(a, delta), b)
         self.game.action(self.alice, "start_duel", {
             "defender_id": self.bob}, "duel")
