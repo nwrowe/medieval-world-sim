@@ -162,8 +162,9 @@ class LiveEventTests(unittest.TestCase):
                 mal_update = next_sse_activity(mal_response)
                 self.assertEqual([m["body"] for m in bob_update["chat"]["messages"]],
                                  ["Private courier message"])
-                self.assertFalse(any(m["body"] == "Private courier message"
-                                     for m in mal_update["chat"]["messages"]))
+                # Unchanged fields are omitted in post-initial SSE deltas.
+                # A bystander must never receive another player's direct chat.
+                self.assertNotIn("chat", mal_update)
                 self.game.action(self.alice, "propose_trade", {
                     "recipient_id": self.bob,
                     "offer": {"gold": 10, "items": [], "gear_ids": []},

@@ -770,9 +770,11 @@ import { createWorldViews } from "/world-views.mjs";
       if (update.actor_id !== state.actor_id ||
           update.revision < (state.activity_revision || 0)) return;
       state.activity_revision = update.revision;
-      state.chat = update.chat;
-      state.trades = update.trades;
-      state.minute = update.minute;
+      // Server-Sent Events are field-level deltas after the first frame.
+      // Omitted keys retain their previous value; explicit null clears them.
+      if ("chat" in update) state.chat = update.chat;
+      if ("trades" in update) state.trades = update.trades;
+      if ("minute" in update) state.minute = update.minute;
       if ("next_world_tick_seconds" in update) {
         state.next_world_tick_seconds = update.next_world_tick_seconds;
         clockSyncedAt = Date.now();
@@ -780,7 +782,16 @@ import { createWorldViews } from "/world-views.mjs";
       if ("duel" in update) state.duel = update.duel;
       if ("last_duel" in update) state.last_duel = update.last_duel;
       if (state.training_hall) state.training_hall.active = update.course_active;
-      if (Array.isArray(update.users)) state.users = update.users;
+      if (Array.isArray(update.users)) {
+        state.users = update.users;
+      } else if (Array.isArray(update.presence_updates) && Array.isArray(state.users)) {
+        const changed = new Map(
+          update.presence_updates.map(entry => [entry.id, entry.presence]));
+        // A small presence patch leaves all other public character fields
+        // untouched; no need to rebuild a 40+ person roster.
+        state.users = state.users.map(user => changed.has(user.id)
+          ? { ...user, presence: changed.get(user.id) } : user);
+      }
       if (Array.isArray(update.events)) state.events = update.events;
       if (update.player_status) {
         Object.assign(state.player, update.player_status);

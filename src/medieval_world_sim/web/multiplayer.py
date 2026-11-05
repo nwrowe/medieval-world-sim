@@ -70,6 +70,11 @@ class MultiplayerGame:
         # confused with the game-world clock.
         self._presence = {}
         self._presence_status = {}
+        # The public/actor-scoped roster and Chronicle change only with
+        # committed world-journal rows, not with ephemeral presence pings.
+        # Cache at most 32 per-player projections; the presence overlay is
+        # deliberately copied per stream message.
+        self._live_activity_cache = {}
         self._event_slots = threading.BoundedSemaphore(20)
         # A single process owns the in-memory simulation. SQLite exclusive
         # locking prevents two processes independently committing stale worlds.
