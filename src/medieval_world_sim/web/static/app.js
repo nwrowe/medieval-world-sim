@@ -66,6 +66,7 @@
   let token = sessionStorage.getItem("medieval-world-token") || "";
   let multiMode = false;
   let inviteRequired = false;
+  let secureWorldClock = false;
   let csrfToken = "";
   let liveEvents = null;
 
@@ -173,6 +174,7 @@
       const health = await request("/api/health");
       multiMode = health.mode === "multi-account-local";
       inviteRequired = Boolean(health.invite_required);
+      secureWorldClock = multiMode && !Boolean(health.dev_fast_forward);
       if (multiMode) {
         const account = await request("/api/auth/session");
         csrfToken = account.csrf || "";
@@ -606,8 +608,10 @@
       '<h3>Road to ' + esc(pretty(p.destination)) + '</h3>' +
       '<p>' + esc(dur(timeToArrival)) + ' until arrival. Your purchases and abilities ' +
       'are paused while traveling.</p>' +
-      button("Complete journey", 'data-ui="advance" data-minutes="' + timeToArrival + '"' +
-        disabled(pending)) + '</section>'
+      (secureWorldClock ?
+        '<p class="small">Arrival is automatic as server time passes.</p>' :
+        button("Complete journey", 'data-ui="advance" data-minutes="' + timeToArrival + '"' +
+          disabled(pending))) + '</section>'
       : defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your character ' +
         'has recovered before beginning another activity.</div>' : "";
     return heading("", "World Map", "") +
@@ -619,13 +623,16 @@
         '<div class="resource-list">' + gathering + '</div>' +
         (!ready && !traveling ? '<p class="small mt-12">Gathering cooldown: ' +
           Math.max(0, p.ready_minute - state.minute) + ' minutes remaining.</p>' : "")) +
-      panel("Time and recovery", "World time advances when you choose to rest or travel.",
-        '<div class="button-group">' +
-        button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
-        button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
-        button("Next day", 'data-ui="advance" data-minutes="1440"' + disabled(pending), "ghost") +
-        '</div><p class="small mt-12">Stamina and mana recover with time. ' +
-        'The world does not run in real time yet.</p>') +
+      panel("Time and recovery",
+        secureWorldClock ? "World time follows the server clock." :
+          "World time advances when you choose to rest or travel.",
+        secureWorldClock ?
+          '<p>Travel, cooldowns, stamina and mana progress automatically with real time.</p>' :
+          '<div class="button-group">' +
+          button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
+          button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
+          button("Next day", 'data-ui="advance" data-minutes="1440"' + disabled(pending), "ghost") +
+          '</div><p class="small mt-12">Stamina and mana recover with simulated time.</p>') +
       '</div><aside class="stack">' +
       panel("Roads of the Five Cities", "Current road network",
         '<div class="route-map"><strong>✦ Crownreach</strong>' +
@@ -1315,7 +1322,9 @@
       '</section>' +
       '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
       'Older actions without saved timestamps are marked earlier. ' +
-      'The game simulation still advances only when you take time-based actions.</p>';
+      (secureWorldClock ?
+        'The multiplayer simulation follows server time.</p>' :
+        'The simulation advances only when you take time-based actions.</p>');
   }
   function characterRow(label, value) {
     return '<div class="character-row"><span>' + esc(label) +
@@ -1711,16 +1720,20 @@
   }
   function renderTavern() {
     return heading("A place to rest", "Wayfarer's Tavern",
-      "Take shelter, listen to rumors, or advance the simulation.") +
+      secureWorldClock ? "Take shelter and listen to rumors." :
+        "Take shelter, listen to rumors, or advance the simulation.") +
       '<section class="story-panel"><div class="section-kicker">The common room</div>' +
       '<h3>A seat by the hearth</h3><p>The innkeeper nods toward an empty bench. ' +
       'Around you, travelers discuss the roads and the promise of work in distant cities.</p>' +
-      '<p class="small">Resting advances simulated world time and restores resources. ' +
-      'The clock in the header continues to show real Eastern time.</p>' +
-      '<div class="button-group">' +
-      button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
-      button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
-      '</div></section>';
+      (secureWorldClock ?
+        '<p class="small">Your character recuperates as real server time passes. ' +
+        'Resting here does not accelerate shared time.</p>' :
+        '<p class="small">Resting advances simulated world time and restores resources. ' +
+        'The clock in the header continues to show real Eastern time.</p>' +
+        '<div class="button-group">' +
+        button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
+        button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
+        '</div>') + '</section>';
   }
 
   function levelUpOverlay() {
