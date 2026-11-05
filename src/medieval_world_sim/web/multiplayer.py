@@ -25,6 +25,7 @@ import uuid
 
 from ..catalog import CITIES
 from ..core.engine import WorldEngine
+from ..core.commands import MULTIPLAYER_ACTIONS
 from ..core.entities import Actor
 from ..errors import ActionError
 from ..systems.cooldowns import remaining
@@ -49,9 +50,8 @@ MAX_CHAT_COMMANDS_PER_DAY = 100
 MAX_GLOBAL_COMMANDS_PER_DAY = 4000
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
-MULTI_ACTIONS = UI_ACTIONS - {"enroll_course"} | {
-    "propose_trade", "accept_trade", "close_trade", "pvp_strike",
-}
+# Legacy public alias; multiplayer exposure is declared per command.
+MULTI_ACTIONS = MULTIPLAYER_ACTIONS
 
 
 class AuthError(ActionError):

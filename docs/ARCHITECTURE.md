@@ -1,70 +1,88 @@
-# Architecture — Five-City Domain Engine
+# Oathmere Architecture — Local Development Prototype
 
-This is the **current prototype architecture**. It keeps a single authoritative in-memory world, deliberately without a distributed service stack.
+This document describes the current implementation, not a proposed hosted service.
+Oathmere has a deterministic, five-city game engine and two different persistence
+adapters: local single-player JSON replay and localhost-only multi-account SQLite
+journal replay. Neither is production/public-internet hosting.
 
-## Package layout
+## Code ownership
 
-```
-src/medieval_world_sim/
-  core/
-    entities.py         Actor, Vitals, Progression, TravelState, Company, Wage, Offer, WorldEvent
-    cities.py           Mutable CityState with separate CitySpec definitions
-    state.py            Owned WorldState aggregate (one source of mutable truth)
-    engine.py           WorldEngine and explicit game-command facade
-    transactions.py     Rollback-safe in-memory actions and gold transfers
-    events.py           Named, versioned audit event fields
-  systems/
-    travel.py           Roads, travel deadlines, time progression and recovery
-    resources.py        Regional gathering and finite deposits
-    companies.py        Company creation, employment, manufacturing, payroll
-    market.py           Material/unique-equipment offers and escrow trading
-    combat.py           Gear, damage, stamina, level progression and loot
-  content/
-    catalog.py          Five cities, road times, resources, industries and recipes
-    equipment_specs.py  Base stats for weapons/armor/tools
-  experiments/
-    legacy_economy.py   Archived single-town baseline (separate economy)
-  equipment.py          Unique item instances, quality and valuation functions
-  regional_world.py     Backwards-compatible WorldEngine alias
-  simulation.py         Backwards-compatible old World alias
-  __main__.py           Regional demo by default, --legacy benchmark available
-```
+| Area | Owned responsibility |
+| --- | --- |
+| `core/entities.py`, `core/state.py` | Actor components and authoritative world state |
+| `core/engine.py` | Domain facade, actor access control, command execution, invariants |
+| `core/commands.py` | Typed command names, exact payload fields, single/multi exposure |
+| `core/transactions.py` | Rollback of in-memory domain actions and gold transfers |
+| `systems/` | Individual gameplay rules: travel/recovery, market, company, combat/duels, magic, housing, curriculum, chat, trades, guilds |
+| `web/session.py` | Single-player JSON save journal, validation and replay |
+| `web/multiplayer.py` | Local accounts, SQLite replay, sessions, server clock, activity/presence |
+| `web/server.py`, `web/rate_limit.py` | HTTP transport, auth/cookie/CSRF checks, rate limiting and SSE |
+| `web/static/` | Dependency-free browser interface; projection of server state only |
+| `agents/`, `experiments/` | Seeded NPC policies and retained legacy simulations |
+| `tests/` | Gameplay invariants, security/abuse regressions, replay and web contract tests |
 
-## Design boundaries
+The authoritative `WorldEngine` composes systems instead of creating parallel
+single/multiplayer gameplay implementations. All human and NPC actors use the
+same core entities and gameplay rules.
 
-**Domain entities** carry data, with no special player vs NPC subclass. Every Actor is usable by either a human controller or a future NPC policy. Vital pools, progression and travel are grouped as components. Flat attribute accessors remain for older callers but new systems should prefer `actor.vitals`, `actor.progression` and `actor.travel`.
+## Command boundary
 
-**City data** distinguishes static definitions in `content/catalog.py` from mutable `CityState` objects in `world.cities`. The compatibility `world.deposits` property views those city inventories. Additional markets, security, and local social structures can now be modeled per city.
+`core/commands.py` is the **single registration point** for command names,
+method dispatch, required parameter fields and exposure by web mode. The
+server adapters derive their allowlists from it; adding a command in a
+system is not enough to expose it to a browser.
 
-**WorldEngine** owns a `WorldState` aggregate, validates principal/owner access, exposes the public game API, and delegates behavior to composed systems. Systems share the same authoritative state; they do not implement parallel world representations. The old `CombatMixin` inheritance is gone.
+`WorldEngine.execute(principal_id, action, params, action_id)` verifies
+the complete parameter set and checks idempotency receipts. The principal
+must come from a trusted server session, never a body-supplied actor ID.
+The web layer additionally applies session/CSRF/host checks. Domain code
+remains authoritative: browser data cannot directly mutate gold, items,
+health or ownership.
 
-**Gameplay systems** should apply rules, not own independent copies of actor, market, or company state. Recipes and gear definitions should remain data, avoiding business-specific subclasses.
+## Persistence and security
 
-**Gold transfers** run through `transfer_gold` across company investment, payroll, marketplace trade, starter purchases, and combat loot. This is separate from the logic deciding *why* a transfer is made.
+- **Single player:** `GameSession` serializes a bounded action journal to
+  JSON, writes it atomically, and replays with explicit historical ruleset
+  versions. It is not a multi-user security boundary.
+- **Local multi-account:** `MultiplayerGame` authenticates accounts to SQLite,
+  stores commands and trusted clock advances with replay metadata, and
+  guards duplicate request IDs. This mode is restricted to localhost, with
+  invite-gated registration by default.
+- **HTTP:** `GameHTTPServer` and `GameHandler` provide no public TLS,
+  reverse-proxy trust or distributed rate limit. This is **not** an
+  internet-ready deployment. SSE and presence are projections scoped to the
+  authenticated actor.
+- **Transactions:** The in-memory world still relies on copied
+  `WorldState` for rollback. SQLite protects the journal in local
+  multiplayer, but large-scale production requires finer-grained persistence,
+  deployment hardening, and performance evaluation.
 
-**Atomic actions** use snapshots of `WorldState` with rollback when a command fails or an invariant is violated. This is acceptable at prototype scale but expensive: deep-copy cost increases with world size and accumulated event logs. A production persistent server should use a transactional database, row-level/concurrency locks, and durable action IDs.
+## Extension guidelines
 
-**Command entrypoint:** `world.execute(principal_id, action, params, action_id)` binds the actor executing an action and enforces an allowlist of commands, then stores an idempotency receipt. The lock prevents two concurrent retries of the same command running simultaneously **within one Python process**. The `principal_id` here is trusted input from a future server-side authenticated adapter—not client-submitted identity. Direct Python methods remain available for simulation/testing, and this is **not a production authentication solution**.
+1. Put game rules in the appropriate `systems/` module. Keep `core/engine.py`
+   as a thin facade; avoid second gameplay implementations in the web layer.
+2. Register command schema and web exposure together in `core/commands.py`.
+   Test both permitted and prohibited modes and retry semantics.
+3. Keep database credentials and identity in transport/auth modules. Never
+   serialize private player inventory, finances, or internal keys to
+   another player's projection.
+4. When altering replayable mechanics, add a ruleset/journal version and
+   tests for loading older saves.
+5. Prefer typed, focused components. Avoid deeper inheritance, additional
+   god-objects, and copying state into long-lived UI caches.
+6. Extend the lint rules in `pyproject.toml` incrementally as legacy code
+   is cleaned; new modules should conform from their first commit.
 
-**Audit events** now have schema version, unique in-world sequence ID, optional action ID, and named structured fields, while retaining existing tuple-based `details` for compatibility. Event storage and replay are not yet persistent.
-
-## Non-goals in this refactor
-
-No gameplay values, travel times, item quality curves, combat formulas, XP curves, or recipe quantities were deliberately rebalanced. We have not introduced hosted databases, HTTP routes, accounts/login, NPC intelligence, autonomous action loops, or complete event-sourced replay.
-
-## Next engineering work, in order
-
-1. Add state persistence (SQLite for tests), durable command receipts, and replay-checkable events.
-2. Replace whole-state snapshot rollback with true ACID transactions and idempotent service commands.
-3. Introduce an authenticated API adapter that derives the acting player from the session, not payload IDs.
-4. Give NPCs an `observe -> propose -> validate -> execute` policy interface; make policies untrusted callers of the same action APIs.
-5. Expand bounded-simulation tests, concurrency/adversarial scenarios and transaction property tests.
-
-## Run
+## Validation
 
 ```bash
-python -m medieval_world_sim
-python -m medieval_world_sim --scenario combat
-python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
-PYTHONPATH=src python -m unittest discover -s tests -v
+python -m pip install -e .
+python -m pip install ruff==0.9.10
+ruff check src tests
+python -m unittest discover -s tests -v
+node --check src/medieval_world_sim/web/static/app.js
 ```
+
+The GitHub Actions workflow also runs deterministic CLI and NPC-economy
+smoke tests. Tests prove regressions were not detected; they do not establish
+production-scale concurrency, correctness or security.
