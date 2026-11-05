@@ -12,6 +12,42 @@ python -m medieval_world_sim.web --multiplayer-db "$HOME\.medieval-world-sim\mul
 
 Before registering new characters, stop the server and issue one-time invites using `python -m medieval_world_sim.web --multiplayer-db "$HOME\.medieval-world-sim\multi-dev.sqlite3" --issue-invites 2`, then start the server again. Open the printed `http://127.0.0.1:8765` address. Enter a unique invitation code, a **username**, a separate **character display name**, and a password of at least 12 characters. To test a second player, use a separate browser profile or a private/incognito window, create a second account, and log in independently. The two characters live in the **same simulated world**; actions and assets are persisted in a SQLite database. You can test direct chat, guild/company channel permissions and bilateral trades through the authenticated API.
 
+### Live, persistent NPCs
+
+With `--multiplayer-db`, the 15 named world NPCs now act autonomously
+alongside authenticated human characters. Each has a stable home, seeded
+personality and a small role (gatherer, hauler or adventurer). NPCs gather
+and trade resources, buy and equip gear, and fight **other simulated NPCs**;
+the automated policy cannot attack human accounts. NPC commands are
+never accepted from a browser or assigned a login identity.
+
+The server owns a bounded clock worker (normally ticks from real wall time)
+and makes **at most three NPC decisions per committed advance**, with each
+individual NPC scheduled no more than once per 180 simulated minutes.
+This prevents a large offline catch-up from generating unbounded work, but
+also means the world only advances while the local server process is
+running. Time accrued while closed is reconciled in capped advances on
+restart or the next state request. In explicit `--dev-fast-forward` mode
+NPCs instead participate in each manual advance, with no background
+fast-forward thread.
+
+NPC actions are saved in the same SQLite transaction as the advance,
+world asset ledger, checkpoints and bounded per-NPC decision memory. A
+restart replays recorded NPC commands rather than rerunning the AI
+policy, so changing a policy doesn't rewrite past transactions. Use
+`--no-npcs` if you want to pause new autonomous activity while retaining
+all existing NPC assets and historical actions. This is not an
+internet-ready MMO scheduler: production scaling, abuse prevention and
+cross-process leases remain future work.
+
+**Character progression:** combat continues granting skill and character
+level XP as before. Practicing magic now grants character level XP in
+addition to school XP (roughly half the actual school XP awarded, minimum
+one point when training produces XP). It never adds combat XP and is
+not awarded by merely casting a spell. Historical saved magic commands
+replay with their original, pre-change level rules. Gold is **not banked**
+or protected by this release; city gold deposits can be added separately.
+
 The ordinary command with no `--multiplayer-db` remains the original single-player game with its original JSON save. **Existing saves are not changed or automatically imported.** You can switch back by restarting the server without the flag.
 
 `--multiplayer-db` is deliberately forbidden when the HTTP host is `0.0.0.0` or other nonloopback addresses. It also cannot be combined with the old shared `--access-token` or the Colab iframe mode. The HTTP endpoint may be used only on the **same computer** at `127.0.0.1` / `localhost`. Do not port-forward it or deploy it on Render.
