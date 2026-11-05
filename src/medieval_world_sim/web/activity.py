@@ -24,7 +24,7 @@ def vital_timers(actor, now: int) -> dict:
     }
 
 
-def activity_projection(w, actor_id: str, npc_names: dict[str, str],
+def activity_projection(w, actor_id: str, name: str, npc_names: dict[str, str],
                         human_names: dict[str, str], event_times: dict[int, str],
                         multiplayer: bool) -> dict:
     """Return public roster, private actor events, duel and vitals countdowns."""
