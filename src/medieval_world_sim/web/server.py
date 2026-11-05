@@ -89,8 +89,13 @@ class GameHandler(BaseHTTPRequestHandler):
         if not self.server.colab_preview:
             csp += "; frame-ancestors 'none'"
         self.send_header("Content-Security-Policy", csp)
-        self.end_headers()
-        self.wfile.write(payload)
+        try:
+            self.end_headers()
+            self.wfile.write(payload)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            # A browser refresh/tab close can cancel a response after the
+            # operation has committed. Never attempt a second HTTP response.
+            self.close_connection = True
 
     def _json(self, code: int, value, extra_headers=None):
         payload = json.dumps(value, ensure_ascii=False,
