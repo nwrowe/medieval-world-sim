@@ -207,6 +207,10 @@ class MultiplayerDuelTests(unittest.TestCase):
         # committed by older versions must still reconstruct exactly.
         payload = json.dumps({"defender_id": self.bob}, sort_keys=True,
                              separators=(",", ":"))
+        # This fixture represents a pre-ledger release's database. Modern
+        # databases reject journal edits that bypass durable atomic writes.
+        self.game.db.execute(
+            "DELETE FROM world_meta WHERE name='durable_ledger_initialized'")
         self.game.db.execute(
             "INSERT INTO world_journal(kind, actor_id, action, payload, request_id, "
             "result_json, recorded_at) VALUES('action', ?, 'pvp_strike', ?, ?, ?, NULL)",
