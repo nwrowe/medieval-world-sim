@@ -79,6 +79,7 @@ class NPCPlanningTests(unittest.TestCase):
     def test_critic_flags_existing_local_loss_pattern(self):
         base = {
             "city": "ironvale", "target": "iron_ore", "ok": True,
+            "minute": 1800, "quantity": 4,
             "level_delta": 0, "discovered": [], "error": "",
             "events": [],
         }
