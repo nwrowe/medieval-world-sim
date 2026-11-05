@@ -3,6 +3,7 @@ from dataclasses import replace
 import unittest
 
 from medieval_world_sim.agents.cognition import NPCMemory
+from medieval_world_sim.agents.compare import compare
 from medieval_world_sim.agents.critics import (
     HeuristicCritic, PlaytestObserver, ReflectionRequest,
 )
