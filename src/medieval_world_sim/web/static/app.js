@@ -37,6 +37,7 @@
   let state = null;
   let tab = "character";
   let levelCelebration = null;
+  let presenceTimer = null;
   let school = "restoration";
   let latestPractice = null;
   let latestContract = null;
@@ -174,10 +175,11 @@
         }
       }
       state = await request("/api/state");
-      tab = state.duel ? "duel" : "character";
+      tab = state.duel && state.duel.role !== "defender" ? "duel" : "character";
       syncAttunements();
       initializeReadMarkers();
       startLiveEvents();
+      startPresence();
     } catch (error) {
       offline = !authNeeded;
       if (!authNeeded) notify(error.message, true);
@@ -194,6 +196,11 @@
     try {
       const result = await request(path, body);
       const oldLevel = state && state.started ? state.player.level : 1;
+      const oldStats = state && state.started ? {
+        hp: state.player.max_hp,
+        strength: state.player.strength,
+        defense: state.player.defense
+      } : { hp: 0, strength: 0, defense: 0 };
       // A live event may arrive after a command commits but before its HTTP
       // response. Never overwrite a newer pushed state with an older result.
       state = (multiMode && state && result.state &&
@@ -202,8 +209,9 @@
         await request("/api/state") : result.state;
       if (state && state.started && state.player.level > oldLevel) {
         levelCelebration = { from: oldLevel, to: state.player.level,
-          hp: state.player.max_hp, strength: state.player.strength,
-          defense: state.player.defense };
+          hp: state.player.max_hp - oldStats.hp,
+          strength: state.player.strength - oldStats.strength,
+          defense: state.player.defense - oldStats.defense };
       }
       syncAttunements();
       if (body && ["start_duel", "duel_turn", "flee_duel"].includes(body.action)) {
@@ -217,6 +225,12 @@
         latestContract = result.result;
       }
       if (body && body.action === "send_chat") chatDraft = "";
+      if (body && body.action === "flee_duel" && result.result &&
+          result.result.outcome === "ongoing") {
+        success = "Escape failed — the opponent counterattacked. Choose your next move.";
+      } else if (body && body.action === "flee_duel") {
+        success = "Combat ended";
+      }
        if (path === "/api/new") tab = "character";
       if (body && body.action === "race_horse") tab = "track";
       notify(body && body.action === "cast_spell" && result.result ?
@@ -287,6 +301,7 @@
       chatOpen = false;
       initializeReadMarkers();
       startLiveEvents();
+      startPresence();
       authNeeded = false;
       offline = false;
       tab = "character";
@@ -398,14 +413,25 @@
         esc(label) + '"><span aria-hidden="true">✤</span><strong>' +
         Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
     }
-    const defenderAlert = state.duel && state.duel.role === "defender" ?
+    const defendant = state.duel;
+    const hospitalMinutes = Math.max(0,
+      Number(p.defeated_until || 0) - Number(state.minute || 0));
+    const hospital = p.hp <= 0 && hospitalMinutes > 0 ?
+      '<button type="button" class="cooldown-chip activity-clickable activity-hospital" ' +
+      'data-ui="activity-hospital" title="' +
+      esc("Hospitalized · " + simDuration(hospitalMinutes) +
+        " of simulated time remaining") + '" aria-label="Hospitalized">' +
+      '<span aria-hidden="true">✚</span><strong>' +
+      esc(simDuration(hospitalMinutes)) + '</strong></button>' : "";
+    const defenderAlert = defendant && defendant.role === "defender" &&
+      defendant.round > 0 ?
       '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
       'data-ui="activity-duel" title="' +
       esc("Under attack by " + state.duel.opponent_name +
         " · your character automatically counterattacks. Open to watch or flee.") +
       '" aria-label="Under attack · open combat">' +
       '<span aria-hidden="true">⚔</span><strong>Under attack</strong></button>' : "";
-    return items + trade + travel + university + defenderAlert;
+    return items + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
@@ -893,9 +919,17 @@
       (subtitle ? '<p class="subheading">' + esc(subtitle) + '</p>' : '') +
       '</div></div>';
   }
+  function presenceBadge(value) {
+    const status = ["active", "away", "offline"].includes(value) ? value : "offline";
+    return '<span class="player-presence ' + status + '" title="' +
+      esc("Player is " + status) + '" aria-label="' +
+      esc("Player is " + status) + '"><span class="presence-dot"></span>' +
+      (status[0].toUpperCase() + status.slice(1)) + '</span>';
+  }
   function renderPeople() {
     const query = peopleQuery.trim().toLowerCase();
     const players = (state.users || []).filter(person =>
+      person.city === state.player.city && !person.destination &&
       person.name.toLowerCase().includes(query));
     const market = (state.quotes || []).filter(quote =>
       (quote.locally_produced || quote.stock > 0) &&
@@ -911,6 +945,8 @@
         return '<div class="equipment-item"><div><h3>' +
           '<button type="button" class="character-name-link" data-ui="profile-open" ' +
           'data-character="' + esc(person.id) + '">' + esc(person.name) + '</button>' +
+          (multiMode && person.kind === "human" ?
+            presenceBadge(person.presence) : "") +
           '</h3><p>' + esc(pretty(person.city)) + ' · Level ' + person.level +
           ' · ' + (self ? 'You' : person.kind === "npc" ?
             'NPC adventurer' : 'Player') + ' · HP ' +
@@ -982,7 +1018,8 @@
       '<div class="section-kicker">' +
       (isNpc ? 'NPC adventurer' : self ? 'Your character' : 'Player adventurer') +
       '</div>' +
-      '<h3>' + esc(person.name) + '</h3>' +
+      '<h3>' + esc(person.name) +
+      (multiMode && !isNpc ? presenceBadge(person.presence) : "") + '</h3>' +
       characterRow("Level", person.level) +
       characterRow("Health", person.hp + " / " + person.max_hp) +
       characterRow("Location", pretty(person.city)) +
@@ -1674,14 +1711,14 @@
     if (!levelCelebration) return "";
     return '<div class="level-overlay" role="dialog" aria-modal="true" ' +
       'aria-labelledby="level-title"><div class="level-card">' +
-      '<div class="level-sparks">✦ ✧ ✦</div><div class="eyebrow">Achievement unlocked</div>' +
+      '<div class="level-sparks">✦ ✧ ✦</div>' +
       '<h2 id="level-title">LEVEL ' + levelCelebration.to + '!</h2>' +
-      '<p>Your journey grows. Greater strength, greater resilience, and new challenges await.</p>' +
-      '<div class="level-gains"><span>+ ' + (levelCelebration.to - levelCelebration.from) +
-      ' level(s)</span><span>Health capacity ' + levelCelebration.hp +
-      '</span><span>Strength ' + levelCelebration.strength +
-      '</span><span>Defense ' + levelCelebration.defense + '</span></div>' +
-      button("Continue your journey", 'data-ui="dismiss-level"', "gold") +
+      '<div class="level-gains"><span>+' +
+      (levelCelebration.to - levelCelebration.from) + ' level</span>' +
+      '<span>+' + levelCelebration.hp + ' Health Capacity</span>' +
+      '<span>+' + levelCelebration.strength + ' Strength</span>' +
+      '<span>+' + levelCelebration.defense + ' Defense</span></div>' +
+      button("Continue", 'data-ui="dismiss-level"', "gold") +
       '</div></div>';
   }
 
@@ -1725,6 +1762,25 @@
       message.sender !== state.actor_id &&
       message.id > readMarker(message.channel_key)).length;
   }
+  async function publishPresence() {
+    if (!multiMode || !csrfToken || !state || !state.started) return;
+    try {
+      await request("/api/presence", {
+        visible: document.visibilityState === "visible"
+      });
+    } catch { /* The connection can be interrupted; the next ping retries. */ }
+  }
+  function startPresence() {
+    if (!multiMode || presenceTimer) return;
+    publishPresence();
+    presenceTimer = setInterval(publishPresence, 25000);
+  }
+  function stopPresence() {
+    if (presenceTimer) clearInterval(presenceTimer);
+    presenceTimer = null;
+  }
+  document.addEventListener("visibilitychange", publishPresence);
+
   function stopLiveEvents() {
     if (liveEvents) {
       liveEvents.close();
@@ -2052,6 +2108,7 @@
           try {
             await request("/api/auth/logout", {});
             stopLiveEvents();
+            stopPresence();
             state = null;
             csrfToken = "";
             authNeeded = true;
@@ -2141,6 +2198,8 @@
         tab = "trade"; render(); break;
       case "activity-duel":
         tab = "duel"; render(); break;
+      case "activity-hospital":
+        tab = "character"; render(); break;
       case "activity-travel":
         tab = "world"; render(); break;
       case "activity-university":
