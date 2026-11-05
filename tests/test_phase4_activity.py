@@ -67,6 +67,30 @@ class ActivityProjectionTests(unittest.TestCase):
         self.assertEqual(change["chat"], updated["chat"])
         self.assertEqual(change["revision"], updated["revision"])
 
+    def test_presence_only_revisions_use_cached_projection_and_copy_overlay(self):
+        first = self.game.social_snapshot(self.alice)
+        cached = self.game._live_activity_cache[self.alice][1]
+        self.assertNotIn("presence", cached["users"][0])
+        with patch("medieval_world_sim.web.social.activity_projection",
+                   side_effect=AssertionError("Expensive activity projection rerun")):
+            self.game.presence_ping(self.bob, True)
+            second = self.game.social_snapshot(self.alice)
+        self.assertNotEqual(first["revision"], second["revision"])
+        self.assertEqual(second["events"], first["events"])
+        self.assertEqual(
+            next(u["presence"] for u in second["users"] if u["id"] == self.bob),
+            "active")
+        self.assertNotIn("presence", cached["users"][0])
+        # A committed command invalidates all previously cached world views.
+        self.game.action(self.bob, "send_chat", {
+            "kind": "global", "target": "", "message": "fresh"}, "fresh")
+        with patch("medieval_world_sim.web.social.activity_projection",
+                   wraps=__import__(
+                       "medieval_world_sim.web.social", fromlist=[
+                           "activity_projection"]).activity_projection) as project:
+            self.game.social_snapshot(self.alice)
+            self.assertEqual(project.call_count, 1)
+
     def test_presence_changes_do_not_expose_other_accounts(self):
         self.game.presence_ping(self.bob, True)
         self.assert_shared_projection(self.alice)
