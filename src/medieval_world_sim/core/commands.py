@@ -23,6 +23,7 @@ _SINGLE: Final = frozenset({"single"})
 _MULTI: Final = frozenset({"multi"})
 
 COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
+    "choose_lineage": CommandSpec("choose_lineage", ("lineage",), _BOTH),
     "travel": CommandSpec("start_travel", ("destination",), _BOTH),
     "gather": CommandSpec("gather", ("item", "quantity"), _BOTH),
     "store_goods": CommandSpec("store_goods", ("item", "quantity"), _BOTH),
