@@ -70,16 +70,34 @@ export function createCharacterViews(ctx) {
       characterRow(pretty(key), xp + " XP")).join('');
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
-    return '<div class="profile-hero"><h3>' + esc(state.name) +
-      '</h3><p class="home-lore">Under the stone arches of Crownreach, merchants whisper about Goldmeadow’s silent bell. ' +
-      'Couriers report missing caravans and a sealed royal ledger in the capital. ' +
-      'Your journey begins here with little more than a purse and the chance to make a name in Oathmere.</p>' +
-      '<p class="home-lore"><strong>Your first steps:</strong> earn coin in the Market, ' +
-      'seek work at the Guild, study an art of magic, or test your strength against a local challenger. ' +
-      'Whatever lies behind the silence of the bell, the cities will need capable hands.</p></div>' +
+    const places = {
+      crownreach: ["The Royal Capital", "Stone towers rise above crowded markets and the clamor of the royal forge.",
+        "Every road begins here. Beyond the gates, much of the realm remains uncharted."],
+      ironvale: ["The Iron Hills", "The ring of hammers echoes across the mountain roads.",
+        "Ore and skilled hands sustain the workshops of the realm."],
+      emberfall: ["The Ashen Crossing", "Dark stone and coal fires mark the road through the southern highlands.",
+        "Caravans bring fuel and stories from the far roads."],
+      greenhollow: ["The Elderwood Frontier", "Deep woodland shelters herb-gatherers, hunters and ancient pathways.",
+        "The forest rewards observant travelers."],
+      goldmeadow: ["The Southern Granary", "Fields and wind-worn barns stretch toward the southern horizon.",
+        "Grain and livestock feed the cities beyond."],
+    };
+    const scene = places[p.city] || ["The Five Cities", "A place to begin.", "The world awaits."];
+    const explored = (p.discovered_cities || []).length;
+    const lineage = (state.lineage_options || []).find(x => x.id === p.lineage);
+    return '<div class="profile-hero home-hero"><div class="home-hero-content">' +
+      '<small>' + esc(scene[0]) + ' · ' + esc(lineage ? lineage.name : "Traveler") + '</small>' +
+      '<h3>' + esc(state.name) + '</h3>' +
+      '<p class="home-scene">' + esc(scene[1]) + '</p>' +
+      '<p class="home-scene-note">' + esc(scene[2]) + '</p>' +
+      '<div class="home-hero-foot"><span>✦ ' + explored + ' of ' +
+      state.cities.length + ' cities charted</span>' +
+      '<span>Level ' + p.level + ' · ' + esc(scene[0]) + '</span></div></div>' +
+      '<div class="home-hero-crest" aria-hidden="true">✦</div></div>' +
       '<div class="profile-grid">' +
       panel("Character State", "",
         characterRow("Level", p.level) +
+        characterRow("Lineage", lineage ? lineage.name : "Unchosen") +
         characterRow("Experience toward next level", p.level_xp + " / " + xpNext) +
         characterRow("Health", p.hp + " / " + p.max_hp) +
         characterRow("Stamina", p.stamina + " / " + p.max_stamina) +
@@ -95,6 +113,12 @@ export function createCharacterViews(ctx) {
         characterRow("Endurance", w.endurance) +
         characterRow("Completed shifts", w.shifts) +
         (career || '<p class="small">No occupational experience yet.</p>')) +
+      panel("Lineage & Trait", "",
+        characterRow("Birthright", lineage ? lineage.name : "Unchosen") +
+        characterRow("Unique trait", lineage ? lineage.trait : "None") +
+        characterRow("Trait status", p.lineage_trait_unlocked ? "Unlocked" :
+          "Unlocks at level 3") +
+        (lineage ? '<p class="small">' + esc(lineage.trait_description) + '</p>' : '')) +
       panel("Assets", "",
         characterRow("Gold", money(p.gold)) +
         characterRow("Estimated net worth", money(state.net_worth_estimate)) +
