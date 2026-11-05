@@ -65,6 +65,14 @@ def scenario(accounts: int, requests: int, workers: int, views: int) -> dict:
                 ]
             viewing_actor = players[0]
             full_latency = timed(lambda: game.snapshot(viewing_actor), views)
+
+            # Compare cold-cache and warm-cache projection costs in the same
+            # world/process/CI machine, isolating the cache from runner noise.
+            def cold_live_view():
+                game._live_activity_cache.pop(viewing_actor, None)
+                game.social_snapshot(viewing_actor)
+
+            uncached_live_latency = timed(cold_live_view, views)
             live_latency = timed(lambda: game.social_snapshot(viewing_actor), views)
             full_bytes = len(json.dumps(game.snapshot(viewing_actor),
                                         separators=(",", ":")).encode())
@@ -83,6 +91,11 @@ def scenario(accounts: int, requests: int, workers: int, views: int) -> dict:
                 wire = live_second
                 mode = "full"
             changed_bytes = len(json.dumps(wire, separators=(",", ":")).encode())
+            full_roster_presence_bytes = len(json.dumps({
+                "actor_id": live_second["actor_id"],
+                "revision": live_second["revision"], "delta": True,
+                "users": live_second["users"],
+            }, separators=(",", ":")).encode())
 
             def command(i):
                 actor_id = players[i % len(players)]
@@ -120,9 +133,12 @@ def scenario(accounts: int, requests: int, workers: int, views: int) -> dict:
                 "accounts": accounts, "workers": workers, "requests": requests,
                 "views": views, "full_snapshot": full_latency,
                 "live_snapshot": live_latency,
+                "uncached_live_snapshot": uncached_live_latency,
                 "full_snapshot_bytes": full_bytes,
                 "live_initial_bytes": live_bytes,
-                "live_changed_bytes": changed_bytes, "live_wire_mode": mode,
+                "live_changed_bytes": changed_bytes,
+                "full_roster_presence_bytes": full_roster_presence_bytes,
+                "live_wire_mode": mode,
                 "command": command_latency and metrics(command_latency),
                 "command_throughput_per_s": round(requests / elapsed, 2),
                 "mixed_read_throughput_per_s": round(requests / mixed_elapsed, 2),
