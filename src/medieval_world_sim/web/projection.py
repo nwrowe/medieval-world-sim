@@ -134,6 +134,9 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
     return rendered_events[-500:][::-1], active_duel, characters
 
 
+from ..content.lineages import LINEAGES, active_trait
+
+
 def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                    npc_names: dict[str, str], human_names: dict[str, str],
                    event_times: dict[int, str], multiplayer: bool) -> dict:
@@ -152,8 +155,10 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
     cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
     places = []
     for city_id, city in CITIES.items():
+        discovered = city_id in actor.discovered_cities
         places.append({
-            "id": city_id, "name": city.name, "is_current": city_id == actor.city,
+            "id": city_id, "name": city.name if discovered else "Uncharted settlement",
+            "discovered": discovered, "is_current": city_id == actor.city,
             "minutes": (0 if is_traveling or actor.hp <= 0 or actor.defeated_until is not None
                         else w.estimated_travel_minutes(actor_id, city_id)),
         })
@@ -250,6 +255,15 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         })
     return {
         "started": True, "name": name,
+        "lineage_options": [
+            {"id": key, "name": spec.title, "description": spec.description,
+             "work": {"manual": spec.work[0], "intelligence": spec.work[1],
+                      "endurance": spec.work[2]},
+             "attack": spec.attack, "defense": spec.defense,
+             "trait": spec.trait, "trait_description": spec.trait_description,
+             "trait_level": spec.trait_level}
+            for key, spec in LINEAGES.items()
+        ],
         "minute": now, "day": now // 1440 + 1,
         "days_played": now // 1440,
         "net_worth_estimate": net_worth,
@@ -265,6 +279,9 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "chat": w.chat_system.view(actor_id),
         "equipped": dict(actor.equipped),
         "player": {
+            "lineage": actor.lineage, "lineage_selected": actor.lineage_selected,
+            "lineage_trait_unlocked": active_trait(actor),
+            "discovered_cities": sorted(actor.discovered_cities),
             "city": actor.city, "destination": actor.destination,
             "arrival_minute": actor.arrival_minute,
             "gold": actor.gold, "hp": actor.hp, "max_hp": actor.max_hp,
