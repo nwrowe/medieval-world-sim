@@ -179,4 +179,3 @@ def load_world(game):
     game._journal_count = len(rows)
     game._revision = len(rows)
 
-@staticmethod
