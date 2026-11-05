@@ -182,7 +182,9 @@ class LiveEventTests(unittest.TestCase):
         source = files("medieval_world_sim.web").joinpath(
             "static", "app.js").read_text(encoding="utf-8")
         self.assertIn("element.dataset.school && !element.dataset.ui", source)
-        self.assertIn('data-ui="course-enroll"', source)
+        city_views = files("medieval_world_sim.web").joinpath(
+            "static", "city-views.mjs").read_text(encoding="utf-8")
+        self.assertIn('data-ui="course-enroll"', city_views)
         self.assertIn('new EventSource("/api/events")', source)
         self.assertIn("function unreadCount()", source)
         self.assertIn("expandedUniversitySchool", source)
