@@ -314,12 +314,13 @@ class MultiplayerGame:
             def perform():
                 self._count_journal()
                 self.world.advance(minutes)
-                self.db.execute(
+                row = self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
                     "result_json,recorded_at,server_clock,regen_version) "
                     "VALUES('advance',?,?,?,?,?,1,3)",
                     (actor_id, _canonical({"minutes": minutes}),
                      f"__clock__:{old_anchor}", "null", timestamp))
+                npc_runtime.step(self, row.lastrowid)
                 self.db.execute(
                     "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
                     (str(new_anchor).encode(),))
