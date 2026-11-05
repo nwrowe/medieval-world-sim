@@ -272,6 +272,8 @@ class GameSession:
                 ruleset = 10
             if record.get("name") == "flee_duel":
                 ruleset = 11
+            if record.get("name") == "practice_magic":
+                ruleset = 14
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             if record.get("name") == "flee_duel":
