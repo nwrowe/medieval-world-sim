@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createCommunityViews } from "../src/medieval_world_sim/web/static/community-views.mjs";
 import { createCityViews } from "../src/medieval_world_sim/web/static/city-views.mjs";
 import { createCharacterViews } from "../src/medieval_world_sim/web/static/character-views.mjs";
+import { createWorldViews } from "../src/medieval_world_sim/web/static/world-views.mjs";
 
 let query = "", scope = "players", selected = "player:bob";
 let state = {
@@ -96,4 +97,32 @@ assert.match(character.renderInventory(), /Inventory/);
 assert.match(character.renderEquipment(), /Equipped Gear/);
 state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };
 assert.match(character.renderInventory(), /3 carried/);
-console.log("Community, city and character view modules passed smoke tests");
+const world = createWorldViews({
+  ...helpers, getState: () => state, getPending: () => false,
+  getSecureWorldClock: () => true,
+  getSchool: () => "restoration", setSchool: () => {},
+  getSelectedAttunements: () => new Set(),
+  getLatestPractice: () => null
+});
+const novice = {
+  node_id: "restoration.soothe_wounds", title: "Soothe wounds",
+  school: "restoration", tier: 1, role: "healing",
+  prerequisites: [], school_xp: 80, required_xp: 0,
+  insight_cost: 0, mana_cost: 8, unlocked: true,
+  eligible: false, active: true, mastered: true,
+  can_practice: false
+};
+state = { ...state, magic_schools: ["restoration"], magic_nodes: [novice],
+  player: { ...state.player, attuned_paths: [],
+    school_xp: { restoration: 80 }, mana: 100,
+    cargo: 14, cargo_limit: 12 } };
+const mastered = world.renderMagic();
+assert.match(mastered, /Mastered/);
+assert.match(mastered, /data-ui="practice"[^>]+disabled/);
+assert.match(mastered, /data-ui="field-cast"/);
+assert.match(world.renderWorld(), /Travel cargo exceeded/);
+state = { ...state, player: { ...state.player, cargo: 2 },
+  stored_gear_here: [{ id: 94, kind: "sword", quality: 10,
+    durability: 20, slot: "weapon" }] };
+assert.match(character.renderEquipment(), /data-ui="retrieve-gear"/);
+console.log("Community, city, magic and storage view modules passed smoke tests");
