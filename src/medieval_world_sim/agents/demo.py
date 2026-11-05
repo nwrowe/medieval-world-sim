@@ -39,7 +39,7 @@ def main() -> None:
     if args.report_file:
         destination = Path(args.report_file).expanduser()
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(json.dumps(report["playtesting"], indent=2,
+        destination.write_text(json.dumps(report, indent=2,
                                           sort_keys=True), encoding="utf-8")
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
