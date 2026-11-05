@@ -48,6 +48,6 @@ assert.match(views.renderMarket(), /Market/);
 assert.match(views.renderMagic(), /Magic/);
 assert.match(views.renderHome(), /Property/);
 // Mutable state is read fresh on every render; there must be no stale snapshot.
-state = { ...state, player: { ...state.player, gold: 555 } };
-assert.match(views.renderHome(), /555g/);
+state = { ...state, gatherable: { grain: 2 } };
+assert.match(views.renderWorld(), /grain/);
 console.log("Browser page module smoke tests passed");
