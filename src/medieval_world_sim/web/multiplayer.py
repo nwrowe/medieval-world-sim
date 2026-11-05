@@ -29,7 +29,7 @@ from ..errors import ActionError
 from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
-from . import social, accounts, journal, ledger, checkpoint
+from . import social, accounts, journal, ledger, checkpoint, npc_runtime
 from .accounts import (AuthError, Identity, _digest, _password_hash,
                        MAX_ACCOUNTS, INVITE_VALID_SECONDS, MAX_INVITES_PER_BATCH,
                        SESSION_SECONDS, PASSWORD_N, PASSWORD_R, PASSWORD_P,
