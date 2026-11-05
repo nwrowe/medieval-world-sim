@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from medieval_world_sim.web.multiplayer import MultiplayerGame
+from medieval_world_sim.web.social import activity_projection
 from medieval_world_sim.web.server import activity_delta
 
 
@@ -85,9 +86,7 @@ class ActivityProjectionTests(unittest.TestCase):
         self.game.action(self.bob, "send_chat", {
             "kind": "global", "target": "", "message": "fresh"}, "fresh")
         with patch("medieval_world_sim.web.social.activity_projection",
-                   wraps=__import__(
-                       "medieval_world_sim.web.social", fromlist=[
-                           "activity_projection"]).activity_projection) as project:
+                   wraps=activity_projection) as project:
             self.game.social_snapshot(self.alice)
             self.assertEqual(project.call_count, 1)
 
