@@ -146,9 +146,7 @@ class PlaytestAgentTests(unittest.TestCase):
 
     def test_llm_is_off_by_default_and_requires_explicit_credentials(self):
         with self.assertRaises(ValueError):
-            OpenAIChatCritic("model", api_key="", timeout_seconds=2) if (
-                __import__("os").environ.get("OPENAI_API_KEY") is None) else (
-                    OpenAIChatCritic("model", endpoint="http://unsafe"))
+            OpenAIChatCritic("model", api_key="unused", endpoint="http://unsafe")
         self.assertIsInstance(HeuristicCritic().assess(ReflectionRequest(
             "tester", "explorer", "session_end", 0, "crownreach", 240, 1,
             ("crownreach",), 0, {}, {}, ())), dict)
