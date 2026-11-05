@@ -16,107 +16,18 @@ from ..systems.cooldowns import MAX_COOLDOWN_MINUTES, FOOD_MINUTES, POTION_MINUT
 from ..systems.track import HORSES, RACE_STAMINA_COST, RACE_ENTRY, RACE_COOLDOWN
 from .chronicle import TRADE_EVENTS, COMBAT_EVENTS, _friendly_event
 
-def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
-                   npc_names: dict[str, str], human_names: dict[str, str],
-                   event_times: dict[int, str], multiplayer: bool) -> dict:
-    """Present one player's authorized view from a shared or single-player world.
+def activity_projection(w: WorldEngine, actor_id: str, name: str,
+                        npc_names: dict[str, str], human_names: dict[str, str],
+                        event_times: dict[int, str],
+                        multiplayer: bool) -> tuple[list[dict], dict | None, list[dict]]:
+    """Only account-visible Chronicle, duel and character summary data.
 
-    Never serialize another player's inventory, gold, work/battle stats or
-    private Chronicle events into this response. Both modes use one projection
-    to avoid duplicating gameplay/UI calculations.
+    This cheaper view is shared by the full page snapshot and SSE updates,
+    so live activity never calculates all market quotes, housing or gear prices.
     """
-    if w is None:
-        return {"started": False}
     actor = w.actors[actor_id]
-    housing = w.housing_view(actor_id)
-    is_traveling = actor.destination is not None
     now = w.minute
-    cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
-    places = []
-    for city_id, city in CITIES.items():
-        places.append({
-            "id": city_id, "name": city.name, "is_current": city_id == actor.city,
-            "minutes": (0 if is_traveling or actor.hp <= 0 or actor.defeated_until is not None
-                        else w.estimated_travel_minutes(actor_id, city_id)),
-        })
-    quote_list = [
-        {**asdict(w.regional_quote(actor.city, item)),
-         "locally_produced": item in CITIES[actor.city].deposits}
-        for item in RAW_RESOURCES
-    ]
-    magic_nodes = [
-        {**asdict(node), "prerequisites": list(node.prerequisites)}
-        for node in w.magic_tree(actor_id)
-    ]
-    owned_gear = [
-        {
-            "id": gid, "kind": w.gear[gid].kind,
-            "slot": GEAR[w.gear[gid].kind].slot,
-            "quality": w.gear[gid].quality,
-            "durability": w.gear[gid].durability,
-            "max_durability": w.gear[gid].max_durability,
-            "attack": effective_attack(w.gear[gid]),
-            "defense": effective_defense(w.gear[gid]),
-            "value": suggested_value(w.gear[gid]),
-        }
-        for gid in actor.gear_ids
-    ]
-    gear_catalog = [
-        {"kind": kind, "slot": spec.slot, "price": spec.base_value,
-         "attack": round(spec.attack * 0.85),
-         "defense": round(spec.defense * 0.85),
-         "durability": max(5, spec.max_durability // 2),
-         "quality": 10}
-        for kind, spec in GEAR.items()
-    ]
-    # Display all catalogued goods, not only currently stocked market items.
-    # Unlisted crafted/consumable products have no merchant price; do not
-    # invent supply or imply that NPC/player markets are live.
-    world_items = []
-    for item in sorted(GOODS | set(GEAR)):
-        if item in RAW_RESOURCES:
-            quotes = [w.regional_quote(city, item) for city in CITIES]
-            buys = [q for q in quotes if q.sell_capacity > 0]
-            sells = [q for q in quotes if q.buy_capacity > 0
-                     and w.cities[q.city].gold >= q.player_sell_price]
-            cheapest = min(buys, key=lambda q: (q.player_buy_price, q.city)) if buys else None
-            highest = max(sells, key=lambda q: (q.player_sell_price, q.city)) if sells else None
-            buy_data = ({"city": cheapest.city, "price": cheapest.player_buy_price}
-                        if cheapest else None)
-            sell_data = ({"city": highest.city, "price": highest.player_sell_price}
-                         if highest else None)
-        elif item in GEAR:
-            buy_data = {"city": CAPITAL, "price": GEAR[item].base_value}
-            sell_data = None
-        else:
-            buy_data = sell_data = None
-        world_items.append({"id": item, "category": (
-            "Equipment" if item in GEAR else
-            "Processed" if item in PROCESSED_RESOURCES else
-            "Consumable" if item in CONSUMABLES else "Resource"),
-            "lowest_buy": buy_data, "highest_sell": sell_data,
-            "market_value": None})
-    resale_prices = {q["item"]: q["player_sell_price"] for q in quote_list}
-    property_value = (HOMES[housing.tier].price if housing.tier else 0)
-    facility_value = sum(FACILITIES[k].price for k in housing.facilities)
-    vehicle_value = sum(VEHICLES[k].price for k in housing.vehicles)
-    trade_goods_value = sum(
-        quantity * resale_prices.get(item, 0)
-        for item, quantity in actor.inventory.items()
-    )
-    # Ownership does not change when moving goods to local storage.
-    for storage_city, goods in actor.storage.items():
-        for item, quantity in goods.items():
-            if quantity and item in RAW_RESOURCES:
-                trade_goods_value += quantity * w.regional_quote(
-                    storage_city, item).player_sell_price
-    net_worth = (actor.gold + property_value + facility_value + vehicle_value
-                 + trade_goods_value + sum(item["value"] for item in owned_gear))
-    housing_data = {
-        **asdict(housing),
-        "facilities": list(housing.facilities),
-        "vehicles": list(housing.vehicles),
-    }
+    is_traveling = actor.destination is not None
     gear_kinds = {}
     equipped_kinds = {}
     rendered_events = []
@@ -220,6 +131,112 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                 ),
                 "recovering_minutes": max(0, (other.defeated_until or 0) - now),
             })
+    return rendered_events[-500:][::-1], active_duel, characters
+
+
+def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
+                   npc_names: dict[str, str], human_names: dict[str, str],
+                   event_times: dict[int, str], multiplayer: bool) -> dict:
+    """Present one player's authorized view from a shared or single-player world.
+
+    Never serialize another player's inventory, gold, work/battle stats or
+    private Chronicle events into this response. Both modes use one projection
+    to avoid duplicating gameplay/UI calculations.
+    """
+    if w is None:
+        return {"started": False}
+    actor = w.actors[actor_id]
+    housing = w.housing_view(actor_id)
+    is_traveling = actor.destination is not None
+    now = w.minute
+    cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
+    places = []
+    for city_id, city in CITIES.items():
+        places.append({
+            "id": city_id, "name": city.name, "is_current": city_id == actor.city,
+            "minutes": (0 if is_traveling or actor.hp <= 0 or actor.defeated_until is not None
+                        else w.estimated_travel_minutes(actor_id, city_id)),
+        })
+    quote_list = [
+        {**asdict(w.regional_quote(actor.city, item)),
+         "locally_produced": item in CITIES[actor.city].deposits}
+        for item in RAW_RESOURCES
+    ]
+    magic_nodes = [
+        {**asdict(node), "prerequisites": list(node.prerequisites)}
+        for node in w.magic_tree(actor_id)
+    ]
+    owned_gear = [
+        {
+            "id": gid, "kind": w.gear[gid].kind,
+            "slot": GEAR[w.gear[gid].kind].slot,
+            "quality": w.gear[gid].quality,
+            "durability": w.gear[gid].durability,
+            "max_durability": w.gear[gid].max_durability,
+            "attack": effective_attack(w.gear[gid]),
+            "defense": effective_defense(w.gear[gid]),
+            "value": suggested_value(w.gear[gid]),
+        }
+        for gid in actor.gear_ids
+    ]
+    gear_catalog = [
+        {"kind": kind, "slot": spec.slot, "price": spec.base_value,
+         "attack": round(spec.attack * 0.85),
+         "defense": round(spec.defense * 0.85),
+         "durability": max(5, spec.max_durability // 2),
+         "quality": 10}
+        for kind, spec in GEAR.items()
+    ]
+    # Display all catalogued goods, not only currently stocked market items.
+    # Unlisted crafted/consumable products have no merchant price; do not
+    # invent supply or imply that NPC/player markets are live.
+    world_items = []
+    for item in sorted(GOODS | set(GEAR)):
+        if item in RAW_RESOURCES:
+            quotes = [w.regional_quote(city, item) for city in CITIES]
+            buys = [q for q in quotes if q.sell_capacity > 0]
+            sells = [q for q in quotes if q.buy_capacity > 0
+                     and w.cities[q.city].gold >= q.player_sell_price]
+            cheapest = min(buys, key=lambda q: (q.player_buy_price, q.city)) if buys else None
+            highest = max(sells, key=lambda q: (q.player_sell_price, q.city)) if sells else None
+            buy_data = ({"city": cheapest.city, "price": cheapest.player_buy_price}
+                        if cheapest else None)
+            sell_data = ({"city": highest.city, "price": highest.player_sell_price}
+                         if highest else None)
+        elif item in GEAR:
+            buy_data = {"city": CAPITAL, "price": GEAR[item].base_value}
+            sell_data = None
+        else:
+            buy_data = sell_data = None
+        world_items.append({"id": item, "category": (
+            "Equipment" if item in GEAR else
+            "Processed" if item in PROCESSED_RESOURCES else
+            "Consumable" if item in CONSUMABLES else "Resource"),
+            "lowest_buy": buy_data, "highest_sell": sell_data,
+            "market_value": None})
+    resale_prices = {q["item"]: q["player_sell_price"] for q in quote_list}
+    property_value = (HOMES[housing.tier].price if housing.tier else 0)
+    facility_value = sum(FACILITIES[k].price for k in housing.facilities)
+    vehicle_value = sum(VEHICLES[k].price for k in housing.vehicles)
+    trade_goods_value = sum(
+        quantity * resale_prices.get(item, 0)
+        for item, quantity in actor.inventory.items()
+    )
+    # Ownership does not change when moving goods to local storage.
+    for storage_city, goods in actor.storage.items():
+        for item, quantity in goods.items():
+            if quantity and item in RAW_RESOURCES:
+                trade_goods_value += quantity * w.regional_quote(
+                    storage_city, item).player_sell_price
+    net_worth = (actor.gold + property_value + facility_value + vehicle_value
+                 + trade_goods_value + sum(item["value"] for item in owned_gear))
+    housing_data = {
+        **asdict(housing),
+        "facilities": list(housing.facilities),
+        "vehicles": list(housing.vehicles),
+    }
+    rendered_events, active_duel, characters = activity_projection(
+        w, actor_id, name, npc_names, human_names, event_times, multiplayer)
     combat_moves = []
     for move in ("strike", "dagger", "fists"):
         if move == "strike" and "weapon" not in actor.equipped:
@@ -340,5 +357,5 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         ],
         "magic_schools": list(SCHOOLS),
         "magic_nodes": magic_nodes,
-        "events": rendered_events[-500:][::-1],
+        "events": rendered_events,
     }
