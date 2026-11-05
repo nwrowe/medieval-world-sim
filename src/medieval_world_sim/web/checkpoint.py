@@ -92,7 +92,13 @@ def _decode(value, depth=0):
         if cls is None or type(value["values"]) is not dict:
             raise ValueError("Unknown checkpoint class")
         expected = {f.name for f in fields(cls)}
-        if set(value["values"]) != expected:
+        present = set(value["values"])
+        # The only tolerated legacy schema difference is the three newly
+        # defaultable Actor fields. All other model/schema drift still fails.
+        migration_fields = {"lineage", "lineage_selected", "discovered_cities"}
+        if (present != expected and not (
+                cls is Actor and present <= expected and
+                expected - present <= migration_fields)):
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)
                       for name, node in value["values"].items()})
@@ -233,6 +239,10 @@ def restore_latest(game: MultiplayerGame) -> int:
     if len(state.events) and any(event.event_id != i + 1
                                  for i, event in enumerate(state.events)):
         raise ValueError("Checkpoint event IDs are not contiguous")
+    # A legacy checkpoint predates the atlas. Preserve at least the
+    # character's actual location, without fabricating historical visits.
+    for actor in state.actors.values():
+        actor.discovered_cities.add(actor.city)
     game.world.state = state
     game.names = names
     game.event_times = event_times
