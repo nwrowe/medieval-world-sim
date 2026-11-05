@@ -276,6 +276,6 @@ class NPCMemory:
                  "courses_delta": t.courses_delta,
                  "equipment_delta": t.equipment_delta,
                  "trade_profit": t.trade_profit, "city": t.city}
-                for t in list(self.recent)[-30:],
+                for t in list(self.recent)[-30:]
             ],
         }
