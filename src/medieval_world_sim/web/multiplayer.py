@@ -156,7 +156,13 @@ class MultiplayerGame:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
             previous_clock_anchor = self._clock_anchor
+            # Only the outer durable transaction may elide the nested
+            # WorldEngine.atomic_action rollback copy. We still restore
+            # the complete world on every exception, including SQL errors.
+            if getattr(self.world, "_durable_tx_owns_rollback", False):
+                raise RuntimeError("Nested multiplayer durable transaction")
             self._begin()
+            self.world._durable_tx_owns_rollback = True
             try:
                 result = action()
                 self.world.assert_invariants()
@@ -184,6 +190,8 @@ class MultiplayerGame:
                     self.event_times = previous_event_times
                     self._clock_anchor = previous_clock_anchor
                 raise
+            finally:
+                self.world._durable_tx_owns_rollback = False
 
     @staticmethod
     def _validate_registration(username, password, display_name):
