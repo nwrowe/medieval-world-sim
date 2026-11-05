@@ -9,13 +9,13 @@ gameplay engine or the durable Phase 3 ownership/receipt/checkpoint model.
 | Component | Phase 4 optimization | Preserved safety boundary |
 | --- | --- | --- |
 | `core/transactions.py` + `web/multiplayer.py` | One rollback snapshot in the outer serialized multiplayer transaction instead of a redundant nested engine snapshot | Standalone engine commands retain their own rollback copy; SQL or invariant failures restore the entire world |
-| `web/projection.py`, `web/social.py` | Live events use a narrow actor-scoped projection rather than recalculating market prices, property/net worth, catalogs and magic-tree data | Chronicle, players, combat and chat remain private or scoped as before |
-| `web/live_delta.py` + `web/server.py` | First SSE message is full; later messages send changed top-level keys only | Actor identity, revision ordering, authenticated cookie, host checks and origin restrictions are unchanged |
+| `web/projection.py`, `web/social.py` | Narrow activity projections are cached per actor for a committed journal revision (maximum 32); presence overlays copied user rows | Chronicle, players, combat and chat remain private or scoped as before |
+| `web/live_delta.py` + `web/server.py` | First SSE message is full; later messages send changed top-level keys or only changed presence IDs/statuses | Actor identity, revision ordering, authenticated cookie, host checks and origin restrictions are unchanged |
 | `web/ledger.py` | Update only changed asset/escrow rows instead of deleting and reinserting all holdings on every chat/action | Complete ownership projection, durable receipts, atomic commit and startup reconciliation remain authoritative |
 | `benchmarks/phase4_load.py` | Repeatable local authenticated HTTP concurrency workload | Uses real CSRF/cookies and server rules; localhost-only, never opens a public port |
 
-These are separate reviewable PRs; do not treat the table as deployed
-functionality until the relevant PR is merged.
+The Phase 4 work is on `main`; the recovered cache/presence and
+post-commit safety corrections are staged separately for review.
 
 ## Repeatable benchmark
 
@@ -24,7 +24,7 @@ From the repository root with Python 3.11:
 ```bash
 python -m pip install -e .
 python benchmarks/phase4_load.py --users 4 --actions 6 --workers 4
-python benchmarks/phase4_load.py --users 8 --actions 12 --workers 8
+python benchmarks/phase4_load.py --users 8 --actions 8 --workers 8
 ```
 
 The CI workflow also executes four-user and eight-user cases as
@@ -98,6 +98,44 @@ history being copied and projected. This is an *observation*, not a
 controlled causal attribution. The four-user results also differ from the
 earlier sample on the same baseline, illustrating why repeated controlled
 runs matter before declaring a performance improvement or choosing targets.
+
+## Recovered original 40-account engine-side benchmark
+
+The original interrupted Phase 4 run used **a different workload** from the
+HTTP benchmark above: direct `MultiplayerGame.action` calls in a 40-account
+world with 12 workers and 80 commands. It separately measured full and live
+projections and the *actual serialized SSE payload* for a presence change.
+
+Run the recovered harness in the same environment on both revisions:
+
+```bash
+python -m benchmarks.phase4_multiplayer --accounts 40 --requests 80 --workers 12 --views 32
+python -m benchmarks.phase4_multiplayer --accounts 80 --requests 120 --workers 16 --views 32
+```
+
+These results were verified from surviving GitHub Actions logs:
+
+| Earlier run | Accounts / workers | Commands/s | Command p95 | Live p95 | Presence bytes |
+|---|---|---:|---:|---:|---:|
+| [Original baseline](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042248288) | 40 / 12 | 72.75 | 181.47 ms | 1.384 ms | 11,762 |
+| [Original optimized](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042920123) | 40 / 12 | 123.79 | 115.07 ms | 0.074 ms | 158 |
+| [Later original optimized](https://github.com/nwrowe/medieval-world-sim/actions/runs/42044594569) | 40 / 12 | 211.67 | 167.33 ms | 0.051 ms | 158 |
+| [Original stress probe](https://github.com/nwrowe/medieval-world-sim/actions/runs/42044594569) | 80 / 16 | 129.86 | 498.59 ms | 0.063 ms | 158 |
+
+The original performance work was left in open PRs
+[#50](https://github.com/nwrowe/medieval-world-sim/pull/50),
+[#51](https://github.com/nwrowe/medieval-world-sim/pull/51), and
+[#52](https://github.com/nwrowe/medieval-world-sim/pull/52).
+The recovered code selectively restores the cached activity view and tiny
+presence patches; the already-merged main branch retains its independent
+transaction-copy and incremental-ledger optimizations.
+
+**Do not compare these commands/second figures directly to the HTTP test.**
+The HTTP test performs authentication, CSRF, JSON serialization, and transmits
+the whole browser-state response. The original benchmark calls the in-process
+game API. These are observational samples from different GitHub-hosted
+runners, with significant throughput variation even for an unchanged
+workload. A 40-account world is not the same as 40 concurrent HTTP sessions.
 
 ## Existing hard limits, not measured capacity
 
