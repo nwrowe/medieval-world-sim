@@ -37,7 +37,6 @@ from .accounts import (AuthError, Identity, _digest, _password_hash,
 # Deliberately bounded until rate limiting, moderation and deployment hardening
 # have been reviewed in a dedicated public-server milestone.
 MAX_JOURNAL = 20000
-MAX_NEW_ACCOUNTS_PER_DAY = 24
 MAX_ACCOUNT_COMMANDS_PER_DAY = 400
 MAX_CHAT_COMMANDS_PER_DAY = 100
 MAX_GLOBAL_COMMANDS_PER_DAY = 4000
