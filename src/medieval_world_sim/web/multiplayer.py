@@ -85,6 +85,11 @@ class MultiplayerGame:
         self._lock = threading.RLock()
         self._activity_changed = threading.Condition(self._lock)
         self._revision = 0
+        self._journal_count = 0
+        # Presence is ephemeral: never stored in the replay journal or
+        # confused with the game-world clock.
+        self._presence = {}
+        self._presence_status = {}
         self._event_slots = threading.BoundedSemaphore(20)
         # A single process owns the in-memory simulation. SQLite exclusive
         # locking prevents two processes independently committing stale worlds.
@@ -231,6 +236,7 @@ class MultiplayerGame:
             raise ValueError("Account and world registration journal differ")
         # The stream revision must remain stable after restart, as game
         # snapshots and browser reconnects use it to reject stale updates.
+        self._journal_count = len(rows)
         self._revision = len(rows)
 
     @staticmethod
@@ -254,8 +260,9 @@ class MultiplayerGame:
                 # they must not manufacture new activity revisions.
                 revision = self.db.execute(
                     "SELECT COUNT(*) FROM world_journal").fetchone()[0]
-                if revision != self._revision:
-                    self._revision = revision
+                if revision != self._journal_count:
+                    self._journal_count = revision
+                    self._revision += 1
                     self._activity_changed.notify_all()
                 return result
             except BaseException:
@@ -447,6 +454,45 @@ class MultiplayerGame:
     def advance(self, actor_id: str, minutes: int, request_id: str):
         return self._run(actor_id, "advance", None, {"minutes": minutes}, request_id)
 
+    def _presence_state(self, actor_id: str, now: float) -> str:
+        entry = self._presence.get(actor_id)
+        if entry is None or now - entry[0] >= 90:
+            return "offline"
+        return "active" if entry[1] else "away"
+
+    def _refresh_presence(self) -> None:
+        now = time.monotonic()
+        changed = False
+        for actor_id in self.names:
+            current = self._presence_state(actor_id, now)
+            if self._presence_status.get(actor_id, "offline") != current:
+                self._presence_status[actor_id] = current
+                changed = True
+        if changed:
+            self._revision += 1
+            self._activity_changed.notify_all()
+
+    def presence_ping(self, actor_id: str, visible: bool) -> None:
+        """A session-verified browser reports foreground/hidden every 25 sec."""
+        if type(visible) is not bool:
+            raise ActionError("Invalid presence visibility")
+        with self._activity_changed:
+            if actor_id not in self.names:
+                raise AuthError("Unknown account")
+            self._presence[actor_id] = (time.monotonic(), visible)
+            self._refresh_presence()
+
+    def presence_logout(self, actor_id: str) -> None:
+        with self._activity_changed:
+            self._presence.pop(actor_id, None)
+            self._refresh_presence()
+
+    def _annotate_presence(self, projection: dict) -> None:
+        self._refresh_presence()
+        for user in projection["users"]:
+            if user["kind"] == "human":
+                user["presence"] = self._presence_status.get(user["id"], "offline")
+
     def _social_view(self, actor_id: str, projection: dict | None = None) -> dict:
         """Account-scoped streaming data; never broadcast raw world state."""
         if projection is None:
@@ -454,6 +500,7 @@ class MultiplayerGame:
                                         self.names[actor_id], self.npc_names,
                                         self.names, self.event_times, True)
         actor = self.world._actor(actor_id)
+        self._annotate_presence(projection)
         chat = self.world.chat_system.view(actor_id)
         for channel in chat["channels"]:
             if channel["kind"] == "direct":
@@ -506,8 +553,10 @@ class MultiplayerGame:
 
     def next_activity_revision(self, since: int, timeout: float = 12.0) -> int:
         with self._activity_changed:
+            self._refresh_presence()
             if since == self._revision:
                 self._activity_changed.wait(timeout=timeout)
+            self._refresh_presence()
             return self._revision
 
     def acquire_event_slot(self) -> bool:
