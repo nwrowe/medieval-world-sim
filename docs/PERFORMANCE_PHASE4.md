@@ -30,30 +30,33 @@ HTTP network latency, TLS, browsers, geographic users, or distributed writers.
 GitHub Actions, November 5, 2026. Both runs used Linux and Python 3.11.18,
 40 accounts, 12 workers, 80 commands, and 32 projection samples.
 
-| Metric | Baseline | Combined Phase 4 (first measured revision) |
-| --- | ---: | ---: |
-| Committed action throughput | 72.75/s | 231.48/s |
-| Concurrent action p50 | 159.043 ms | 47.744 ms |
-| Concurrent action p95 | 181.471 ms | 67.257 ms |
-| Live projection p50 | 1.352 ms | 0.031 ms |
-| Live projection p95 | 1.384 ms | 0.036 ms |
-| Mixed read throughput | 599.43/s | 2455.03/s |
-| Full snapshot p50 | 1.362 ms | 0.700 ms |
-| Full snapshot wire bytes | 47,311 | 47,311 |
-| Initial live payload bytes | 11,763 | 11,763 |
-| Presence-only wire bytes | 11,762 | 11,101 (before sparse patch) |
-| Linux maximum RSS | 63,604 KiB | 63,712 KiB |
+| Metric | Baseline | Optimized initial | Optimized + sparse presence |
+| --- | ---: | ---: | ---: |
+| Committed action throughput | 72.75/s | 231.48/s | 123.79/s |
+| Concurrent action p50 | 159.043 ms | 47.744 ms | 93.271 ms |
+| Concurrent action p95 | 181.471 ms | 67.257 ms | 115.068 ms |
+| Live projection p50 | 1.352 ms | 0.031 ms | 0.058 ms |
+| Live projection p95 | 1.384 ms | 0.036 ms | 0.074 ms |
+| Mixed read throughput | 599.43/s | 2455.03/s | 1164.61/s |
+| Full snapshot p50 | 1.362 ms | 0.700 ms | 1.185 ms |
+| Full snapshot wire bytes | 47,311 | 47,311 | 47,311 |
+| Initial live payload bytes | 11,763 | 11,763 | 11,763 |
+| Presence-only wire bytes | 11,762 | 11,101 | **158** |
+| Linux maximum RSS | 63,604 KiB | 63,712 KiB | 63,656 KiB |
 
-Evidence: [baseline CI run](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042248288)
-and [combined optimization CI run](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042250199).
+Evidence: [baseline CI run](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042248288),
+[first combined run](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042250199),
+and [sparse-presence combined run](https://github.com/nwrowe/medieval-world-sim/actions/runs/42042920123).
 
-**Interpretation:** The first measured optimized implementation delivered about
-3.2 times the action throughput and approximately 44 times lower median live
-projection cost, with a roughly fourfold improvement in mixed-read throughput.
-These are single-run, shared-CI observations and may not transfer to other
-hardware or real players. RSS is essentially unchanged, so this is **not** a
-demonstrated memory reduction. Later sparse-presence patch results should be
-read from the latest CI benchmark, not substituted into this historical run.
+**Interpretation:** The optimized runs delivered about **1.7–3.2 times** the
+baseline command throughput, roughly **19–38 times** lower live projection
+p95, and **1.9–4.1 times** the mixed-read throughput under this small sample.
+A simple presence update fell from 11,762 bytes to **158 bytes**, a roughly
+**74-fold reduction**. The optimized command-throughput numbers vary
+substantially *between CI runs* (123.79 versus 231.48/s), emphasizing that
+these are observational results, **not certified guarantees** or a reliable
+estimate for a public deployment. RSS is essentially unchanged; no
+measurable memory reduction is claimed.
 
 ## Changes with explicit safety ownership
 
@@ -85,10 +88,10 @@ read from the latest CI benchmark, not substituted into this historical run.
 ## Provisional local performance targets
 
 Use the same 40-account/12-worker workload before judging regressions:
-- Action throughput around **150 commands/s or more** and p95 around
-  **100 ms or lower** on a comparable CI runner.
-- Live in-process projection p95 around **0.1 ms or lower** for a cached
-  actor, with presence-only SSE payload well under **1 KiB**.
+- Action throughput around **100 commands/s or more** and p95 around
+  **150 ms or lower** on a comparable CI runner.
+- Live in-process projection p95 around **0.2 ms or lower** for a cached
+  actor, with presence-only SSE payload around **256 bytes or less**.
 - Combined read throughput around **1,000 reads/s or more**.
 - All economic conservation, retry, trade escrow, account privacy, restart
   and injected-failure tests must continue to pass.
