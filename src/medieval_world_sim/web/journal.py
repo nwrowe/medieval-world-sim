@@ -77,6 +77,10 @@ def create_schema(game: MultiplayerGame) -> None:
         game.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
     if "server_clock" not in columns:
         game.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
+    if "xp_version" not in columns:
+        # Historic magic training must replay without retroactive level XP.
+        game.db.execute("ALTER TABLE world_journal "
+                        "ADD COLUMN xp_version INTEGER NOT NULL DEFAULT 1")
     if "regen_version" not in columns:
         # Existing advances replay with the original health regen rule.
         game.db.execute("ALTER TABLE world_journal "
