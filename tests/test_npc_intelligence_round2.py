@@ -114,7 +114,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
             profile, observe(world, actor.id), sim.memories.setdefault(
                 actor.id, NPCMemory()))
         self.assertIn(first.name, {"buy_starter_gear", "accept_offer"})
-        world.buy_starter_gear(actor.id, "dagger")
+        world.buy_starter_gear(actor.id, "sword")
         gid = actor.gear_ids[-1]
         world.equip(actor.id, gid)
         world.actors["worker_forge"].hp = 2
@@ -166,6 +166,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
                 sim = create_simulation(20, seed=seed, playtesters=True)
                 report = sim.run(5)
                 self.assertTrue(report["gold_conserved"])
+                self.assertGreater(report["combat_attacks"], 0)
                 self.assertEqual(report["hauler_losing_trade_cycles"], 0)
                 self.assertNotIn("ActionError: This school tier is mastered; "
                                  "practice a higher tier", report["rejections"])
