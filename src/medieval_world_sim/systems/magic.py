@@ -33,6 +33,8 @@ class MagicNodeStatus:
     unlocked: bool
     eligible: bool
     active: bool
+    mastered: bool = False
+    can_practice: bool = False
 
 
 @dataclass(frozen=True)
@@ -71,6 +73,20 @@ class MagicSystem:
         return (node.id in actor.magic.unlocked
                 and (node.tier < 3 or branch_for(node.id) in actor.magic.attuned_paths))
 
+    @staticmethod
+    def _mastered(actor, node) -> bool:
+        """Practice mastery is a server rule, shared by clients and NPCs.
+
+        Spell *casting* remains available after training mastery. Lower-tier
+        practice stops after a higher-tier spell is learned; at the XP ceiling
+        even the highest learned tier stops granting XP.
+        """
+        return (actor.magic.school_xp.get(node.school, 0) >=
+                PRACTICE_XP_CEILING.get(node.tier, 0)
+                or any(other.school == node.school and other.tier > node.tier
+                       and other.id in actor.magic.unlocked
+                       for other in NODES.values()))
+
     def tree(self, actor_id: str, school: str | None = None) -> tuple[MagicNodeStatus, ...]:
         """Return stable, detached UI-ready values (no writable references)."""
         actor = self.world._actor(actor_id)
@@ -81,7 +97,10 @@ class MagicSystem:
                             node.prerequisites, actor.magic.school_xp.get(node.school, 0),
                             node.xp_required, node.insight_cost, node.mana_cost, node.role,
                             node.id in actor.magic.unlocked, self._eligible(actor, node),
-                            self._active(actor, node))
+                            self._active(actor, node),
+                            self._mastered(actor, node) if node.tier > 0 else False,
+                            node.tier > 0 and self._active(actor, node)
+                            and not self._mastered(actor, node))
             for node in NODES.values() if school is None or node.school == school
         )
 
@@ -128,9 +147,7 @@ class MagicSystem:
         # Save-journal v1 actions need their historical rule set when replayed.
         # New commands always follow the current mastered-tier restriction.
         legacy = getattr(self.world, "_legacy_magic_rules", False)
-        if not legacy and any(
-                other.school == node.school and other.tier > node.tier
-                and other.id in state.unlocked for other in NODES.values()):
+        if not legacy and self._mastered(actor, node):
             raise ActionError("This school tier is mastered; practice a higher tier")
         if state.mana < node.mana_cost:
             raise ActionError("Insufficient mana")
