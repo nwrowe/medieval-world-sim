@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ..systems.cooldowns import remaining
-from .projection import world_snapshot
+from .projection import activity_projection
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
@@ -45,9 +45,24 @@ def social_view(game: MultiplayerGame, actor_id: str,
                 projection: dict | None = None) -> dict:
     """Account-scoped streaming data; never broadcast raw world state."""
     if projection is None:
-        projection = world_snapshot(game.world, actor_id,
-                                    game.names[actor_id], game.npc_names,
-                                    game.names, game.event_times, True)
+        events, duel, users = activity_projection(
+            game.world, actor_id, game.names[actor_id], game.npc_names,
+            game.names, game.event_times, True)
+        actor_state = game.world.actors[actor_id]
+        now = game.world.minute
+        projection = {
+            "users": users, "events": events, "duel": duel,
+            "last_duel": game.world.state.last_duels.get(actor_id),
+            "player": {
+                "health_next_sim_seconds": (
+                    (3 - now % 3) * 60 if actor_state.hp < actor_state.max_hp else None),
+                "stamina_next_sim_seconds": (
+                    (5 - now % 5) * 60 if actor_state.stamina < actor_state.max_stamina else None),
+                "mana_next_sim_seconds": (
+                    (10 - now % 10) * 60 if actor_state.magic.mana < actor_state.magic.max_mana
+                    else None),
+            },
+        }
     actor = game.world._actor(actor_id)
     game._annotate_presence(projection)
     chat = game.world.chat_system.view(actor_id)
