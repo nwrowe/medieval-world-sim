@@ -348,7 +348,7 @@ class RuleBasedPolicy:
         owned_kinds = {kind for _, kind, _ in v.gear}
         if v.city == CAPITAL and "sword" not in owned_kinds and v.gold >= GEAR["sword"].base_value:
             actions.append(self._action(
-                11 if explorer else 14, "buy_starter_gear", kind="sword"))
+                11 if explorer else 18, "buy_starter_gear", kind="sword"))
         if v.city == CAPITAL and explorer and "dagger" not in owned_kinds and (
                 v.gold >= GEAR["dagger"].base_value):
             actions.append(self._action(9, "buy_starter_gear", kind="dagger"))
