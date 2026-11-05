@@ -493,7 +493,8 @@ def main(argv=None):
         finally:
             multi.close()
         return
-    if args.issue_invites or args.dev_open_registration or args.dev_fast_forward:
+    if (args.issue_invites or args.dev_open_registration
+            or args.dev_fast_forward or args.no_npcs):
         parser.error("Multiplayer development flags require --multiplayer-db")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:
