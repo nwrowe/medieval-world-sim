@@ -209,6 +209,8 @@ def validate_world(world: WorldEngine) -> None:
         if city not in CITIES or any(quantity < 0 or quantity > DEPOSIT_CAP for quantity in stock.values()):
             raise AssertionError("Invalid regional deposits")
     holdings = [gear_id for a in world.actors.values() for gear_id in a.gear_ids]
+    holdings += [gear_id for a in world.actors.values()
+                 for ids in a.stored_gear.values() for gear_id in ids]
     holdings += [gear_id for company in world.companies.values() for gear_id in company.gear_ids]
     if (type(world.state.next_trade_id) is not int
             or world.state.next_trade_id < 1):
