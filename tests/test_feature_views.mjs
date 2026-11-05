@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { createCommunityViews } from "../src/medieval_world_sim/web/static/community-views.mjs";
 import { createCityViews } from "../src/medieval_world_sim/web/static/city-views.mjs";
+import { createCharacterViews } from "../src/medieval_world_sim/web/static/character-views.mjs";
 
 let query = "", scope = "players", selected = "player:bob";
 let state = {
@@ -73,4 +74,26 @@ for (const name of cityNames) {
 state = { ...state, player: { ...state.player, work: {
   ...state.player.work, manual: 57 } } };
 assert.match(city.renderJob(), /Manual:57/);
-console.log("Community and city view modules passed smoke tests");
+// Character pages include inventory, public character attributes, and gear UI.
+// They must use fresh state projections instead of caching player inventories.
+state = { ...state, name: "Alice", net_worth_estimate: 200,
+  housing: { tier: null, city: null }, equipped: {}, gear: [],
+  equipment_catalog: [], player: { ...state.player,
+    max_stamina: 100, max_mana: 100, cargo: 0, cargo_limit: 12,
+    stored_here: {}, storage_cities: {}, consumables: [], cooldowns: {},
+    school_xp: { restoration: 0 }, insight: 0, level: 1, level_xp: 0,
+    combat_xp: 0, strength: 1, defense: 1,
+    work: { ...state.player.work, experience: {} } } };
+const character = createCharacterViews({
+  ...helpers, clock: minute => String(minute),
+  getState: () => state
+});
+for (const name of ["renderInventory", "renderCharacter", "renderEquipment", "renderArmory"]) {
+  assert.equal(typeof character[name], "function", name);
+  assert.ok(character[name]().length > 35, name + " must render meaningful markup");
+}
+assert.match(character.renderInventory(), /Inventory/);
+assert.match(character.renderEquipment(), /Equipped Gear/);
+state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };
+assert.match(character.renderInventory(), /3 carried/);
+console.log("Community, city and character view modules passed smoke tests");
