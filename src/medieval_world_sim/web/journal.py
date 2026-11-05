@@ -106,6 +106,7 @@ def create_schema(game: MultiplayerGame) -> None:
         "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
     ledger.create_schema(game)
     checkpoint.create_schema(game)
+    npc_runtime.create_schema(game)
 
 
 def load_world(game: MultiplayerGame) -> None:
