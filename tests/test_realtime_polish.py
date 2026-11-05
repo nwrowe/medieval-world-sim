@@ -64,6 +64,22 @@ class HealthRecoveryTests(unittest.TestCase):
             self.assertEqual(game.snapshot(actor)["minute"], 3)
             game.close()
 
+    def test_health_tooltip_distinguishes_regeneration_and_hospital_release(self):
+        from medieval_world_sim.web.session import world_snapshot
+
+        world = WorldEngine([Actor("hero", "human")])
+        hero = world.actors["hero"]
+        hero.hp = 8
+        view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 180)
+        world.advance(1)
+        view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 120)
+        hero.hp = 0
+        hero.defeated_until = world.minute + 20
+        view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 1200)
+
     def test_multiplayer_reports_subminute_clock_progress(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "clock.sqlite3"
