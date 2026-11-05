@@ -55,8 +55,10 @@ class BrowserEntrypointTests(unittest.TestCase):
             "static", "app.js").read_text(encoding="utf-8")
         table = re.search(r"const renderers = \{(.*?)\};", source, re.S)
         self.assertIsNotNone(table)
+        views = files("medieval_world_sim.web").joinpath(
+            "static", "world-views.mjs").read_text(encoding="utf-8")
         for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
-            self.assertRegex(source, rf"function {name}\s*\(")
+            self.assertRegex(source + views, rf"function {name}\s*\(")
         self.assertNotIn("renderHealer", source)
 
 
