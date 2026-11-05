@@ -15,6 +15,14 @@ def atomic_action(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
         with self._action_lock:
+            # In multiplayer, the outer serialized SQLite transaction already
+            # owns a complete rollback snapshot. A second deepcopy here only
+            # multiplies memory/CPU cost as the world and event log grow.
+            # Exceptions must propagate to that outer owner for rollback.
+            if getattr(self, "_durable_tx_owns_rollback", False):
+                result = method(self, *args, **kwargs)
+                self.assert_invariants()
+                return result
             original = deepcopy(self.state)
             try:
                 result = method(self, *args, **kwargs)
