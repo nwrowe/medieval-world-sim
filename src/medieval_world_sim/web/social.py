@@ -17,13 +17,13 @@ if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
 
 
-def presence_state(game, actor_id: str, now: float) -> str:
+def presence_state(game: MultiplayerGame, actor_id: str, now: float) -> str:
     entry = game._presence.get(actor_id)
     if entry is None or now - entry[0] >= 90:
         return "offline"
     return "active" if entry[1] else "away"
 
-def refresh_presence(game) -> None:
+def refresh_presence(game: MultiplayerGame) -> None:
     now = time.monotonic()
     changed = False
     for actor_id in game.names:
@@ -35,13 +35,14 @@ def refresh_presence(game) -> None:
         game._revision += 1
         game._activity_changed.notify_all()
 
-def annotate_presence(game, projection: dict) -> None:
+def annotate_presence(game: MultiplayerGame, projection: dict) -> None:
     game._refresh_presence()
     for user in projection["users"]:
         if user["kind"] == "human":
             user["presence"] = game._presence_status.get(user["id"], "offline")
 
-def social_view(game, actor_id: str, projection: dict | None = None) -> dict:
+def social_view(game: MultiplayerGame, actor_id: str,
+                projection: dict | None = None) -> dict:
     """Account-scoped streaming data; never broadcast raw world state."""
     if projection is None:
         projection = world_snapshot(game.world, actor_id,
