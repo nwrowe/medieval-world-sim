@@ -15,6 +15,13 @@ def atomic_action(method):
     @wraps(method)
     def wrapped(self, *args, **kwargs):
         with self._action_lock:
+            # In multiplayer the outer SQLite transaction already owns a
+            # complete rollback snapshot, invariant validation and commit.
+            # Cloning again here doubles the cost and memory of every action.
+            # Replay and single-player actions continue to use the normal
+            # independent snapshot and rollback path.
+            if getattr(self, "_external_transaction_active", False):
+                return method(self, *args, **kwargs)
             original = deepcopy(self.state)
             try:
                 result = method(self, *args, **kwargs)

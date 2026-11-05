@@ -143,11 +143,31 @@ def persist(game: MultiplayerGame) -> None:
         "SELECT journal_seq FROM ledger_head WHERE singleton=1").fetchone()
     if stored is not None and stored[0] == head:
         return  # Idempotent command retries do not manufacture a revision.
+    # Only changed holdings need writes. The prior implementation deleted
+    # and re-inserted every player, city and escrow row on *every* chat,
+    # combat or market action, creating unnecessary SQLite write amplification.
     rows = current_rows(game.world)
-    game.db.execute("DELETE FROM asset_ledger")
-    game.db.executemany(
-        "INSERT INTO asset_ledger(" + ",".join(ASSET_FIELDS) +
-        ") VALUES(?,?,?,?,?,?)", rows)
+    existing = {
+        entry[:5]: entry[5]
+        for entry in game.db.execute(
+            "SELECT " + ",".join(ASSET_FIELDS) + " FROM asset_ledger")
+    }
+    desired = {entry[:5]: entry[5] for entry in rows}
+    removed = sorted(key for key in existing if key not in desired)
+    changed = [(quantity, *key) for key, quantity in desired.items()
+               if key in existing and existing[key] != quantity]
+    added = [(*key, quantity) for key, quantity in desired.items()
+             if key not in existing]
+    where = " AND ".join(field + "=?" for field in ASSET_FIELDS[:5])
+    if removed:
+        game.db.executemany("DELETE FROM asset_ledger WHERE " + where, removed)
+    if changed:
+        game.db.executemany(
+            "UPDATE asset_ledger SET quantity=? WHERE " + where, changed)
+    if added:
+        game.db.executemany(
+            "INSERT INTO asset_ledger(" + ",".join(ASSET_FIELDS) +
+            ") VALUES(?,?,?,?,?,?)", added)
     game.db.execute(
         "INSERT INTO durable_receipts("
         "actor_id,request_id,kind,action,payload,result_json,journal_seq) "

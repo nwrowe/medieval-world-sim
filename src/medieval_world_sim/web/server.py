@@ -45,6 +45,44 @@ def _serializable(result):
     return result
 
 
+def activity_delta(previous: dict | None, current: dict) -> dict:
+    """Initial SSE contains a full actor-scoped payload; later events include
+    only changed fields. Revision and principal identity are always present.
+    Keys absent from a delta mean 'unchanged', not 'cleared'.
+    """
+    if previous is None:
+        return current
+    changed = {
+        "actor_id": current["actor_id"],
+        "revision": current["revision"],
+        **{key: value for key, value in current.items()
+           if key not in ("actor_id", "revision")
+           and previous.get(key) != value},
+    }
+    # A simple foreground/away/offline transition must not resend every
+    # character's city, HP and combat eligibility. Send just the changed
+    # presence IDs; when anything else changes use the full authorized roster.
+    prior_users, new_users = previous.get("users"), current.get("users")
+    if ("users" in changed and isinstance(prior_users, list)
+            and isinstance(new_users, list)
+            and len(prior_users) == len(new_users)):
+        updates = []
+        for old, new in zip(prior_users, new_users):
+            without_presence = lambda user: {
+                key: value for key, value in user.items() if key != "presence"
+            }
+            if without_presence(old) != without_presence(new):
+                break
+            if old.get("presence") != new.get("presence"):
+                updates.append({"id": new["id"],
+                                "presence": new.get("presence", "offline")})
+        else:
+            changed.pop("users")
+            if updates:
+                changed["presence_updates"] = updates
+    return changed
+
+
 class GameHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
@@ -219,6 +257,7 @@ class GameHandler(BaseHTTPRequestHandler):
             self.wfile.write(b"retry: 2500\n\n")
             self.wfile.flush()
             previous = -1
+            previous_payload = None
             while True:
                 revision = game.next_activity_revision(previous)
                 fresh = game.identity(token)
@@ -228,9 +267,11 @@ class GameHandler(BaseHTTPRequestHandler):
                     self.wfile.write(b": heartbeat\n\n")
                 else:
                     payload = game.social_snapshot(identity.actor_id)
-                    output = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+                    update = activity_delta(previous_payload, payload)
+                    output = json.dumps(update, separators=(",", ":"), ensure_ascii=False)
                     self.wfile.write(("event: activity\ndata: " + output +
                                       "\n\n").encode("utf-8"))
+                    previous_payload = payload
                     previous = payload["revision"]
                 self.wfile.flush()
         except (BrokenPipeError, ConnectionResetError, OSError):

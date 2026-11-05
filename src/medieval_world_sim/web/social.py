@@ -11,7 +11,29 @@ import time
 from typing import TYPE_CHECKING
 
 from ..systems.cooldowns import remaining
-from .projection import world_snapshot
+from .activity import activity_projection, vital_timers
+
+
+MAX_ACTIVITY_CACHE = 32
+
+
+def cached_activity(game: MultiplayerGame, actor_id: str) -> dict:
+    """Cache immutable-by-convention actor projections per journal revision.
+
+    Presence changes do not invalidate these data; world commands, joins and
+    clock ticks do. Only the requesting account's projection is cached under
+    its own ID, and all callers hold MultiplayerGame's shared world lock.
+    """
+    cached = game._live_activity_cache.get(actor_id)
+    if cached is None or cached[0] != game._journal_count:
+        fresh = activity_projection(game.world, actor_id, game.names[actor_id],
+                                    game.npc_names, game.names, game.event_times,
+                                    True)
+        game._live_activity_cache[actor_id] = (game._journal_count, fresh)
+        if len(game._live_activity_cache) > MAX_ACTIVITY_CACHE:
+            game._live_activity_cache.pop(next(iter(game._live_activity_cache)))
+        return fresh
+    return cached[1]
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
@@ -45,9 +67,16 @@ def social_view(game: MultiplayerGame, actor_id: str,
                 projection: dict | None = None) -> dict:
     """Account-scoped streaming data; never broadcast raw world state."""
     if projection is None:
-        projection = world_snapshot(game.world, actor_id,
-                                    game.names[actor_id], game.npc_names,
-                                    game.names, game.event_times, True)
+        # An SSE update must never rebuild market, equipment, magic, housing,
+        # and all other full-page state on every presence or chat revision.
+        activity = cached_activity(game, actor_id)
+        projection = {
+            # Presence is an ephemeral overlay: never mutate the cached rows.
+            "users": [dict(user) for user in activity["users"]],
+            "events": activity["events"],
+            "duel": activity["duel"], "last_duel": activity["last_duel"],
+            "player": vital_timers(game.world.actors[actor_id], game.world.minute),
+        }
     actor = game.world._actor(actor_id)
     game._annotate_presence(projection)
     chat = game.world.chat_system.view(actor_id)

@@ -70,6 +70,11 @@ class MultiplayerGame:
         # confused with the game-world clock.
         self._presence = {}
         self._presence_status = {}
+        # The public/actor-scoped roster and Chronicle change only with
+        # committed world-journal rows, not with ephemeral presence pings.
+        # Cache at most 32 per-player projections; the presence overlay is
+        # deliberately copied per stream message.
+        self._live_activity_cache = {}
         self._event_slots = threading.BoundedSemaphore(20)
         # A single process owns the in-memory simulation. SQLite exclusive
         # locking prevents two processes independently committing stale worlds.
@@ -151,39 +156,45 @@ class MultiplayerGame:
         self.db.execute("BEGIN IMMEDIATE")
 
     def _tx(self, action):
-        """Both SQL persistence and world mutation succeed, or neither does."""
+        """One rollback owner and one atomic commit for a multiplayer change.
+
+        The engine's inner @atomic_action delegates its rollback to this
+        boundary. The durable journal, ledger, checkpoint and memory state
+        never separate on a failed command or SQL commit. Revisions are
+        inspected *before* commit to avoid rollback after committed writes.
+        """
         with self._lock:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
             previous_clock_anchor = self._clock_anchor
+            outer_active = self.world._external_transaction_active
             self._begin()
+            self.world._external_transaction_active = True
             try:
                 result = action()
                 self.world.assert_invariants()
-                # The journal, durable receipts and current asset ownership
-                # commit together, or all roll back with the world state.
                 ledger.persist(self)
                 checkpoint.save(self)
-                self.db.execute("COMMIT")
-                # Deduplicated command retries do not append a journal row:
-                # they must not manufacture new activity revisions.
                 revision = self.db.execute(
                     "SELECT COUNT(*) FROM world_journal").fetchone()[0]
-                if revision != self._journal_count:
-                    self._journal_count = revision
-                    self._revision += 1
-                    self._activity_changed.notify_all()
-                return result
+                self.db.execute("COMMIT")
             except BaseException:
                 try:
                     self.db.execute("ROLLBACK")
                 finally:
-                    # A storage rollback failure must never leave a mutated,
-                    # uncommitted world visible to future requests.
+                    # Never expose uncommitted economic mutations after a
+                    # failed SQLite write or an invariant violation.
                     self.world.state = previous
                     self.event_times = previous_event_times
                     self._clock_anchor = previous_clock_anchor
                 raise
+            finally:
+                self.world._external_transaction_active = outer_active
+            if revision != self._journal_count:
+                self._journal_count = revision
+                self._revision += 1
+                self._activity_changed.notify_all()
+            return result
 
     @staticmethod
     def _validate_registration(username, password, display_name):
@@ -295,6 +306,23 @@ class MultiplayerGame:
         payload = _canonical(params)
         if len(payload) > 8192:
             raise ActionError("Command exceeds size limit")
+        # Read-only deduplication happens under the same world lock, before
+        # opening a SQL transaction or copying the entire world. The actual
+        # mutation retains a second in-transaction check as defense in depth.
+        with self._lock:
+            if actor_id not in self.names:
+                raise AuthError("Unknown player account")
+            cached = self._existing_command(actor_id, request_id, kind, name, payload)
+            if cached:
+                old_kind, old_name, old_payload, old_result = cached
+                if (old_kind, old_name, old_payload) != (kind, name, payload):
+                    raise ActionError("Request ID was reused with different parameters")
+                return json.loads(old_result)
+            return self._run_new(actor_id, kind, name, params, request_id, payload)
+
+    def _run_new(self, actor_id: str, kind: str, name: str | None,
+                 params: dict, request_id: str, payload: str):
+        """Execute and journal a new command while caller holds the world lock."""
         def perform():
             if actor_id not in self.names:
                 raise AuthError("Unknown player account")
