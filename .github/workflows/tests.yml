@@ -38,6 +38,12 @@ jobs:
         run: |
           python benchmarks/phase4_load.py --users 4 --actions 6 --workers 4
           python benchmarks/phase4_load.py --users 8 --actions 8 --workers 8
+      - name: Recover original Phase 4 engine-side concurrency benchmarks
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m benchmarks.phase4_multiplayer --accounts 40 --requests 80 --workers 12 --views 32
+          python -m benchmarks.phase4_multiplayer --accounts 80 --requests 120 --workers 16 --views 32
       - name: Smoke test CLI
         env:
           PYTHONPATH: src
