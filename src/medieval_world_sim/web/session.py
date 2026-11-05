@@ -640,7 +640,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "max_rounds": 10 if w.actors[duel.defender_id].kind == "human" else None,
         }
     characters = [{
-        "id": actor_id, "name": name, "city": actor.city, "level": actor.level,
+        "id": actor_id, "name": name, "city": actor.city,
+        "destination": actor.destination, "level": actor.level,
         "kind": "human", "hp": actor.hp, "max_hp": actor.max_hp,
         "can_attack": False, "recovering_minutes": max(0, (actor.defeated_until or 0) - now),
     }]
@@ -648,6 +649,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         npc = w.actors[npc_id]
         characters.append({
             "id": npc.id, "name": npc_name, "city": npc.city,
+            "destination": npc.destination,
             "level": npc.level, "kind": "npc", "hp": npc.hp, "max_hp": npc.max_hp,
             "can_attack": (
                 npc.city == actor.city and npc.destination is None
@@ -665,6 +667,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             other = w.actors[human_id]
             characters.append({
                 "id": other.id, "name": human_name, "city": other.city,
+                "destination": other.destination,
                 "level": other.level, "kind": "human",
                 "hp": other.hp, "max_hp": other.max_hp,
                 "can_attack": (
