@@ -107,6 +107,7 @@ class Actor:
     lineage: str = "human"
     lineage_selected: bool = False
     discovered_cities: set[str] = field(default_factory=set)
+    stored_gear: dict[str, list[int]] = field(default_factory=dict)
 
     @property
     def hp(self) -> int:
