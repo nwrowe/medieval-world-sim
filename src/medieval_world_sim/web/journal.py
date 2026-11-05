@@ -15,7 +15,7 @@ import time
 
 from ..core.commands import MULTIPLAYER_ACTIONS
 from .session import ADVANCE_LIMIT, LEGACY_START_CITY, START_CITY
-from . import ledger, checkpoint
+from . import ledger, checkpoint, npc_runtime
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
