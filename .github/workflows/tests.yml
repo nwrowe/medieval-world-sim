@@ -19,6 +19,10 @@ jobs:
           ruff check --select E4,E7,E9,F src/medieval_world_sim/core/commands.py tests/test_command_registry.py
       - name: Verify browser JavaScript syntax
         run: node --check src/medieval_world_sim/web/static/app.js
+      - name: Verify extracted browser view module
+        run: |
+          node --check src/medieval_world_sim/web/static/world-views.mjs
+          node tests/test_browser_views.mjs
       - name: Run standard-library unit tests
         env:
           PYTHONPATH: src

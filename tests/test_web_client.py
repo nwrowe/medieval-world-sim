@@ -55,8 +55,10 @@ class BrowserEntrypointTests(unittest.TestCase):
             "static", "app.js").read_text(encoding="utf-8")
         table = re.search(r"const renderers = \{(.*?)\};", source, re.S)
         self.assertIsNotNone(table)
+        views = files("medieval_world_sim.web").joinpath(
+            "static", "world-views.mjs").read_text(encoding="utf-8")
         for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
-            self.assertRegex(source, rf"function {name}\s*\(")
+            self.assertRegex(source + views, rf"function {name}\s*\(")
         self.assertNotIn("renderHealer", source)
 
 
@@ -299,8 +301,9 @@ class WebHTTPTests(unittest.TestCase):
         self.game.create("Pine Brook")
         with running_server(self.game) as port:
             for path, marker in (
-                ("/", b'<meta name="viewport"'),
-                ("/app.js", b"school-overview"),
+                ("/", b'<script type="module" src="/app.js"'),
+                ("/app.js", b"createWorldViews"),
+                ("/world-views.mjs", b"school-overview"),
                 ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/favicon.svg", b"<svg"),
