@@ -303,6 +303,18 @@ class MultiplayerGame:
         payload = _canonical(params)
         if len(payload) > 8192:
             raise ActionError("Command exceeds size limit")
+        # A committed retry is a read-only receipt lookup. Check under the
+        # same serialized world lock before allocating a rollback snapshot.
+        # The transaction repeats this check, retaining race protection.
+        with self._lock:
+            if actor_id not in self.names:
+                raise AuthError("Unknown player account")
+            prior = self._existing_command(actor_id, request_id, kind, name, payload)
+            if prior:
+                prev_kind, prev_action, prev_payload, prev_result = prior
+                if (prev_kind, prev_action, prev_payload) != (kind, name, payload):
+                    raise ActionError("Request ID was reused with different parameters")
+                return json.loads(prev_result)
         def perform():
             if actor_id not in self.names:
                 raise AuthError("Unknown player account")
