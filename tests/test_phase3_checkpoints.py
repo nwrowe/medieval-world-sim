@@ -17,7 +17,8 @@ class DurableCheckpointTests(TestCase):
                                     dev_fast_forward=True)
 
     def tearDown(self):
-        self.game.close()
+        if self.game is not None:
+            self.game.close()
         self.temp.cleanup()
 
     def player(self, name):
@@ -54,18 +55,18 @@ class DurableCheckpointTests(TestCase):
         self.game.advance(alice, 3, "before")
         self.game.create_checkpoint()
         self.game.advance(alice, 2, "after")
-        original_execute = WorldEngine.execute
+        original_advance = WorldEngine.advance
         calls = []
 
-        def audited_execute(engine, principal, action, params, action_id):
-            calls.append(action)
-            return original_execute(engine, principal, action, params, action_id)
+        def audited_advance(engine, minutes):
+            calls.append(minutes)
+            return original_advance(engine, minutes)
 
         self.game.close()
-        with patch.object(WorldEngine, "execute", audited_execute):
+        with patch.object(WorldEngine, "advance", audited_advance):
             self.game = MultiplayerGame(self.path, require_invites=False,
                                         dev_fast_forward=True)
-        self.assertEqual(calls, [])  # Only an advance event exists after snapshot.
+        self.assertEqual(calls, [2])  # Only the two-minute tail gets executed.
         self.assertEqual(self.game.world.minute, 5)
         ledger.verify(self.game)
 
@@ -95,9 +96,8 @@ class DurableCheckpointTests(TestCase):
         with self.assertRaisesRegex(ValueError, "checksum mismatch"):
             self.game = MultiplayerGame(self.path, require_invites=False,
                                         dev_fast_forward=True)
-        # Failed constructor closes its SQLite connection; avoid double-close.
-        self.game = MultiplayerGame.__new__(MultiplayerGame)
-        self.game.close = lambda: None
+        # The failing constructor closed its own connection.
+        self.game = None
 
     def test_tampered_old_journal_prefix_fails_recovery(self):
         alice = self.player("Alice")
@@ -108,8 +108,7 @@ class DurableCheckpointTests(TestCase):
         self.game.close()
         with self.assertRaisesRegex(ValueError, "journal prefix checksum"):
             MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
-        self.game = MultiplayerGame.__new__(MultiplayerGame)
-        self.game.close = lambda: None
+        self.game = None
 
     def test_failure_after_snapshot_insert_rolls_back_all_records(self):
         alice = self.player("Alice")
