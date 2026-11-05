@@ -135,8 +135,10 @@ For longer, reproducible A/B comparisons over several seeds, run
 This produces per-seed income, completed-route profit and character-growth metrics.
 The smaller `--seeds 3 --days 4` form is suitable for a quick check.
 
-This is an **offline playtest harness**, not autonomous ticking of NPCs on
-the hosted/multiplayer server. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
+This is an **offline playtest harness**, separate from the new persistent
+multiplayer NPC scheduler. The 15 existing named NPCs in local multiplayer
+now autonomously gather, trade and fight with journaled, bounded server-only
+decisions; Explorer and Optimizer remain isolated comparison agents. See [NPC playtesting](docs/NPC_PLAYTESTING.md)
 for report fields, optional LLM configuration and limitations.
 
 ## Autonomous NPC economy (rules-driven experiment)
