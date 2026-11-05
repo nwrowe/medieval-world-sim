@@ -28,6 +28,7 @@ class CompanyView:
     employees: tuple[str, ...]
     employee_pay: tuple[tuple[str, int, int], ...]
     facility_level: int
+    training_fee: int = 0
 
     def stock(self, item: str) -> int:
         return dict(self.inventory).get(item, 0)
