@@ -67,7 +67,7 @@ def percentile(values, fraction):
 
 
 def measure(users: int = 8, actions: int = 12, concurrency: int = 8) -> dict:
-    if not (1 <= users <= 30 and 1 <= actions <= 35 and 1 <= concurrency <= 32):
+    if not (1 <= users <= 30 and 1 <= actions <= 12 and 1 <= concurrency <= 32):
         raise ValueError("Load sizes must stay inside local security and account limits")
     with tempfile.TemporaryDirectory() as directory:
         db = Path(directory) / "load.sqlite3"
