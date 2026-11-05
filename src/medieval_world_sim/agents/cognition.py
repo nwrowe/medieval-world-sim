@@ -261,7 +261,8 @@ class NPCMemory:
                     "quantity": self.active_route.quantity,
                     "remaining": self.active_route.remaining,
                     "cost": self.active_route.cost,
-                    "revenue": self.active_route.revenue}),
+                    "revenue": self.active_route.revenue,
+                    "start_minute": self.active_route.start_minute}),
             "recent": [
                 {"minute": t.minute, "action": t.action, "target": t.target,
                  "ok": t.success, "gold_delta": t.gold_delta,
