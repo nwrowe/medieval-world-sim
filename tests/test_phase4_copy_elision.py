@@ -37,6 +37,23 @@ class TransactionCopyElisionTests(TestCase):
             self.assertEqual(inner.call_count, 0)
         self.assertFalse(self.game.world._durable_tx_owns_rollback)
 
+    def test_committed_retry_skips_both_rollback_copies(self):
+        self.game.action(self.player, "send_chat", {
+            "kind": "global", "target": "", "message": "first"}, "retry-me")
+        from medieval_world_sim.web import multiplayer as service
+        from medieval_world_sim.core import transactions as engine_tx
+        with patch.object(service, "deepcopy", wraps=service.deepcopy) as outer, patch.object(
+                engine_tx, "deepcopy", wraps=engine_tx.deepcopy) as inner:
+            result = self.game.action(self.player, "send_chat", {
+                "kind": "global", "target": "", "message": "first"}, "retry-me")
+            self.assertEqual(result["posted"], True)
+            self.assertEqual(outer.call_count, 0)
+            self.assertEqual(inner.call_count, 0)
+            with self.assertRaises(ActionError):
+                self.game.action(self.player, "send_chat", {
+                    "kind": "global", "target": "", "message": "changed"}, "retry-me")
+            self.assertEqual(outer.call_count, 0)
+
     def test_engine_standalone_still_has_atomic_rollback(self):
         world = WorldEngine([Actor("solo", "human")])
         before = world.actors["solo"].gold
