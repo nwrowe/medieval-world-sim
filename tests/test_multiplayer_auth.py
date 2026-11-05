@@ -33,7 +33,7 @@ class MultiAccountPersistenceTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "accounts.sqlite3"
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
 
     def tearDown(self):
         self.game.close()
@@ -109,7 +109,7 @@ class MultiAccountPersistenceTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot(bob)["player"]["gold"], 245)
         before = {player: self.game.snapshot(player) for player in (alice, bob)}
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         for player in (alice, bob):
             self.assertEqual(self.game.snapshot(player), before[player])
         self.game.world.assert_invariants()
@@ -149,14 +149,14 @@ class MultiAccountPersistenceTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot(bob)["player"]["gold"], 245)
         self.game.world.assert_invariants()
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.game.world.assert_invariants()
 
 
 class MultiAccountHTTPTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.game = MultiplayerGame(Path(self.temp.name) / "players.db")
+        self.game = MultiplayerGame(Path(self.temp.name) / "players.db", require_invites=False, dev_fast_forward=True)
 
     def tearDown(self):
         self.game.close()

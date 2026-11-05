@@ -20,7 +20,7 @@ class MultiplayerDuelTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "players.sqlite3"
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.alice = self.game.identity(self.game.register_and_login(
             "alice", PASSWORD, "Alice River")[0]).actor_id
         self.bob = self.game.identity(self.game.register_and_login(
@@ -80,7 +80,7 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot(self.bob)["player"]["destination"],
                          "goldmeadow")
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["last_duel"]["outcome"],
                          "opponent_fled")
         self.game.world.assert_invariants()
@@ -114,7 +114,7 @@ class MultiplayerDuelTests(unittest.TestCase):
             self.command(self.alice, "duel_turn",
                          {"move": "guard", "node_id": ""}, "round-eleven")
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["last_duel"]["rounds"], 10)
         self.assertEqual(self.game.snapshot(self.bob)["last_duel"]["outcome"], "draw")
         self.game.world.assert_invariants()
@@ -140,7 +140,7 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertEqual(bob_state["player"]["hp"], 0)
         self.assertEqual(self.game.world.total_gold, start_gold)
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.bob)["last_duel"]["outcome"], "lost")
         self.game.world.assert_invariants()
 
@@ -212,7 +212,7 @@ class MultiplayerDuelTests(unittest.TestCase):
             "result_json, recorded_at) VALUES('action', ?, 'pvp_strike', ?, ?, ?, NULL)",
             (self.alice, payload, "legacy-swing", "{}"))
         self.game.close()
-        self.game = MultiplayerGame(self.path)
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertLess(self.game.snapshot(self.bob)["player"]["hp"], 24)
         self.assertIsNone(self.game.snapshot(self.alice)["duel"])
         self.game.world.assert_invariants()

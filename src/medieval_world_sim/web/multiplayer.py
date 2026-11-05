@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import asdict, is_dataclass, dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import hashlib
 import hmac
 import json
@@ -34,6 +34,8 @@ from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INI
 # Deliberately bounded until rate limiting, moderation and deployment hardening
 # have been reviewed in a dedicated public-server milestone.
 MAX_ACCOUNTS = 100
+INVITE_VALID_SECONDS = 7 * 86400
+MAX_INVITES_PER_BATCH = 25
 SESSION_SECONDS = 86400
 PASSWORD_N = 1 << 15
 PASSWORD_R = 8
@@ -41,6 +43,10 @@ PASSWORD_P = 1
 MAX_FAILED_LOGINS = 6
 LOGIN_COOLDOWN = 900
 MAX_JOURNAL = 20000
+MAX_NEW_ACCOUNTS_PER_DAY = 24
+MAX_ACCOUNT_COMMANDS_PER_DAY = 400
+MAX_CHAT_COMMANDS_PER_DAY = 100
+MAX_GLOBAL_COMMANDS_PER_DAY = 4000
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
 MULTI_ACTIONS = UI_ACTIONS - {"enroll_course"} | {
@@ -79,7 +85,11 @@ def _password_hash(password: str, salt: bytes) -> bytes:
 
 
 class MultiplayerGame:
-    def __init__(self, db_path: str | Path):
+    def __init__(self, db_path: str | Path, *,
+                 require_invites: bool = True,
+                 dev_fast_forward: bool = False):
+        self.require_invites = require_invites
+        self.dev_fast_forward = dev_fast_forward
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -104,6 +114,14 @@ class MultiplayerGame:
             if os.name != "nt":
                 os.chmod(self.db_path, 0o600)
             self._load_world()
+            if self.dev_fast_forward:
+                # The explicit local test override uses a manually accelerated
+                # timeline. Do not also accrue elapsed wall time while it is on:
+                # otherwise switching to secure mode would count time twice.
+                self._clock_anchor = int(time.time())
+                self.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
+                    (str(self._clock_anchor).encode(),))
         except Exception:
             self.db.close()
             raise
@@ -114,6 +132,11 @@ class MultiplayerGame:
 
     def _create_schema(self):
         self.db.executescript("""
+            CREATE TABLE IF NOT EXISTS registration_invites(
+                digest BLOB PRIMARY KEY,
+                expires INTEGER NOT NULL,
+                redeemed_by TEXT UNIQUE REFERENCES accounts(actor_id)
+            );
             CREATE TABLE IF NOT EXISTS accounts(
                 actor_id TEXT PRIMARY KEY,
                 username TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -123,6 +146,10 @@ class MultiplayerGame:
                 created_at INTEGER NOT NULL,
                 failed_logins INTEGER NOT NULL DEFAULT 0,
                 blocked_until INTEGER NOT NULL DEFAULT 0
+            );
+            CREATE TABLE IF NOT EXISTS world_meta(
+                name TEXT PRIMARY KEY,
+                value BLOB NOT NULL
             );
             CREATE TABLE IF NOT EXISTS sessions(
                 digest BLOB PRIMARY KEY,
@@ -150,6 +177,29 @@ class MultiplayerGame:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
         if "flee_success" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
+        if "secure_roll" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
+        if "server_clock" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
+        # Keep RNG secret out of public API responses and source-controlled seed.
+        # Existing journals replay old results with their historical RNG; only
+        # newly committed actions opt in to the keyed outcome algorithm.
+        self.db.execute(
+            "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
+            (secrets.token_bytes(32),))
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS journal_account_timestamp "
+            "ON world_journal(actor_id,recorded_at)")
+        self.db.execute(
+            "CREATE INDEX IF NOT EXISTS journal_timestamp "
+            "ON world_journal(recorded_at)")
+        self._rng_key = self.db.execute(
+            "SELECT value FROM world_meta WHERE name='rng_key'").fetchone()[0]
+        self.db.execute(
+            "INSERT OR IGNORE INTO world_meta(name,value) VALUES('clock_anchor', ?)",
+            (str(int(time.time())).encode(),))
+        self._clock_anchor = int(self.db.execute(
+            "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -178,9 +228,10 @@ class MultiplayerGame:
         self.event_times = {}
         registered = set()
         rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id, recorded_at, flee_success "
-            "FROM world_journal ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id, recorded_at, flee_success in rows:
+            "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
+            "flee_success, secure_roll, server_clock FROM world_journal ORDER BY seq").fetchall()
+        for (kind, actor_id, action, payload, request_id, recorded_at,
+             flee_success, secure_roll, server_clock) in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -209,15 +260,20 @@ class MultiplayerGame:
                         raise ValueError("Invalid saved flee coin flip")
                     else:
                         self.world._flee_success = bool(flee_success)
+                if secure_roll not in (None, 0, 1):
+                    raise ValueError("Invalid recorded RNG policy")
+                self.world._private_rng_key = self._rng_key if secure_roll == 1 else None
                 try:
                     self.world.execute(actor_id, action, params, self._engine_id(
                         actor_id, request_id))
                 finally:
                     self.world._legacy_flee_rules = False
                     self.world._flee_success = None
+                    self.world._private_rng_key = None
             elif kind == "advance":
                 minutes = params.get("minutes")
-                if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
+                if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
+                        or server_clock not in (None, 0, 1)):
                     raise ValueError("Invalid journal time advancement")
                 self.world.advance(minutes)
             else:
@@ -251,6 +307,7 @@ class MultiplayerGame:
         with self._lock:
             previous = deepcopy(self.world.state)
             previous_event_times = dict(self.event_times)
+            previous_clock_anchor = self._clock_anchor
             self._begin()
             try:
                 result = action()
@@ -273,6 +330,7 @@ class MultiplayerGame:
                     # uncommitted world visible to future requests.
                     self.world.state = previous
                     self.event_times = previous_event_times
+                    self._clock_anchor = previous_clock_anchor
                 raise
 
     @staticmethod
@@ -288,13 +346,38 @@ class MultiplayerGame:
             raise ActionError("Password must contain 12–128 characters")
         return username.lower(), display_name.strip()
 
-    def register(self, username, password, display_name):
+    def issue_invites(self, count: int = 1) -> list[str]:
+        """Operator-only administration; never expose through the HTTP server."""
+        if type(count) is not int or not 1 <= count <= MAX_INVITES_PER_BATCH:
+            raise ValueError("Invalid invitation batch size")
+        codes = [secrets.token_urlsafe(24) for _ in range(count)]
+        expiry = int(time.time()) + INVITE_VALID_SECONDS
+        with self._lock:
+            for code in codes:
+                self.db.execute(
+                    "INSERT INTO registration_invites(digest,expires) VALUES(?,?)",
+                    (_digest(code), expiry))
+        return codes
+
+    def register(self, username, password, display_name, invite: str | None = None):
         username, display_name = self._validate_registration(
             username, password, display_name)
         salt = secrets.token_bytes(16)
         hashed = _password_hash(password, salt)
         actor_id = "player:" + uuid.uuid4().hex
         def perform():
+            if self.db.execute(
+                "SELECT COUNT(*) FROM accounts WHERE created_at>=?",
+                (int(time.time()) - 86400,)).fetchone()[0] >= MAX_NEW_ACCOUNTS_PER_DAY:
+                raise ActionError("Daily registration capacity reached")
+            if self.require_invites:
+                if not isinstance(invite, str) or not 20 <= len(invite) <= 128:
+                    raise ActionError("Valid invitation required")
+                row = self.db.execute(
+                    "SELECT redeemed_by,expires FROM registration_invites WHERE digest=?",
+                    (_digest(invite),)).fetchone()
+                if row is None or row[0] is not None or row[1] <= int(time.time()):
+                    raise ActionError("Invitation invalid, expired, or already used")
             if self.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] >= MAX_ACCOUNTS:
                 raise ActionError("Development account limit reached")
             try:
@@ -306,6 +389,18 @@ class MultiplayerGame:
                 raise ActionError("Username or character name is already taken") from None
             self._join_actor(actor_id, START_CITY)
             self.names[actor_id] = display_name
+            if self.require_invites:
+                self.db.execute(
+                    "UPDATE registration_invites SET redeemed_by=? "
+                    "WHERE digest=? AND redeemed_by IS NULL",
+                    (actor_id, _digest(invite)))
+            # New worlds may be idle for days before their first account joins.
+            # Start the wall-clock timeline at the first actual registration.
+            if len(self.names) == 1:
+                self._clock_anchor = int(time.time())
+                self.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
+                    (str(self._clock_anchor).encode(),))
             self.db.execute(
                 "INSERT INTO world_journal(kind, actor_id, payload, recorded_at) "
                 "VALUES('join', ?, ?, ?)",
@@ -347,8 +442,9 @@ class MultiplayerGame:
                             "WHERE actor_id=?", (actor_id,))
             return self._issue_session(actor_id)
 
-    def register_and_login(self, username, password, display_name):
-        actor_id = self.register(username, password, display_name)
+    def register_and_login(self, username, password, display_name,
+                           invite: str | None = None):
+        actor_id = self.register(username, password, display_name, invite)
         with self._lock:
             return self._issue_session(actor_id)
 
@@ -386,11 +482,77 @@ class MultiplayerGame:
             "SELECT kind, action, payload, result_json FROM world_journal "
             "WHERE actor_id=? AND request_id=?", (actor_id, request_id)).fetchone()
 
+    def _tick_world_clock(self) -> None:
+        """Reconcile trusted server wall time in capped, replayable increments.
+
+        World time may be advanced by the server's own clock, never by an
+        untrusted HTTP request. The development override retains historical
+        fast-forward behavior so existing demos/tests can move time quickly.
+        """
+        if self.dev_fast_forward:
+            return
+        with self._lock:
+            if not self.names:
+                return
+            now = int(time.time())
+            minutes = min(max(0, now - self._clock_anchor) // 60, ADVANCE_LIMIT)
+            if minutes == 0:
+                return
+            old_anchor = self._clock_anchor
+            new_anchor = old_anchor + minutes * 60
+            actor_id = next(iter(self.names))
+            prior_events = len(self.world.events)
+            timestamp = datetime.now(timezone.utc).isoformat()
+            def perform():
+                self._count_journal()
+                self.world.advance(minutes)
+                self.db.execute(
+                    "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
+                    "result_json,recorded_at,server_clock) "
+                    "VALUES('advance',?,?,?,?,?,1)",
+                    (actor_id, _canonical({"minutes": minutes}),
+                     f"__clock__:{old_anchor}", "null", timestamp))
+                self.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='clock_anchor'",
+                    (str(new_anchor).encode(),))
+                for event in self.world.events[prior_events:]:
+                    self.event_times[event.event_id] = timestamp
+            self._tx(perform)
+            self._clock_anchor = new_anchor
+
+    def _check_journal_budget(self, actor_id: str, name: str | None) -> None:
+        """Limit journal exhaustion using server timestamps, not user time."""
+        since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        own = self.db.execute(
+            "SELECT COUNT(*) FROM world_journal "
+            "WHERE actor_id=? AND recorded_at>=? AND kind IN ('action','advance') "
+            "AND COALESCE(server_clock,0)=0",
+            (actor_id, since)).fetchone()[0]
+        if own >= MAX_ACCOUNT_COMMANDS_PER_DAY:
+            raise ActionError("Daily account action limit reached")
+        world = self.db.execute(
+            "SELECT COUNT(*) FROM world_journal "
+            "WHERE recorded_at>=? AND kind IN ('action','advance') "
+            "AND COALESCE(server_clock,0)=0", (since,)).fetchone()[0]
+        if world >= MAX_GLOBAL_COMMANDS_PER_DAY:
+            raise ActionError("Daily shared-world command limit reached")
+        if name == "send_chat":
+            chat = self.db.execute(
+                "SELECT COUNT(*) FROM world_journal WHERE actor_id=? "
+                "AND action='send_chat' AND recorded_at>=?",
+                (actor_id, since)).fetchone()[0]
+            if chat >= MAX_CHAT_COMMANDS_PER_DAY:
+                raise ActionError("Daily chat limit reached")
+
     def _run(self, actor_id: str, kind: str, name: str | None,
              params: dict, request_id: str):
         if (not isinstance(request_id, str) or not 1 <= len(request_id) <= 80
+                or request_id.startswith("__clock__:")
                 or not isinstance(params, dict)):
             raise ActionError("Invalid command")
+        self._tick_world_clock()
+        if kind == "advance" and not self.dev_fast_forward:
+            raise ActionError("World time advances automatically; manual fast-forward is disabled")
         payload = _canonical(params)
         if len(payload) > 8192:
             raise ActionError("Command exceeds size limit")
@@ -404,9 +566,11 @@ class MultiplayerGame:
                     raise ActionError("Request ID was reused with different parameters")
                 return json.loads(prev_result)
             self._count_journal()
+            self._check_journal_budget(actor_id, name)
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
             flee_success = None
+            secure_roll = 0
             if kind == "action":
                 if name == "pvp_strike":
                     # Keep historical journal replay compatible, but prevent
@@ -417,11 +581,15 @@ class MultiplayerGame:
                 if name == "flee_duel":
                     flee_success = secrets.randbits(1)
                     self.world._flee_success = bool(flee_success)
+                if name in ("practice_magic", "race_horse"):
+                    secure_roll = 1
+                    self.world._private_rng_key = self._rng_key
                 try:
                     outcome = self.world.execute(actor_id, name, params,
                                                  self._engine_id(actor_id, request_id))
                 finally:
                     self.world._flee_success = None
+                    self.world._private_rng_key = None
             elif kind == "advance":
                 if type(params.get("minutes")) is not int or set(params) != {"minutes"} or not (
                         1 <= params["minutes"] <= ADVANCE_LIMIT):
@@ -439,10 +607,10 @@ class MultiplayerGame:
             encoded_result = _canonical(_jsonable(outcome))
             self.db.execute(
                 "INSERT INTO world_journal("
-                "kind,actor_id,action,payload,request_id,result_json,recorded_at,flee_success) "
-                "VALUES(?,?,?,?,?,?,?,?)",
+                "kind,actor_id,action,payload,request_id,result_json,recorded_at,"
+                "flee_success,secure_roll) VALUES(?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at, flee_success))
+                 encoded_result, recorded_at, flee_success, secure_roll))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
@@ -547,12 +715,14 @@ class MultiplayerGame:
         }
 
     def social_snapshot(self, actor_id: str) -> dict:
+        self._tick_world_clock()
         with self._lock:
             if actor_id not in self.names:
                 raise AuthError("Unknown account")
             return self._social_view(actor_id)
 
     def next_activity_revision(self, since: int, timeout: float = 12.0) -> int:
+        self._tick_world_clock()
         with self._activity_changed:
             self._refresh_presence()
             if since == self._revision:
@@ -567,6 +737,7 @@ class MultiplayerGame:
         self._event_slots.release()
 
     def snapshot(self, actor_id: str):
+        self._tick_world_clock()
         with self._lock:
             if actor_id not in self.names:
                 raise AuthError("Unknown account")

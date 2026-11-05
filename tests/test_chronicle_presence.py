@@ -18,7 +18,7 @@ class ChronicleAuditTests(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.TemporaryDirectory()
         self.db = Path(self.folder.name) / "multi.sqlite"
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         self.a = self.game.identity(self.game.register_and_login(
             "alice", PASSWORD, "Alice River")[0]).actor_id
         self.b = self.game.identity(self.game.register_and_login(
@@ -40,7 +40,7 @@ class ChronicleAuditTests(unittest.TestCase):
         self.game.advance(self.a, minutes, "pass-time")
         self.assertEqual(self.game.snapshot(self.b)["player"]["city"], "goldmeadow")
         self.game.close()
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.b)["player"]["city"], "goldmeadow")
         self.assertEqual(self.game.snapshot(self.a)["player"]["city"], "crownreach")
 
@@ -74,7 +74,7 @@ class ChronicleAuditTests(unittest.TestCase):
         before = {account: self.game.snapshot(account)["events"] for account in
                   (self.a, self.b, self.c)}
         self.game.close()
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         for account, events in before.items():
             self.assertEqual(self.game.snapshot(account)["events"], events)
 
@@ -102,7 +102,7 @@ class ChronicleAuditTests(unittest.TestCase):
         self.game.db.execute(
             "UPDATE world_journal SET recorded_at=NULL WHERE request_id='old-command'")
         self.game.close()
-        self.game = MultiplayerGame(self.db)
+        self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         past = [e for e in self.game.snapshot(self.a)["events"]
                 if e["kind"] == "gathered"]
         self.assertEqual(len(past), 1)

@@ -1,5 +1,6 @@
 """Horse ownership and transparent seeded horse races; no wagering."""
 from hashlib import sha256
+import hmac
 from ..errors import ActionError
 from ..core.transactions import transfer_gold
 
@@ -49,8 +50,14 @@ class TrackSystem:
         skill = self.world.state.riding_xp.get(actor_id, 0)
         base = HORSES[breed]
         seed = f"{self.world.seed}:{actor_id}:{breed}:{self.world.minute}:{skill}".encode()
-        values = [int.from_bytes(sha256(seed + bytes([i])).digest()[:4], "big") % 19
-                  for i in range(3)]
+        private_key = getattr(self.world, "_private_rng_key", None)
+        values = [
+            int.from_bytes(
+                (hmac.digest(private_key, seed + bytes([i]), "sha256")
+                 if private_key is not None else sha256(seed + bytes([i])).digest())[:4],
+                "big") % 19
+            for i in range(3)
+        ]
         merit_bonus = 2 if "horsemanship" in self.world.state.merit_upgrades.get(actor_id, set()) else 0
         your_score = base["speed"] * 2 + base["stamina"] + min(12, skill // 10) + values[0] + merit_bonus
         rivals = [20 + values[1], 23 + values[2]]

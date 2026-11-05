@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 from ..errors import ActionError
 from .session import GameSession, SaveError
 from .multiplayer import MultiplayerGame, AuthError, SESSION_SECONDS
+from .rate_limit import RateLimiter
 
 ASSETS = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -52,6 +53,7 @@ class GameHTTPServer(ThreadingHTTPServer):
             raise ValueError("Multi-account mode cannot use server access codes or frames")
         self.game = game
         self.multiplayer = multiplayer
+        self.rate_limiter = RateLimiter()
         self.token = token
         self.colab_preview = colab_preview
         super().__init__(address, GameHandler)
@@ -230,8 +232,13 @@ class GameHandler(BaseHTTPRequestHandler):
     def _multi_get(self, route: str):
         if not self._multi_host_valid():
             return
+        if route in ("/api/state", "/api/events", "/api/auth/session"):
+            if not self._rate_permit(route, "GET"):
+                return
         if route == "/api/health":
-            self._json(200, {"ok": True, "mode": "multi-account-local"})
+            self._json(200, {"ok": True, "mode": "multi-account-local",
+                             "invite_required": self.server.multiplayer.require_invites,
+                             "dev_fast_forward": self.server.multiplayer.dev_fast_forward})
         elif route == "/api/auth/session":
             identity = self._multi_identity()
             self._json(200, {"authenticated": identity is not None,
@@ -251,16 +258,49 @@ class GameHandler(BaseHTTPRequestHandler):
         else:
             self._json(404, {"error": "Not found"})
 
+    def _rate_permit(self, route: str, method: str) -> bool:
+        """Bound anonymous authentication work and session-verified actions.
+
+        This is an in-process safety net, not a substitute for upstream
+        distributed anti-abuse controls in a future public deployment.
+        """
+        remote = self.client_address[0]
+        if route in ("/api/auth/login", "/api/auth/register"):
+            key = ("auth", route, remote)
+            capacity = 10 if route.endswith("login") else 8
+            period = 60.0
+        elif route == "/api/events":
+            key = ("events", remote)
+            capacity, period = 20, 60.0
+        else:
+            identity = self._multi_identity()
+            key = ("actor", method, route,
+                   identity.actor_id if identity is not None else remote)
+            capacity = (80 if route == "/api/state" else
+                        60 if route == "/api/action" else
+                        15 if route == "/api/presence" else 30)
+            period = 60.0
+        if self.server.rate_limiter.allow(key, capacity, period):
+            return True
+        # Do not interpret an unread POST request body as the next HTTP request.
+        self.close_connection = True
+        self._json(429, {"error": "Too many requests; retry in a moment"})
+        return False
+
     def _multi_post(self, route: str):
         if not self._multi_host_valid() or not self._same_origin():
+            return
+        if not self._rate_permit(route, "POST"):
             return
         try:
             data = self._body()
             if route == "/api/auth/register":
-                if set(data) != {"username", "password", "display_name"}:
+                if (set(data) - {"username", "password", "display_name", "invite"}
+                        or not {"username", "password", "display_name"} <= set(data)):
                     raise ActionError("Invalid registration fields")
                 token, csrf = self.server.multiplayer.register_and_login(
-                    data["username"], data["password"], data["display_name"])
+                    data["username"], data["password"], data["display_name"],
+                    data.get("invite"))
                 identity = self.server.multiplayer.identity(token)
                 self._json(200, {"result": {"registered": True}, "csrf": csrf,
                                  "state": self.server.multiplayer.snapshot(identity.actor_id)},
@@ -296,6 +336,11 @@ class GameHandler(BaseHTTPRequestHandler):
             if route == "/api/action":
                 if set(data) != {"action", "params", "id"}:
                     raise ActionError("Invalid action request fields")
+                if (data["action"] == "send_chat" and not
+                        self.server.rate_limiter.allow(
+                            ("chat", identity.actor_id), 12, 60.0)):
+                    self._json(429, {"error": "Chat message rate limit reached"})
+                    return
                 result = self.server.multiplayer.action(
                     identity.actor_id, data["action"], data["params"], data["id"])
             elif route == "/api/advance":
@@ -378,6 +423,12 @@ def main(argv=None):
                         help="Single-player JSON action journal")
     parser.add_argument("--multiplayer-db", default=None,
                         help="Opt-in localhost-only SQLite shared-world and accounts database")
+    parser.add_argument("--issue-invites", type=int, default=0, metavar="COUNT",
+                        help="Issue one-time 7-day account invites to stdout and exit")
+    parser.add_argument("--dev-open-registration", action="store_true",
+                        help="UNSAFE for public use: skip one-time invitation requirement")
+    parser.add_argument("--dev-fast-forward", action="store_true",
+                        help="UNSAFE for public use: allow users to advance shared time manually")
     parser.add_argument("--access-token", default=None,
                         help="Optional access code; auto-generated for LAN binds")
     parser.add_argument("--colab-preview", action="store_true",
@@ -395,8 +446,14 @@ def main(argv=None):
             parser.error("--multiplayer-db is localhost-only; no public/LAN auth yet")
         if args.colab_preview or args.access_token:
             parser.error("--multiplayer-db cannot use --access-token or --colab-preview")
-        multi = MultiplayerGame(args.multiplayer_db)
+        multi = MultiplayerGame(
+            args.multiplayer_db, require_invites=not args.dev_open_registration,
+            dev_fast_forward=args.dev_fast_forward)
         try:
+            if args.issue_invites:
+                for code in multi.issue_invites(args.issue_invites):
+                    print(code, flush=True)
+                return
             with GameHTTPServer((args.host, args.port), None,
                                 multiplayer=multi) as server:
                 print(f"Oathmere multi-account local server: http://127.0.0.1:{server.server_port}", flush=True)
@@ -411,6 +468,8 @@ def main(argv=None):
         finally:
             multi.close()
         return
+    if args.issue_invites or args.dev_open_registration or args.dev_fast_forward:
+        parser.error("Multiplayer development flags require --multiplayer-db")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:
         token = secrets.token_urlsafe(18)

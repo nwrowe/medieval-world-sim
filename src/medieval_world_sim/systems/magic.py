@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
+import hmac
 
 from ..content.magic_tree import (
     NODES, ROOT_ID, SCHOOLS, MAX_ACTIVE_SPECIALIZATIONS,
@@ -135,7 +136,10 @@ class MagicSystem:
         # Hash-based roll has NO external RNG state to leak or desynchronize.
         # It varies by attempt even if a character practices twice in one minute.
         payload = f"{self.world.seed}|{actor_id}|{node_id}|{state.attempts}|{self.world.minute}"
-        roll = (int.from_bytes(sha256(payload.encode()).digest()[:8], "big") % 100) + 1
+        private_key = getattr(self.world, "_private_rng_key", None)
+        digest = (hmac.digest(private_key, payload.encode(), "sha256")
+                  if private_key is not None else sha256(payload.encode()).digest())
+        roll = (int.from_bytes(digest[:8], "big") % 100) + 1
         skill = state.school_xp.get(node.school, 0)
         chance = (max(5, min(95, 70 - node.difficulty + min(20, skill // 10)))
                   if legacy else
