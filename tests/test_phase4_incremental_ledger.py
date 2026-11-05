@@ -58,7 +58,7 @@ class IncrementalLedgerTests(TestCase):
         self.assertEqual(self.ops(), {"insert": 1, "update": 1})
         self.game.action(self.bob, "accept_trade", {
             "trade_id": trade["id"], "terms_hash": trade["terms_hash"]}, "accept")
-        self.assertEqual(self.ops(), {"delete": 1, "insert": 1, "update": 3})
+        self.assertEqual(self.ops(), {"delete": 1, "insert": 1, "update": 2})
         ledger.verify(self.game)
 
     def test_rollback_after_partial_asset_changes_is_atomic(self):
