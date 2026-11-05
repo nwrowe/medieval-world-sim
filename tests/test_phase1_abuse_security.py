@@ -141,6 +141,27 @@ class ClockAndRandomnessTests(unittest.TestCase):
                 self.assertEqual(game.world.total_gold, game.world.initial_gold)
                 game.close()
 
+    def test_switching_off_dev_fast_forward_does_not_double_count_wall_time(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "switch.db"
+            first = 1_700_000_000
+            with patch(REPO_MODE + ".time.time", return_value=first):
+                game = MultiplayerGame(path, require_invites=False,
+                                       dev_fast_forward=True)
+                actor = game.register("alice", PASSWORD, "Alice River")
+                game.advance(actor, 60, "dev-pass-hour")
+                game.close()
+            with patch(REPO_MODE + ".time.time", return_value=first + 7200):
+                game = MultiplayerGame(path, require_invites=False,
+                                       dev_fast_forward=True)
+                self.assertEqual(game.snapshot(actor)["minute"], 60)
+                game.close()
+            with patch(REPO_MODE + ".time.time", return_value=first + 7260):
+                game = MultiplayerGame(path, require_invites=False)
+                self.assertEqual(game.snapshot(actor)["minute"], 61)
+                game.world.assert_invariants()
+                game.close()
+
     def test_private_keyed_race_and_magic_outcomes_persist(self):
         with tempfile.TemporaryDirectory() as folder:
             db = Path(folder) / "rewards.sqlite3"
