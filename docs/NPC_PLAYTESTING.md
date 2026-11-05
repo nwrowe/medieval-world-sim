@@ -169,8 +169,11 @@ combat while keeping distinct progression/trading priorities. All combat
 passes through the real engine and its HP, stamina, defeat-recovery and
 **maximum 10-gold NPC-attack loot** enforcement. Playtesters and human
 accounts are not exposed as automatic combat victims. No combat action is
-issued by the optional LLM critic. These simulated NPC combat behaviors
-are **not** yet deployed as unattended actions in the live multiplayer server.
+issued by the optional LLM critic. The rules-based **ordinary** NPC roles
+(gatherers, haulers and adventurers) are now integrated with the local
+multiplayer server's committed world-time advances. The special
+Explorer/Optimizer playtesters remain **offline only** and do not control
+live characters. See [local multiplayer](MULTIPLAYER_LOCAL_DEVELOPMENT.md).
 
 **Evidence and score limitations.** Multi-seed reports now include cash gained
 per simulated day, trade profit per day, combat strikes/victories/loot,
