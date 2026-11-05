@@ -64,6 +64,8 @@ class GameHTTPServer(ThreadingHTTPServer):
         self.token = token
         self.colab_preview = colab_preview
         super().__init__(address, GameHandler)
+        if multiplayer is not None:
+            multiplayer.start_npc_loop()
 
 
 class GameHandler(BaseHTTPRequestHandler):
