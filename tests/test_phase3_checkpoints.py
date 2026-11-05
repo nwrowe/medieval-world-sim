@@ -86,6 +86,33 @@ class DurableCheckpointTests(TestCase):
         self.assertEqual(self.game.world.actors[bob].gold, 277)
         ledger.verify(self.game)
 
+    def test_complex_character_assets_guilds_and_city_storage_round_trip(self):
+        alice = self.player("Alice")
+        gear_id = self.game.action(
+            alice, "buy_starter_gear", {"kind": "sword"}, "buy-sword")
+        self.game.action(alice, "equip", {"gear_id": gear_id}, "equip-sword")
+        guild = self.game.action(alice, "found_guild", {"name": "Iron Circle"}, "guild")
+        self.game.action(
+            alice, "travel", {"destination": "goldmeadow"}, "travel")
+        self.game.advance(alice, 60, "arrival")
+        self.game.action(
+            alice, "gather", {"item": "grain", "quantity": 1}, "gather")
+        self.game.action(
+            alice, "store_goods", {"item": "grain", "quantity": 1}, "store")
+        before = self.game.world.actors[alice]
+        self.assertEqual(before.storage["goldmeadow"]["grain"], 1)
+        self.assertIn(gear_id, before.gear_ids)
+        self.game.create_checkpoint()
+        self.restart()
+        after = self.game.world.actors[alice]
+        self.assertEqual(after.storage["goldmeadow"]["grain"], 1)
+        self.assertEqual(after.equipped, before.equipped)
+        self.assertIn(gear_id, after.gear_ids)
+        self.assertEqual(self.game.world.gear[gear_id].kind, "sword")
+        self.assertIn(alice, self.game.world.state.guilds[guild["id"]].members)
+        self.game.world.assert_invariants()
+        ledger.verify(self.game)
+
     def test_corrupted_checkpoint_fails_closed(self):
         alice = self.player("Alice")
         self.game.advance(alice, 1, "tick")
