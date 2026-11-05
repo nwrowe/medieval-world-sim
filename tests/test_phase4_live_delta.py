@@ -29,7 +29,11 @@ class NarrowActivityTests(unittest.TestCase):
                 self.game.world, actor, self.game.names[actor], self.game.npc_names,
                 self.game.names, self.game.event_times, True)
             actual = self.game.social_snapshot(actor)
-            self.assertEqual(actual["users"], full["users"])
+            # SSE adds public online presence; the underlying actor fields
+            # must still match the ordinary privacy-filtered page snapshot.
+            self.assertEqual(
+                [{k: v for k, v in user.items() if k != "presence"}
+                 for user in actual["users"]], full["users"])
             self.assertEqual(actual["events"], full["events"])
             self.assertEqual(actual["duel"], full["duel"])
             self.assertEqual(actual["last_duel"], full["last_duel"])
