@@ -4,7 +4,7 @@ An exploration of a persistent, text-first medieval fantasy RPG inspired by the 
 
 **Central hypothesis:** a persistent world populated with autonomous NPCs can feel alive from day one, support an emerging human community, and help us test complex game economies before launch.
 
-> **Status:** Discovery / experimental prototype. No final game title, business model, server stack, or AI provider has been selected.
+> **Status:** Oathmere is a playable, local-development prototype. Single-player JSON saves and an invite-gated, localhost-only SQLite multi-account mode exist. It is **not production ready** and must not be exposed directly to the internet.
 
 ## Product direction
 
@@ -20,13 +20,13 @@ The NPC system is **hybrid**:
 
 The **five-city world engine** is the active development target, modeling region-specific resources, asynchronous travel, companies, manufacturing, markets, quality equipment, combat, stamina, and progression. Gameplay rules are composed as independent systems using one shared domain world state. The original simple 200-citizen economy remains a reproducible baseline for comparison, not the foundation for future game features.
 
-Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. A seeded rules-based autonomous NPC experiment is now available; there is still no online server or persistent multiplayer world.
+Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. A seeded rules-based autonomous NPC experiment and a localhost multi-account development server are available. See [local setup](docs/MULTIPLAYER_LOCAL_DEVELOPMENT.md). Neither is an internet-ready hosted multiplayer service.
 
 ## Original single-settlement baseline (retained experiment)
 
 This repository includes a **small, runnable, deterministic economy simulation** with farmers, woodcutters, miners, blacksmiths, and guards. It has fixed-price trading, a finite royal treasury, production, food consumption, daily summaries, and tests for core accounting invariants.
 
-It intentionally **does not** yet include AI language models, guilds, diplomacy, procedural storytelling, a web server, or real players. The simulation is a test harness, not a completed game and not proof the economy is balanced. Some failures (such as treasury exhaustion) are useful findings.
+It intentionally **does not** include AI language models, diplomacy, or procedural storytelling. This *legacy baseline experiment* is separate from Oathmere's current web client, guilds, and human-account development mode. The simulation is a test harness, not a completed game and not proof the economy is balanced. Some failures (such as treasury exhaustion) are useful findings.
 
 ### Try it locally
 
@@ -130,18 +130,18 @@ See [company economy design and accounting](docs/COMPANY_ECONOMY.md) for recipes
 
 Each city now has a funded merchant with a visible bid/ask for raw materials. Regional origin prices are deliberately lower than Crownreach's purchase bids, so players and autonomous haulers can **buy low, travel, and sell high**. Merchant purchases draw real goods from finite city stock; sales return goods to the city and draw gold from the existing city household account. Daily trading quotas and stock capacity prevent unlimited arbitrage.
 
-Travel requires carrying **12 units or fewer**, including equipped gear; the existing **20-unit in-city** inventory limit still applies. Stocking goods into market escrow, selling them, or consuming food can free cargo space.
+Travel requires carrying **12 units or fewer** without transport upgrades, including equipment; ordinary in-city inventory has no 20-unit cap. Stocking goods into market escrow, selling them, or consuming food can free cargo space.
 
 ```bash
 python -m medieval_world_sim --scenario trade
 python -m medieval_world_sim.agents.demo --npcs 50 --days 30 --seed 42 --json
 ```
 
-See [regional trading and cargo](docs/REGIONAL_TRADING.md). The **next planned system** is [mana and magical progression](docs/MAGIC_PROGRESSION_PLAN.md), with multiple skill paths, funded magic jobs, and useful combat/utility spells—not implemented yet.
+See [regional trading and cargo](docs/REGIONAL_TRADING.md). Magic progression and combat spells have since been implemented; [the magic planning document](docs/MAGIC_PROGRESSION_PLAN.md) retains historical design context.
 
 ## Six-school magic progression foundation
 
-A shared `MagicState` now tracks renewable mana, six independent school-XP tracks, Insight unlocks and a two-active-specialization loadout. Each school has a novice node, an applied node, two Tier III branches and two Tier IV mastery paths (37 nodes total, including Arcane Fundamentals). Spell practice consumes mana, earns bounded school XP and is seeded/deterministic. Higher-level world effects and funded magical jobs are intentionally **not implemented yet**.
+A shared `MagicState` now tracks renewable mana, six independent school-XP tracks, Insight unlocks and a two-active-specialization loadout. Each school has a novice node, an applied node, two Tier III branches and two Tier IV mastery paths (37 nodes total, including Arcane Fundamentals). Spell practice consumes mana, earns bounded school XP and is seeded/deterministic. Additional magical and combat effects are implemented; remaining proposals in the linked design document are not all complete.
 
 ```bash
 python -m medieval_world_sim --scenario magic
@@ -153,7 +153,7 @@ Read the [magic progression architecture](docs/MAGIC_PROGRESSION_PLAN.md) for ev
 
 Characters can purchase and improve a city-based **room, cottage, townhouse, estate or manor**. Higher-tier homes provide up to **20% additional training XP** for magic, work shifts and combat performed in their home city, using fractional carryover so small XP rewards aren't rounded into runaway gains. Homes and upgrades have rising prices paid to the crown treasury.
 
-Build a **stable** (Cottage+) for a horse (80% road travel time; 16 travel cargo units), or a **carriage house** (Estate+) for a carriage (60% travel time; 20 travel units). Without a vehicle, travel cargo remains 12 units; the normal 20-unit city inventory limit remains. Vehicles must be purchased and selected at your home. Docks and ships await water routes.
+Build a **stable** (Cottage+) for a horse (80% road travel time; 16 travel cargo units), or a **carriage house** (Estate+) for a carriage (60% travel time; 20 travel units). Without a vehicle, travel cargo remains 12 units; local inventory has no fixed 20-unit cap. Vehicles must be purchased and selected at your home. Docks and ships await water routes.
 
 ```bash
 python -m medieval_world_sim --scenario housing
@@ -163,14 +163,16 @@ See [property and travel rules](docs/HOUSING_AND_TRANSPORT.md).
 
 ## Play the web prototype (phone or desktop)
 
-The project now includes a **responsive, local, single-player browser client**. The Python world engine remains authoritative; the browser sends the same validated actions and displays its actual prices, inventory, travel time and magic progression. A JSON action journal automatically saves after every successful action and reconstructs the world when restarted. No frontend framework or external service is needed.
+**Security boundary:** Multiplayer login/cookies are served only on `127.0.0.1` in this phase. The separate single-player LAN mode uses a shared access code and HTTP; use it only on a trusted network. Neither mode is safe for public internet hosting.
+
+The project includes a **responsive browser client** for single-player and localhost multi-account development. The Python world engine remains authoritative; the browser sends the same validated actions and displays its actual prices, inventory, travel time and magic progression. A JSON action journal automatically saves after every successful action and reconstructs the world when restarted. No frontend framework or external service is needed.
 
 ```bash
 python -m pip install -e .
 python -m medieval_world_sim.web
 ```
 
-Open **http://127.0.0.1:8765** in your desktop browser. Create a character in Goldmeadow and try gathering grain, selling it, traveling to Crownreach, studying magic and upgrading your home.
+Open **http://127.0.0.1:8765** in your desktop browser. Create a character in Crownreach, travel to Goldmeadow to gather grain, and try trading, studying magic and upgrading your home.
 
 **To play on a phone on the same trusted Wi-Fi network**, run the server on the computer with:
 
@@ -178,9 +180,9 @@ Open **http://127.0.0.1:8765** in your desktop browser. Create a character in Go
 python -m medieval_world_sim.web --host 0.0.0.0 --port 8765
 ```
 
-Then open `http://YOUR_COMPUTER_LAN_IP:8765` on the phone and enter the **game access code printed on the computer**. Keep the server running while using the phone. This LAN mode uses ordinary HTTP, so **do not expose it on the internet**; public hosting, HTTPS, accounts and multiplayer are not supported yet. Firewalls may need an inbound LAN rule.
+Then open `http://YOUR_COMPUTER_LAN_IP:8765` on the phone and enter the **game access code printed on the computer**. Keep the server running while using the phone. This LAN mode uses ordinary HTTP, so **do not expose it on the internet**. This token-gated single-player LAN mode is separate from the localhost-only multi-account server; neither is ready for public hosting. Firewalls may need an inbound LAN rule.
 
-## Experimental local multi-account mode
+## Experimental local multi-account mode (invite-gated, loopback-only)
 
 To create separate player accounts on the **same computer**, with a shared world backed by SQLite, use:
 
