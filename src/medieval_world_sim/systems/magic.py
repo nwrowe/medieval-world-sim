@@ -191,7 +191,8 @@ class MagicSystem:
                          awarded, state.school_xp[node.school], gained)
         return MagicPracticeResult(actor.id, node.id, success, roll, chance,
                                    node.mana_cost, awarded,
-                                   state.school_xp[node.school], gained)
+                                   state.school_xp[node.school], gained,
+                                   level_gain, levels)
 
     @staticmethod
     def assert_valid(actor, minute: int) -> None:
