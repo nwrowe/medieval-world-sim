@@ -65,6 +65,7 @@ class DecisionTrace:
     courses_delta: int = 0
     equipment_delta: int = 0
     trade_profit: int | None = None
+    city: str = ""
 
 
 @dataclass
@@ -222,7 +223,8 @@ class NPCMemory:
             marked_wealth_delta=wealth_delta, work_xp_delta=work_delta,
             magic_xp_delta=magic_delta, combat_xp_delta=combat_delta,
             level_xp_delta=level_xp_delta, courses_delta=courses_delta,
-            equipment_delta=equipment_delta, trade_profit=trade_profit)
+            equipment_delta=equipment_delta, trade_profit=trade_profit,
+            city=before.city)
         self.recent.append(trace)
         return trace
 
@@ -231,7 +233,7 @@ class NPCMemory:
         self.sequence += 1
         self.recent.append(DecisionTrace(
             minute, "arrived", city, True, 0, 0, 0,
-            (city,), ("arrived",), sequence=self.sequence))
+            (city,), ("arrived",), sequence=self.sequence, city=city))
 
     def record_idle(self, city: str) -> None:
         self.idle_count += 1
@@ -273,7 +275,7 @@ class NPCMemory:
                  "level_xp_delta": t.level_xp_delta,
                  "courses_delta": t.courses_delta,
                  "equipment_delta": t.equipment_delta,
-                 "trade_profit": t.trade_profit}
+                 "trade_profit": t.trade_profit, "city": t.city}
                 for t in list(self.recent)[-30:],
             ],
         }
