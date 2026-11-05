@@ -43,9 +43,10 @@ export function createCharacterViews(ctx) {
       .map(([city, count]) => characterRow(pretty(city), count + " items")).join("");
     return heading("", "Inventory", "") +
       '<div class="callout mb-20"><strong>Carrying ' + p.cargo + ' items · Road limit ' +
-      p.cargo_limit + '</strong>Your carried inventory has no fixed city limit. ' +
-      'Store goods locally before traveling if your carried load exceeds ' +
-      'your road capacity. Stored goods stay in their city until you return.</div>' +
+      p.cargo_limit + '</strong>Crownreach offers unlimited goods storage, ' +
+      'as do the other settlements. Your carried goods have no town limit, ' +
+      'but departure is blocked when cargo exceeds road capacity. ' +
+      'Store goods here before traveling; each city stash is accessible only when you return.</div>' +
       '<div class="two-col"><div class="stack">' +
       panel("Carried goods", "Choose what to take on the road", carryRows) +
       panel("City storage", "Available in " + pretty(p.city), stashRows) +
