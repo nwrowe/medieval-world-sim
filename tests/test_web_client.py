@@ -310,6 +310,7 @@ class WebHTTPTests(unittest.TestCase):
                 ("/world-views.mjs", b"school-overview"),
                 ("/community-views.mjs", b"createCommunityViews"),
                 ("/city-views.mjs", b"createCityViews"),
+                ("/character-views.mjs", b"createCharacterViews"),
                 ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/favicon.svg", b"<svg"),
