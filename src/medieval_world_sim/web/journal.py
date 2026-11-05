@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 MULTI_ACTIONS = MULTIPLAYER_ACTIONS
 
 
-def create_schema(game):
+def create_schema(game: MultiplayerGame) -> None:
     game.db.executescript("""
         CREATE TABLE IF NOT EXISTS registration_invites(
             digest BLOB PRIMARY KEY,
@@ -100,7 +100,7 @@ def create_schema(game):
         "SELECT value FROM world_meta WHERE name='clock_anchor'").fetchone()[0])
 
 
-def load_world(game):
+def load_world(game: MultiplayerGame) -> None:
     game.world = game._seed_world()
     game.names = {}
     game.event_times = {}
