@@ -231,7 +231,8 @@ class GameHandler(BaseHTTPRequestHandler):
         if not self._multi_host_valid():
             return
         if route == "/api/health":
-            self._json(200, {"ok": True, "mode": "multi-account-local"})
+            self._json(200, {"ok": True, "mode": "multi-account-local",
+                             "invite_required": self.server.multiplayer.require_invites})
         elif route == "/api/auth/session":
             identity = self._multi_identity()
             self._json(200, {"authenticated": identity is not None,
@@ -257,10 +258,12 @@ class GameHandler(BaseHTTPRequestHandler):
         try:
             data = self._body()
             if route == "/api/auth/register":
-                if set(data) != {"username", "password", "display_name"}:
+                if (set(data) - {"username", "password", "display_name", "invite"}
+                        or not {"username", "password", "display_name"} <= set(data)):
                     raise ActionError("Invalid registration fields")
                 token, csrf = self.server.multiplayer.register_and_login(
-                    data["username"], data["password"], data["display_name"])
+                    data["username"], data["password"], data["display_name"],
+                    data.get("invite"))
                 identity = self.server.multiplayer.identity(token)
                 self._json(200, {"result": {"registered": True}, "csrf": csrf,
                                  "state": self.server.multiplayer.snapshot(identity.actor_id)},
@@ -378,6 +381,10 @@ def main(argv=None):
                         help="Single-player JSON action journal")
     parser.add_argument("--multiplayer-db", default=None,
                         help="Opt-in localhost-only SQLite shared-world and accounts database")
+    parser.add_argument("--issue-invites", type=int, default=0, metavar="COUNT",
+                        help="Issue one-time 7-day account invites to stdout and exit")
+    parser.add_argument("--dev-open-registration", action="store_true",
+                        help="UNSAFE for public use: skip one-time invitation requirement")
     parser.add_argument("--access-token", default=None,
                         help="Optional access code; auto-generated for LAN binds")
     parser.add_argument("--colab-preview", action="store_true",
@@ -395,8 +402,13 @@ def main(argv=None):
             parser.error("--multiplayer-db is localhost-only; no public/LAN auth yet")
         if args.colab_preview or args.access_token:
             parser.error("--multiplayer-db cannot use --access-token or --colab-preview")
-        multi = MultiplayerGame(args.multiplayer_db)
+        multi = MultiplayerGame(
+            args.multiplayer_db, require_invites=not args.dev_open_registration)
         try:
+            if args.issue_invites:
+                for code in multi.issue_invites(args.issue_invites):
+                    print(code, flush=True)
+                return
             with GameHTTPServer((args.host, args.port), None,
                                 multiplayer=multi) as server:
                 print(f"Oathmere multi-account local server: http://127.0.0.1:{server.server_port}", flush=True)
@@ -411,6 +423,8 @@ def main(argv=None):
         finally:
             multi.close()
         return
+    if args.issue_invites or args.dev_open_registration:
+        parser.error("Account invitation flags require --multiplayer-db")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:
         token = secrets.token_urlsafe(18)
