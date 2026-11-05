@@ -176,6 +176,8 @@ class LegacyFleeReplay(unittest.TestCase):
     def test_ui_has_city_filter_and_level_differences(self):
         code = files("medieval_world_sim.web").joinpath(
             "static", "app.js").read_text(encoding="utf-8")
+        code += files("medieval_world_sim.web").joinpath(
+            "static", "community-views.mjs").read_text(encoding="utf-8")
         self.assertIn("person.city === state.player.city", code)
         self.assertIn("defendant.attack_started", code)
         self.assertIn('data-ui="activity-hospital"', code)
