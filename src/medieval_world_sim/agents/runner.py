@@ -102,13 +102,15 @@ class AutonomousSimulation:
                     self.world.state.chosen_courses.get(actor.id, {}).values())
                     + sum(self.world.state.completed_courses.get(
                         actor.id, {}).values())) if playtester else 0)
-            playtest_route = profile.role == "playtester"
+            track_route = profile.role in ("playtester", "hauler")
             route_step = (memory.active_route is not None
-                          or proposal.name == "regional_buy")
+                          or proposal.name == "regional_buy"
+                          or (profile.role == "hauler"
+                              and proposal.name == "accept_offer"))
             trade_profit = (memory.record_trade(view, after, proposal, error)
-                            if playtest_route else None)
+                            if track_route else None)
             memory.record(view, after, proposal, emitted, error,
-                          defer_trade_credit=playtest_route and route_step,
+                          defer_trade_credit=track_route and route_step,
                           trade_profit=trade_profit)
             if profile.id in self.observers:
                 reason = next((kind for kind in emitted if kind in MAJOR_EVENTS), "")
@@ -179,6 +181,15 @@ class AutonomousSimulation:
             "regional_sale_revenue": sum(e.data["total"] for e in regional_sells),
             "hauler_cash_change": sum(self.world.actors[p.id].gold - 160
                                       for p in self.profiles if p.role == "hauler"),
+            "hauler_realized_trade_profit": sum(
+                self.memories[p.id].trade_net_profit
+                for p in self.profiles if p.role == "hauler"),
+            "hauler_losing_trade_cycles": sum(
+                self.memories[p.id].trade_loss_cycles
+                for p in self.profiles if p.role == "hauler"),
+            "hauler_pending_shipments": sum(
+                self.memories[p.id].active_route is not None
+                for p in self.profiles if p.role == "hauler"),
             "background_sales": len(city_sales),
             "background_sales_gold": sum(e.data["price"] for e in city_sales),
             "meals_consumed": sum(e.kind == "consumed" and e.data["item"] in ("bread", "meal")
