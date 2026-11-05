@@ -137,6 +137,39 @@ game API. These are observational samples from different GitHub-hosted
 runners, with significant throughput variation even for an unchanged
 workload. A 40-account world is not the same as 40 concurrent HTTP sessions.
 
+## Recovered implementation: same-process controlled comparison
+
+To avoid attributing GitHub runner differences to code changes, the recovered
+40/80-account benchmark now measures two live-projection paths **in the same
+world on the same runner**: a cold actor cache (force one reconstruction per
+read) and a warm actor cache (normal presence-only behavior). It also constructs
+both the full-roster and the compact presence wire payload using the same
+authenticated actor's data.
+
+Both full CI runs below used the **identical recovered branch SHA**
+`08b1ace`, including the real HTTP tests and complete NPC-economy suite.
+
+| CI run | Accounts | Commands/s | Command p95 | Uncached live p95 | Cached live p95 | Full roster | Compact presence |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| [Push](https://github.com/nwrowe/medieval-world-sim/actions/runs/42058093412) | 40 | 82.87 | 256.15 ms | 0.144 ms | **0.048 ms** | 11,114 B | **171 B** |
+| [PR](https://github.com/nwrowe/medieval-world-sim/actions/runs/42058104415) | 40 | 154.60 | 83.22 ms | 0.155 ms | **0.049 ms** | 11,114 B | **171 B** |
+| [Push](https://github.com/nwrowe/medieval-world-sim/actions/runs/42058093412) | 80 | 46.37 | 768.44 ms | 0.226 ms | **0.062 ms** | 19,594 B | **171 B** |
+| [PR](https://github.com/nwrowe/medieval-world-sim/actions/runs/42058104415) | 80 | 59.29 | 505.42 ms | 0.223 ms | **0.063 ms** | 19,594 B | **171 B** |
+
+Within the same run, caching is roughly **3.0–3.6× faster** than
+reconstructing the already-narrow activity view, and the presence wire data
+is approximately **65× smaller** for 40 accounts and **115× smaller** for 80
+accounts. The original 1.384 ms baseline also included full-page projection
+work that the earlier Phase 4 refactoring and current `main` had already
+eliminated, so that old figure is **not** the incremental cache-only baseline.
+
+**Do not claim the command throughput difference is a reliable speedup.**
+The two identical-source workflow runs yielded 82.87 vs 154.60 commands/s
+at 40 accounts. This is large environment and scheduling noise. Full HTTP
+action throughput also varied. To establish stable capacity targets, test
+repeatable action mixes on pinned dedicated hardware and summarize multiple
+runs; do not select the highest CI sample.
+
 ## Existing hard limits, not measured capacity
 
 - **100 registered accounts** in this development world
