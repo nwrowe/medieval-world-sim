@@ -69,10 +69,11 @@ def social_view(game: MultiplayerGame, actor_id: str,
     if projection is None:
         # An SSE update must never rebuild market, equipment, magic, housing,
         # and all other full-page state on every presence or chat revision.
-        activity = activity_projection(game.world, actor_id, game.names[actor_id], game.npc_names,
-                                       game.names, game.event_times, True)
+        activity = cached_activity(game, actor_id)
         projection = {
-            "users": activity["users"], "events": activity["events"],
+            # Presence is an ephemeral overlay: never mutate the cached rows.
+            "users": [dict(user) for user in activity["users"]],
+            "events": activity["events"],
             "duel": activity["duel"], "last_duel": activity["last_duel"],
             "player": vital_timers(game.world.actors[actor_id], game.world.minute),
         }
