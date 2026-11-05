@@ -31,6 +31,7 @@ from ..errors import ActionError
 from ..systems.cooldowns import remaining
 from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
+from . import social
 
 # Deliberately bounded until rate limiting, moderation and deployment hardening
 # have been reviewed in a dedicated public-server milestone.
@@ -634,22 +635,10 @@ class MultiplayerGame:
         return self._run(actor_id, "advance", None, {"minutes": minutes}, request_id)
 
     def _presence_state(self, actor_id: str, now: float) -> str:
-        entry = self._presence.get(actor_id)
-        if entry is None or now - entry[0] >= 90:
-            return "offline"
-        return "active" if entry[1] else "away"
+        return social.presence_state(self, actor_id, now)
 
     def _refresh_presence(self) -> None:
-        now = time.monotonic()
-        changed = False
-        for actor_id in self.names:
-            current = self._presence_state(actor_id, now)
-            if self._presence_status.get(actor_id, "offline") != current:
-                self._presence_status[actor_id] = current
-                changed = True
-        if changed:
-            self._revision += 1
-            self._activity_changed.notify_all()
+        social.refresh_presence(self)
 
     def presence_ping(self, actor_id: str, visible: bool) -> None:
         """A session-verified browser reports foreground/hidden every 25 sec."""
@@ -667,67 +656,10 @@ class MultiplayerGame:
             self._refresh_presence()
 
     def _annotate_presence(self, projection: dict) -> None:
-        self._refresh_presence()
-        for user in projection["users"]:
-            if user["kind"] == "human":
-                user["presence"] = self._presence_status.get(user["id"], "offline")
+        social.annotate_presence(self, projection)
 
     def _social_view(self, actor_id: str, projection: dict | None = None) -> dict:
-        """Account-scoped streaming data; never broadcast raw world state."""
-        if projection is None:
-            projection = world_snapshot(self.world, actor_id,
-                                        self.names[actor_id], self.npc_names,
-                                        self.names, self.event_times, True)
-        actor = self.world._actor(actor_id)
-        self._annotate_presence(projection)
-        chat = self.world.chat_system.view(actor_id)
-        for channel in chat["channels"]:
-            if channel["kind"] == "direct":
-                channel["label"] = self.names.get(channel["target"], "Player")
-        for message in chat["messages"]:
-            message["sender_name"] = self.names.get(
-                message["sender"], message["sender"])
-        trades = self.world.trades_system.list_for(actor_id)
-        for proposal in trades:
-            proposal["maker_name"] = self.names.get(proposal["maker"], "Player")
-            proposal["recipient_name"] = self.names.get(proposal["recipient"], "Player")
-            for side in ("offer", "request"):
-                # Offered equipment is visible to the recipient; requested
-                # equipment details belong only to the requested owner.
-                # A maker must not probe other people's gear by guessing IDs.
-                can_inspect = side == "offer" or actor_id == proposal["recipient"]
-                proposal[side + "_gear"] = [
-                    {"id": gid, "kind": self.world.gear[gid].kind,
-                     "quality": self.world.gear[gid].quality,
-                     "durability": self.world.gear[gid].durability}
-                    for gid in proposal[side]["gear_ids"]
-                    if can_inspect and gid in self.world.gear
-                ]
-        return {
-            "actor_id": actor_id, "revision": self._revision,
-            "chat": chat, "trades": trades, "minute": self.world.minute,
-            "next_world_tick_seconds": self._next_world_tick_seconds(),
-            "users": projection["users"], "events": projection["events"],
-            "duel": projection["duel"], "last_duel": projection["last_duel"],
-            "course_active": self.world.curriculum_system.view(actor_id)["active"],
-            "player_status": {
-                "hp": actor.hp, "max_hp": actor.max_hp,
-                "stamina": actor.stamina, "max_stamina": actor.max_stamina,
-                "mana": actor.magic.mana, "max_mana": actor.magic.max_mana,
-                "gold": actor.gold, "city": actor.city,
-                "defeated_until": actor.defeated_until,
-                "health_next_sim_seconds": projection["player"]["health_next_sim_seconds"],
-                "stamina_next_sim_seconds": projection["player"]["stamina_next_sim_seconds"],
-                "mana_next_sim_seconds": projection["player"]["mana_next_sim_seconds"],
-                "destination": actor.destination,
-                "arrival_minute": actor.arrival_minute,
-                "cooldowns": {
-                    name: {"remaining_minutes": remaining(
-                        actor, name, self.world.minute), "max_minutes": 1440}
-                    for name in ("job", "food", "potion")
-                },
-            },
-        }
+        return social.social_view(self, actor_id, projection)
 
     def _next_world_tick_seconds(self) -> int | None:
         if self.dev_fast_forward:
