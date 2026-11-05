@@ -75,6 +75,30 @@ response snapshots, so the large response bytes are expected. This baseline
 must be repeated on a consistent host to assess performance improvements
 rather than attributing incidental GitHub runner variance to code changes.
 
+## Two-load concurrency comparison
+
+A second GitHub Actions runner sample on the same baseline code measured the
+two workload sizes in one workflow:
+
+| Metric | 4 users / 4 workers | 8 users / 8 workers |
+| --- | ---: | ---: |
+| Successful HTTP requests | 24 / 24 | 64 / 64 |
+| Throughput (requests/s) | 35.92 | 28.50 |
+| p50 latency | 109.89 ms | 276.60 ms |
+| p95 latency | 116.06 ms | 309.54 ms |
+| p99 latency | 116.60 ms | 317.20 ms |
+| p95 response body | 43,025 bytes | 49,712 bytes |
+| Peak traced Python allocations | 0.98 MiB | 1.70 MiB |
+
+[Two-load workflow](https://github.com/nwrowe/medieval-world-sim/actions/runs/42047967867)
+
+Throughput declined and per-request latency rose at higher concurrency in
+this sample, consistent with the single serialized world lock and more world
+history being copied and projected. This is an *observation*, not a
+controlled causal attribution. The four-user results also differ from the
+earlier sample on the same baseline, illustrating why repeated controlled
+runs matter before declaring a performance improvement or choosing targets.
+
 ## Existing hard limits, not measured capacity
 
 - **100 registered accounts** in this development world
