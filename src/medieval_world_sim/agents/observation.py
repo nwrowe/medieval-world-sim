@@ -132,7 +132,7 @@ def observe(world, actor_id: str, *, include_progression: bool = False) -> NPCVi
         nodes = world.magic_tree(actor_id)
         eligible = tuple(node.node_id for node in nodes if node.eligible)
         practice = tuple((node.node_id, node.mana_cost) for node in nodes
-                         if node.active and node.tier > 0)
+                         if node.can_practice)
         curriculum = world.curriculum_system.view(actor_id)
         courses_completed = sum(school['completed'] for school in curriculum['schools'])
         studying = curriculum['active'] is not None
