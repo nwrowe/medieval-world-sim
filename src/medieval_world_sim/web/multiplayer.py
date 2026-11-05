@@ -746,7 +746,13 @@ class MultiplayerGame:
         with self._activity_changed:
             self._refresh_presence()
             if since == self._revision:
-                self._activity_changed.wait(timeout=timeout)
+                # Wake at the next trusted minute boundary, not up to
+                # twelve seconds later, so regen and timers feel live.
+                next_tick = self._next_world_tick_seconds()
+                self._activity_changed.wait(
+                    timeout=min(timeout, next_tick) if next_tick is not None else timeout)
+        self._tick_world_clock()
+        with self._activity_changed:
             self._refresh_presence()
             return self._revision
 
