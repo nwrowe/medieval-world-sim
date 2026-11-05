@@ -245,7 +245,8 @@ class NPCMemory:
                      or action.params.get("contract_id")
                      or action.params.get("node_id")
                      or action.params.get("school")
-                     or action.params.get("item") or "")
+                     or action.params.get("item")
+                     or action.params.get("defender_id") or "")
         self.sequence += 1
         trace = DecisionTrace(
             before.minute, name, target[:72], not bool(error),
