@@ -124,6 +124,10 @@ class MultiplayerGame:
                 failed_logins INTEGER NOT NULL DEFAULT 0,
                 blocked_until INTEGER NOT NULL DEFAULT 0
             );
+            CREATE TABLE IF NOT EXISTS world_meta(
+                name TEXT PRIMARY KEY,
+                value BLOB NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS sessions(
                 digest BLOB PRIMARY KEY,
                 actor_id TEXT NOT NULL REFERENCES accounts(actor_id),
@@ -150,6 +154,16 @@ class MultiplayerGame:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
         if "flee_success" not in columns:
             self.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
+        if "secure_roll" not in columns:
+            self.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
+        # Keep RNG secret out of public API responses and source-controlled seed.
+        # Existing journals replay old results with their historical RNG; only
+        # newly committed actions opt in to the keyed outcome algorithm.
+        self.db.execute(
+            "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
+            (secrets.token_bytes(32),))
+        self._rng_key = self.db.execute(
+            "SELECT value FROM world_meta WHERE name='rng_key'").fetchone()[0]
 
     def _seed_world(self):
         rng = random.Random(42)
@@ -178,9 +192,9 @@ class MultiplayerGame:
         self.event_times = {}
         registered = set()
         rows = self.db.execute(
-            "SELECT kind, actor_id, action, payload, request_id, recorded_at, flee_success "
-            "FROM world_journal ORDER BY seq").fetchall()
-        for kind, actor_id, action, payload, request_id, recorded_at, flee_success in rows:
+            "SELECT kind, actor_id, action, payload, request_id, recorded_at, "
+            "flee_success, secure_roll FROM world_journal ORDER BY seq").fetchall()
+        for kind, actor_id, action, payload, request_id, recorded_at, flee_success, secure_roll in rows:
             params = json.loads(payload)
             prior_events = len(self.world.events)
             if kind == "join":
@@ -209,12 +223,16 @@ class MultiplayerGame:
                         raise ValueError("Invalid saved flee coin flip")
                     else:
                         self.world._flee_success = bool(flee_success)
+                if secure_roll not in (None, 0, 1):
+                    raise ValueError("Invalid recorded RNG policy")
+                self.world._private_rng_key = self._rng_key if secure_roll == 1 else None
                 try:
                     self.world.execute(actor_id, action, params, self._engine_id(
                         actor_id, request_id))
                 finally:
                     self.world._legacy_flee_rules = False
                     self.world._flee_success = None
+                    self.world._private_rng_key = None
             elif kind == "advance":
                 minutes = params.get("minutes")
                 if type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT:
@@ -407,6 +425,7 @@ class MultiplayerGame:
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
             flee_success = None
+            secure_roll = 0
             if kind == "action":
                 if name == "pvp_strike":
                     # Keep historical journal replay compatible, but prevent
@@ -417,11 +436,15 @@ class MultiplayerGame:
                 if name == "flee_duel":
                     flee_success = secrets.randbits(1)
                     self.world._flee_success = bool(flee_success)
+                if name in ("practice_magic", "race_horse"):
+                    secure_roll = 1
+                    self.world._private_rng_key = self._rng_key
                 try:
                     outcome = self.world.execute(actor_id, name, params,
                                                  self._engine_id(actor_id, request_id))
                 finally:
                     self.world._flee_success = None
+                    self.world._private_rng_key = None
             elif kind == "advance":
                 if type(params.get("minutes")) is not int or set(params) != {"minutes"} or not (
                         1 <= params["minutes"] <= ADVANCE_LIMIT):
@@ -439,10 +462,10 @@ class MultiplayerGame:
             encoded_result = _canonical(_jsonable(outcome))
             self.db.execute(
                 "INSERT INTO world_journal("
-                "kind,actor_id,action,payload,request_id,result_json,recorded_at,flee_success) "
-                "VALUES(?,?,?,?,?,?,?,?)",
+                "kind,actor_id,action,payload,request_id,result_json,recorded_at,"
+                "flee_success,secure_roll) VALUES(?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at, flee_success))
+                 encoded_result, recorded_at, flee_success, secure_roll))
             for event in self.world.events[prior_events:]:
                 self.event_times[event.event_id] = recorded_at
             return json.loads(encoded_result)
