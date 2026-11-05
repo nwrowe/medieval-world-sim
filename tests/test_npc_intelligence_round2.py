@@ -52,8 +52,8 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
             with self.assertRaisesRegex(ActionError, "Travel cargo limit"):
                 world.start_travel(key, "ironvale")
             world.store_goods(key, "stone", 290)
-            self.assertEqual(actor.storage[CAPITAL]["stone"], 290)
-            self.assertEqual(actor.inventory["stone"], 10)
+            self.assertEqual(world.actors[key].storage[CAPITAL]["stone"], 290)
+            self.assertEqual(world.actors[key].inventory["stone"], 10)
             self.assertEqual(world.start_travel(key, "ironvale"), 90)
         world.advance(90)
         for key in ("hero", "trader"):
@@ -79,8 +79,8 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
             world.store_gear("hero", sword.id)
         world.unequip("hero", "weapon")
         world.store_gear("hero", sword.id)
-        self.assertNotIn(sword.id, hero.gear_ids)
-        self.assertIn(sword.id, hero.stored_gear[CAPITAL])
+        self.assertNotIn(sword.id, world.actors["hero"].gear_ids)
+        self.assertIn(sword.id, world.actors["hero"].stored_gear[CAPITAL])
         with self.assertRaises(ActionError):
             world.store_gear("hero", sword.id)
         with self.assertRaises(ActionError):
