@@ -28,6 +28,8 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "gather": CommandSpec("gather", ("item", "quantity"), _BOTH),
     "store_goods": CommandSpec("store_goods", ("item", "quantity"), _BOTH),
     "retrieve_goods": CommandSpec("retrieve_goods", ("item", "quantity"), _BOTH),
+    "store_gear": CommandSpec("store_gear", ("gear_id",), _BOTH),
+    "retrieve_gear": CommandSpec("retrieve_gear", ("gear_id",), _BOTH),
     "regional_buy": CommandSpec("regional_buy", ("item", "quantity"), _BOTH),
     "regional_sell": CommandSpec("regional_sell", ("item", "quantity"), _BOTH),
     "unlock_magic": CommandSpec("unlock_magic", ("node_id",), _BOTH),
