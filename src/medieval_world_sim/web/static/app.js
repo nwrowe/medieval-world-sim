@@ -782,7 +782,16 @@ import { createWorldViews } from "/world-views.mjs";
       if ("duel" in update) state.duel = update.duel;
       if ("last_duel" in update) state.last_duel = update.last_duel;
       if (state.training_hall) state.training_hall.active = update.course_active;
-      if (Array.isArray(update.users)) state.users = update.users;
+      if (Array.isArray(update.users)) {
+        state.users = update.users;
+      } else if (Array.isArray(update.presence_updates) && Array.isArray(state.users)) {
+        const changed = new Map(
+          update.presence_updates.map(entry => [entry.id, entry.presence]));
+        // A small presence patch leaves all other public character fields
+        // untouched; no need to rebuild a 40+ person roster.
+        state.users = state.users.map(user => changed.has(user.id)
+          ? { ...user, presence: changed.get(user.id) } : user);
+      }
       if (Array.isArray(update.events)) state.events = update.events;
       if (update.player_status) {
         Object.assign(state.player, update.player_status);
