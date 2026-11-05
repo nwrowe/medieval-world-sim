@@ -74,7 +74,7 @@ export function createWorldViews(ctx) {
       (city.discovered ? ' along the royal roads' : ' into uncharted territory') + '</div></div>' +
       '<span class="muted">◈</span></div>' +
       button(city.discovered ? "Travel" : "Explore", 'data-ui="travel" data-target="' + esc(city.id) + '"' +
-        disabled(isBusy()), "full secondary") + '</div>'
+        disabled(isBusy() || p.cargo > p.cargo_limit), "full secondary") + '</div>'
     ).join("");
     const gathering = Object.entries(state.gatherable).map(([item, available]) => {
       const quantity = Math.min(2, available);
