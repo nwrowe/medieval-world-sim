@@ -184,6 +184,15 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         }
         for gid in actor.gear_ids
     ]
+    stored_gear_here = [
+        {
+            "id": gid, "kind": w.gear[gid].kind,
+            "slot": GEAR[w.gear[gid].kind].slot,
+            "quality": w.gear[gid].quality,
+            "durability": w.gear[gid].durability,
+        }
+        for gid in sorted(actor.stored_gear.get(actor.city, []))
+    ]
     gear_catalog = [
         {"kind": kind, "slot": spec.slot, "price": spec.base_value,
          "attack": round(spec.attack * 0.85),
