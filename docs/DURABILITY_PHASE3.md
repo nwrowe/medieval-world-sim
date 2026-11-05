@@ -26,8 +26,9 @@ which commits four related durable records under one SQLite
 4. **`world_checkpoints`** stores a typed JSON snapshot of the world,
    its event timestamps, a schema version, the exact journal sequence, a
    payload digest, and a digest of the committed journal prefix.
-   Checkpoints are written every 50 journal sequences, without pruning
-   the complete journal. An operator can call
+   Checkpoints are written every 50 journal sequences; the latest two
+   recovery points are retained while the complete journal and receipts are
+   never pruned. An operator can call
    `MultiplayerGame.create_checkpoint()` for an immediate checkpoint.
 
 The SQLite transaction rolls back if any ledger, receipt, checkpoint or
