@@ -156,6 +156,7 @@ def load_world(game: MultiplayerGame) -> None:
             if secure_roll not in (None, 0, 1):
                 raise ValueError("Invalid recorded RNG policy")
             game.world._private_rng_key = game._rng_key if secure_roll == 1 else None
+            game.world._legacy_magic_leveling_rules = xp_version == 1
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))
