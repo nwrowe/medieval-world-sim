@@ -1283,6 +1283,17 @@ import { createWorldViews } from "/world-views.mjs";
           { item, quantity }, ui === "store" ? "Goods stored" : "Goods retrieved");
         break;
       }
+      case "store-gear":
+      case "retrieve-gear": {
+        const gearId = Number(element.dataset.gearId);
+        if (!Number.isSafeInteger(gearId) || gearId <= 0) {
+          notify("Invalid equipment", true); break;
+        }
+        action(ui === "store-gear" ? "store_gear" : "retrieve_gear",
+          { gear_id: gearId },
+          ui === "store-gear" ? "Equipment stored" : "Equipment retrieved");
+        break;
+      }
       case "consume":
         action("consume", { item }, pretty(item) + " used"); break;
       case "contract": action("complete_city_contract",
