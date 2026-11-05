@@ -483,7 +483,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .search-panel label { display:block; font-size:11px; font-weight:700; color:#607568; margin-bottom:10px; }
 .search-panel .field { width:min(400px,100%); }
 .vital[tabindex="0"]:focus-visible { outline:2px solid #e6c47b; outline-offset:4px; border-radius:5px; }
-.vital { cursor:help; }
+.vital { cursor:pointer; }
 @media (max-width:640px) {
   .contract-card { flex-direction:column; align-items:stretch; gap:12px; padding:14px; }
   .contract-card .button { align-self:flex-start; }
@@ -523,7 +523,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .side-nav .nav-button { padding:10px 12px; min-height:40px; font-size:12.5px; }
 .nav-icon svg { width:20px; height:20px; display:block; margin:0 auto; }
 .cooldown-strip { border-left:1px solid rgba(255,255,255,.15); padding-left:10px; display:flex; gap:5px; align-items:center; min-width:0; }
-.cooldown-chip { display:flex; flex-direction:column; min-width:47px; align-items:center; justify-content:center; border:1px solid #456255; background:rgba(255,255,255,.035); color:#e5e9dc; border-radius:7px; padding:5px 6px; cursor:help; }
+.cooldown-chip { display:flex; flex-direction:column; min-width:47px; align-items:center; justify-content:center; border:1px solid #456255; background:rgba(255,255,255,.035); color:#e5e9dc; border-radius:7px; padding:5px 6px; cursor:pointer; }
 .cooldown-chip span { color:#d7b979; font-size:17px; line-height:1; }
 .cooldown-chip strong { font-size:9px; line-height:1.35; margin-top:4px; font-weight:700; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .cooldown-chip.at-cap { border-color:#bb7458; }
