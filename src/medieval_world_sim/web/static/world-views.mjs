@@ -287,7 +287,9 @@ export function createWorldViews(ctx) {
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
       id !== "arcane_fundamentals");
-    const status = node.unlocked ? (node.active ? "Learned" : "Attunement required") :
+    const status = node.unlocked ? (
+      !node.active ? "Attunement required" :
+      node.castable ? "Mastered · Castable" : "Studying · Cast at 100/100") :
       node.eligible ? "Ready to unlock" :
       needsXp ? needsXp + " XP needed" : needed.length ? "Requires earlier spell" :
       "Requires Insight";
@@ -330,7 +332,7 @@ export function createWorldViews(ctx) {
     const schools = state.magic_schools.map(name => {
       const xp = p.school_xp[name] || 0;
       const track = masteryTrack(xp);
-      const learned = all.filter(n => n.school === name && n.unlocked).length;
+      const learned = all.filter(n => n.school === name && n.castable).length;
       return '<button type="button" data-school="' + esc(name) +
         '" class="school-tile ' + (name === school ? 'selected' : '') +
         '" aria-pressed="' + (name === school) + '">' +
@@ -372,7 +374,7 @@ export function createWorldViews(ctx) {
       '<div class="magic-flow"><span>Practice using mana · gradual XP</span>' +
       '<span aria-hidden="true">›</span><span>Unlock spells with Insight</span>' +
       '<span aria-hidden="true">›</span>' +
-      '<span>Cast learned spells from Home or combat</span></div>' +
+      '<span>Cast mastered spells from Home or combat</span></div>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="magic-layout"><section class="magic-progression" ' +
       'aria-label="Spell progression">' + tiers + '</section>' +
