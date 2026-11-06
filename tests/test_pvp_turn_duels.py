@@ -166,6 +166,11 @@ class MultiplayerDuelTests(unittest.TestCase):
     def test_combat_magic_uses_same_stamina_and_mana_rules(self):
         self.command(self.alice, "unlock_magic",
                      {"node_id": "warding.minor_shield"}, "unlock")
+        # Seed mastered magic for this duel-mechanics test.
+        magic = self.game.world.actors[self.alice].magic
+        magic.school_xp["warding"] = 80
+        magic.insight_earned = 1
+        magic.insight = 1
         self.begin()
         before = self.game.snapshot(self.alice)
         result = self.command(self.alice, "duel_turn",
