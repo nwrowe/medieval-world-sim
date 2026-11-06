@@ -179,7 +179,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 17) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 18) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -212,6 +212,7 @@ class GameSession:
             self.world._legacy_magic_leveling_rules = record.get("ruleset", 1) < 14
             self.world._legacy_magic_training_rules = record.get("ruleset", 1) < 15
             self.world._legacy_magic_practice_cooldown = record.get("ruleset", 1) == 15
+            self.world._legacy_spell_mastery_rules = record.get("ruleset", 1) < 17
             self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
             try:
                 self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
@@ -226,6 +227,7 @@ class GameSession:
                 self.world._legacy_magic_leveling_rules = False
                 self.world._legacy_magic_training_rules = False
                 self.world._legacy_magic_practice_cooldown = False
+                self.world._legacy_spell_mastery_rules = False
                 self.world._legacy_cooldown_rules = False
         else:
             raise ValueError("Unknown journal record")
@@ -278,6 +280,8 @@ class GameSession:
                 ruleset = 11
             if record.get("name") == "practice_magic":
                 ruleset = 16
+            if record.get("name") in ("cast_spell", "duel_turn"):
+                ruleset = 17
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             if record.get("name") == "flee_duel":
