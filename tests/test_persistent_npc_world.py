@@ -252,7 +252,7 @@ class PersistentNPCAutonomyTests(TestCase):
         self.assertEqual(self.game.world.actors[self.player].level_xp, earned)
         self.assertEqual(self.game.db.execute(
             "SELECT xp_version FROM world_journal WHERE request_id='practice'"
-        ).fetchone()[0], 3)
+        ).fetchone()[0], 4)
         ledger.verify(self.game)
 
 
