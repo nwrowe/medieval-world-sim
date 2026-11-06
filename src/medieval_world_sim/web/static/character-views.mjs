@@ -120,6 +120,7 @@ export function createCharacterViews(ctx) {
       (state.cities || []).length + ' cities charted</span>' +
       '<span>Level ' + p.level + ' · ' + esc(scene[0]) + '</span></div></div>' +
       '<div class="home-hero-crest" aria-hidden="true">✦</div></div>' +
+      '<div class="mb-20">' + homeMagicPanel(state) + '</div>' +
       '<div class="profile-grid">' +
       panel("Character State", "",
         characterRow("Level", p.level) +
@@ -151,8 +152,7 @@ export function createCharacterViews(ctx) {
         characterRow("Residence", homeName) +
         characterRow("Insight", p.insight) +
         (study || '<p class="small">No magical studies yet.</p>')) +
-      '</div>' +
-      '<div class="mt-20">' + homeMagicPanel(state) + '</div>';
+      '</div>';
   }
   function equipmentMannequin(owned, equipped) {
     const kind = slot => {
