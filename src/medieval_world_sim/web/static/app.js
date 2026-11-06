@@ -55,6 +55,7 @@ import { createWorldViews } from "/world-views.mjs";
   let school = "restoration";
   let latestPractice = null;
   let latestContract = null;
+  let introActor = null;
   let travelIntent = null;
   let peopleQuery = "";
   let selectedCharacterId = null;
@@ -338,14 +339,46 @@ import { createWorldViews } from "/world-views.mjs";
         '</span></span></label>').join('') + '</div></fieldset>';
   }
 
+  function introKey(actorId) { return "oathmere.welcome." + actorId; }
+  function pendingIntroduction() {
+    if (!state || !state.actor_id) return false;
+    if (introActor === state.actor_id) return true;
+    try { return localStorage.getItem(introKey(state.actor_id)) === "pending"; }
+    catch { return false; }
+  }
+  function markIntroductionPending() {
+    if (!state || !state.actor_id) return;
+    introActor = state.actor_id;
+    try { localStorage.setItem(introKey(state.actor_id), "pending"); }
+    catch { /* Keep the welcome step in this page session. */ }
+  }
+  function completeIntroduction() {
+    if (!state || !state.actor_id) return;
+    if (introActor === state.actor_id) introActor = null;
+    try { localStorage.removeItem(introKey(state.actor_id)); }
+    catch { /* The button still opens the city interface. */ }
+  }
   function lineagePromptPage() {
+    const fresh = pendingIntroduction();
     return '<div class="entry"><div class="entry-card lineage-entry">' +
       '<div class="entry-seal">✦</div><h1>Choose your lineage</h1>' +
-      '<p>This existing character predates lineages. Choose once to gain a ' +
-      'birthright; your possessions and adventures are preserved.</p>' +
-      '<form id="lineageChoiceForm">' + lineagePicker() +
+      '<p>' + (fresh ?
+        'Your account is registered. Before entering Oathmere, choose the lineage that will shape your character.' :
+        'This existing character predates lineages. Choose once to gain a birthright; your possessions and adventures are preserved.') +
+      '</p><form id="lineageChoiceForm">' + lineagePicker() +
       '<button class="button full gold" type="submit">Confirm lineage</button></form>' +
       (multiMode ? '<button class="logout-link" data-ui="account-logout" type="button">Sign out</button>' : '') +
+      '</div></div>';
+  }
+  function introductionPage() {
+    return '<div class="entry"><div class="entry-card">' +
+      '<div class="entry-seal">✦</div><div class="eyebrow">Your story begins</div>' +
+      '<h1>Welcome to Oathmere</h1>' +
+      '<p>You are dropped into an unfamiliar city with a small amount of gold ' +
+      'and only the clothes on your back. Nobody here knows your name or what ' +
+      'you might become. Beyond the city walls, five cities and countless ' +
+      'opportunities await.</p>' +
+      button("Enter Oathmere", 'data-ui="enter-oathmere"', "full gold") +
       '</div></div>';
   }
 
@@ -370,7 +403,6 @@ import { createWorldViews } from "/world-views.mjs";
       'minlength="3" maxlength="24" required>' +
       '<label for="registerCharacter">Character name</label>' +
       '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
-      lineagePicker() +
       (inviteRequired ?
       '<label for="registerInvite">Invitation code</label>' +
       '<input id="registerInvite" class="field" autocomplete="off" ' +
@@ -378,7 +410,7 @@ import { createWorldViews } from "/world-views.mjs";
       '<label for="registerPassword">Password (12 characters minimum)</label>' +
       '<input id="registerPassword" class="field" type="password" ' +
       'autocomplete="new-password" minlength="12" maxlength="128" required>' +
-      '<button class="button full" type="submit">Create character</button>' +
+      '<button class="button full" type="submit">Register account</button>' +
       '</form></details>' +
       '<p class="small">Development-only: local computer access. Do not expose this ' +
       'login server over the internet or ordinary LAN HTTP.</p>' +
@@ -399,6 +431,7 @@ import { createWorldViews } from "/world-views.mjs";
       const outcome = await request(url, body);
       csrfToken = outcome.csrf || "";
       state = outcome.state;
+      if (url.endsWith("/register")) markIntroductionPending();
       chatChannelKey = "global";
       chatDirectTarget = null;
       chatOpen = false;
@@ -849,24 +882,6 @@ import { createWorldViews } from "/world-views.mjs";
       const old = document.querySelector(".vital-" + kind);
       if (old) old.outerHTML = meterStat(label, value, maximum, kind, next);
     }
-    if (tab === "magic") {
-      // SSE advances the trusted minute without replacing the full magic
-      // projection. Update only the training controls so a completed
-      // cooldown becomes actionable without losing scroll or focus.
-      const frame = document.createElement("div");
-      frame.innerHTML = renderMagic();
-      const latest = new Map(Array.from(
-        frame.querySelectorAll('[data-ui="practice"]'),
-        button => [button.dataset.node, button]));
-      for (const button of document.querySelectorAll('[data-ui="practice"]')) {
-        const fresh = latest.get(button.dataset.node);
-        if (!fresh) continue;
-        button.disabled = fresh.disabled;
-        if (button.textContent !== fresh.textContent) {
-          button.textContent = fresh.textContent;
-        }
-      }
-    }
     const dock = document.querySelector(".chat-dock");
     if (dock) {
       const fragment = document.createElement("div");
@@ -1009,6 +1024,8 @@ import { createWorldViews } from "/world-views.mjs";
     else if (state && !state.started) root.innerHTML = newCharacterPage();
     else if (state && state.started && !state.player.lineage_selected)
       root.innerHTML = lineagePromptPage();
+    else if (state && state.started && pendingIntroduction())
+      root.innerHTML = introductionPage();
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay() +
       (tab === "world" ? renderTravelConfirmation() : "");
@@ -1042,7 +1059,6 @@ import { createWorldViews } from "/world-views.mjs";
       await accountSubmit("/api/auth/register", {
         username: document.getElementById("registerUsername").value.trim(),
         display_name: document.getElementById("registerCharacter").value.trim(),
-        lineage: new FormData(event.target).get("lineage"),
         password: document.getElementById("registerPassword").value,
         ...(inviteRequired ? {
           invite: document.getElementById("registerInvite").value.trim()
@@ -1170,6 +1186,11 @@ import { createWorldViews } from "/world-views.mjs";
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "enter-oathmere":
+        completeIntroduction();
+        tab = "character";
+        render();
+        break;
       case "account-logout":
         (async () => {
           try {

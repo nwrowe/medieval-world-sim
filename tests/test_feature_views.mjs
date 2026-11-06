@@ -152,13 +152,13 @@ state = { ...state, player: { ...state.player,
     practice_ready_minute: 0, school_xp: 30 }] };
 assert.match(world.renderMagic(), /37\/100/);
 state = { ...state, minute: 0, magic_nodes: [{
-  ...novice, mastered: false, can_practice: false,
+  ...novice, mastered: false, can_practice: true,
   practice_ready_minute: 120, school_xp: 30
 }] };
-assert.match(world.renderMagic(), /Practice · ready in 120m/);
+const manaOnly = world.renderMagic();
+assert.match(manaOnly, /Practice · 8 mana/);
+assert.doesNotMatch(manaOnly, /ready in 120m/);
+assert.doesNotMatch(manaOnly, /data-ui="practice"[^>]+disabled/);
+state = { ...state, player: { ...state.player, mana: 2 } };
 assert.match(world.renderMagic(), /data-ui="practice"[^>]+disabled/);
-state = { ...state, minute: 120 };
-const renewed = world.renderMagic();
-assert.match(renewed, /Practice · 8 mana/);
-assert.doesNotMatch(renewed, /data-ui="practice"[^>]+disabled/);
 console.log("Community, city, magic and storage view modules passed smoke tests");

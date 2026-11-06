@@ -314,12 +314,12 @@ class GameHandler(BaseHTTPRequestHandler):
         try:
             data = self._body()
             if route == "/api/auth/register":
-                if (set(data) - {"username", "password", "display_name", "invite", "lineage"}
+                if (set(data) - {"username", "password", "display_name", "invite"}
                         or not {"username", "password", "display_name"} <= set(data)):
                     raise ActionError("Invalid registration fields")
                 token, csrf = self.server.multiplayer.register_and_login(
                     data["username"], data["password"], data["display_name"],
-                    data.get("invite"), data.get("lineage", "human"))
+                    data.get("invite"))
                 identity = self.server.multiplayer.identity(token)
                 self._json(200, {"result": {"registered": True}, "csrf": csrf,
                                  "state": self.server.multiplayer.snapshot(identity.actor_id)},

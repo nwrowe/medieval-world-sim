@@ -10,7 +10,7 @@ From the project directory (after installing the package in editable mode):
 python -m medieval_world_sim.web --multiplayer-db "$HOME\.medieval-world-sim\multi-dev.sqlite3"
 ```
 
-Before registering new characters, stop the server and issue one-time invites using `python -m medieval_world_sim.web --multiplayer-db "$HOME\.medieval-world-sim\multi-dev.sqlite3" --issue-invites 2`, then start the server again. Open the printed `http://127.0.0.1:8765` address. Enter a unique invitation code, a **username**, a separate **character display name**, and a password of at least 12 characters. To test a second player, use a separate browser profile or a private/incognito window, create a second account, and log in independently. The two characters live in the **same simulated world**; actions and assets are persisted in a SQLite database. You can test direct chat, guild/company channel permissions and bilateral trades through the authenticated API.
+Before registering new characters, stop the server and issue one-time invites using `python -m medieval_world_sim.web --multiplayer-db "$HOME\.medieval-world-sim\multi-dev.sqlite3" --issue-invites 2`, then start the server again. Open the printed `http://127.0.0.1:8765` address. Enter a unique invitation code, a **username**, a separate **character display name**, and a password of at least 12 characters. **Lineage is selected only after registration** in a separate welcome screen; the player then sees a short introduction and selects **Enter Oathmere** to open the city interface. To test a second player, use a separate browser profile or a private/incognito window, create a second account, and log in independently. The two characters live in the **same simulated world**; actions and assets are persisted in a SQLite database. You can test direct chat, guild/company channel permissions and bilateral trades through the authenticated API.
 
 ### Live, persistent NPCs
 
@@ -44,13 +44,12 @@ cross-process leases remain future work.
 level XP as before. Practicing magic now grants character level XP in
 addition to school XP (roughly half the actual school XP awarded, minimum
 one point when training produces XP). It never adds combat XP and is
-not awarded by merely casting a spell. Magic school training now also requires
-**two simulated hours between practice attempts within the same school**;
+not awarded by merely casting a spell. Magic school training is limited by **mana, not an additional cooldown**;
 each attempt gives one base school XP, with normal earned bonuses. The Magic
 page's 100/100 meter uses the server's real tier-practice ceiling, so mastered
 practice locks and the next eligible spell can be unlocked using Insight.
 Historical saved magic commands replay with their original XP, cooldown and
-level rules. World-map pins and road cards now request confirmation with the
+level rules. New practice commands do not create a cooldown. World-map pins and road cards now request confirmation with the
 **server-projected journey time** before any travel action is submitted. Gold is **not banked**
 or protected by this release; city gold deposits can be added separately.
 

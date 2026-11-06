@@ -232,6 +232,41 @@ class MultiAccountHTTPTests(unittest.TestCase):
                                headers={"Cookie": bob_cookie})
             self.assertEqual(status, 200)
 
+    def test_registration_precedes_one_time_lineage_selection(self):
+        with serve(self.game) as port:
+            status, invalid, _ = api(port, "POST", "/api/auth/register", {
+                "username": "legacyflow", "password": PASSWORD,
+                "display_name": "False Start", "lineage": "elf"})
+            self.assertEqual(status, 400)
+            self.assertIn("Invalid registration fields", invalid["error"])
+            status, registered, headers = api(port, "POST", "/api/auth/register", {
+                "username": "freshaccount", "password": PASSWORD,
+                "display_name": "New Traveler"})
+            self.assertEqual(status, 200)
+            self.assertFalse(registered["state"]["player"]["lineage_selected"])
+            cookie = headers["Set-Cookie"].split(";", 1)[0]
+            csrf = registered["csrf"]
+            selection = {"action": "choose_lineage",
+                         "params": {"lineage": "dwarf"}, "id": "birthright"}
+            status, _, _ = api(port, "POST", "/api/action", selection,
+                               headers={"Cookie": cookie})
+            self.assertEqual(status, 403)
+            status, selected, _ = api(port, "POST", "/api/action", selection,
+                                      headers={"Cookie": cookie, "X-CSRF-Token": csrf})
+            self.assertEqual(status, 200)
+            self.assertTrue(selected["state"]["player"]["lineage_selected"])
+            self.assertEqual(selected["state"]["player"]["lineage"], "dwarf")
+            status, again, _ = api(port, "POST", "/api/action", {
+                "action": "choose_lineage", "params": {"lineage": "elf"},
+                "id": "change-birthright"},
+                headers={"Cookie": cookie, "X-CSRF-Token": csrf})
+            self.assertEqual(status, 400)
+            status, fresh, _ = api(port, "GET", "/api/state",
+                                   headers={"Cookie": cookie})
+            self.assertEqual(status, 200)
+            self.assertTrue(fresh["player"]["lineage_selected"])
+            self.assertEqual(fresh["player"]["lineage"], "dwarf")
+
     def test_http_trade_requires_the_correct_recipient_session(self):
         with serve(self.game) as port:
             credentials = []

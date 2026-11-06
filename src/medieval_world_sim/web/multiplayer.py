@@ -260,7 +260,7 @@ class MultiplayerGame:
         return accounts.issue_invites(self, count)
 
     def register(self, username, password, display_name, invite: str | None = None,
-                 lineage: str = "human"):
+                 lineage: str | None = None):
         return accounts.register(self, username, password, display_name, invite,
                                  _canonical, lineage)
 
@@ -268,7 +268,7 @@ class MultiplayerGame:
         return accounts.login(self, username, password)
 
     def register_and_login(self, username, password, display_name,
-                           invite: str | None = None, lineage: str = "human"):
+                           invite: str | None = None, lineage: str | None = None):
         return accounts.register_and_login(self, username, password, display_name,
                                            invite, lineage)
 
@@ -434,7 +434,7 @@ class MultiplayerGame:
                 " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
                  encoded_result, recorded_at, flee_success, secure_roll,
-                 3 if kind == "advance" else 1, 3))
+                 3 if kind == "advance" else 1, 4))
             if kind == "advance":
                 npc_runtime.step(self, row.lastrowid)
             for event in self.world.events[prior_events:]:
