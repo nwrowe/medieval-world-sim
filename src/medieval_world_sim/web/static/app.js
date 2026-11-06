@@ -22,9 +22,8 @@ import { createWorldViews } from "/world-views.mjs";
     { id: "guilds", icon: "⚑", title: "Guilds" },
     { id: "merits", icon: "✶", title: "Merits" },
     { id: "market", icon: "⚖", title: "Market" },
-    { id: "job", icon: "▣", title: "Job" },
-    { id: "warriors", icon: "⚔", title: "Warriors Guild" },
-    { id: "mageguild", icon: "✦", title: "Mage Guild" },
+    { id: "job", icon: "▣", title: "Occupation" },
+    { id: "mercenary", icon: "⚔", title: "Mercenary Jobs" },
     { id: "church", icon: "✝", title: "Church" },
     { id: "armory", icon: "⚒", title: "Armory", onlyCity: "crownreach" },
     { id: "track", icon: "♞", title: "Track" },
@@ -42,6 +41,14 @@ import { createWorldViews } from "/world-views.mjs";
   let state = null;
   let lineageCatalog = [];
   let tab = "character";
+  const pageHistory = [];
+  function navigateTo(nextTab) {
+    if (nextTab !== tab) {
+      pageHistory.push(tab);
+      if (pageHistory.length > 25) pageHistory.shift();
+      tab = nextTab;
+    }
+  }
   let levelCelebration = null;
   let presenceTimer = null;
   let lastUserActivity = Date.now();
@@ -432,6 +439,8 @@ import { createWorldViews } from "/world-views.mjs";
       csrfToken = outcome.csrf || "";
       state = outcome.state;
       if (url.endsWith("/register")) markIntroductionPending();
+      pageHistory.length = 0;
+      tab = "character";
       chatChannelKey = "global";
       chatDirectTarget = null;
       chatOpen = false;
@@ -588,8 +597,8 @@ import { createWorldViews } from "/world-views.mjs";
       magic: renderMagic, home: renderHome, job: renderJob,
       inventory: renderInventory, training: renderTraining,
       character: renderCharacter, equipment: renderEquipment,
-      chronicle: renderChronicle, warriors: renderWarriorsGuild,
-      mageguild: renderMageGuild, tavern: renderTavern,
+      chronicle: renderChronicle, mercenary: renderMercenaryJobs,
+      tavern: renderTavern,
       cityhall: renderCityHall,
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
@@ -624,7 +633,7 @@ import { createWorldViews } from "/world-views.mjs";
         'stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="12" cy="8" r="4"/>' +
         '<path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>' +
-        '<span>Your character</span></button>' +
+        '</button>' +
         '<button class="logout-link" type="button" data-ui="account-logout">' +
         'Sign out</button></div>' : '') +
       '</div></div></header>' +
@@ -741,7 +750,7 @@ import { createWorldViews } from "/world-views.mjs";
     return '<div class="character-row"><span>' + esc(label) +
       '</span><strong>' + esc(value) + '</strong></div>';
   }
-  const { renderWarriorsGuild, renderMageGuild, renderChurch, renderTrack,
+  const { renderMercenaryJobs, renderChurch, renderTrack,
     renderGuilds, renderMerits, renderCityHall, renderJob, renderTraining, renderTavern } =
     createCityViews({
       getState: () => state,
@@ -989,7 +998,10 @@ import { createWorldViews } from "/world-views.mjs";
         selected.key === channel.key ? "secondary" : "ghost")).join('');
     return '<aside class="chat-dock ' + (chatOpen ? "is-open" : "") +
       '" aria-label="Chat">' +
-      '<div class="chat-dock-actions"><button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
+      '<div class="chat-dock-actions"><button type="button" class="chat-game-refresh" ' +
+      'data-ui="page-back" title="Back to previous page" aria-label="Back to previous page"' +
+      disabled(!pageHistory.length) + '>‹</button>' +
+      '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
       'aria-expanded="' + chatOpen + '">' +
       '<span aria-hidden="true">✉</span> Chat ' +
       (unreadCount() ? '<span class="chat-unread" aria-label="' +
@@ -1180,7 +1192,7 @@ import { createWorldViews } from "/world-views.mjs";
     const element = event.target.closest("button");
     if (!element || pending || element.disabled) return;
     if (element.dataset.tab) {
-      tab = element.dataset.tab;
+      navigateTo(element.dataset.tab);
       render();
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
@@ -1207,6 +1219,8 @@ import { createWorldViews } from "/world-views.mjs";
             stopPresence();
             state = null;
             csrfToken = "";
+            pageHistory.length = 0;
+            selectedCharacterId = null;
             authNeeded = true;
             notify("Signed out");
             render();
@@ -1214,6 +1228,13 @@ import { createWorldViews } from "/world-views.mjs";
             notify(error.message, true);
           }
         })(); break;
+      case "page-back":
+        if (pageHistory.length) {
+          tab = pageHistory.pop();
+          render();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        break;
       case "chat-toggle":
         chatOpen = !chatOpen;
         if (chatOpen) markChannelRead(chatChannelKey);
@@ -1250,7 +1271,7 @@ import { createWorldViews } from "/world-views.mjs";
       case "profile-open":
         selectedCharacterId = ui === "profile-self" ?
           (state.actor_id || "hero") : element.dataset.character;
-        tab = "profile";
+        navigateTo("profile");
         render();
         window.scrollTo({ top: 0, behavior: "smooth" });
         break;
@@ -1269,7 +1290,7 @@ import { createWorldViews } from "/world-views.mjs";
       case "profile-trade":
         if (multiMode) {
           selectedCharacterId = element.dataset.character;
-          tab = "trade";
+          navigateTo("trade");
           render();
         } else {
           notify("Player-to-player trading requires individual accounts.", true);

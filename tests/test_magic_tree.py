@@ -41,6 +41,49 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             NODES["fake"] = NODES[ROOT_ID]
 
+    def test_casts_require_tier_mastery_and_keep_lower_tiers_available(self):
+        w = world()
+        w.unlock_magic("mage", "warding.minor_shield")
+        initial = w.magic_tree("mage", "warding")[0]
+        self.assertTrue(initial.unlocked)   # Open for mana-funded practice.
+        self.assertTrue(initial.active)
+        self.assertFalse(initial.castable)  # Not learned for casting yet.
+        with self.assertRaisesRegex(ActionError, "100/100"):
+            w.cast_spell("mage", "warding.minor_shield")
+        self.assertEqual(w.actors["mage"].magic.mana, 100)
+        grant_school_xp_for_fixture(w, "warding", 50)
+        w.unlock_magic("mage", "warding.ward_goods")
+        # An early Tier II unlock does not falsely mark Tier I mastered:
+        # the novice still needs to reach its actual 80-XP ceiling.
+        self.assertFalse(w.magic_tree("mage", "warding")[0].mastered)
+        self.assertTrue(w.magic_tree("mage", "warding")[0].can_practice)
+        with self.assertRaisesRegex(ActionError, "100/100"):
+            w.cast_spell("mage", "warding.ward_goods")
+        grant_school_xp_for_fixture(w, "warding", 80)
+        novice, applied, *_ = w.magic_tree("mage", "warding")
+        self.assertTrue(novice.castable)
+        self.assertFalse(applied.castable)
+        w.cast_spell("mage", "warding.minor_shield")
+        self.assertEqual(w.actors["mage"].magic.ward_charge, 5)
+        w.actors["mage"].magic.ward_charge = 0
+        grant_school_xp_for_fixture(w, "warding", 180)
+        self.assertTrue(w.magic_tree("mage", "warding")[1].castable)
+        w.cast_spell("mage", "warding.ward_goods")
+        self.assertEqual(w.actors["mage"].magic.ward_charge, 7)
+        self.assertTrue(w.magic_tree("mage", "warding")[0].castable)
+        w.assert_invariants()
+
+    def test_legacy_cast_policy_remains_replayable(self):
+        w = world()
+        w.unlock_magic("mage", "warding.minor_shield")
+        w._legacy_spell_mastery_rules = True
+        try:
+            cast = w.cast_spell("mage", "warding.minor_shield")
+            self.assertEqual(cast["amount"], 5)
+        finally:
+            w._legacy_spell_mastery_rules = False
+        w.assert_invariants()
+
     def test_fresh_actor_can_unlock_a_novice_from_each_school(self):
         w = world()
         self.assertEqual(w.actors["mage"].magic.mana, 100)

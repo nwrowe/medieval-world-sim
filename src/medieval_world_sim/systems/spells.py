@@ -10,6 +10,9 @@ class SpellSystem:
         node = self.world.magic_system._node(node_id)
         if node.tier == 0 or not self.world.magic_system._active(actor, node):
             raise ActionError("Spell must be learned and, if specialized, attuned")
+        if (not getattr(self.world, "_legacy_spell_mastery_rules", False)
+                and not self.world.magic_system._castable(actor, node)):
+            raise ActionError("Master the spell's tier to 100/100 before casting")
         if actor.magic.mana < node.mana_cost:
             raise ActionError("Insufficient mana to cast spell")
         return node

@@ -19,7 +19,7 @@ export function createCityViews(ctx) {
     church_supplies: "You bring a bundle of herbs to the infirmary. The sisters inventory it for their patients and offer a modest payment from the city's charitable allowance.",
     labor_shift: "You join the porters hauling grain and supplies through the market yard. After the last cart is loaded, the foreman counts out your wages.",
   };
-  function contractBoard(venue) {
+  function contractBoard(venue, title = "Available Work") {
     const state = ctx.getState();
     const latestContract = ctx.getLatestContract();
     const p = state.player;
@@ -52,24 +52,19 @@ export function createCityViews(ctx) {
         latestContract.reward + ' gold</span><span>+' + latestContract.xp_gained +
         ' XP</span></div></div>';
     }
-    return report + panel("Available Work", "",
+    return report + panel(title, "",
       items || '<p class="empty">No contracts are posted here.</p>');
   }
-  function renderWarriorsGuild() {
-    return heading("", "Warriors Guild", "") +
-      '<section class="story-panel"><h3>Duty at the western gate</h3>' +
-      '<p>The watch captain glances at your gear. "A sharp eye is worth as much as a blade. ' +
-      'There is honest coin in keeping these streets safe."</p></section>' +
-      contractBoard("warriors") +
-      '<p class="small mt-13">Patrols train combat experience. Bounties and actual NPC battles are future missions.</p>';
-  }
-  function renderMageGuild() {
-    return heading("", "Mage Guild", "") +
-      '<section class="story-panel"><h3>The keeper of the archives</h3>' +
-      '<p>The archivist slides a sheaf of wards across the table. "Our copies never finish themselves. ' +
-      'Work well and there is a modest stipend."</p>' +
-      button("Study magic", 'data-tab="magic"', "secondary") + '</section>' +
-      contractBoard("mageguild");
+  function renderMercenaryJobs() {
+    return heading("", "Mercenary Jobs", "") +
+      '<section class="story-panel"><h3>Work for hire</h3>' +
+      '<p>Patrol the city, assist the magical guild, or take merchant contracts. ' +
+      'Each completed job uses the existing city-funded rewards and cooldown limits.</p></section>' +
+      '<div class="stack">' +
+      contractBoard("warriors", "Warrior contracts") +
+      contractBoard("mageguild", "Mage contracts") +
+      contractBoard("job", "Merchant contracts") +
+      '</div>';
   }
   function renderChurch() {
     const state = ctx.getState();
@@ -206,22 +201,18 @@ export function createCityViews(ctx) {
   }
   function renderCityHall() {
     return futurePage("", "City Hall",
-      "A clerk maintains the city's merchant ledgers, civic obligations and contracts. You can now earn wages at the guilds and employment hall.",
-      "job", "Find work");
+      "The city clerk oversees civic matters and sends travelers to the common board for paid work.",
+      "mercenary", "Mercenary Jobs");
   }
   function renderJob() {
     const state = ctx.getState();
     const w = state.player.work;
-    return heading("", "Job", "") +
-      '<div class="two-col"><div class="stack">' +
-      contractBoard("job") +
-      '</div><aside class="stack">' +
+    return heading("", "Occupation", "") +
       panel("Work Stats", "",
         characterRow("Manual", w.manual) +
         characterRow("Intelligence", w.intelligence) +
         characterRow("Endurance", w.endurance) +
-        characterRow("Shifts completed", w.shifts)) +
-      '</aside></div>';
+        characterRow("Shifts completed", w.shifts));
   }
   function renderTraining() {
     const state = ctx.getState();
@@ -288,6 +279,6 @@ export function createCityViews(ctx) {
   }
 
 
-  return { renderWarriorsGuild, renderMageGuild, renderChurch, renderTrack,
+  return { renderMercenaryJobs, renderChurch, renderTrack,
     renderGuilds, renderMerits, renderCityHall, renderJob, renderTraining, renderTavern };
 }

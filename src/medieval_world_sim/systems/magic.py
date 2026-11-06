@@ -36,6 +36,7 @@ class MagicNodeStatus:
     mastered: bool = False
     can_practice: bool = False
     practice_ready_minute: int = 0
+    castable: bool = False
 
 
 @dataclass(frozen=True)
@@ -81,14 +82,25 @@ class MagicSystem:
         """Practice mastery is a server rule, shared by clients and NPCs.
 
         Spell *casting* remains available after training mastery. Lower-tier
-        practice stops after a higher-tier spell is learned; at the XP ceiling
-        even the highest learned tier stops granting XP.
+        practice stops only at that tier's actual XP ceiling (100/100),
+        regardless of whether the next tier was unlocked early.
         """
+        # Learning the next tier early must not prematurely claim that the
+        # current spell has reached 100/100 or stop its remaining practice.
         return (actor.magic.school_xp.get(node.school, 0) >=
-                PRACTICE_XP_CEILING.get(node.tier, 0)
-                or any(other.school == node.school and other.tier > node.tier
-                       and other.id in actor.magic.unlocked
-                       for other in NODES.values()))
+                PRACTICE_XP_CEILING.get(node.tier, 0))
+
+    @staticmethod
+    def _castable(actor, node) -> bool:
+        """A spell is castable only at 100/100 for its tier, and while active.
+
+        Unlocking starts the study of a tier; it does not grant its effect.
+        A previously mastered lower-tier spell stays available after
+        advancement to higher tiers.
+        """
+        return (node.tier > 0 and MagicSystem._active(actor, node)
+                and actor.magic.school_xp.get(node.school, 0) >=
+                PRACTICE_XP_CEILING[node.tier])
 
     def tree(self, actor_id: str, school: str | None = None) -> tuple[MagicNodeStatus, ...]:
         """Return stable, detached UI-ready values (no writable references)."""
@@ -104,7 +116,7 @@ class MagicSystem:
                             self._mastered(actor, node) if node.tier > 0 else False,
                             node.tier > 0 and self._active(actor, node)
                             and not self._mastered(actor, node),
-                            0)
+                            0, self._castable(actor, node))
             for node in NODES.values() if school is None or node.school == school
         )
 

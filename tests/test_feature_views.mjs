@@ -60,13 +60,24 @@ for (const name of ["renderPeople", "renderProfile", "renderTrade", "renderDuel"
 assert.match(community.renderPeople(), /Bob/);
 assert.match(community.renderPeople(), />Attack<\/button>/);
 assert.doesNotMatch(community.renderPeople(), /Attack · no entry cost/);
-assert.match(community.renderProfile(), /Bob/);
+const profile = community.renderProfile();
+assert.match(profile, /Bob/);
+assert.doesNotMatch(profile, /Back to Search|personal finances are private|<h2>Bob<\/h2>/);
+state.users.push({
+  id: "npc:test", name: "Town Guard", kind: "npc", city: "crownreach",
+  hp: 24, max_hp: 24, level: 2, can_attack: true,
+  recovering_minutes: 0
+});
+selected = "npc:test";
+assert.match(community.renderProfile(),
+  /This is a computer-controlled adventurer\. Direct messaging and trade is disabled/);
+selected = "player:bob";
 assert.match(community.renderTrade(), /Propose a trade/);
 assert.match(community.renderDuel(), /No active duel/);
 query = "nonexistent";
 assert.doesNotMatch(community.renderPeople(), /profile-open.*Bob/);
 const cityNames = [
-  "renderWarriorsGuild", "renderMageGuild", "renderChurch", "renderTrack",
+  "renderMercenaryJobs", "renderChurch", "renderTrack",
   "renderGuilds", "renderMerits", "renderCityHall", "renderJob",
   "renderTraining", "renderTavern"
 ];
@@ -77,6 +88,18 @@ for (const name of cityNames) {
 state = { ...state, player: { ...state.player, work: {
   ...state.player.work, manual: 57 } } };
 assert.match(city.renderJob(), /Manual:57/);
+assert.match(city.renderJob(), /Occupation/);
+assert.doesNotMatch(city.renderJob(), /Available Work|Complete contract/);
+state = { ...state, contracts: ["warriors", "mageguild", "job"].map((venue, i) => ({
+  id: "test" + i, title: "Contract " + venue, description: "Help the city",
+  venue, reward: 10, cooldown_minutes: 60, stamina: 0, mana: 0,
+  cooldown_available: true, can_pay: true, has_material: true
+})) };
+const hired = city.renderMercenaryJobs();
+for (const name of ["Warrior contracts", "Mage contracts", "Merchant contracts",
+  "Contract warriors", "Contract mageguild", "Contract job"]) {
+  assert.match(hired, new RegExp(name));
+}
 // Character pages include inventory, public character attributes, and gear UI.
 // They must use fresh state projections instead of caching player inventories.
 state = { ...state, name: "Alice", net_worth_estimate: 200,
@@ -113,7 +136,7 @@ const novice = {
   prerequisites: [], school_xp: 80, required_xp: 0,
   insight_cost: 0, mana_cost: 8, unlocked: true,
   eligible: false, active: true, mastered: true,
-  can_practice: false
+  can_practice: false, castable: true
 };
 state = { ...state, cities: [
     { id: "crownreach", name: "Crownreach",
@@ -167,14 +190,21 @@ state = { ...state, player: { ...state.player, mana: 100, hp: 18,
     work: { ...state.player.work, experience: {} }, discovered_cities: ["crownreach"],
     lineage: "human", lineage_trait_unlocked: false, level: 1,
     level_xp: 0, combat_xp: 0, strength: 1, defense: 1 },
-  magic_nodes: [{ ...novice, unlocked: true, active: true },
+  magic_nodes: [{ ...novice, unlocked: true, active: true, castable: true },
     { ...novice, node_id: "warding.shelter", title: "Shelter",
-      school: "warding", active: false, mana_cost: 10 }] };
+      school: "warding", active: false, castable: false, mana_cost: 10 }] };
 let homeMagic = character.renderCharacter();
 assert.match(homeMagic, /<h3>Magic<\/h3>/);
 assert.match(homeMagic, /data-ui="field-cast" data-node="restoration.soothe_wounds"/);
 assert.match(homeMagic, /data-ui="field-cast" data-node="warding.shelter" disabled/);
 assert.doesNotMatch(world.renderMagic(), /data-ui="field-cast"/);
+state = { ...state, magic_nodes: [
+  { ...novice, unlocked: true, active: true, castable: false, mastered: false }
+] };
+const studying = character.renderCharacter();
+assert.match(studying, /Reach 100\/100 to cast/);
+assert.match(studying, /data-ui="field-cast" data-node="restoration.soothe_wounds" disabled/);
+state = { ...state, magic_nodes: [{ ...novice, castable: true }] };
 state = { ...state, player: { ...state.player, mana: 0 } };
 homeMagic = character.renderCharacter();
 assert.match(homeMagic, /data-ui="field-cast" data-node="restoration.soothe_wounds" disabled/);

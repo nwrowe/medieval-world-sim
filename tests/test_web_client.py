@@ -60,8 +60,15 @@ class BrowserEntrypointTests(unittest.TestCase):
         self.assertIn('data-ui="profile-self"', source)
         self.assertIn('View your character profile', source)
         self.assertIn('selectedCharacterId = ui === "profile-self" ?', source)
-        self.assertIn('tab = "profile";', source)
+        self.assertIn('navigateTo("profile");', source)
         self.assertIn('class="account-utility"', source)
+        self.assertNotIn('<span>Your character</span>', source)
+        self.assertIn('data-ui="page-back"', source)
+        self.assertIn('tab = pageHistory.pop();', source)
+        self.assertIn('title: "Occupation"', source)
+        self.assertIn('title: "Mercenary Jobs"', source)
+        self.assertNotIn('title: "Warriors Guild"', source)
+        self.assertNotIn('title: "Mage Guild"', source)
 
     def test_multiplayer_registration_is_followed_by_lineage_and_entry(self):
         source = files("medieval_world_sim.web").joinpath(

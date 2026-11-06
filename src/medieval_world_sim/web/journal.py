@@ -123,7 +123,7 @@ def load_world(game: MultiplayerGame) -> None:
         "FROM world_journal WHERE seq>? ORDER BY seq", (restored_seq,)).fetchall()
     for (seq, kind, actor_id, action, payload, request_id, recorded_at,
          flee_success, secure_roll, server_clock, regen_version, xp_version) in rows:
-        if xp_version not in (1, 2, 3, 4):
+        if xp_version not in (1, 2, 3, 4, 5):
             raise ValueError("Invalid recorded experience ruleset")
         params = json.loads(payload)
         prior_events = len(game.world.events)
@@ -159,6 +159,7 @@ def load_world(game: MultiplayerGame) -> None:
             game.world._legacy_magic_leveling_rules = xp_version == 1
             game.world._legacy_magic_training_rules = xp_version < 3
             game.world._legacy_magic_practice_cooldown = xp_version == 3
+            game.world._legacy_spell_mastery_rules = xp_version < 5
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))
@@ -169,6 +170,7 @@ def load_world(game: MultiplayerGame) -> None:
                 game.world._legacy_magic_leveling_rules = False
                 game.world._legacy_magic_training_rules = False
                 game.world._legacy_magic_practice_cooldown = False
+                game.world._legacy_spell_mastery_rules = False
         elif kind == "advance":
             minutes = params.get("minutes")
             if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT

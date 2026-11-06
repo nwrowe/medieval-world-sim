@@ -63,17 +63,17 @@ export function createCharacterViews(ctx) {
 
   function homeMagicPanel(state) {
     const p = state.player;
-    // Only learned spells are offered. Combat uses the separate duel controls;
+    // Show unlocked spells being studied; only tier-mastered spells can cast.
     // the same authenticated field-cast action handles all Home casts.
     const learned = (state.magic_nodes || []).filter(
       node => node.tier > 0 && node.unlocked);
     const spells = learned.length ? '<div class="home-spell-list">' +
       learned.map(node => {
-        const usable = node.active && !p.destination &&
+        const usable = node.castable && !p.destination &&
           p.mana >= node.mana_cost && !isBusy();
-        const note = node.active ?
-          pretty(node.school) + ' · ' + node.mana_cost + ' mana' :
-          pretty(node.school) + ' · Attunement required';
+        const note = !node.active ? pretty(node.school) + ' · Attunement required' :
+          !node.castable ? pretty(node.school) + ' · Reach 100/100 to cast' :
+          pretty(node.school) + ' · ' + node.mana_cost + ' mana';
         return '<div class="home-spell"><div class="home-spell-description">' +
           '<strong>' + esc(node.title) + '</strong><small>' + esc(note) +
           '</small></div>' +
@@ -83,7 +83,7 @@ export function createCharacterViews(ctx) {
       }).join('') + '</div>' :
       '<p class="small">You have not learned any spells yet. Visit Magic to begin studying.</p>' +
       button("Study magic", 'data-tab="magic"', "secondary");
-    return panel("Magic", "Cast learned spells using your available mana.", spells);
+    return panel("Magic", "Train spells to 100/100 before casting; casting costs mana.", spells);
   }
 
   function renderCharacter() {
