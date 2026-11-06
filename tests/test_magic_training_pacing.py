@@ -46,7 +46,7 @@ class MagicTrainingPacingTests(TestCase):
         self.assertEqual(PRACTICE_XP_CEILING[1], 80)
         for i in range(80):
             if w.actors["mage"].magic.mana < 8:
-                w.advance(40)
+                w.advance(80)  # Regenerate enough mana for the next session.
             result = w.practice_magic("mage", NOVICE)
             self.assertEqual(result.xp_gained, 1)
         novice, applied, *_ = w.magic_tree("mage", "restoration")
