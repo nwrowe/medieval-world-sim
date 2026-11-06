@@ -617,8 +617,16 @@ import { createWorldViews } from "/world-views.mjs";
       '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
-      (multiMode ? '<button class="logout-link" type="button" data-ui="account-logout">' +
-        'Sign out</button>' : '') +
+      (multiMode ? '<div class="account-utility">' +
+        '<button class="profile-shortcut" type="button" data-ui="profile-self" ' +
+        'aria-label="View your character profile" title="Your character">' +
+        '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" ' +
+        'stroke-linecap="round" stroke-linejoin="round">' +
+        '<circle cx="12" cy="8" r="4"/>' +
+        '<path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>' +
+        '<span>Your character</span></button>' +
+        '<button class="logout-link" type="button" data-ui="account-logout">' +
+        'Sign out</button></div>' : '') +
       '</div></div></header>' +
       '<div class="workspace">' +
       '<aside class="sidebar" aria-label="Locations and services">' +
@@ -1238,8 +1246,10 @@ import { createWorldViews } from "/world-views.mjs";
             render();
           } catch (error) { notify(error.message, true); }
         })(); break;
+      case "profile-self":
       case "profile-open":
-        selectedCharacterId = element.dataset.character;
+        selectedCharacterId = ui === "profile-self" ?
+          (state.actor_id || "hero") : element.dataset.character;
         tab = "profile";
         render();
         window.scrollTo({ top: 0, behavior: "smooth" });
