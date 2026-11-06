@@ -179,12 +179,12 @@ class MagicSystem:
             state.next_practice_minute[node.school] = (
                 self.world.minute + PRACTICE_COOLDOWN_MINUTES)
         # Old journals retain their historic training yield. New training
-        # produces one base school XP for successful deliberate practice;
-        # failure costs mana and the session but earns no school XP. Housing
-        # and lineage bonuses still apply to actual earned XP only.
+        # produces one base school XP per deliberate practice session;
+        # unsuccessful attempts still teach from mistakes, as before.
+        # Housing and lineage bonuses apply to actually earned XP only.
         ceiling = PRACTICE_XP_CEILING[node.tier]
         base_xp = ((3 * node.tier + 3 if success else 1)
-                   if legacy_training else (1 if success else 0))
+                   if legacy_training else 1)
         awarded = min(base_xp, max(0, ceiling - skill))
         if awarded:
             awarded = min(self.world.housing_system.training_xp(
