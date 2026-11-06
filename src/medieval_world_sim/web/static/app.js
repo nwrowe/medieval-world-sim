@@ -849,24 +849,6 @@ import { createWorldViews } from "/world-views.mjs";
       const old = document.querySelector(".vital-" + kind);
       if (old) old.outerHTML = meterStat(label, value, maximum, kind, next);
     }
-    if (tab === "magic") {
-      // SSE advances the trusted minute without replacing the full magic
-      // projection. Update only the training controls so a completed
-      // cooldown becomes actionable without losing scroll or focus.
-      const frame = document.createElement("div");
-      frame.innerHTML = renderMagic();
-      const latest = new Map(Array.from(
-        frame.querySelectorAll('[data-ui="practice"]'),
-        button => [button.dataset.node, button]));
-      for (const button of document.querySelectorAll('[data-ui="practice"]')) {
-        const fresh = latest.get(button.dataset.node);
-        if (!fresh) continue;
-        button.disabled = fresh.disabled;
-        if (button.textContent !== fresh.textContent) {
-          button.textContent = fresh.textContent;
-        }
-      }
-    }
     const dock = document.querySelector(".chat-dock");
     if (dock) {
       const fragment = document.createElement("div");
