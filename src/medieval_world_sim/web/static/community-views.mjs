@@ -103,13 +103,12 @@ export function createCommunityViews(ctx) {
     const pending = ctx.getPending();
     const person = (state.users || []).find(user => user.id === selectedCharacterId);
     if (!person) return heading("", "Character unavailable", "") +
-      panel("Search for characters", "", button("Back to Search", 'data-tab="people"', "secondary"));
+      panel("Search for characters", "", '<p class="small">This character is no longer available.</p>');
     const self = person.id === (state.actor_id || "hero");
     const isNpc = person.kind === "npc";
     const reachable = !self && person.can_attack;
     const recovering = Number(person.recovering_minutes) > 0;
-    return heading("", esc(person.name), "") +
-      '<div class="profile-grid"><section class="panel character-public-profile">' +
+    return '<div class="profile-grid"><section class="panel character-public-profile">' +
       '<div class="section-kicker">' +
       (isNpc ? 'NPC adventurer' : self ? 'Your character' : 'Player adventurer') +
       '</div>' +
@@ -121,7 +120,6 @@ export function createCommunityViews(ctx) {
       characterRow("Status", recovering ?
         "Recovering (" + dur(person.recovering_minutes) + ")" :
         person.hp > 0 ? "Active" : "Defeated") +
-      '<p class="small">Equipment, combat attributes, inventory and personal finances are private.</p>' +
       '</section>' +
       panel("Interactions", "",
         '<div class="button-group">' +
@@ -132,13 +130,11 @@ export function createCommunityViews(ctx) {
         button("Trade", 'data-ui="profile-trade" data-character="' + esc(person.id) + '"' +
           disabled(self || (multiMode && isNpc)), "secondary") +
         '</div><p class="small">' + (isNpc ?
-          'This is a computer-controlled adventurer. Direct messaging and person-to-person trade ' +
-          'will require the upcoming authenticated multiplayer service.' :
+          'This is a computer-controlled adventurer. Direct messaging and trade is disabled' :
           (self ? 'You are viewing your own public profile.' :
            (multiMode ? 'Player duels use the same weapon, spell, and stamina choices as NPC battles. ' +
             'Defenders automatically counterattack; the fight ends on defeat, retreat, or a ten-round draw.' :
-            'Messaging and trading with players requires authenticated multiplayer accounts.'))) + '</p>' +
-        button("Back to Search", 'data-tab="people"', "ghost")) +
+            'Messaging and trading with players requires authenticated multiplayer accounts.'))) + '</p>') +
       '</div>';
   }
 
