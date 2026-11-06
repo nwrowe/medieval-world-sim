@@ -265,13 +265,8 @@ export function createWorldViews(ctx) {
       '<div class="section-kicker">Latest practice · ' + esc(pretty(schoolName)) + '</div>' +
       '<h3>' + esc(node ? node.title : pretty(outcome.nodeId.split(".").pop())) +
       (outcome.success ? ' · Success' : ' · Unsuccessful attempt') + '</h3>' +
-      '<p>' + esc(scene.setting + ' ' + (outcome.success ? scene.success : scene.failure)) + '</p>' +
-      '<div class="practice-rewards"><span>' + (outcome.xp_gained > 0 ? '+' : '') +
-      outcome.xp_gained + ' XP</span><span>−' + outcome.mana_spent + ' mana</span>' +
-      (outcome.insight_gained ? '<span>+' + outcome.insight_gained + ' Insight</span>' : '') +
-      '<span>' + outcome.roll + ' rolled / ' + outcome.chance + '% success chance</span></div>' +
-      '<p class="practice-note">Practice has no wage. Future guild and church contracts ' +
-      'will pay real gold only when their objectives are completed.</p></section>';
+      '<p>' + esc(scene.setting + ' ' + (outcome.success ? scene.success : scene.failure)) +
+      '</p></section>';
   }
 
   const schoolIcons = {
@@ -301,10 +296,7 @@ export function createWorldViews(ctx) {
       control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
         disabled(!node.can_practice || isBusy() || p.mana < node.mana_cost),
-        mastered ? "ghost" : "secondary") +
-        button("Cast · " + node.mana_cost + " mana",
-          'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
-          disabled(!node.active || isBusy() || p.mana < node.mana_cost), "gold");
+        mastered ? "ghost" : "secondary");
     } else {
       control = button(node.eligible ?
         "Unlock · " + node.insight_cost + " Insight" : "Locked",
@@ -380,7 +372,7 @@ export function createWorldViews(ctx) {
       '<div class="magic-flow"><span>Practice using mana · gradual XP</span>' +
       '<span aria-hidden="true">›</span><span>Unlock spells with Insight</span>' +
       '<span aria-hidden="true">›</span>' +
-      '<span>Cast in the world or combat</span></div>' +
+      '<span>Cast learned spells from Home or combat</span></div>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="magic-layout"><section class="magic-progression" ' +
       'aria-label="Spell progression">' + tiers + '</section>' +
