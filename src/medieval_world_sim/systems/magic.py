@@ -36,6 +36,7 @@ class MagicNodeStatus:
     mastered: bool = False
     can_practice: bool = False
     practice_ready_minute: int = 0
+    castable: bool = False
 
 
 @dataclass(frozen=True)
@@ -90,6 +91,18 @@ class MagicSystem:
                        and other.id in actor.magic.unlocked
                        for other in NODES.values()))
 
+    @staticmethod
+    def _castable(actor, node) -> bool:
+        """A spell is castable only at 100/100 for its tier, and while active.
+
+        Unlocking starts the study of a tier; it does not grant its effect.
+        A previously mastered lower-tier spell stays available after
+        advancement to higher tiers.
+        """
+        return (node.tier > 0 and MagicSystem._active(actor, node)
+                and actor.magic.school_xp.get(node.school, 0) >=
+                PRACTICE_XP_CEILING[node.tier])
+
     def tree(self, actor_id: str, school: str | None = None) -> tuple[MagicNodeStatus, ...]:
         """Return stable, detached UI-ready values (no writable references)."""
         actor = self.world._actor(actor_id)
@@ -104,7 +117,7 @@ class MagicSystem:
                             self._mastered(actor, node) if node.tier > 0 else False,
                             node.tier > 0 and self._active(actor, node)
                             and not self._mastered(actor, node),
-                            0)
+                            0, self._castable(actor, node))
             for node in NODES.values() if school is None or node.school == school
         )
 
