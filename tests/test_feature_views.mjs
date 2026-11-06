@@ -157,4 +157,8 @@ state = { ...state, minute: 0, magic_nodes: [{
 }] };
 assert.match(world.renderMagic(), /Practice · ready in 120m/);
 assert.match(world.renderMagic(), /data-ui="practice"[^>]+disabled/);
+state = { ...state, minute: 120 };
+const renewed = world.renderMagic();
+assert.match(renewed, /Practice · 8 mana/);
+assert.doesNotMatch(renewed, /data-ui="practice"[^>]+disabled/);
 console.log("Community, city, magic and storage view modules passed smoke tests");
