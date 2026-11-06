@@ -96,9 +96,12 @@ def _decode(value, depth=0):
         # Only allow explicitly defaultable Actor fields added after the
         # original schema; all other model/schema drift must still fail.
         migration_fields = {"lineage", "lineage_selected", "discovered_cities", "stored_gear"}
+        magic_migration = {"next_practice_minute"}
         if (present != expected and not (
                 cls is Actor and present <= expected and
-                expected - present <= migration_fields)):
+                expected - present <= migration_fields) and not (
+                cls is MagicState and present <= expected and
+                expected - present <= magic_migration)):
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)
                       for name, node in value["values"].items()})
