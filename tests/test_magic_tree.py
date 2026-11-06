@@ -53,6 +53,10 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         self.assertEqual(w.actors["mage"].magic.mana, 100)
         grant_school_xp_for_fixture(w, "warding", 50)
         w.unlock_magic("mage", "warding.ward_goods")
+        # An early Tier II unlock does not falsely mark Tier I mastered:
+        # the novice still needs to reach its actual 80-XP ceiling.
+        self.assertFalse(w.magic_tree("mage", "warding")[0].mastered)
+        self.assertTrue(w.magic_tree("mage", "warding")[0].can_practice)
         with self.assertRaisesRegex(ActionError, "100/100"):
             w.cast_spell("mage", "warding.ward_goods")
         grant_school_xp_for_fixture(w, "warding", 80)
