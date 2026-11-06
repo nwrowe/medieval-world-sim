@@ -60,7 +60,18 @@ for (const name of ["renderPeople", "renderProfile", "renderTrade", "renderDuel"
 assert.match(community.renderPeople(), /Bob/);
 assert.match(community.renderPeople(), />Attack<\/button>/);
 assert.doesNotMatch(community.renderPeople(), /Attack · no entry cost/);
-assert.match(community.renderProfile(), /Bob/);
+const profile = community.renderProfile();
+assert.match(profile, /Bob/);
+assert.doesNotMatch(profile, /Back to Search|personal finances are private|<h2>Bob<\/h2>/);
+state.users.push({
+  id: "npc:test", name: "Town Guard", kind: "npc", city: "crownreach",
+  hp: 24, max_hp: 24, level: 2, can_attack: true,
+  recovering_minutes: 0
+});
+selected = "npc:test";
+assert.match(community.renderProfile(),
+  /This is a computer-controlled adventurer\. Direct messaging and trade is disabled/);
+selected = "player:bob";
 assert.match(community.renderTrade(), /Propose a trade/);
 assert.match(community.renderDuel(), /No active duel/);
 query = "nonexistent";
