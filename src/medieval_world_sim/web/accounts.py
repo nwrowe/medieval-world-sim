@@ -85,10 +85,10 @@ def issue_invites(game: MultiplayerGame, count: int = 1) -> list[str]:
 
 def register(game: MultiplayerGame, username: str, password: str, display_name: str,
              invite: str | None, encode_json: Callable[[object], str],
-             lineage: str = "human") -> str:
+             lineage: str | None = None) -> str:
     username, display_name = game._validate_registration(
         username, password, display_name)
-    if not isinstance(lineage, str) or lineage not in LINEAGES:
+    if lineage is not None and (not isinstance(lineage, str) or lineage not in LINEAGES):
         raise ActionError("Choose a valid lineage")
     salt = secrets.token_bytes(16)
     hashed = _password_hash(password, salt)
@@ -173,7 +173,7 @@ def login(game: MultiplayerGame, username: str, password: str) -> tuple[str, str
 
 
 def register_and_login(game: MultiplayerGame, username: str, password: str, display_name: str,
-                       invite: str | None = None, lineage: str = "human") -> tuple[str, str]:
+                       invite: str | None = None, lineage: str | None = None) -> tuple[str, str]:
     actor_id = game.register(username, password, display_name, invite, lineage)
     with game._lock:
         return game._issue_session(actor_id)
