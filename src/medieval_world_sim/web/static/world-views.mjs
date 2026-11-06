@@ -46,7 +46,7 @@ export function createWorldViews(ctx) {
         '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
         '" title="' + esc(city.name) +
         (current ? " — you are here" : arriving ? " — destination" :
-          " — " + dur(city.minutes) + " away, click to explore") +
+          " — " + dur(city.minutes) + " away, preview journey") +
         '"' + disabled(inactive) + '>' +
         '<span class="map-pin-light"></span><strong>' + esc(city.name.replace(" (capital)", "")) +
         '</strong>' + (current ? '<small>You are here</small>' :
@@ -187,9 +187,9 @@ export function createWorldViews(ctx) {
       '<div class="mt-13">' + sellOnlyGoods() + '</div>';
   }
 
-  // Mastery tracks are a visual representation of existing school XP,
-  // not a new economy, skill cap, unlock gate, or 400-level grind.
-  const tierThresholds = [0, 30, 120, 350, 1000];
+  // Visual 100/100 means the SERVER's practice ceiling for that tier,
+  // not the earlier eligibility threshold for the next unlock.
+  const tierThresholds = [0, 80, 180, 420, 1000];
   function masteryTrack(xp) {
     const idx = tierThresholds.findIndex((limit, i) =>
       i < tierThresholds.length - 1 && xp < tierThresholds[i + 1]);
@@ -261,6 +261,7 @@ export function createWorldViews(ctx) {
   function spellRow(node, nodes, p) {
     const state = ctx.getState();
     const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
+    const readyIn = Math.max(0, (node.practice_ready_minute || 0) - state.minute);
     const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
@@ -271,7 +272,9 @@ export function createWorldViews(ctx) {
       "Requires Insight";
     let control;
     if (node.unlocked) {
-      control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
+      control = button(mastered ? "Mastered" : readyIn ?
+          "Practice · ready in " + dur(readyIn) :
+          "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
         disabled(mastered || !node.can_practice || isBusy() || p.mana < node.mana_cost),
         mastered ? "ghost" : "secondary") +
@@ -350,8 +353,9 @@ export function createWorldViews(ctx) {
       '</strong><span>' + esc(schoolRoles[school]) +
       ' · ' + schoolXp + ' XP</span></div>' +
       '<div class="magic-context-stat">✧ ' + p.insight + ' Insight</div></div>' +
-      '<div class="magic-flow"><span>Practice</span><span aria-hidden="true">›</span>' +
-      '<span>Unlock spells</span><span aria-hidden="true">›</span>' +
+      '<div class="magic-flow"><span>Practice every 2 simulated hours · gradual XP</span>' +
+      '<span aria-hidden="true">›</span><span>Unlock spells with Insight</span>' +
+      '<span aria-hidden="true">›</span>' +
       '<span>Cast in the world or combat</span></div>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="magic-layout"><section class="magic-progression" ' +
