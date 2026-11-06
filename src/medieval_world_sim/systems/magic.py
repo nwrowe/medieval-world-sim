@@ -82,14 +82,13 @@ class MagicSystem:
         """Practice mastery is a server rule, shared by clients and NPCs.
 
         Spell *casting* remains available after training mastery. Lower-tier
-        practice stops after a higher-tier spell is learned; at the XP ceiling
-        even the highest learned tier stops granting XP.
+        practice stops only at that tier's actual XP ceiling (100/100),
+        regardless of whether the next tier was unlocked early.
         """
+        # Learning the next tier early must not prematurely claim that the
+        # current spell has reached 100/100 or stop its remaining practice.
         return (actor.magic.school_xp.get(node.school, 0) >=
-                PRACTICE_XP_CEILING.get(node.tier, 0)
-                or any(other.school == node.school and other.tier > node.tier
-                       and other.id in actor.magic.unlocked
-                       for other in NODES.values()))
+                PRACTICE_XP_CEILING.get(node.tier, 0))
 
     @staticmethod
     def _castable(actor, node) -> bool:
