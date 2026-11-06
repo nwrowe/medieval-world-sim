@@ -61,6 +61,31 @@ export function createCharacterViews(ctx) {
       '</aside></div>';
   }
 
+  function homeMagicPanel(state) {
+    const p = state.player;
+    // Only learned spells are offered. Combat uses the separate duel controls;
+    // the same authenticated field-cast action handles all Home casts.
+    const learned = (state.magic_nodes || []).filter(
+      node => node.tier > 0 && node.unlocked);
+    const spells = learned.length ? '<div class="home-spell-list">' +
+      learned.map(node => {
+        const usable = node.active && !p.destination &&
+          p.mana >= node.mana_cost && !isBusy();
+        const note = node.active ?
+          pretty(node.school) + ' · ' + node.mana_cost + ' mana' :
+          pretty(node.school) + ' · Attunement required';
+        return '<div class="home-spell"><div class="home-spell-description">' +
+          '<strong>' + esc(node.title) + '</strong><small>' + esc(note) +
+          '</small></div>' +
+          button("Cast", 'data-ui="field-cast" data-node="' + esc(node.node_id) +
+            '"' + disabled(!usable), "secondary") +
+          '</div>';
+      }).join('') + '</div>' :
+      '<p class="small">You have not learned any spells yet. Visit Magic to begin studying.</p>' +
+      button("Study magic", 'data-tab="magic"', "secondary");
+    return panel("Magic", "Cast learned spells using your available mana.", spells);
+  }
+
   function renderCharacter() {
     const state = ctx.getState();
     const p = state.player, w = p.work;
@@ -126,7 +151,8 @@ export function createCharacterViews(ctx) {
         characterRow("Residence", homeName) +
         characterRow("Insight", p.insight) +
         (study || '<p class="small">No magical studies yet.</p>')) +
-      '</div>';
+      '</div>' +
+      '<div class="mt-20">' + homeMagicPanel(state) + '</div>';
   }
   function equipmentMannequin(owned, equipped) {
     const kind = slot => {
