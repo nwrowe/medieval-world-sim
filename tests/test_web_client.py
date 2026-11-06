@@ -60,7 +60,7 @@ class BrowserEntrypointTests(unittest.TestCase):
         self.assertIn('data-ui="profile-self"', source)
         self.assertIn('View your character profile', source)
         self.assertIn('selectedCharacterId = ui === "profile-self" ?', source)
-        self.assertIn('tab = "profile";', source)
+        self.assertIn('navigateTo("profile");', source)
         self.assertIn('class="account-utility"', source)
 
     def test_multiplayer_registration_is_followed_by_lineage_and_entry(self):
