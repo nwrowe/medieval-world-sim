@@ -58,6 +58,31 @@ export function createWorldViews(ctx) {
       '<span>Uncharted places emerge when you reach them</span></div></section>';
   }
 
+  function renderTravelConfirmation() {
+    const state = ctx.getState();
+    const target = ctx.getTravelIntent();
+    if (!state || !target) return "";
+    const city = state.cities.find(place => place.id === target);
+    const p = state.player;
+    if (!city || city.is_current || p.destination) return "";
+    const blocked = isBusy() || p.cargo > p.cargo_limit;
+    const title = city.discovered ? city.name : "Uncharted settlement";
+    return '<div class="travel-confirm-overlay" role="presentation">' +
+      '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="travel-confirm-title" aria-describedby="travel-confirm-description">' +
+      '<div class="section-kicker">Royal roads</div>' +
+      '<h2 id="travel-confirm-title">Travel to ' + esc(title) + '?</h2>' +
+      '<p id="travel-confirm-description">Estimated journey: <strong>' +
+      esc(dur(city.minutes)) + '</strong>. You cannot trade, gather, or train while traveling.</p>' +
+      '<p class="small">Road cargo: ' + p.cargo + ' / ' + p.cargo_limit +
+      (blocked ? ' · Travel is currently unavailable.' : '') + '</p>' +
+      '<div class="travel-confirm-actions">' +
+      button("Cancel", 'data-ui="travel-cancel"', "secondary") +
+      button("Begin journey", 'data-ui="travel-confirm" data-target="' +
+        esc(city.id) + '"' + disabled(blocked), "gold") +
+      '</div></section></div>';
+  }
+
   function renderWorld() {
     const state = ctx.getState();
     const pending = ctx.getPending();
@@ -438,5 +463,5 @@ export function createWorldViews(ctx) {
   }
 
 
-  return { renderWorld, renderMarket, renderMagic, renderHome };
+  return { renderWorld, renderTravelConfirmation, renderMarket, renderMagic, renderHome };
 }
