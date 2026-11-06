@@ -103,10 +103,8 @@ class MagicSystem:
                             self._active(actor, node),
                             self._mastered(actor, node) if node.tier > 0 else False,
                             node.tier > 0 and self._active(actor, node)
-                            and not self._mastered(actor, node)
-                            and self.world.minute >=
-                                actor.magic.next_practice_minute.get(node.school, 0),
-                            actor.magic.next_practice_minute.get(node.school, 0))
+                            and not self._mastered(actor, node),
+                            0)
             for node in NODES.values() if school is None or node.school == school
         )
 
@@ -156,7 +154,11 @@ class MagicSystem:
         legacy_training = getattr(self.world, "_legacy_magic_training_rules", False)
         if not legacy and self._mastered(actor, node):
             raise ActionError("This school tier is mastered; practice a higher tier")
-        if not legacy_training and self.world.minute < state.next_practice_minute.get(node.school, 0):
+        # Cooldowns exist only when replaying v15 / xp_version 3 commands.
+        # Current practice is limited exclusively by mana and tier mastery.
+        historic_cooldown = getattr(
+            self.world, "_legacy_magic_practice_cooldown", False)
+        if historic_cooldown and self.world.minute < state.next_practice_minute.get(node.school, 0):
             remaining = state.next_practice_minute[node.school] - self.world.minute
             raise ActionError(f"Magic training recovers in {remaining} simulated minutes")
         if state.mana < node.mana_cost:
@@ -175,7 +177,7 @@ class MagicSystem:
         success = roll <= chance
         state.attempts += 1
         state.mana -= node.mana_cost
-        if not legacy_training:
+        if historic_cooldown:
             state.next_practice_minute[node.school] = (
                 self.world.minute + PRACTICE_COOLDOWN_MINUTES)
         # Old journals retain their historic training yield. New training
