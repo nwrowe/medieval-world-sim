@@ -177,7 +177,7 @@ See [regional trading and cargo](docs/REGIONAL_TRADING.md). Magic progression an
 
 ## Six-school magic progression foundation
 
-A shared `MagicState` now tracks renewable mana, six independent school-XP tracks, Insight unlocks and a two-active-specialization loadout. Each school has a novice node, an applied node, two Tier III branches and two Tier IV mastery paths (37 nodes total, including Arcane Fundamentals). Spell practice consumes mana, earns bounded school XP and is seeded/deterministic. Additional magical and combat effects are implemented; remaining proposals in the linked design document are not all complete.
+A shared `MagicState` now tracks renewable mana, six independent school-XP tracks, Insight unlocks and a two-active-specialization loadout. Each school has a novice node, an applied node, two Tier III branches and two Tier IV mastery paths (37 nodes total, including Arcane Fundamentals). Spell practice now has a server-enforced **two-simulated-hour cooldown per school** and earns just **one base school XP per session**, making mastery a long-term commitment. The Magic page's **100/100** tier bars now represent the actual practice ceilings (Tier I 80 school XP, then 180/420/1000), not the earlier spell-unlock prerequisites. Earlier magic journals replay under their original progression rules. Additional magical and combat effects are implemented; remaining proposals in the linked design document are not all complete.
 
 ```bash
 python -m medieval_world_sim --scenario magic

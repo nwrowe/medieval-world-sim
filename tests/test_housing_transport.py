@@ -170,7 +170,7 @@ class HousingTests(unittest.TestCase):
         for _ in range(4):
             result = w.practice_magic("owner", "alchemy.purify_reagents")
             xp += result.xp_gained
-            w.advance(80)
+            w.advance(120)
         self.assertEqual(xp, w.actors["owner"].magic.school_xp["alchemy"])
         self.assertIn("magic:alchemy", w.actors["owner"].housing.xp_remainders)
         w.assert_invariants()

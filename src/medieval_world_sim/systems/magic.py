@@ -12,7 +12,7 @@ import hmac
 from ..content.magic_tree import (
     NODES, ROOT_ID, SCHOOLS, MAX_ACTIVE_SPECIALIZATIONS,
     ATTUNEMENT_COOLDOWN_MINUTES, INSIGHT_XP_INTERVAL,
-    PRACTICE_XP_CEILING, branch_for,
+    PRACTICE_XP_CEILING, PRACTICE_COOLDOWN_MINUTES, branch_for,
 )
 from ..errors import ActionError
 from ..content.lineages import magic_experience_bonus
@@ -35,6 +35,7 @@ class MagicNodeStatus:
     active: bool
     mastered: bool = False
     can_practice: bool = False
+    practice_ready_minute: int = 0
 
 
 @dataclass(frozen=True)
@@ -102,7 +103,10 @@ class MagicSystem:
                             self._active(actor, node),
                             self._mastered(actor, node) if node.tier > 0 else False,
                             node.tier > 0 and self._active(actor, node)
-                            and not self._mastered(actor, node))
+                            and not self._mastered(actor, node)
+                            and self.world.minute >=
+                                actor.magic.next_practice_minute.get(node.school, 0),
+                            actor.magic.next_practice_minute.get(node.school, 0))
             for node in NODES.values() if school is None or node.school == school
         )
 
@@ -149,8 +153,12 @@ class MagicSystem:
         # Save-journal v1 actions need their historical rule set when replayed.
         # New commands always follow the current mastered-tier restriction.
         legacy = getattr(self.world, "_legacy_magic_rules", False)
+        legacy_training = getattr(self.world, "_legacy_magic_training_rules", False)
         if not legacy and self._mastered(actor, node):
             raise ActionError("This school tier is mastered; practice a higher tier")
+        if not legacy_training and self.world.minute < state.next_practice_minute.get(node.school, 0):
+            remaining = state.next_practice_minute[node.school] - self.world.minute
+            raise ActionError(f"Magic training recovers in {remaining} simulated minutes")
         if state.mana < node.mana_cost:
             raise ActionError("Insufficient mana")
         # Hash-based roll has NO external RNG state to leak or desynchronize.
@@ -167,12 +175,21 @@ class MagicSystem:
         success = roll <= chance
         state.attempts += 1
         state.mana -= node.mana_cost
-        # At trivial difficulty, repeated casting eventually stops granting XP.
+        if not legacy_training:
+            state.next_practice_minute[node.school] = (
+                self.world.minute + PRACTICE_COOLDOWN_MINUTES)
+        # Old journals retain their historic training yield. New training
+        # produces one base school XP per deliberate practice session;
+        # unsuccessful attempts still teach from mistakes, as before.
+        # Housing and lineage bonuses apply to actually earned XP only.
         ceiling = PRACTICE_XP_CEILING[node.tier]
-        awarded = min((3 * node.tier + 3 if success else 1), max(0, ceiling - skill))
-        awarded = min(self.world.housing_system.training_xp(
-            actor, awarded, f"magic:{node.school}") + magic_experience_bonus(actor),
-            max(0, ceiling - skill))
+        base_xp = ((3 * node.tier + 3 if success else 1)
+                   if legacy_training else 1)
+        awarded = min(base_xp, max(0, ceiling - skill))
+        if awarded:
+            awarded = min(self.world.housing_system.training_xp(
+                actor, awarded, f"magic:{node.school}") + magic_experience_bonus(actor),
+                max(0, ceiling - skill))
         state.school_xp[node.school] = skill + awarded
         earned_total = sum(state.school_xp.values()) // INSIGHT_XP_INTERVAL
         gained = earned_total - state.insight_earned
@@ -210,6 +227,11 @@ class MagicSystem:
                 or any(s not in SCHOOLS or type(xp) is not int or xp < 0
                        for s, xp in state.school_xp.items())):
             raise AssertionError("Invalid magic-school experience")
+        if (type(state.next_practice_minute) is not dict
+                or any(school not in SCHOOLS or type(ready) is not int
+                       or ready < 0 or ready > minute + PRACTICE_COOLDOWN_MINUTES
+                       for school, ready in state.next_practice_minute.items())):
+            raise AssertionError("Invalid magic practice schedule")
         if not isinstance(state.unlocked, set) or ROOT_ID not in state.unlocked:
             raise AssertionError("Arcane Fundamentals must remain unlocked")
         if any(node not in NODES for node in state.unlocked):

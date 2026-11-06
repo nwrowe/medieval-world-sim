@@ -48,6 +48,9 @@ class MagicState:
     attempts: int = 0
     attuned_paths: tuple[str, ...] = ()
     last_attunement_minute: int | None = None
+    # One server-authoritative, per-school practice session every two hours.
+    # Old saves decode with this field defaulting to an empty schedule.
+    next_practice_minute: dict[str, int] = field(default_factory=dict)
     road_charm: int = 0
     ward_charge: int = 0
 

@@ -24,12 +24,13 @@ class MagicCharacterProgressionTests(TestCase):
         world.unlock_magic("mage", node)
         current_level = world.actors["mage"].level
         earned = 0
-        for idx in range(8):
+        for idx in range(12):
             result = world.execute(
                 "mage", "practice_magic", {"node_id": node}, f"practice-{idx}")
             self.assertEqual(result.level_xp_gained,
                              max(1, result.xp_gained // 2))
             earned += result.level_xp_gained
+            world.advance(120)
         actor = world.actors["mage"]
         self.assertGreater(earned, 0)
         self.assertGreater(actor.level, current_level)
@@ -251,7 +252,7 @@ class PersistentNPCAutonomyTests(TestCase):
         self.assertEqual(self.game.world.actors[self.player].level_xp, earned)
         self.assertEqual(self.game.db.execute(
             "SELECT xp_version FROM world_journal WHERE request_id='practice'"
-        ).fetchone()[0], 2)
+        ).fetchone()[0], 3)
         ledger.verify(self.game)
 
 

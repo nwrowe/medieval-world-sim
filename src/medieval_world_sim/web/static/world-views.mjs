@@ -46,7 +46,7 @@ export function createWorldViews(ctx) {
         '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
         '" title="' + esc(city.name) +
         (current ? " — you are here" : arriving ? " — destination" :
-          " — " + dur(city.minutes) + " away, click to explore") +
+          " — " + dur(city.minutes) + " away, preview journey") +
         '"' + disabled(inactive) + '>' +
         '<span class="map-pin-light"></span><strong>' + esc(city.name.replace(" (capital)", "")) +
         '</strong>' + (current ? '<small>You are here</small>' :
@@ -56,6 +56,31 @@ export function createWorldViews(ctx) {
       '<div class="atlas-canvas"><img src="/world-map.svg" alt="Antique ink-drawn fantasy realm with mountains, rivers, forests and royal roads">' +
       fog + pins + '</div><div class="atlas-footer"><span>✦ The golden light marks your location</span>' +
       '<span>Uncharted places emerge when you reach them</span></div></section>';
+  }
+
+  function renderTravelConfirmation() {
+    const state = ctx.getState();
+    const target = ctx.getTravelIntent();
+    if (!state || !target) return "";
+    const city = state.cities.find(place => place.id === target);
+    const p = state.player;
+    if (!city || city.is_current || p.destination) return "";
+    const blocked = isBusy() || p.cargo > p.cargo_limit;
+    const title = city.discovered ? city.name : "Uncharted settlement";
+    return '<div class="travel-confirm-overlay" role="presentation">' +
+      '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="travel-confirm-title" aria-describedby="travel-confirm-description">' +
+      '<div class="section-kicker">Royal roads</div>' +
+      '<h2 id="travel-confirm-title">Travel to ' + esc(title) + '?</h2>' +
+      '<p id="travel-confirm-description">Estimated journey: <strong>' +
+      esc(dur(city.minutes)) + '</strong>. You cannot trade, gather, or train while traveling.</p>' +
+      '<p class="small">Road cargo: ' + p.cargo + ' / ' + p.cargo_limit +
+      (blocked ? ' · Travel is currently unavailable.' : '') + '</p>' +
+      '<div class="travel-confirm-actions">' +
+      button("Cancel", 'data-ui="travel-cancel"', "secondary") +
+      button("Begin journey", 'data-ui="travel-confirm" data-target="' +
+        esc(city.id) + '"' + disabled(blocked), "gold") +
+      '</div></section></div>';
   }
 
   function renderWorld() {
@@ -187,9 +212,9 @@ export function createWorldViews(ctx) {
       '<div class="mt-13">' + sellOnlyGoods() + '</div>';
   }
 
-  // Mastery tracks are a visual representation of existing school XP,
-  // not a new economy, skill cap, unlock gate, or 400-level grind.
-  const tierThresholds = [0, 30, 120, 350, 1000];
+  // Visual 100/100 means the SERVER's practice ceiling for that tier,
+  // not the earlier eligibility threshold for the next unlock.
+  const tierThresholds = [0, 80, 180, 420, 1000];
   function masteryTrack(xp) {
     const idx = tierThresholds.findIndex((limit, i) =>
       i < tierThresholds.length - 1 && xp < tierThresholds[i + 1]);
@@ -261,6 +286,11 @@ export function createWorldViews(ctx) {
   function spellRow(node, nodes, p) {
     const state = ctx.getState();
     const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
+    const readyIn = Math.max(0, (node.practice_ready_minute || 0) - state.minute);
+    // Clock-only SSE updates may advance minute without re-fetching the
+    // magic node projection. Derive renewed practice from the server's
+    // immutable mastery/active flags plus its absolute ready timestamp.
+    const practiceReady = node.active && !mastered && readyIn === 0;
     const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
@@ -271,9 +301,11 @@ export function createWorldViews(ctx) {
       "Requires Insight";
     let control;
     if (node.unlocked) {
-      control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
+      control = button(mastered ? "Mastered" : readyIn ?
+          "Practice · ready in " + dur(readyIn) :
+          "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-        disabled(mastered || !node.can_practice || isBusy() || p.mana < node.mana_cost),
+        disabled(!practiceReady || isBusy() || p.mana < node.mana_cost),
         mastered ? "ghost" : "secondary") +
         button("Cast · " + node.mana_cost + " mana",
           'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
@@ -350,8 +382,9 @@ export function createWorldViews(ctx) {
       '</strong><span>' + esc(schoolRoles[school]) +
       ' · ' + schoolXp + ' XP</span></div>' +
       '<div class="magic-context-stat">✧ ' + p.insight + ' Insight</div></div>' +
-      '<div class="magic-flow"><span>Practice</span><span aria-hidden="true">›</span>' +
-      '<span>Unlock spells</span><span aria-hidden="true">›</span>' +
+      '<div class="magic-flow"><span>Practice every 2 simulated hours · gradual XP</span>' +
+      '<span aria-hidden="true">›</span><span>Unlock spells with Insight</span>' +
+      '<span aria-hidden="true">›</span>' +
       '<span>Cast in the world or combat</span></div>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="magic-layout"><section class="magic-progression" ' +
@@ -434,5 +467,5 @@ export function createWorldViews(ctx) {
   }
 
 
-  return { renderWorld, renderMarket, renderMagic, renderHome };
+  return { renderWorld, renderTravelConfirmation, renderMarket, renderMagic, renderHome };
 }

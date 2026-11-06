@@ -44,8 +44,14 @@ cross-process leases remain future work.
 level XP as before. Practicing magic now grants character level XP in
 addition to school XP (roughly half the actual school XP awarded, minimum
 one point when training produces XP). It never adds combat XP and is
-not awarded by merely casting a spell. Historical saved magic commands
-replay with their original, pre-change level rules. Gold is **not banked**
+not awarded by merely casting a spell. Magic school training now also requires
+**two simulated hours between practice attempts within the same school**;
+each attempt gives one base school XP, with normal earned bonuses. The Magic
+page's 100/100 meter uses the server's real tier-practice ceiling, so mastered
+practice locks and the next eligible spell can be unlocked using Insight.
+Historical saved magic commands replay with their original XP, cooldown and
+level rules. World-map pins and road cards now request confirmation with the
+**server-projected journey time** before any travel action is submitted. Gold is **not banked**
 or protected by this release; city gold deposits can be added separately.
 
 The ordinary command with no `--multiplayer-db` remains the original single-player game with its original JSON save. **Existing saves are not changed or automatically imported.** You can switch back by restarting the server without the flag.
