@@ -286,11 +286,8 @@ export function createWorldViews(ctx) {
   function spellRow(node, nodes, p) {
     const state = ctx.getState();
     const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
-    const readyIn = Math.max(0, (node.practice_ready_minute || 0) - state.minute);
-    // Clock-only SSE updates may advance minute without re-fetching the
-    // magic node projection. Derive renewed practice from the server's
-    // immutable mastery/active flags plus its absolute ready timestamp.
-    const practiceReady = node.active && !mastered && readyIn === 0;
+    // Training is limited by the character's mana and the server's mastery
+    // rules, never by a separate waiting timer.
     const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
@@ -301,11 +298,9 @@ export function createWorldViews(ctx) {
       "Requires Insight";
     let control;
     if (node.unlocked) {
-      control = button(mastered ? "Mastered" : readyIn ?
-          "Practice · ready in " + dur(readyIn) :
-          "Practice · " + node.mana_cost + " mana",
+      control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-        disabled(!practiceReady || isBusy() || p.mana < node.mana_cost),
+        disabled(!node.can_practice || isBusy() || p.mana < node.mana_cost),
         mastered ? "ghost" : "secondary") +
         button("Cast · " + node.mana_cost + " mana",
           'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
@@ -382,7 +377,7 @@ export function createWorldViews(ctx) {
       '</strong><span>' + esc(schoolRoles[school]) +
       ' · ' + schoolXp + ' XP</span></div>' +
       '<div class="magic-context-stat">✧ ' + p.insight + ' Insight</div></div>' +
-      '<div class="magic-flow"><span>Practice every 2 simulated hours · gradual XP</span>' +
+      '<div class="magic-flow"><span>Practice using mana · gradual XP</span>' +
       '<span aria-hidden="true">›</span><span>Unlock spells with Insight</span>' +
       '<span aria-hidden="true">›</span>' +
       '<span>Cast in the world or combat</span></div>' +
