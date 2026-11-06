@@ -49,6 +49,20 @@ def api(port, method, path, body=None, headers=None):
 
 
 class BrowserEntrypointTests(unittest.TestCase):
+    def test_signup_card_and_self_profile_shortcut(self):
+        web = files("medieval_world_sim.web").joinpath("static")
+        style = web.joinpath("styles.css").read_text(encoding="utf-8")
+        source = web.joinpath("app.js").read_text(encoding="utf-8")
+        self.assertIn(
+            ".entry-card:has(.account-register[open]) {max-width:420px}", style)
+        self.assertNotIn(
+            ".entry-card:has(.account-register[open]) {max-width:720px}", style)
+        self.assertIn('data-ui="profile-self"', source)
+        self.assertIn('View your character profile', source)
+        self.assertIn('selectedCharacterId = ui === "profile-self" ?', source)
+        self.assertIn('tab = "profile";', source)
+        self.assertIn('class="account-utility"', source)
+
     def test_multiplayer_registration_is_followed_by_lineage_and_entry(self):
         source = files("medieval_world_sim.web").joinpath(
             "static", "app.js").read_text(encoding="utf-8")

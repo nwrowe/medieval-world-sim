@@ -864,10 +864,10 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .home-hero .home-scene {font-size:13px}
 }
 
-/* The login stays compact; the registration details expand when requested. */
-.entry-card:has(.account-register[open]) {max-width:720px}
-.account-register .lineage-option-body {min-height:0}
-@media(max-width:590px) {.account-register .lineage-grid {grid-template-columns:1fr}}
+/* Keep the same panel width when registration expands vertically. */
+.entry-card:has(.account-register[open]) {max-width:420px}
+.account-register form {min-width:0}
+.account-register .field {min-width:0}
 
 /* Confirmation shown before any map pin or road-card travel command. */
 .travel-confirm-overlay {
@@ -889,3 +889,28 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .travel-confirm-card p strong {color:#204b3a;}
 .travel-confirm-actions {display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;}
 .travel-confirm-actions .button {flex:1 1 145px; min-height:45px;}
+
+/* Account controls: the public profile shortcut sits directly above Sign out. */
+.account-utility {display:flex;flex-direction:column;align-items:stretch;gap:5px}
+.profile-shortcut {
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  border:1px solid rgba(223,235,218,.35);background:transparent;
+  border-radius:8px;padding:7px 9px;color:#f4e6c9;cursor:pointer;
+  font-size:10px;white-space:nowrap;
+}
+.profile-shortcut svg {width:15px;height:15px;flex:0 0 15px;stroke:currentColor}
+.profile-shortcut:hover,.profile-shortcut:focus-visible {background:#3b5647;color:#fff3d5}
+@media(max-width:640px) {
+  .account-utility {grid-column:1/-1;grid-row:4;display:flex;
+    flex-direction:row;justify-content:flex-end;gap:6px}
+}
+.home-spell-list {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.home-spell {display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-width:0;padding:13px;border:1px solid #dfe3d7;border-radius:10px;
+  background:#fffefa}
+.home-spell-description {min-width:0}
+.home-spell-description strong {display:block;font:600 15px Georgia,serif;color:#314d3f}
+.home-spell-description small {display:block;margin-top:4px;color:#718276;
+  font-size:11px;line-height:1.4}
+.home-spell .button {flex:0 0 auto;min-width:72px}
+@media(max-width:680px) {.home-spell-list {grid-template-columns:1fr}}
