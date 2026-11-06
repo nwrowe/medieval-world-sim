@@ -5,7 +5,7 @@ import { createCityViews } from "../src/medieval_world_sim/web/static/city-views
 import { createCharacterViews } from "../src/medieval_world_sim/web/static/character-views.mjs";
 import { createWorldViews } from "../src/medieval_world_sim/web/static/world-views.mjs";
 
-let query = "", scope = "players", selected = "player:bob";
+let query = "", scope = "players", selected = "player:bob", travelIntent = null;
 let state = {
   name: "Alice", minute: 0, actor_id: "player:alice", multiplayer: true,
   users: [
@@ -58,6 +58,8 @@ for (const name of ["renderPeople", "renderProfile", "renderTrade", "renderDuel"
   assert.ok(community[name]().length > 35, name + " must render meaningful markup");
 }
 assert.match(community.renderPeople(), /Bob/);
+assert.match(community.renderPeople(), />Attack<\/button>/);
+assert.doesNotMatch(community.renderPeople(), /Attack · no entry cost/);
 assert.match(community.renderProfile(), /Bob/);
 assert.match(community.renderTrade(), /Propose a trade/);
 assert.match(community.renderDuel(), /No active duel/);
@@ -100,6 +102,7 @@ assert.match(character.renderInventory(), /3 carried/);
 const world = createWorldViews({
   ...helpers, getState: () => state, getPending: () => false,
   getSecureWorldClock: () => true,
+  getTravelIntent: () => travelIntent,
   getSchool: () => "restoration", setSchool: () => {},
   getSelectedAttunements: () => new Set(),
   getLatestPractice: () => null
@@ -112,8 +115,12 @@ const novice = {
   eligible: false, active: true, mastered: true,
   can_practice: false
 };
-state = { ...state, cities: [{ id: "crownreach", name: "Crownreach",
-  is_current: true, discovered: true, minutes: 0 }], gatherable: {},
+state = { ...state, cities: [
+    { id: "crownreach", name: "Crownreach",
+      is_current: true, discovered: true, minutes: 0 },
+    { id: "ironvale", name: "Ironvale",
+      is_current: false, discovered: true, minutes: 90 }
+  ], gatherable: {},
   magic_schools: ["restoration"], magic_nodes: [novice],
   player: { ...state.player, attuned_paths: [],
     school_xp: { restoration: 80 }, mana: 100,
@@ -123,8 +130,31 @@ assert.match(mastered, /Mastered/);
 assert.match(mastered, /data-ui="practice"[^>]+disabled/);
 assert.match(mastered, /data-ui="field-cast"/);
 assert.match(world.renderWorld(), /Travel cargo exceeded/);
+travelIntent = "ironvale";
+let modal = world.renderTravelConfirmation();
+assert.match(modal, /Travel to Ironvale/);
+assert.match(modal, /Estimated journey: <strong>90m<\/strong>/);
+assert.match(modal, /data-ui="travel-cancel"/);
+assert.match(modal, /data-ui="travel-confirm" data-target="ironvale" disabled/);
 state = { ...state, player: { ...state.player, cargo: 2 },
   stored_gear_here: [{ id: 94, kind: "sword", quality: 10,
     durability: 20, slot: "weapon" }] };
 assert.match(character.renderEquipment(), /data-ui="retrieve-gear"/);
+modal = world.renderTravelConfirmation();
+assert.match(modal, /data-ui="travel-confirm" data-target="ironvale"/);
+assert.doesNotMatch(modal, /data-ui="travel-confirm" data-target="ironvale" disabled/);
+travelIntent = null;
+assert.equal(world.renderTravelConfirmation(), "");
+// The displayed 100/100 threshold must match the authoritative 80-XP cap.
+state = { ...state, player: { ...state.player,
+  school_xp: { restoration: 30 } },
+  magic_nodes: [{ ...novice, mastered: false, can_practice: true,
+    practice_ready_minute: 0, school_xp: 30 }] };
+assert.match(world.renderMagic(), /37\/100/);
+state = { ...state, minute: 0, magic_nodes: [{
+  ...novice, mastered: false, can_practice: false,
+  practice_ready_minute: 120, school_xp: 30
+}] };
+assert.match(world.renderMagic(), /Practice · ready in 120m/);
+assert.match(world.renderMagic(), /data-ui="practice"[^>]+disabled/);
 console.log("Community, city, magic and storage view modules passed smoke tests");
