@@ -49,6 +49,19 @@ def api(port, method, path, body=None, headers=None):
 
 
 class BrowserEntrypointTests(unittest.TestCase):
+    def test_multiplayer_registration_is_followed_by_lineage_and_entry(self):
+        source = files("medieval_world_sim.web").joinpath(
+            "static", "app.js").read_text(encoding="utf-8")
+        signup = source.split("function authPage()", 1)[1].split(
+            "async function accountSubmit", 1)[0]
+        self.assertNotIn("lineagePicker()", signup)
+        self.assertIn('function lineagePromptPage()', source)
+        self.assertIn('function introductionPage()', source)
+        self.assertIn('Enter Oathmere', source)
+        self.assertIn('data-ui="enter-oathmere"', source)
+        self.assertIn('if (url.endsWith("/register")) markIntroductionPending()', source)
+        self.assertIn('state && state.started && pendingIntroduction()', source)
+
     def test_every_shell_renderer_has_an_implementation(self):
         """Catch undefined renderer names that crash after a valid gate code."""
         source = files("medieval_world_sim.web").joinpath(
