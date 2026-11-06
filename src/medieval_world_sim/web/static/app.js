@@ -631,7 +631,7 @@ import { createWorldViews } from "/world-views.mjs";
         'stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="12" cy="8" r="4"/>' +
         '<path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>' +
-        '<span>Your character</span></button>' +
+        '</button>' +
         '<button class="logout-link" type="button" data-ui="account-logout">' +
         'Sign out</button></div>' : '') +
       '</div></div></header>' +
