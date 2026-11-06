@@ -287,6 +287,10 @@ export function createWorldViews(ctx) {
     const state = ctx.getState();
     const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
     const readyIn = Math.max(0, (node.practice_ready_minute || 0) - state.minute);
+    // Clock-only SSE updates may advance minute without re-fetching the
+    // magic node projection. Derive renewed practice from the server's
+    // immutable mastery/active flags plus its absolute ready timestamp.
+    const practiceReady = node.active && !mastered && readyIn === 0;
     const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
@@ -301,7 +305,7 @@ export function createWorldViews(ctx) {
           "Practice · ready in " + dur(readyIn) :
           "Practice · " + node.mana_cost + " mana",
         'data-ui="practice" data-node="' + esc(node.node_id) + '"' +
-        disabled(mastered || !node.can_practice || isBusy() || p.mana < node.mana_cost),
+        disabled(!practiceReady || isBusy() || p.mana < node.mana_cost),
         mastered ? "ghost" : "secondary") +
         button("Cast · " + node.mana_cost + " mana",
           'data-ui="field-cast" data-node="' + esc(node.node_id) + '"' +
