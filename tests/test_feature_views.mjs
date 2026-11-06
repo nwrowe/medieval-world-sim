@@ -128,7 +128,8 @@ state = { ...state, cities: [
 const mastered = world.renderMagic();
 assert.match(mastered, /Mastered/);
 assert.match(mastered, /data-ui="practice"[^>]+disabled/);
-assert.match(mastered, /data-ui="field-cast"/);
+assert.doesNotMatch(mastered, /data-ui="field-cast"/);
+assert.match(mastered, /data-ui="practice"/);
 assert.match(world.renderWorld(), /Travel cargo exceeded/);
 travelIntent = "ironvale";
 let modal = world.renderTravelConfirmation();
@@ -161,4 +162,36 @@ assert.doesNotMatch(manaOnly, /ready in 120m/);
 assert.doesNotMatch(manaOnly, /data-ui="practice"[^>]+disabled/);
 state = { ...state, player: { ...state.player, mana: 2 } };
 assert.match(world.renderMagic(), /data-ui="practice"[^>]+disabled/);
+// Casting belongs to the Home screen, not the Magic training screen.
+state = { ...state, player: { ...state.player, mana: 100, hp: 18,
+    work: { ...state.player.work, experience: {} }, discovered_cities: ["crownreach"],
+    lineage: "human", lineage_trait_unlocked: false, level: 1,
+    level_xp: 0, combat_xp: 0, strength: 1, defense: 1 },
+  magic_nodes: [{ ...novice, unlocked: true, active: true },
+    { ...novice, node_id: "warding.shelter", title: "Shelter",
+      school: "warding", active: false, mana_cost: 10 }] };
+let homeMagic = character.renderCharacter();
+assert.match(homeMagic, /<h3>Magic<\/h3>/);
+assert.match(homeMagic, /data-ui="field-cast" data-node="restoration.soothe_wounds"/);
+assert.match(homeMagic, /data-ui="field-cast" data-node="warding.shelter" disabled/);
+assert.doesNotMatch(world.renderMagic(), /data-ui="field-cast"/);
+state = { ...state, player: { ...state.player, mana: 0 } };
+homeMagic = character.renderCharacter();
+assert.match(homeMagic, /data-ui="field-cast" data-node="restoration.soothe_wounds" disabled/);
+state = { ...state, player: { ...state.player, mana: 100 },
+  magic_nodes: [novice] };
+const practiceContext = createWorldViews({
+  ...helpers, getState: () => state, getPending: () => false,
+  getSecureWorldClock: () => true, getTravelIntent: () => null,
+  getSchool: () => "restoration", setSchool: () => {},
+  getSelectedAttunements: () => new Set(),
+  getLatestPractice: () => ({
+    nodeId: "restoration.soothe_wounds", success: true,
+    xp_gained: 1, mana_spent: 8, roll: 7, chance: 95,
+    insight_gained: 0
+  })
+});
+const practiceResult = practiceContext.renderMagic();
+assert.match(practiceResult, /In the chapel infirmary/);
+assert.doesNotMatch(practiceResult, /practice-rewards|practice-note|\+1 XP|−8 mana|rolled \/|Practice has no wage/);
 console.log("Community, city, magic and storage view modules passed smoke tests");
