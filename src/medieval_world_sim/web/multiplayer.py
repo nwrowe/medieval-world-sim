@@ -260,7 +260,7 @@ class MultiplayerGame:
         return accounts.issue_invites(self, count)
 
     def register(self, username, password, display_name, invite: str | None = None,
-                 lineage: str = "human"):
+                 lineage: str | None = None):
         return accounts.register(self, username, password, display_name, invite,
                                  _canonical, lineage)
 
@@ -268,7 +268,7 @@ class MultiplayerGame:
         return accounts.login(self, username, password)
 
     def register_and_login(self, username, password, display_name,
-                           invite: str | None = None, lineage: str = "human"):
+                           invite: str | None = None, lineage: str | None = None):
         return accounts.register_and_login(self, username, password, display_name,
                                            invite, lineage)
 
