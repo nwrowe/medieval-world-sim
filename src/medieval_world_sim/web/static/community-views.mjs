@@ -30,7 +30,7 @@ export function createCommunityViews(ctx) {
         const self = person.id === (state.actor_id || "hero");
         const recovering = person.recovering_minutes > 0;
         const text = self ? "Your character" :
-          recovering ? "Hospitalized" : person.can_attack ? "Attack · no entry cost" :
+          recovering ? "Hospitalized" : person.can_attack ? "Attack" :
           person.kind === "human" ? "View profile" : "Out of reach";
         const profileOnly = person.kind === "human" && !self && !person.can_attack;
         return '<div class="equipment-item"><div><h3>' +
