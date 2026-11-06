@@ -55,6 +55,7 @@ import { createWorldViews } from "/world-views.mjs";
   let school = "restoration";
   let latestPractice = null;
   let latestContract = null;
+  let travelIntent = null;
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
@@ -636,7 +637,7 @@ import { createWorldViews } from "/world-views.mjs";
   }
   // View modules receive a narrow interface rather than owning networking,
   // action execution or the mutable simulation state.
-  const { renderWorld, renderMarket, renderMagic, renderHome } =
+  const { renderWorld, renderTravelConfirmation, renderMarket, renderMagic, renderHome } =
     createWorldViews({
       getState: () => state,
       getPending: () => pending,
@@ -644,6 +645,7 @@ import { createWorldViews } from "/world-views.mjs";
       getSchool: () => school,
       setSchool: value => { school = value; },
       getLatestPractice: () => latestPractice,
+      getTravelIntent: () => travelIntent,
       getSelectedAttunements: () => selectedAttunements,
       esc, pretty, dur, disabled, button, panel, heading, isBusy, progress, money,
     });
@@ -990,7 +992,8 @@ import { createWorldViews } from "/world-views.mjs";
     else if (state && state.started && !state.player.lineage_selected)
       root.innerHTML = lineagePromptPage();
     else if (state && state.started) root.innerHTML = shell() +
-      chatDock() + levelUpOverlay();
+      chatDock() + levelUpOverlay() +
+      (tab === "world" ? renderTravelConfirmation() : "");
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
   }
@@ -1115,6 +1118,14 @@ import { createWorldViews } from "/world-views.mjs";
     if (!path) return;
     if (event.target.checked) selectedAttunements.add(path);
     else selectedAttunements.delete(path);
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && travelIntent) {
+      event.preventDefault();
+      travelIntent = null;
+      render();
+    }
   });
 
   root.addEventListener("click", event => {
@@ -1255,8 +1266,38 @@ import { createWorldViews } from "/world-views.mjs";
         action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
       case "travel":
-      case "map-travel":
-        action("travel", { destination: element.dataset.target }, "Journey started"); break;
+      case "map-travel": {
+        const city = state.cities.find(c => c.id === element.dataset.target);
+        if (!city || city.is_current || isBusy() ||
+            state.player.cargo > state.player.cargo_limit) {
+          notify("Travel is unavailable from your current state", true);
+          break;
+        }
+        travelIntent = city.id;
+        tab = "world";
+        render();
+        const cancel = root.querySelector('[data-ui="travel-cancel"]');
+        if (cancel) cancel.focus();
+        break;
+      }
+      case "travel-cancel":
+        travelIntent = null;
+        render();
+        break;
+      case "travel-confirm": {
+        const destination = travelIntent;
+        const city = state.cities.find(c => c.id === destination);
+        if (!city || city.is_current || destination !== element.dataset.target ||
+            isBusy() || state.player.cargo > state.player.cargo_limit) {
+          travelIntent = null;
+          render();
+          notify("Journey details changed; select your destination again", true);
+          break;
+        }
+        travelIntent = null;
+        action("travel", { destination }, "Journey started");
+        break;
+      }
       case "gather": action("gather", { item, quantity: Number(element.dataset.qty) },
         "Resources added to your inventory"); break;
       case "advance": advance(Number(element.dataset.minutes)); break;
