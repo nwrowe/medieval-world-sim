@@ -273,26 +273,30 @@ export function createWorldViews(ctx) {
     restoration: "✚", divination: "☽", enchantment: "ᚱ",
     warding: "⛨", elemental: "✹", alchemy: "⚗",
   };
-  const schoolRoles = {
-    restoration: "Healing", divination: "Sight & travel",
-    enchantment: "Gear & runes", warding: "Protection",
-    elemental: "Fire & combat", alchemy: "Potions",
+  const schoolDescriptions = {
+    restoration: "Restoration channels life-giving energy to mend wounds and ease suffering. Skilled healers can return battered adventurers to the road.",
+    divination: "Divination studies hidden patterns and possible futures. Its practitioners uncover useful knowledge and eventually improve their journeys.",
+    enchantment: "Enchantment binds magical runes to everyday objects. As your skill deepens, you can repair and strengthen the equipment you carry.",
+    warding: "Warding shapes protective barriers against danger. Master the art to prepare defenses before a difficult encounter.",
+    elemental: "Elemental magic harnesses the forces of fire and matter. Learn to shape energy and turn raw materials into useful resources.",
+    alchemy: "Alchemy blends herbs, reagents, and magical techniques into useful preparations. Experienced alchemists can brew remedies from gathered ingredients.",
   };
   function spellRow(node, nodes, p) {
     const state = ctx.getState();
-    const mastered = Boolean(node.mastered) || nodes.some(other => other.tier > node.tier && other.unlocked);
+    const mastered = Boolean(node.mastered);
     // Training is limited by the character's mana and the server's mastery
     // rules, never by a separate waiting timer.
-    const needsXp = Math.max(0, node.required_xp - (p.school_xp[node.school] || 0));
     const needed = node.prerequisites.filter(id =>
       !state.magic_nodes.some(n => n.node_id === id && n.unlocked) &&
       id !== "arcane_fundamentals");
+    const earlierComplete = node.tier <= 1 ||
+      (p.school_xp[node.school] || 0) >= tierThresholds[node.tier - 1];
     const status = node.unlocked ? (
       !node.active ? "Attunement required" :
       node.castable ? "Mastered · Castable" : "Studying · Cast at 100/100") :
       node.eligible ? "Ready to unlock" :
-      needsXp ? needsXp + " XP needed" : needed.length ? "Requires earlier spell" :
-      "Requires Insight";
+      !earlierComplete ? "Master previous tier to 100/100" :
+      needed.length ? "Requires earlier spell" : "Requires Insight";
     let control;
     if (node.unlocked) {
       control = button(mastered ? "Mastered" : "Practice · " + node.mana_cost + " mana",
@@ -311,8 +315,7 @@ export function createWorldViews(ctx) {
       '<h4>' + esc(node.title) + '</h4>' +
       '<div class="spell-meta"><span class="' +
       (node.unlocked ? "spell-status learned" : "spell-status") + '">' +
-      esc(status) + '</span><span>' + esc(pretty(node.role)) +
-      ' · usable spell</span></div>' +
+      esc(status) + '</span></div>' +
       '</div><div class="spell-action">' + control + '</div></div>';
   }
   function renderMagic() {
@@ -368,13 +371,10 @@ export function createWorldViews(ctx) {
     return heading("", "Magic", "") +
       '<div class="school-overview" aria-label="Magic schools">' + schools + '</div>' +
       '<div class="magic-context"><div><strong>' + esc(pretty(school)) +
-      '</strong><span>' + esc(schoolRoles[school]) +
-      ' · ' + schoolXp + ' XP</span></div>' +
+      '</strong></div>' +
       '<div class="magic-context-stat">✧ ' + p.insight + ' Insight</div></div>' +
-      '<div class="magic-flow"><span>Practice using mana · gradual XP</span>' +
-      '<span aria-hidden="true">›</span><span>Unlock spells with Insight</span>' +
-      '<span aria-hidden="true">›</span>' +
-      '<span>Cast mastered spells from Home or combat</span></div>' +
+      '<p class="magic-school-description">' +
+      esc(schoolDescriptions[school] || "") + '</p>' +
       (latestPractice ? practiceStory(latestPractice) : '') +
       '<div class="magic-layout"><section class="magic-progression" ' +
       'aria-label="Spell progression">' + tiers + '</section>' +
