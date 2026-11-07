@@ -175,8 +175,7 @@ export function createCityViews(ctx) {
     const info = state.merits || {};
     const feats = (info.achievements || []).map(f =>
       '<div class="equipment-item"><div><h3>' + esc(f.name) +
-      '</h3><p>' + esc(f.description) + ' · +' + f.award +
-      ' merit</p></div>' +
+      '</h3><p>' + esc(f.description) + '</p></div>' +
       (f.claimed ? chip('Claimed') :
         button(f.eligible ? 'Claim merit' : 'Locked',
           'data-ui="merit-claim" data-achievement="' + esc(f.id) + '"' +
@@ -190,9 +189,8 @@ export function createCityViews(ctx) {
           'data-ui="merit-buy" data-perk="' + esc(perk.id) + '"' +
           disabled(info.balance < perk.cost || isBusy()), 'secondary')) +
       '</div>').join('');
-    return heading('', 'Merits', 'Honor your milestones and shape a lasting character.') +
-      '<div class="stack">' +
-      panel('Your merit ledger', 'Merits are earned once per achievement, not repeatedly farmed.',
+    return '<div class="stack">' +
+      panel('Your merit ledger', '',
         '<div class="resource-list">' + chip('Available: ' + (info.balance || 0)) +
         chip('Lifetime earned: ' + (info.total_earned || 0)) + '</div>') +
       panel('Achievements', 'Complete goals throughout Oathmere.', feats) +
