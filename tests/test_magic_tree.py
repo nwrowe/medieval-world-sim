@@ -52,14 +52,16 @@ class MagicTreeArchitectureTests(unittest.TestCase):
             w.cast_spell("mage", "warding.minor_shield")
         self.assertEqual(w.actors["mage"].magic.mana, 100)
         grant_school_xp_for_fixture(w, "warding", 50)
-        w.unlock_magic("mage", "warding.ward_goods")
-        # An early Tier II unlock does not falsely mark Tier I mastered:
-        # the novice still needs to reach its actual 80-XP ceiling.
+        self.assertFalse(w.magic_tree("mage", "warding")[1].eligible)
+        with self.assertRaisesRegex(ActionError, "100/100"):
+            w.unlock_magic("mage", "warding.ward_goods")
         self.assertFalse(w.magic_tree("mage", "warding")[0].mastered)
         self.assertTrue(w.magic_tree("mage", "warding")[0].can_practice)
+        grant_school_xp_for_fixture(w, "warding", 80)
+        self.assertTrue(w.magic_tree("mage", "warding")[1].eligible)
+        w.unlock_magic("mage", "warding.ward_goods")
         with self.assertRaisesRegex(ActionError, "100/100"):
             w.cast_spell("mage", "warding.ward_goods")
-        grant_school_xp_for_fixture(w, "warding", 80)
         novice, applied, *_ = w.magic_tree("mage", "warding")
         self.assertTrue(novice.castable)
         self.assertFalse(applied.castable)
@@ -141,6 +143,9 @@ class MagicTreeArchitectureTests(unittest.TestCase):
             w.unlock_magic("mage", "restoration.field_healing")
         w.unlock_magic("mage", "restoration.soothe_wounds")
         grant_school_xp_for_fixture(w, "restoration", 50)
+        with self.assertRaisesRegex(ActionError, "100/100"):
+            w.unlock_magic("mage", "restoration.field_healing")
+        grant_school_xp_for_fixture(w, "restoration", 80)
         w.unlock_magic("mage", "restoration.field_healing")
         self.assertEqual(w.actors["mage"].magic.insight, 0)
         with self.assertRaises(ActionError):
@@ -151,6 +156,9 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.unlock_magic("mage", "restoration.master_healer")
         grant_school_xp_for_fixture(w, "restoration", 350)
+        with self.assertRaisesRegex(ActionError, "100/100"):
+            w.unlock_magic("mage", "restoration.master_healer")
+        grant_school_xp_for_fixture(w, "restoration", 420)
         w.unlock_magic("mage", "restoration.master_healer")
         self.assertIn("restoration.master_healer", w.actors["mage"].magic.unlocked)
         with self.assertRaises(ActionError):
