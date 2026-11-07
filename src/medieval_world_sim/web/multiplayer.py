@@ -435,6 +435,7 @@ class MultiplayerGame:
                 (kind, actor_id, name, payload, request_id,
                  encoded_result, recorded_at, flee_success, secure_roll,
                  3 if kind == "advance" else 1,
+                 6 if name == "unlock_magic" else
                  5 if name in ("cast_spell", "duel_turn") else 4))
             if kind == "advance":
                 npc_runtime.step(self, row.lastrowid)
