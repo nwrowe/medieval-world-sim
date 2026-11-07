@@ -541,7 +541,7 @@ import { createWorldViews } from "/world-views.mjs";
       feat => feat.eligible && !feat.claimed).length;
     const affordable = (merits.upgrades || []).filter(
       perk => !perk.owned && perk.cost <= (merits.balance || 0)).length;
-    const meritAlert = claimable || affordable ?
+    const meritAlert = claimable || (merits.balance || 0) > 0 ?
       '<button class="cooldown-chip activity-clickable" type="button" ' +
       'data-ui="activity-merits" title="' +
       esc(claimable + ' unclaimed achievement(s), ' + affordable +
