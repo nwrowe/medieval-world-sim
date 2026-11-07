@@ -6,16 +6,16 @@
 
 Each actor has a separate \`MagicState\`: 100 starting/max mana, experience for each school, available Insight, total Insight earned, unlocked node IDs, a count of casting attempts, up to two concurrently attuned specialist branches, and an attunement-switch timestamp. It is independent of combat XP, stamina and working attributes.
 
-The single common root, \`arcane_fundamentals\`, is known by all new characters. All six schools can be studied by the same character; early entry nodes are free to unlock. A character unlocks an individual node only after learning its prerequisites, reaching its school-specific XP threshold, and spending sufficient Insight. **No early permanent class choice.**
+The single common root, \`arcane_fundamentals\`, is known by all new characters. All six schools can be studied by the same character; early entry nodes are free to unlock. A character unlocks an individual node only after learning its prerequisites, mastering the previous tier to 100/100 and spending sufficient Insight (Tier I starts unlocked for study at no Insight cost). **No early permanent class choice.**
 
-| Tier | Role | School XP minimum | Insight to unlock | Mana for practice |
+| Tier | Role | Previous tier must reach | Insight to unlock | Mana for practice |
 |---|---|---:|---:|---:|
-| I | Novice practice | 0 | 0 | 8 |
-| II | Applied skill | 30 | 1 | 15 |
-| III | Specialization (choose branches) | 120 | 2 | 25 |
-| IV | Advanced mastery | 350 | 3 | 40 |
+| I | Novice practice | None | 0 | 8 |
+| II | Applied skill | Tier I 100/100 (80 school XP) | 1 | 15 |
+| III | Specialization (choose branches) | Tier II 100/100 (180 school XP) | 2 | 25 |
+| IV | Advanced mastery | Tier III 100/100 (420 school XP) | 3 | 40 |
 
-**Insight** is earned globally, one point for every 50 total magical XP across schools. Unlocking spends Insight but doesn't consume school XP. Practicing an eligible unlocked node grants school-specific XP, with skill-dependent, seeded success and small failure credit. Practice becomes trivial and stops granting XP beyond per-tier caps (Tier I 80, II 180, III 420, IV 1000); this encourages progression. **Current practice pacing:** each practice attempt costs mana and gives one base school XP (with applicable housing/lineage bonuses). Failed attempts still teach basic lessons. There is **no separate timed practice cooldown**; players may train repeatedly whenever they have sufficient mana. The UI's tier meter reaches **100/100 at its actual practice ceiling**, not at the earlier node-eligibility threshold: for example, Tier I ends at 80 school XP and Soothe Wounds then becomes untrainable; Field Healing can be unlocked separately using its earned Insight when eligible. Spell casting is distinct from practice and is not disabled by training mastery. Older journal actions retain their historic XP/cooldown rules on replay.
+**Insight** is earned globally, one point for every 50 total magical XP across schools. Unlocking spends Insight but doesn't consume school XP. Practicing an eligible unlocked node grants school-specific XP, with skill-dependent, seeded success and small failure credit. Practice becomes trivial and stops granting XP beyond per-tier caps (Tier I 80, II 180, III 420, IV 1000); this encourages progression. **Current practice pacing:** each practice attempt costs mana and gives one base school XP (with applicable housing/lineage bonuses). Failed attempts still teach basic lessons. There is **no separate timed practice cooldown**; players may train repeatedly whenever they have sufficient mana. The UI's tier meter reaches **100/100 at its actual practice ceiling**, at exactly the mastery prerequisite for the next tier: for example, Tier I ends at 80 school XP and Soothe Wounds then becomes untrainable; Field Healing can then be unlocked using earned Insight. Spell casting is distinct from practice and is not disabled by training mastery. Older journal actions retain their historic XP/cooldown and unlock-threshold rules on replay.
 
 **Mana** replenishes +1 per 10 simulated minutes, whether time is advanced in one big chunk or several smaller chunks. It replenishes independently of stamina. Practicing consumes mana regardless of success. This is a prototype balance; numbers are content constants that can be adjusted after gameplay testing.
 
