@@ -87,6 +87,17 @@ for (const name of cityNames) {
 }
 state = { ...state, player: { ...state.player, work: {
   ...state.player.work, manual: 57 } } };
+state = { ...state, merits: {
+  balance: 1, total_earned: 1,
+  achievements: [{ id: "first_steps", name: "First Steps",
+    description: "Create your character", award: 1,
+    eligible: false, claimed: true }],
+  upgrades: [{ id: "roadcraft", name: "Roadcraft", cost: 2,
+    description: "Shorter journeys", owned: false }]
+} };
+const meritPage = city.renderMerits();
+assert.match(meritPage, /Your merit ledger|First Steps/);
+assert.doesNotMatch(meritPage, /<h2>Merits<\/h2>|Honor your milestones|Merits are earned once|\+1 merit/);
 assert.match(city.renderJob(), /Manual:57/);
 assert.match(city.renderJob(), /Occupation/);
 assert.doesNotMatch(city.renderJob(), /Available Work|Complete contract/);
@@ -174,7 +185,20 @@ state = { ...state, player: { ...state.player,
   school_xp: { restoration: 30 } },
   magic_nodes: [{ ...novice, mastered: false, can_practice: true,
     practice_ready_minute: 0, school_xp: 30 }] };
-assert.match(world.renderMagic(), /37\/100/);
+const magicPage = world.renderMagic();
+assert.match(magicPage, /37\/100/);
+assert.match(magicPage, /Restoration channels life-giving energy/);
+assert.doesNotMatch(magicPage, /Practice using mana|gradual XP|usable spell|XP needed/);
+state = { ...state, magic_nodes: [
+  { ...novice, mastered: false, can_practice: true,
+    school_xp: 30, castable: false },
+  { ...novice, node_id: "restoration.field_healing", title: "Field Healing",
+    tier: 2, unlocked: false, active: false, mastered: false,
+    eligible: false, insight_cost: 1, required_xp: 30,
+    prerequisites: ["restoration.soothe_wounds"] }
+] };
+assert.match(world.renderMagic(), /Master previous tier to 100\/100/);
+assert.doesNotMatch(world.renderMagic(), /XP needed/);
 state = { ...state, minute: 0, magic_nodes: [{
   ...novice, mastered: false, can_practice: true,
   practice_ready_minute: 120, school_xp: 30
