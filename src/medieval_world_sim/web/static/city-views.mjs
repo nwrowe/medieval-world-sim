@@ -100,8 +100,7 @@ export function createCityViews(ctx) {
         '</div>';
     }).join('');
     const last = track.last_result;
-    return heading("", "", "") +
-      '<section class="story-panel"><h3>The Five Cities Circuit</h3>' +
+    return '<section class="story-panel"><h3>The Five Cities Circuit</h3>' +
       '<p>In Oathmere, a rider is judged as much by the patience of their mount as ' +
       'the courage of their hand. At the city track, novice jockeys race for ' +
       'coin and honor beneath the pennants of the five roads.</p>' +
