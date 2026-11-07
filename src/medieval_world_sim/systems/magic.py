@@ -64,11 +64,14 @@ class MagicSystem:
             raise ActionError("Unknown magic node")
         return NODES[node_id]
 
-    @staticmethod
-    def _eligible(actor, node) -> bool:
+    def _eligible(self, actor, node) -> bool:
         state = actor.magic
+        # Old journal entries retain the earlier raw-XP unlock thresholds.
+        legacy = getattr(self.world, "_legacy_magic_unlock_rules", False)
+        required_xp = (node.xp_required if legacy or node.tier <= 1 else
+                       PRACTICE_XP_CEILING[node.tier - 1])
         return (node.id != ROOT_ID and node.id not in state.unlocked
-                and state.school_xp.get(node.school, 0) >= node.xp_required
+                and state.school_xp.get(node.school, 0) >= required_xp
                 and state.insight >= node.insight_cost
                 and all(pre in state.unlocked for pre in node.prerequisites))
 
@@ -125,7 +128,7 @@ class MagicSystem:
         self.world._at_city(actor)
         node = self._node(node_id)
         if not self._eligible(actor, node):
-            raise ActionError("Magic node prerequisites, experience or Insight not satisfied")
+            raise ActionError("Master the previous magic tier to 100/100 and meet prerequisites and Insight requirements")
         actor.magic.insight -= node.insight_cost
         actor.magic.unlocked.add(node.id)
         self.world._emit("magic_unlocked", actor.id, node.id, node.school,

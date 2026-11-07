@@ -914,3 +914,6 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   font-size:11px;line-height:1.4}
 .home-spell .button {flex:0 0 auto;min-width:72px}
 @media(max-width:680px) {.home-spell-list {grid-template-columns:1fr}}
+
+/* Brief lore replaces the instructional ribbon on magic school pages. */
+.magic-school-description {color:#607568;font-size:13px;line-height:1.65;margin:4px 0 18px;max-width:770px}

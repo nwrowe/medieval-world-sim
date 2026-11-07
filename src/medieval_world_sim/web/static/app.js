@@ -536,6 +536,22 @@ import { createWorldViews } from "/world-views.mjs";
       'aria-label="' + incoming + ' incoming trade offer(s)">' +
       '<span aria-hidden="true">⇄</span><strong>' + incoming + ' trade' +
       (incoming === 1 ? '' : 's') + '</strong></button>' : "";
+    const merits = state.merits || {};
+    const claimable = (merits.achievements || []).filter(
+      feat => feat.eligible && !feat.claimed).length;
+    const affordable = (merits.upgrades || []).filter(
+      perk => !perk.owned && perk.cost <= (merits.balance || 0)).length;
+    const meritAlert = claimable || (merits.balance || 0) > 0 ?
+      '<button class="cooldown-chip activity-clickable" type="button" ' +
+      'data-ui="activity-merits" title="' +
+      esc(claimable + ' unclaimed achievement(s), ' + affordable +
+        ' affordable merit improvement(s)') + '" aria-label="' +
+      esc('Merits available: ' + claimable + ' unclaimed, ' + affordable +
+        ' affordable improvements') + '">' +
+      '<span aria-hidden="true">✶</span><strong>' +
+      (claimable ? claimable + ' claim' + (claimable === 1 ? '' : 's') :
+        (merits.balance || 0) + ' merits') +
+      '</strong></button>' : "";
     const tripMinutes = p.destination && Number.isFinite(p.arrival_minute) ?
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
@@ -577,7 +593,7 @@ import { createWorldViews } from "/world-views.mjs";
         " · your character automatically counterattacks. Open to watch or flee.") +
       '" aria-label="Under attack · open combat">' +
       '<span aria-hidden="true">⚔</span><strong>Under attack</strong></button>' : "";
-    return items + trade + travel + university + hospital + defenderAlert;
+    return items + meritAlert + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     return '<button type="button" class="nav-button ' + className +
@@ -1319,6 +1335,10 @@ import { createWorldViews } from "/world-views.mjs";
         tab = "duel"; render(); break;
       case "activity-hospital":
         tab = "character"; render(); break;
+      case "activity-merits":
+        navigateTo("merits");
+        render();
+        break;
       case "activity-travel":
         tab = "world"; render(); break;
       case "activity-university":

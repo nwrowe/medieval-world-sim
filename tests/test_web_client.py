@@ -49,6 +49,19 @@ def api(port, method, path, body=None, headers=None):
 
 
 class BrowserEntrypointTests(unittest.TestCase):
+    def test_oathmere_diamond_favicon_and_merit_activity_navigation(self):
+        web = files("medieval_world_sim.web").joinpath("static")
+        icon = web.joinpath("favicon.svg").read_text(encoding="utf-8")
+        index = web.joinpath("index.html").read_text(encoding="utf-8")
+        app = web.joinpath("app.js").read_text(encoding="utf-8")
+        self.assertIn('M40 8 49 31 72 40', icon)
+        self.assertNotIn('M40 9 62 19', icon)
+        self.assertIn('/favicon.svg?v=2', index)
+        self.assertIn('data-ui="activity-merits"', app)
+        self.assertIn('navigateTo("merits");', app)
+        self.assertIn('(merits.balance || 0) > 0', app)
+        self.assertIn('feat.eligible && !feat.claimed', app)
+
     def test_signup_card_and_self_profile_shortcut(self):
         web = files("medieval_world_sim.web").joinpath("static")
         style = web.joinpath("styles.css").read_text(encoding="utf-8")
