@@ -29,7 +29,7 @@ import { createWorldViews } from "/world-views.mjs";
     { id: "track", icon: "♞", title: "Track" },
     { id: "training", icon: "✤", title: "University" },
     { id: "tavern", icon: "♜", title: "Tavern" },
-    { id: "cityhall", icon: "♛", title: "City Hall" },
+    { id: "cityhall", icon: "♛", title: "Quests" },
   ];
   const accountTabs = [
     { id: "character", icon: "♙", title: "Home" },
