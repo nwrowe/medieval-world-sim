@@ -58,30 +58,27 @@ export function createCityViews(ctx) {
   function renderMercenaryJobs() {
     return heading("", "Mercenary Jobs", "") +
       '<section class="story-panel"><h3>Work for hire</h3>' +
-      '<p>Patrol the city, assist the magical guild, or take merchant contracts. ' +
+      '<p>Patrol the city, assist the magical guild, deliver church supplies, or take merchant contracts. ' +
       'Each completed job uses the existing city-funded rewards and cooldown limits.</p></section>' +
       '<div class="stack">' +
       contractBoard("warriors", "Warrior contracts") +
       contractBoard("mageguild", "Mage contracts") +
+      contractBoard("church", "Church contracts") +
       contractBoard("job", "Merchant contracts") +
       '</div>';
   }
   function renderChurch() {
     const state = ctx.getState();
     const service = state.church || {};
-    const missing = state.player.max_hp - state.player.hp;
     return heading("", "Church of the Hearth", "") +
       '<section class="story-panel"><h3>The candlelit nave</h3>' +
       '<p>The sisters keep a lamp lit for travelers returning injured from the roads. ' +
       '"We turn away no prayer," says the matron, "but herbs and bandages cost coin."</p>' +
-      '<p>Full recovery: ' + money(service.price || 20) + '. ' +
-      'One treatment per simulated day. No job, potion, or other cooldown is added.</p>' +
       (service.used_today ? '<p class="small">You have received your treatment today.</p>' : '') +
       button("Receive healing · " + money(service.price || 20),
         'data-ui="church-heal"' + disabled(!service.available ||
         state.player.gold < service.price || isBusy()), "gold") +
-      '<p class="small">Your wounds: ' + missing + ' HP missing.</p></section>' +
-      contractBoard("church");
+      '</section>';
   }
   function renderTrack() {
     const state = ctx.getState();
@@ -103,8 +100,7 @@ export function createCityViews(ctx) {
         '</div>';
     }).join('');
     const last = track.last_result;
-    return heading("", "The Track",
-      "Breed, train and race horses against a field of local riders.") +
+    return heading("", "", "") +
       '<section class="story-panel"><h3>The Five Cities Circuit</h3>' +
       '<p>In Oathmere, a rider is judged as much by the patience of their mount as ' +
       'the courage of their hand. At the city track, novice jockeys race for ' +
@@ -154,7 +150,7 @@ export function createCityViews(ctx) {
           'data-ui="guild-found"' + disabled(isBusy() ||
           state.player.gold < (info.founding_cost || 100)), 'gold') + '</div>');
     }
-    return heading('', 'Guilds', 'Build a banner, gather allies, and prepare for the ranked-war era.') +
+    return heading('', 'Guilds', '') +
       '<div class="stack">' + myGuild +
       panel('The Guild Hall', 'Existing banners', directory ||
         '<p class="small">No guilds have been founded yet.</p>') +
@@ -198,9 +194,10 @@ export function createCityViews(ctx) {
       '</div>';
   }
   function renderCityHall() {
-    return futurePage("", "City Hall",
-      "The city clerk oversees civic matters and sends travelers to the common board for paid work.",
-      "mercenary", "Mercenary Jobs");
+    return '<section class="story-panel"><h3>Quests</h3>' +
+      '<p>New adventurers will begin with a guided introduction to Oathmere. ' +
+      'As you grow in experience, new missions and adventures will become available.</p>' +
+      '<p class="small">Quests are coming soon.</p></section>';
   }
   function renderJob() {
     const state = ctx.getState();
