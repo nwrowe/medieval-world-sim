@@ -213,13 +213,21 @@ def generate_roads(tiles: tuple[Tile, ...], width: int, height: int,
         _, a, b = min(options)
         connections.append((min(a, b), max(a, b)))
         connected.add(b)
-    # A few sensible secondary trade roads create alternate routes, unlike a hub-and-spoke map.
-    extras = sorted(((_dist(a, b), i, j) for i, a in enumerate(settlements)
-                     for j, b in enumerate(settlements) if j > i and (i, j) not in connections))
-    for _, a, b in extras:
+    # Trade bypasses reward complementary local resources, not arbitrary city roles.
+    # Distance still matters: a rich market should not justify an implausible road.
+    extras = []
+    for i, a in enumerate(settlements):
+        for j, b in enumerate(settlements):
+            if j <= i or (i, j) in connections:
+                continue
+            distance = _dist(a, b)
+            complement = sum(abs(a.production.get(k, 0) - b.production.get(k, 0))
+                             for k in RESOURCE_KEYS)
+            extras.append((distance / (1 + 0.10 * complement), distance, i, j))
+    for _, distance, a, b in sorted(extras):
         if len(connections) >= len(settlements) + max(1, len(settlements) // 6):
             break
-        if sum(a in edge or b in edge for edge in connections) and _dist(settlements[a], settlements[b]) < 20:
+        if distance < 23:
             connections.append((a, b))
     roads = []
     for a, b in connections:
