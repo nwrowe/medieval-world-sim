@@ -36,7 +36,8 @@ class WorldGenerationTests(unittest.TestCase):
         self.assertEqual(w.settlements[0].id, 'crownreach')
         self.assertEqual(len({(s.x, s.y) for s in w.settlements}), len(w.settlements))
         self.assertEqual(len({s.name for s in w.settlements}), len(w.settlements))
-        for s in w.settlements:            self.assertGreater(w.tile(s.x, s.y).elevation_m, 0)
+        for s in w.settlements:
+            self.assertGreater(w.tile(s.x, s.y).elevation_m, 0)
             self.assertGreater(s.population, 0)
             self.assertTrue(s.production)
             for good in s.production:
