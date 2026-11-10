@@ -35,6 +35,7 @@ class Road:
     distance_km: float
     travel_minutes: int
     crossings: int
+    surface: str = "dirt"  # inferred infrastructure, not a random decoration
 
 
 @dataclass(frozen=True)
@@ -236,8 +237,19 @@ def generate_roads(tiles: tuple[Tile, ...], width: int, height: int,
         geometric = sum(hypot(x2 - x1, y2 - y1) for (x1, y1), (x2, y2) in zip(path, path[1:]))
         crossings = sum(tiles[y * width + x].river and not tiles[py * width + px].river
                         for (px, py), (x, y) in zip(path, path[1:]))
+        # High-volume capital approaches earn stone paving; secondary routes
+        # remain dirt. Mountain gradients and long construction routes discourage
+        # expensive paving. This is an initial proxy for historical traffic.
+        includes_capital = "crownreach" in (origin.id, dest.id)
+        grades = [abs(tiles[y * width + x].elevation_m -
+                      tiles[py * width + px].elevation_m)
+                  for (px, py), (x, y) in zip(path, path[1:])]
+        roughness = sum(grades) / max(1, len(grades))
+        paved = (includes_capital and min(origin.population, dest.population) >= 190
+                 and geometric * cell_km <= 135 and roughness <= 210)
         roads.append(Road(origin.id, dest.id, path, round(geometric * cell_km, 1),
-                          max(1, int(weighted_cells * cell_km / 4 * 60)), crossings))
+                          max(1, int(weighted_cells * cell_km / 4 * 60)), crossings,
+                          "cobblestone" if paved else "dirt"))
     return tuple(roads)
 
 
