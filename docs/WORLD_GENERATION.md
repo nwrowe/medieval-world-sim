@@ -1,4 +1,4 @@
-# Oathmere: geography-first world generation (prototype v1)
+# Oathmere: geography-first world generation (prototype v2 atlas)
 
 This system produces a deterministic *candidate atlas* from a numerical seed. It is **not yet wired into live game worlds or saved journals**. The current five-city catalog, travel rules, city inventories, player discovery and existing saved worlds remain unchanged. This separation is deliberate: a map must be reviewed and versioned before it becomes the game's authoritative world.
 
@@ -10,7 +10,32 @@ Requires Python 3.11+; uses only the standard library.
 python -m medieval_world_sim.worldgen --seed 42 --width 80 --height 56 --cities 12 --sites 45 --output generated-world
 ```
 
-Open `generated-world/atlas.svg` in a browser and inspect `generated-world/world.json`. Each tile represents 3 km by default. The JSON contains the generator version and seed, elevation (m), temperature (°C), annual rainfall (mm), biome, geology, soil quality, hydrological flow, resource potential, settlement populations, inferred local production, road geometries and travel times, and candidate wilderness sites.
+Open the improved `generated-world/atlas.svg` in a browser and inspect `generated-world/world.json`. Each tile represents 3 km by default. The JSON contains the generator version and seed, elevation (m), temperature (°C), annual rainfall (mm), biome, geology, soil quality, hydrological flow and downstream drainage references, resource potential, settlement populations, inferred local production, road geometries, dirt/cobbled surfaces and travel times, and candidate wilderness sites.
+
+### Reading the detailed atlas
+
+The SVG is a **geography-faithful cartographic renderer**. It interpolates the
+underlying tile colors and computes north-west sun hillshading from elevation,
+then overlays 300 m elevation contours, slope hachures and snow-tipped summit
+symbols. The shoreline is the zero-elevation isoline. Rivers follow the stored
+priority-flood `drains_to` network rather than plotting unrelated blue dots;
+line weight reflects catchment flow. Dirt roads use warm earth-colored strokes,
+while higher-volume capital approaches get gray cobblestone outlines and small
+paving marks. Bridges are indicated at mapped road/river crossings. Scale bar,
+compass rose, labels, forests and dungeon markers make the atlas reviewable.
+
+Road surfacing is an **inferred first-pass infrastructure proxy**, not a new
+political system: short, accessible capital approaches with sufficient local
+population may be cobbled, while other roads remain dirt. The actual routes,
+route costs and paths still come from the pathfinding model, so the renderer
+cannot change travel time or accessibility. Surface labels and tile drainage
+are serialized in the world manifest. This adds fields to the earlier draft,
+so the generator manifest version is now **2**. No live-world data is migrated.
+
+The SVG embeds a small rasterized relief texture using only the Python standard
+library and retains vector symbols, roads, rivers and labels. An external SVG
+viewer or converter can export a PNG preview; the generator itself stays
+third-party-dependency-free.
 
 **Generation pipeline** (in this order):
 
