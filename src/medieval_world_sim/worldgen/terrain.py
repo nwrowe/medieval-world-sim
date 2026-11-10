@@ -27,6 +27,7 @@ class Tile:
     river: bool
     flow: int
     resources: dict[str, int]  # potential 0..100; not a mutable inventory
+    drains_to: tuple[int, int] | None = None  # computed hydrological parent, not navigation
 
 
 def _hash(seed: int, x: int, y: int) -> float:
@@ -178,5 +179,7 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
                 "meat": 55 if pasture else 0,
             }
             result.append(Tile(x, y, h, t, rainfall, biome, rock, soil,
-                               river, flow[i], {k: min(100, v) for k, v in values.items() if v >= 30}))
+                               river, flow[i], {k: min(100, v) for k, v in values.items() if v >= 30},
+                               ((downstream[i] % width, downstream[i] // width)
+                                if h > 0 and downstream[i] >= 0 else None)))
     return tuple(result)
