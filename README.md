@@ -56,6 +56,21 @@ accounts choose a lineage once without losing historical progress.
 See [Lineages and Exploration](docs/LINEAGES_AND_EXPLORATION.md) for rules,
 compatibility, limitations and future dungeon/party plans.
 
+## Geography-first world generator (prototype)
+
+Oathmere now has a separate, seeded **world atlas generator** that builds terrain,
+climate, rivers and geology before founding settlements, routing roads and placing
+exploration sites. It exports a reviewable SVG map and versioned JSON manifest;
+it does **not** replace the active five-city map or mutate existing saves.
+
+```bash
+python -m medieval_world_sim.worldgen --seed 42 --output generated-world
+python -m unittest discover -s tests -p 'test_worldgen.py' -v
+```
+
+See [World Generation](docs/WORLD_GENERATION.md) for geographic assumptions,
+settlement and site rules, migration boundaries and recommended next phases.
+
 ## Read next
 
 - [Product brief](docs/PRODUCT_BRIEF.md) — audience, vision, principles, and open questions.
