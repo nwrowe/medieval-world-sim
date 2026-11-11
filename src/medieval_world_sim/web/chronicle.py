@@ -10,7 +10,8 @@ COMBAT_EVENTS = {"pvp_strike", "duel_started", "duel_round",
                  "duel_draw", "duel_flee_attempt", "combat", "spell_cast"}
 UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
                      "school_graduated", "school_capstone_perk", "school_martial_perk"}
-TRAVEL_EVENTS = {"travel_started", "arrived"}
+TRAVEL_EVENTS = {"travel_started", "arrived", "hex_explored",
+                 "hex_journey_started", "hex_arrived"}
 GUILD_EVENTS = {"guild_founded", "guild_invited", "guild_joined",
                 "guild_role_changed", "guild_left"}
 EQUIPMENT_EVENTS = {"gear_created", "gear_broken", "starter_purchase",
@@ -89,6 +90,10 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "gathered": f"Gathered {info.get('quantity')} {info.get('item')}",
         "travel_started": f"Departed for {info.get('destination')}",
         "arrived": f"Arrived in {info.get('city')}",
+        "hex_explored": f"Explored hex {info.get('x')}, {info.get('y')}",
+        "hex_journey_started": (
+            f"Began exploring hex {info.get('x')}, {info.get('y')}"),
+        "hex_arrived": f"Arrived at hex {info.get('x')}, {info.get('y')}",
         "regional_bought": f"Bought {info.get('quantity')} {info.get('item')} for {info.get('total')}g",
         "regional_sold": f"Sold {info.get('quantity')} {info.get('item')} for {info.get('total')}g",
         "home_purchased": f"Purchased a {info.get('tier')}",
