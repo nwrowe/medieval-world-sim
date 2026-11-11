@@ -144,7 +144,8 @@ class PlayableAtlasTests(unittest.TestCase):
             self.assertEqual(initial["world_map"]["sight_radius"], 2)
             self.assertLess(initial["world_map"]["explored_count"],
                             initial["world_map"]["total_hexes"])
-            destination = next(c for c in CITIES if c != CAPITAL)
+            destination = min((c for c in CITIES if c != CAPITAL),
+                              key=lambda d: session.world.travel_minutes(CAPITAL, d))
             total = session.action("travel", {"destination": destination}, "discover-journey")
             session.advance(total)
             after = session.snapshot()
@@ -177,7 +178,8 @@ class PlayableAtlasTests(unittest.TestCase):
                 prior_a = game.snapshot(aid)["world_map"]["explored_count"]
                 prior_b = game.snapshot(bid)["world_map"]["explored_count"]
                 self.assertEqual(prior_a, prior_b)
-                destination = next(c for c in CITIES if c != CAPITAL)
+                destination = min((c for c in CITIES if c != CAPITAL),
+                                  key=lambda d: game.world.travel_minutes(CAPITAL, d))
                 game.action(aid, "travel", {"destination": destination}, "first-trip")
                 minutes = game.world.actors[aid].arrival_minute - game.world.minute
                 game.advance(bid, minutes, "finish-trip")
