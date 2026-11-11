@@ -18,6 +18,17 @@ from test_web_client import api
 PASSWORD = "correct horse battery staple"
 
 
+def arrive_in_chunks(game, principal, traveler, prefix):
+    remaining = game.world.actors[traveler].arrival_minute - game.world.minute
+    index = 0
+    while remaining:
+        tick = min(1440, remaining)
+        game.advance(principal, tick, f"{prefix}-{index}")
+        remaining -= tick
+        index += 1
+
+
+
 @contextmanager
 def serve(game):
     server = GameHTTPServer(("127.0.0.1", 0), None, multiplayer=game)
@@ -66,7 +77,7 @@ class MultiAccountPersistenceTests(unittest.TestCase):
             self.assertNotIn("defense", person)
         self.game.action(alice, "travel",
                          {"destination": GOLDMEADOW}, "to-fields")
-        self.game.advance(bob, 60, "arrive-fields")
+        arrive_in_chunks(self.game, bob, alice, "arrive-fields")
         self.game.action(alice, "gather", {"item": "grain", "quantity": 1}, "gather-a")
         self.assertEqual(self.game.snapshot(alice)["player"]["inventory"].get("grain"), 1)
         self.assertEqual(self.game.snapshot(bob)["player"]["inventory"].get("grain", 0), 0)
@@ -121,7 +132,7 @@ class MultiAccountPersistenceTests(unittest.TestCase):
         _, _, bob = self.register("bob", "Bryn Stone")
         self.game.action(alice, "travel", {"destination": GOLDMEADOW}, "trip-a")
         self.game.action(bob, "travel", {"destination": GOLDMEADOW}, "trip-b")
-        self.game.advance(alice, 60, "arrive-both")
+        arrive_in_chunks(self.game, alice, alice, "arrive-both")
         self.game.action(alice, "gather", {"item": "grain", "quantity": 1}, "req-1")
         with self.assertRaises(ActionError):
             self.game.action(alice, "gather", {"item": "grain", "quantity": 2}, "req-1")
@@ -205,10 +216,18 @@ class MultiAccountHTTPTests(unittest.TestCase):
                 "id": "trip-to-fields"
             }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
             self.assertEqual(status, 200)
-            status, _, _ = api(port, "POST", "/api/advance", {
-                "minutes": 60, "id": "arrive-fields"
-            }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
-            self.assertEqual(status, 200)
+            remaining = (self.game.world.actors[self.game.identity(
+                alice_cookie.split("=", 1)[1]).actor_id].arrival_minute
+                - self.game.world.minute)
+            index = 0
+            while remaining:
+                chunk = min(1440, remaining)
+                status, _, _ = api(port, "POST", "/api/advance", {
+                    "minutes": chunk, "id": f"arrive-fields-{index}"
+                }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
+                self.assertEqual(status, 200)
+                remaining -= chunk
+                index += 1
             status, result, _ = api(port, "POST", "/api/action", {
                 "action": "gather", "params": {"item": "grain", "quantity": 1},
                 "id": "gather-1"},
