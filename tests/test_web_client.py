@@ -1,4 +1,6 @@
 """Web-client contract: real authorized engine actions, JSON saves and local HTTP."""
+from realm_fixtures import GOLDMEADOW
+
 from contextlib import contextmanager
 import http.client
 import json
@@ -154,7 +156,7 @@ class WebSessionTests(unittest.TestCase):
     def test_action_journal_survives_restart_and_remains_authoritative(self):
         self.game.create("Alin Marlow")
         initial_gold = self.game.world.initial_gold
-        self.game.action("travel", {"destination": "goldmeadow"}, "to-fields")
+        self.game.action("travel", {"destination": GOLDMEADOW}, "to-fields")
         self.game.advance(60)
         self.game.action("gather", {"item": "grain", "quantity": 2}, "gather-1")
         self.game.action("regional_sell", {"item": "grain", "quantity": 1}, "sell-1")
@@ -172,7 +174,7 @@ class WebSessionTests(unittest.TestCase):
 
     def test_saved_command_id_is_not_charged_twice(self):
         self.game.create("Eryn Vale")
-        self.game.action("travel", {"destination": "goldmeadow"}, "buy-fields")
+        self.game.action("travel", {"destination": GOLDMEADOW}, "buy-fields")
         self.game.advance(60)
         args = {"item": "grain", "quantity": 2}
         self.game.action("regional_buy", args, "one-purchase")
@@ -299,12 +301,12 @@ class WebHTTPTests(unittest.TestCase):
             self.assertEqual(data["state"]["player"]["city"], "crownreach")
             status, data, _ = api(port, "POST", "/api/action",
                                   {"action": "travel",
-                                   "params": {"destination": "goldmeadow"},
+                                   "params": {"destination": GOLDMEADOW},
                                    "id": "to-fields"})
             self.assertEqual(status, 200)
             status, data, _ = api(port, "POST", "/api/advance", {"minutes": 60})
             self.assertEqual(status, 200)
-            self.assertEqual(data["state"]["player"]["city"], "goldmeadow")
+            self.assertEqual(data["state"]["player"]["city"], GOLDMEADOW)
             status, data, _ = api(port, "POST", "/api/action",
                                   {"action": "gather", "params": {"item": "grain", "quantity": 2},
                                    "id": "gather-a"})
