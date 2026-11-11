@@ -261,6 +261,15 @@ def _historic_ruins(world, founding_years):
         occupied.append((site.x, site.y))
 
     road_cells = {point for road in world.roads for point in road.path}
+    # Expand each road cell by two hex rings *once*, rather than testing
+    # every candidate against every road point (important on larger maps).
+    road_near = set(road_cells)
+    from .hexgrid import neighbors
+    frontier = set(road_cells)
+    for _ in range(2):
+        frontier = {neighbor for x, y in frontier
+                    for neighbor in neighbors(x, y, world.width, world.height)}
+        road_near.update(frontier)
     candidates = []
     for t in world.tiles:
         if t.waterbody in ("sea", "lake") or t.elevation_m <= 0:
@@ -268,8 +277,7 @@ def _historic_ruins(world, founding_years):
         nearest = min(hex_distance((t.x, t.y), p) for p in occupied[:len(world.settlements)])
         if not 5 <= nearest <= 16 or t.soil < 36:
             continue
-        near_road = any(hex_distance((t.x, t.y), pt) <= 2 for pt in road_cells)
-        if not near_road:
+        if (t.x, t.y) not in road_near:
             continue
         # The places that briefly flourished had enough farmland for a hamlet
         # but relatively poor access to the later regional markets.
