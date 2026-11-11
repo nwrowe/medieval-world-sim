@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from heapq import heappop, heappush
 from math import exp, sin
 
+from .hexgrid import neighbors
+
 SEA_LEVEL = 0
 RESOURCE_KEYS = ("iron_ore", "coal", "stone", "timber", "herbs", "grain",
                  "hides", "vegetables", "meat")
@@ -57,14 +59,6 @@ def _fbm(seed: int, x: float, y: float) -> float:
     return value / total
 
 
-def neighbors(x: int, y: int, width: int, height: int):
-    for dx, dy in ((-1, -1), (0, -1), (1, -1), (-1, 0),
-                   (1, 0), (-1, 1), (0, 1), (1, 1)):
-        nx, ny = x + dx, y + dy
-        if 0 <= nx < width and 0 <= ny < height:
-            yield nx, ny
-
-
 def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
     """Generate a landmass, orographic climate, drainage and resource potential."""
     if not 32 <= width <= 180 or not 24 <= height <= 140:
@@ -73,16 +67,34 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
     elevation, rain, temp, geology = [0] * n, [0] * n, [0] * n, [""] * n
     for y in range(height):
         yy = y / (height - 1)
-        coast = 0.09 + 0.10 * _noise(seed + 3, yy * 3, 0)
-        ridge = 0.52 + 0.09 * sin(yy * 7 + seed % 17) + 0.035 * (_fbm(seed + 5, yy, 0) - 0.5)
+        # The coast is a warped multi-scale boundary, not a single smoothed
+        # north/south curve. Large bays coexist with smaller coves and headlands.
+        coastal_sweep = _noise(seed + 3, yy * 3.0, 0)
+        tidal_inlets = _noise(seed + 103, yy * 8.0, 0.37)
+        coast = (0.055 + 0.14 * coastal_sweep + 0.07 * (tidal_inlets - 0.5)
+                 + 0.027 * sin(yy * 26 + seed * .73))
+        # The tectonic axis wanders and is interrupted by lower mountain passes.
+        ridge = (0.51 + 0.085 * sin(yy * 7 + seed % 17)
+                 + 0.10 * (_fbm(seed + 5, 0.35, yy * 2.5) - .5)
+                 + 0.032 * sin(yy * 23 + seed * .37))
+        ridge_width = 0.068 + 0.05 * _noise(seed + 127, yy * 5, 0.7)
         for x in range(width):
             i = y * width + x
             xx = x / (width - 1)
-            relief = _fbm(seed + 11, xx, yy) - 0.5
-            mountain = 1900 * exp(-((xx - ridge) / 0.10) ** 2) * (0.65 + _fbm(seed + 17, xx, yy))
-            altitude = int(70 + max(0, xx - coast) * 380 + mountain + relief * 660)
-            if xx < coast:
-                altitude = -int(100 + (coast - xx) * 1700)
+            # Coast perturbation depends on both axes. Erosion and local
+            # topography can push the shoreline landward at isolated inlets.
+            waterline = coast + 0.068 * (_fbm(seed + 131, xx * 2.8, yy * 2.8) - 0.5)
+            relief = _fbm(seed + 11, xx * 1.7, yy * 1.7) - 0.5
+            folds = _fbm(seed + 17, xx * 3.2, yy * 3.2)
+            summit_noise = 1 - abs(2 * _fbm(seed + 139, xx * 5.1, yy * 5.1) - 1)
+            primary = 1780 * exp(-((xx - ridge) / ridge_width) ** 2)
+            spur_axis = ridge + 0.125 * sin(yy * 11 + seed * .31)
+            spurs = 550 * exp(-((xx - spur_axis) / 0.057) ** 2)
+            mountain = ((primary * (0.28 + 1.18 * folds) + spurs * summit_noise)
+                        * (0.68 + 0.52 * _noise(seed + 149, yy * 10, xx * 1.7)))
+            altitude = int(65 + max(0, xx - waterline) * 440 + mountain + relief * 850)
+            if xx < waterline:
+                altitude = -int(75 + (waterline - xx) * 1750)
             elevation[i] = altitude
             eastern_shadow = 1 / (1 + exp(-23 * (xx - ridge - 0.09)))
             rain[i] = max(100, int(1100 + 720 * (_fbm(seed + 23, xx, yy) - 0.5)
