@@ -186,31 +186,68 @@ def _hex_grid(world, scale: int) -> list[str]:
     return ['<g id="hex-grid" fill="none" stroke="#e7dfcc" stroke-width=".65" '
             'stroke-dasharray="2.3 3.7" opacity=".70">',
             f'<path d="{edges}"/>', '</g>']
+def _river_center(world, tile, scale: int) -> tuple[float, float]:
+    """A shared, terrain-bounded channel point for confluences and each reach."""
+    cx,cy = center(tile.x,tile.y,scale)
+    if not tile.river or tile.drains_to is None:
+        return cx,cy
+    next_tile = world.tile(*tile.drains_to)
+    tx,ty = center(next_tile.x,next_tile.y,scale)
+    vx,vy = tx-cx,ty-cy
+    length = hypot(vx,vy)
+    if length == 0:
+        return cx,cy
+    grade = abs(tile.elevation_m-next_tile.elevation_m)
+    # Low-gradient streams can wander within their hex corridors. Highlands
+    # remain sharply constrained by valleys and steep watercourses.
+    lowland = max(0.,1.-grade/370) * max(0.,1.-max(0,tile.elevation_m-250)/1000)
+    wave = (0.72*sin(tile.x*.58 + tile.y*.27 + world.seed*.51)
+            + 0.28*sin(tile.x*1.13-tile.y*.36 + world.seed*.23))
+    offset = scale*.33*lowland*wave
+    return cx-vy/length*offset, cy+vx/length*offset
+
+
 def _river_paths(world, scale: int) -> list[str]:
-    """Draw the directed drainage graph as joined, width-scaled stream segments."""
+    """Smooth the actual directed river graph, with terrain-limited meanders.
+
+    Each curve still starts and ends on the hydrology graph. This changes only
+    how a channel is drawn, not flow accumulation, geography or navigability.
+    """
     parts = ['<g id="river-network" fill="none" stroke-linecap="round" stroke-linejoin="round">']
-    widths = (1.3, 2.0, 2.9, 3.9, 5.0)
+    widths = (1.25, 1.9, 2.7, 3.7, 4.8)
     buckets: list[list[str]] = [[] for _ in widths]
-    for tile in world.tiles:
-        if not tile.river or tile.drains_to is None:
+    for t in world.tiles:
+        if not t.river or t.drains_to is None:
             continue
-        nx, ny = tile.drains_to
-        x1, y1 = (tile.x + .5) * scale, (tile.y + .5) * scale
-        x2, y2 = (nx + .5) * scale, (ny + .5) * scale
-        # Every river edge is taken from the priority-flood drainage model.
-        weight = min(len(widths) - 1, int(log1p(tile.flow / 72) / 1.15))
-        buckets[weight].append(f'M{x1:.1f},{y1:.1f}L{x2:.1f},{y2:.1f}')
+        next_tile = world.tile(*t.drains_to)
+        x1,y1 = _river_center(world,t,scale)
+        x2,y2 = _river_center(world,next_tile,scale)
+        vx,vy = x2-x1,y2-y1
+        length = hypot(vx,vy)
+        if length <= 0:
+            continue
+        # A visibly meandering lowland channel; mountain streams stay narrow
+        # and relatively direct. Seed/coordinates fix the direction of bends.
+        grade = abs(t.elevation_m - next_tile.elevation_m)
+        lowland = max(0.0, 1.0 - grade/370) * max(0.0, 1.0 - max(0,t.elevation_m-250)/1000)
+        wave = sin(t.x*.44+t.y*.39+world.seed*.41)
+        displacement = .41 * length * lowland * wave
+        nx,ny = -vy/length,vx/length
+        mx,my = (x1+x2)*.5 + nx*displacement, (y1+y2)*.5 + ny*displacement
+        # Quadratic Bezier control lies on the same river reach and cannot
+        # sever tributary joins (both endpoints remain tile centers).
+        segment = f'M{x1:.2f},{y1:.2f}Q{mx:.2f},{my:.2f} {x2:.2f},{y2:.2f}'
+        weight = min(len(widths)-1, int(log1p(t.flow/72)/1.15))
+        buckets[weight].append(segment)
     for weight, paths in enumerate(buckets):
         if not paths:
             continue
-        d = ''.join(paths)
-        wid = widths[weight]
-        parts.append(f'<path d="{d}" stroke="#345c66" stroke-width="{wid + 1.2:.1f}" opacity=".70"/>')
+        d=''.join(paths)
+        wid=widths[weight]
+        parts.append(f'<path d="{d}" stroke="#345c66" stroke-width="{wid+1.2:.1f}" opacity=".70"/>')
         parts.append(f'<path d="{d}" stroke="#a6d7dc" stroke-width="{wid:.1f}"/>')
     parts.append('</g>')
     return parts
-
-
 def _mountain_symbols(world, scale: int) -> list[str]:
     """Show highland ridge texture and multiple snowy crests, not a white band."""
     parts = ['<g id="mountain-relief-hachures" stroke="#534f48" stroke-linecap="round" fill="none">']
@@ -227,7 +264,7 @@ def _mountain_symbols(world, scale: int) -> list[str]:
         steep = hypot(gx,gy)
         if steep < 95:
             continue
-        cx,cy=(x+.5)*scale,(y+.5)*scale
+        cx,cy=center(x,y,scale)
         length=min(8,3.2+steep/175)
         dx,dy=gx/steep*length, gy/steep*length
         parts.append(f'<path d="M{cx-dx*.5:.1f},{cy-dy*.5:.1f}L{cx+dx*.5:.1f},{cy+dy*.5:.1f}" '
@@ -245,7 +282,7 @@ def _mountain_symbols(world, scale: int) -> list[str]:
             break
     parts.append('<g id="summit-markers" stroke="#504e49" stroke-linejoin="round" fill="none" opacity=".9">')
     for t in chosen:
-        x, y = (t.x + .5) * scale, (t.y + .5) * scale
+        x, y = center(t.x,t.y,scale)
         r = 9.1 if t.elevation_m > 2050 else 7
         parts.append(f'<path d="M{x-r:.1f},{y+r*.49:.1f}L{x:.1f},{y-r:.1f}L{x+r:.1f},{y+r*.49:.1f}Z" '
                      'fill="#cbc6b5" fill-opacity=".85" stroke-width="1.35"/>')
@@ -268,7 +305,7 @@ def _forest_symbols(world, scale: int) -> list[str]:
             continue
         if ((tile.x * 7 + tile.y * 11 + world.seed * 3) % 19) != 0:
             continue
-        x, y = (tile.x + .5) * scale, (tile.y + .5) * scale
+        x, y = center(tile.x,tile.y,scale)
         parts.append(f'<path d="M{x:.1f},{y-5:.1f}l-3,5h2l-3,3h6l-3,-3h2z M{x:.1f},{y+3:.1f}v3"/>')
     parts.append('</g>')
     return parts
@@ -280,7 +317,7 @@ def _road_paths(world, scale: int) -> list[str]:
     for surface in ('dirt', 'cobblestone'):
         roads = [r for r in world.roads if r.surface == surface]
         for road in roads:
-            pts = ' '.join(f'{(x+.5)*scale:.1f},{(y+.5)*scale:.1f}' for x, y in road.path)
+            pts = ' '.join(f'{center(x,y,scale)[0]:.1f},{center(x,y,scale)[1]:.1f}' for x, y in road.path)
             if surface == 'dirt':
                 parts.append(f'<polyline class="dirt-road" points="{pts}" stroke="#6e503a" stroke-width="4.0"/>')
                 parts.append(f'<polyline points="{pts}" stroke="#d5b079" stroke-width="2.7"/>')
@@ -295,8 +332,9 @@ def _road_paths(world, scale: int) -> list[str]:
             for (px, py), (x, y) in zip(road.path, road.path[1:]):
                 if not world.tile(x, y).river or world.tile(px, py).river:
                     continue
-                cx, cy = (x + .5) * scale, (y + .5) * scale
-                vx, vy = x - px, y - py
+                cx, cy = center(x,y,scale)
+                fx,fy=center(px,py,scale)
+                vx, vy = cx-fx, cy-fy
                 length = hypot(vx, vy)
                 nx, ny = -vy / length, vx / length
                 dx, dy = vx / length, vy / length
@@ -312,7 +350,7 @@ def _road_paths(world, scale: int) -> list[str]:
 def _places(world, scale: int) -> list[str]:
     parts = ['<g id="exploration-sites">']
     for site in world.sites:
-        x, y = (site.x + .5) * scale, (site.y + .5) * scale
+        x, y = center(site.x,site.y,scale)
         parts.append(f'<path d="M{x:.1f},{y-4.2:.1f}L{x+4.2:.1f},{y:.1f}'
                      f'L{x:.1f},{y+4.2:.1f}L{x-4.2:.1f},{y:.1f}Z" '
                      'fill="#633c55" stroke="#f5e6cf" stroke-width="1.2">'
@@ -322,7 +360,7 @@ def _places(world, scale: int) -> list[str]:
     # Place labels in the least-crowded immediate quadrant, avoiding boundary.
     occupied = []
     for settlement in sorted(world.settlements, key=lambda s: s.id != 'crownreach'):
-        x, y = (settlement.x + .5) * scale, (settlement.y + .5) * scale
+        x, y = center(settlement.x,settlement.y,scale)
         cap = settlement.id == 'crownreach'
         r = 6.7 if cap else 4.6
         parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r+2:.1f}" fill="#34352c" opacity=".48"/>')
@@ -341,8 +379,8 @@ def _places(world, scale: int) -> list[str]:
             top=y+dy-font
             overlap=sum(max(0,min(b,rx)-max(a,lx))*max(0,min(top+font,by)-max(top,ty))
                         for lx,ty,rx,by in occupied)
-            outside=max(0, 4-a)+max(0, b-(world.width*scale-4))
-            outside+=max(0, 4-top)+max(0, top+font-(world.height*scale-4))
+            outside=max(0, 4-a)+max(0, b-(map_size(world.width,world.height,scale)[0]-4))
+            outside+=max(0, 4-top)+max(0, top+font-(map_size(world.width,world.height,scale)[1]-4))
             return overlap*5+outside*40
         dx,dy,align=min(placements,key=cost)
         left=x+dx if align=='start' else x+dx-label_width
@@ -362,15 +400,18 @@ def _places(world, scale: int) -> list[str]:
 def render_svg(world) -> str:
     """Render a geographically faithful map; does not mutate world or saved data."""
     s = TILE_PX
-    map_w, map_h = world.width * s, world.height * s
+    map_w, map_h = map_size(world.width,world.height,s)
     width, height = map_w + 2 * MARGIN, map_h + TOP + BOTTOM
     seed_text = f'{world.seed}'
+    # cell_km is center-to-center edge length, not vertical row spacing.
+    approx_w_km = world.width * world.cell_km
+    approx_h_km = (1.5 * (world.height - 1) + 2) / SQRT3 * world.cell_km
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
         'role="img" aria-labelledby="title desc">',
         '<title id="title">Oathmere — shaded relief survey atlas</title>',
         '<desc id="desc">Procedurally generated shaded mountains, labeled contours, connected drainage, '
-        'cobblestone trade roads, dirt roads, river bridges, settlements and exploration sites.</desc>',
+        'hexagon tiles, jagged hex coastlines, meandering rivers, cobblestone trade roads, dirt roads, river bridges, settlements and exploration sites.</desc>',
         '<rect width="100%" height="100%" fill="#e9dec3"/>',
         f'<path d="M{MARGIN},68H{width-MARGIN}" stroke="#977c52" stroke-width="1"/>',
         '<text x="29" y="36" font-family="Georgia,serif" font-size="26" '
@@ -379,11 +420,11 @@ def render_svg(world) -> str:
         'font-style="italic" fill="#71624a">The Royal Survey · Geographical Atlas</text>',
         f'<text x="{width-30}" y="38" text-anchor="end" font-family="Georgia,serif" '
         'font-size="13" fill="#584d3d">'
-        f'SEED {escape(seed_text)}  ·  {world.width * world.cell_km:g} × '
-        f'{world.height * world.cell_km:g} KM</text>',
+        f'SEED {escape(seed_text)}  ·  {approx_w_km:.0f} × '
+        f'{approx_h_km:.0f} KM APPROX.</text>',
         f'<text x="{width-30}" y="55" text-anchor="end" font-family="Georgia,serif" '
         'font-size="10" fill="#85775b" letter-spacing=".7">'
-        f'RELIEF · DRAINAGE · ROADWAYS · FRONTIER</text>',
+        f'HEX SURVEY · RELIEF · RIVERS · ROADWAYS</text>',
         f'<defs><clipPath id="map-frame"><rect x="{MARGIN}" y="{TOP}" '
         f'width="{map_w}" height="{map_h}"/></clipPath></defs>',
         f'<g clip-path="url(#map-frame)"><g transform="translate({MARGIN},{TOP})">',
@@ -391,13 +432,14 @@ def render_svg(world) -> str:
         f'href="data:image/png;base64,{_terrain_raster(world,s)}"/>',
     ]
     parts.extend(_coast_and_contours(world, s))
+    parts.extend(_hex_grid(world, s))
     parts.extend(_forest_symbols(world, s))
     parts.extend(_mountain_symbols(world, s))
     parts.extend(_river_paths(world, s))
     parts.extend(_road_paths(world, s))
     parts.extend(_places(world, s))
     # Scale bar sits inside map, but above map detail.
-    bar = min(150, max(55, 30 / world.cell_km * s))
+    bar = min(150, max(55, 30 / world.cell_km * SQRT3 * s))
     parts.extend([
         f'<g transform="translate(20,{map_h-29})">',
         f'<rect x="-10" y="-16" width="{bar+59:.1f}" height="44" rx="4" '
