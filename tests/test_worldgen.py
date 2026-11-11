@@ -17,7 +17,7 @@ class WorldGenerationTests(unittest.TestCase):
         c = generate_world(seed=43, width=64, height=44, cities=9, sites=25)
         self.assertEqual(a.to_dict(), b.to_dict())
         self.assertNotEqual(a.tiles, c.tiles)
-        self.assertEqual(a.version, 5)
+        self.assertEqual(a.version, 6)
 
     def test_terrain_dimensions_climate_and_river_network(self):
         world = self.world
@@ -221,7 +221,7 @@ class HexTopologyTests(unittest.TestCase):
         self.assertIn('id="hex-grid"',first)
         self.assertIn('stroke-dasharray="2.3 3.7"',first)
         self.assertIn('id="coastline"',first)
-        self.assertIn('Q',first.split('<g id="river-network"')[1].split('</g>')[0])
+        self.assertIn('C',first.split('<g id="river-network"')[1].split('</g>')[0])
         self.assertEqual(w.to_dict(),generate_world(seed=7,width=64,height=44,cities=9,sites=25).to_dict())
         ElementTree.fromstring(first)
 
@@ -290,7 +290,7 @@ class RoadSitingTests(unittest.TestCase):
         for road in w.roads:
             self.assertEqual(road.crossings, road.bridges + road.fords)
             self.assertGreater(road.travel_minutes, 0)
-        self.assertEqual(w.to_dict()["version"], 5)
+        self.assertEqual(w.to_dict()["version"], 6)
 
 
 class SurveyWaterAndLandmarkTests(unittest.TestCase):
@@ -364,10 +364,152 @@ class SurveyWaterAndLandmarkTests(unittest.TestCase):
         self.assertIn('id="atlas-data"', html)
         self.assertIn('id="lake-shores"', html)
         self.assertIn('id="strategic-landmarks"', html)
-        self.assertIn("Navigability", html)
+        self.assertIn("Watercraft suitability", html)
         self.assertIn("resources", html)
         self.assertIn("waterways", str(world.to_dict()))
         self.assertIn("landmarks", str(world.to_dict()))
         # The embedded SVG remains valid after inserting 2816 hit targets.
         embedded = html.split('<svg xmlns=', 1)[1].split('</svg>', 1)[0]
         ElementTree.fromstring('<svg xmlns=' + embedded + '</svg>')
+
+
+class CoastAccessibilityAndAuthoringTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.world = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+
+    def test_all_ocean_hexes_are_at_sea_level_and_land_is_above(self):
+        world = self.world
+        sea = [t for t in world.tiles if t.waterbody == "sea"]
+        dry = [t for t in world.tiles if t.waterbody not in ("sea", "lake")]
+        self.assertTrue(sea)
+        self.assertTrue(dry)
+        self.assertTrue(all(t.elevation_m == 0 and t.seabed_depth_m >= 1
+                            and t.biome == "ocean" for t in sea))
+        self.assertTrue(all(t.elevation_m >= 1 and t.seabed_depth_m == 0
+                            for t in dry))
+        self.assertTrue(all(t.elevation_m > 0 for t in world.tiles
+                            if t.waterbody == "lake"))
+
+    def test_road_difficulty_reduces_walking_minutes_without_flattening_geography(self):
+        from medieval_world_sim.worldgen.access import path_minutes, minutes_per_hex
+        world = self.world
+        nonroads = []
+        roads = []
+        for t in world.tiles:
+            if t.waterbody in ("sea", "lake"):
+                self.assertIsNone(t.natural_difficulty)
+                self.assertIsNone(t.travel_difficulty)
+                self.assertIsNone(t.road_surface)
+                continue
+            self.assertTrue(1 <= t.natural_difficulty <= 100)
+            self.assertTrue(1 <= t.travel_difficulty <= 100)
+            self.assertLessEqual(t.travel_difficulty, t.natural_difficulty)
+            if t.road_surface is not None:
+                roads.append(t)
+                self.assertIn(t.road_surface, ("dirt", "cobblestone"))
+                self.assertLess(t.travel_difficulty, t.natural_difficulty)
+            else:
+                nonroads.append(t)
+                self.assertEqual(t.natural_difficulty, t.travel_difficulty)
+        self.assertTrue(roads)
+        self.assertTrue(nonroads)
+        self.assertGreater(minutes_per_hex(95, 3), minutes_per_hex(10, 3))
+        for road in world.roads:
+            self.assertEqual(road.travel_minutes,
+                             path_minutes(world.tiles, world.width, road.path,
+                                          world.cell_km))
+        with self.assertRaises(ValueError):
+            minutes_per_hex(0)
+
+    def test_site_and_landmark_template_round_trips_with_stable_ids(self):
+        from medieval_world_sim.worldgen.content import export_content_template
+        from medieval_world_sim.worldgen.inspect import render_inspector_html
+        world = self.world
+        template = export_content_template(world)
+        self.assertEqual(template["generator_version"], 6)
+        self.assertEqual(template["seed"], 7)
+        self.assertIn("crownreach", template["settlements"])
+        self.assertEqual(len(template["sites"]), len(world.sites))
+        self.assertEqual(len(template["landmarks"]), len(world.landmarks))
+        duplicate = generate_world(seed=7, width=64, height=44, cities=9, sites=25,
+                                   content=template)
+        self.assertEqual(world.to_dict(), duplicate.to_dict())
+        self.assertIn('Natural land difficulty', render_inspector_html(world))
+
+    def test_custom_relocatable_sites_and_scheduled_event_location(self):
+        from medieval_world_sim.worldgen.content import export_content_template
+        from medieval_world_sim.worldgen.inspect import render_inspector_html
+        from medieval_world_sim.worldgen.render import render_svg
+        world = self.world
+        edited = export_content_template(world)
+        edited["settlements"]["crownreach"]["name"] = "Bay of Crownreach"
+        old = world.sites[0]
+        where = world.sites[1]
+        edited["sites"][old.id].update({
+            "name": "The Elder Vault", "x": where.x, "y": where.y})
+        edited["landmarks"][world.landmarks[0].id]["name"] = "The Old Crossing"
+        edited["additional_sites"].append({
+            "id": "custom-winter-crypt", "name": "Winter Crypt",
+            "kind": "crypt", "x": where.x, "y": where.y,
+            "danger": 6, "clue": "A weathered entrance in the hillside"
+        })
+        capital = world.settlements[0]
+        edited["event_locations"].append({
+            "id": "event-winter-market", "name": "Winter Market",
+            "kind": "festival", "x": capital.x, "y": capital.y,
+            "description": "A seasonal merchant caravan",
+            "starts_at": "2026-12-01T00:00:00Z",
+            "ends_at": "2026-12-08T00:00:00Z",
+        })
+        revised = generate_world(seed=7, width=64, height=44, cities=9, sites=25,
+                                 content=edited)
+        self.assertEqual(revised.settlements[0].name, "Bay of Crownreach")
+        self.assertEqual(revised.sites[0].name, "The Elder Vault")
+        self.assertEqual((revised.sites[0].x, revised.sites[0].y),
+                         (where.x, where.y))
+        self.assertEqual(revised.landmarks[0].name, "The Old Crossing")
+        self.assertIn("custom-winter-crypt", {s.id for s in revised.sites})
+        self.assertEqual(len(revised.event_locations), 1)
+        self.assertIn("Winter Market", render_svg(revised))
+        self.assertIn("Scheduled event:", render_inspector_html(revised))
+        # Content overrides never alter the generated terrain or authoritative roads.
+        self.assertEqual(world.tiles, revised.tiles)
+        self.assertEqual(world.roads, revised.roads)
+
+    def test_reject_invalid_coordinates_duplicate_ids_bad_dates_and_wrong_seed(self):
+        from medieval_world_sim.worldgen.content import export_content_template
+        world = self.world
+        def validate(patch):
+            content = export_content_template(world)
+            patch(content)
+            return generate_world(seed=7, width=64, height=44, cities=9, sites=25,
+                                  content=content)
+
+        with self.assertRaises(ValueError):
+            validate(lambda c: c.update(seed=99))
+        with self.assertRaises(ValueError):
+            validate(lambda c: c["settlements"]["crownreach"].update(name=""))
+        water = next(t for t in world.tiles if t.waterbody == "sea")
+        with self.assertRaises(ValueError):
+            validate(lambda c: c["sites"][world.sites[0].id].update(x=water.x, y=water.y))
+        with self.assertRaises(ValueError):
+            validate(lambda c: c["sites"].update({"non-existent-site": {"name": "Fake"}}))
+        event = {
+            "id": "event-test", "name": "Holiday", "kind": "fair",
+            "x": world.settlements[0].x, "y": world.settlements[0].y,
+            "description": "A short-lived event", "starts_at": "2026-12-10T00:00:00Z",
+            "ends_at": "2026-12-01T00:00:00Z",
+        }
+        with self.assertRaises(ValueError):
+            validate(lambda c: c["event_locations"].append(event))
+
+    def test_json_loader_rejects_repeated_keys(self):
+        from medieval_world_sim.worldgen.content import load_content
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as tempdir:
+            path = Path(tempdir) / "world-content.json"
+            path.write_text('{"schema_version":1,"schema_version":1}', encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "Repeated JSON key"):
+                load_content(path)
