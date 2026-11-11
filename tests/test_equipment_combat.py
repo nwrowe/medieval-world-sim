@@ -1,3 +1,4 @@
+from realm_fixtures import IRONVALE
 import unittest
 
 from medieval_world_sim.catalog import CAPITAL
@@ -27,7 +28,7 @@ class EquipmentCombatTests(unittest.TestCase):
 
     def test_starter_purchase_restricted_by_location_and_funds(self):
         w = self.world()
-        w.start_travel("hero", "ironvale")
+        w.start_travel("hero", IRONVALE)
         w.advance(90)
         before = w.total_gold
         with self.assertRaises(ActionError):
