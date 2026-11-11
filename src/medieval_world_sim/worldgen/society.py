@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from heapq import heappop, heappush
 from math import hypot, sqrt
 from .terrain import RESOURCE_KEYS, Tile, neighbors
+from .hexgrid import hex_distance
 
 BIOME_PREFIX = {
     "forest": "Elder", "rainforest": "Viridian", "taiga": "Frost", "grassland": "Golden",
@@ -190,7 +191,7 @@ def _path(tiles: tuple[Tile, ...], width: int, height: int, start, goal):
             target, source = tiles[j], tiles[i]
             if target.elevation_m <= 0:
                 continue
-            distance = hypot(nx - ix, ny - iy)
+            distance = 1.0  # Every hex edge is one tile-to-tile step.
             slope = abs(target.elevation_m - source.elevation_m)
             cost = distance * (1 + min(4, slope / 440) + (0.55 if target.biome == "wetland" else 0)
                                + (0.20 if target.river and not source.river else 0))
@@ -198,7 +199,7 @@ def _path(tiles: tuple[Tile, ...], width: int, height: int, start, goal):
             if proposed < best.get(j, float("inf")):
                 best[j] = proposed
                 previous[j] = i
-                heuristic = hypot(goal[0] - nx, goal[1] - ny)
+                heuristic = hex_distance((nx, ny), goal)
                 heappush(queue, (proposed + heuristic, j))
     raise ValueError("No land route between settlements")
 
@@ -234,7 +235,7 @@ def generate_roads(tiles: tuple[Tile, ...], width: int, height: int,
     for a, b in connections:
         origin, dest = settlements[a], settlements[b]
         path, weighted_cells = _path(tiles, width, height, (origin.x, origin.y), (dest.x, dest.y))
-        geometric = sum(hypot(x2 - x1, y2 - y1) for (x1, y1), (x2, y2) in zip(path, path[1:]))
+        geometric = len(path) - 1  # Hex edges all have equal physical length.
         crossings = sum(tiles[y * width + x].river and not tiles[py * width + px].river
                         for (px, py), (x, y) in zip(path, path[1:]))
         # High-volume capital approaches earn stone paving; secondary routes
