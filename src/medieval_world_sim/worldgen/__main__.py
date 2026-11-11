@@ -6,6 +6,7 @@ from pathlib import Path
 from . import generate_world
 from .render import render_svg
 from .inspect import render_inspector_html
+from .history_view import render_history_html
 from .content import export_content_template, load_content
 
 
@@ -32,13 +33,18 @@ def main():
     svg = render_svg(world)
     (args.output / "atlas.svg").write_text(svg, encoding="utf-8")
     (args.output / "atlas.html").write_text(render_inspector_html(world, svg), encoding="utf-8")
+    (args.output / "history.html").write_text(render_history_html(world, svg),
+                                               encoding="utf-8")
     print(f"World seed {args.seed}: {len(world.settlements)} settlements, "
           f"{len(world.roads)} roads, {len(world.sites)} exploration sites")
     print(f"Water survey: {sum(t.waterbody == 'lake' for t in world.tiles)} lake hexes, "
           f"{len(world.waterways)} navigable networks, "
           f"{len(world.landmarks)} strategic landmarks")
+    print(f"History: {len(world.history.eras)} eras, {len(world.history.ruins)} "
+          "historical ruins and abandoned hamlets")
     print(f"Saved {args.output / 'world.json'}, {args.output / 'atlas.svg'}, "
-          f"{args.output / 'atlas.html'} and the editable world-content template")
+          f"{args.output / 'atlas.html'}, {args.output / 'history.html'} "
+          "and the editable world-content template")
 
 
 if __name__ == "__main__":
