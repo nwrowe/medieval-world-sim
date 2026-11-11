@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from .society import ExplorationSite, Road, Settlement, generate_roads, generate_settlements, generate_sites
 from .terrain import Tile, generate_terrain
 
-GENERATOR_VERSION = 3
+GENERATOR_VERSION = 4
 
 
 @dataclass(frozen=True)
