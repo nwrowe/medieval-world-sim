@@ -4,6 +4,8 @@ Human defenders react server-side, without needing an online request or an
 offensive turn. This module explicitly checks outcome limits, permissions,
 replay, old one-swing journal compatibility, and conserved gold.
 """
+from realm_fixtures import GOLDMEADOW
+
 import json
 from pathlib import Path
 import tempfile
@@ -76,9 +78,9 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot(self.alice)["last_duel"]["gold"], 0)
         # A defender may choose to travel as soon as they flee.
         self.command(self.bob, "travel",
-                     {"destination": "goldmeadow"}, "defender-road")
+                     {"destination": GOLDMEADOW}, "defender-road")
         self.assertEqual(self.game.snapshot(self.bob)["player"]["destination"],
-                         "goldmeadow")
+                         GOLDMEADOW)
         self.game.close()
         self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
         self.assertEqual(self.game.snapshot(self.alice)["last_duel"]["outcome"],
