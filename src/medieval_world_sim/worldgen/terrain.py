@@ -32,6 +32,10 @@ class Tile:
     drains_to: tuple[int, int] | None = None  # computed hydrological parent, not navigation
     waterbody: str = "land"  # land, sea, lake or river
     navigable: bool = False  # survey potential, not a live travel permission
+    seabed_depth_m: int = 0  # underwater floor depth; sea surface elevation is 0
+    natural_difficulty: int | None = None  # unmodified land, 1 easy to 100 hard
+    travel_difficulty: int | None = None  # after road surfaces; None means no foot route
+    road_surface: str | None = None  # None, dirt or cobblestone
 
 
 def _hash(seed: int, x: int, y: int) -> float:
@@ -67,6 +71,7 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
         raise ValueError("Terrain dimensions must be 32..180 by 24..140")
     n = width * height
     elevation, rain, temp, geology = [0] * n, [0] * n, [0] * n, [""] * n
+    seabed_depth = [0] * n
     for y in range(height):
         yy = y / (height - 1)
         # The coast is a warped multi-scale boundary, not a single smoothed
@@ -94,9 +99,18 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
             spurs = 550 * exp(-((xx - spur_axis) / 0.057) ** 2)
             mountain = ((primary * (0.28 + 1.18 * folds) + spurs * summit_noise)
                         * (0.68 + 0.52 * _noise(seed + 149, yy * 10, xx * 1.7)))
-            altitude = int(65 + max(0, xx - waterline) * 440 + mountain + relief * 850)
+            raw_altitude = int(65 + max(0, xx - waterline) * 440
+                               + mountain + relief * 850)
             if xx < waterline:
-                altitude = -int(75 + (waterline - xx) * 1750)
+                seabed_depth[i] = max(1, int(75 + (waterline - xx) * 1750))
+                altitude = SEA_LEVEL
+            elif raw_altitude <= SEA_LEVEL:
+                # Low-lying cells inundated by the ocean still carry water
+                # surface height 0; store the seafloor separately.
+                seabed_depth[i] = max(1, -raw_altitude)
+                altitude = SEA_LEVEL
+            else:
+                altitude = max(1, raw_altitude)
             elevation[i] = altitude
             eastern_shadow = 1 / (1 + exp(-23 * (xx - ridge - 0.09)))
             rain[i] = max(100, int(1100 + 720 * (_fbm(seed + 23, xx, yy) - 0.5)
@@ -104,7 +118,7 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
             temp[i] = int(16 + (yy - 0.5) * 21 - max(0, altitude) / 190
                           + 5 * (_fbm(seed + 29, xx, yy) - 0.5))
             rock = _fbm(seed + 31, xx, yy)
-            if altitude < 0:
+            if altitude == SEA_LEVEL:
                 geology[i] = "seabed"
             elif altitude > 1250 or (altitude > 580 and rock > 0.52):
                 geology[i] = "igneous" if rock > 0.56 else "metamorphic"
@@ -124,7 +138,7 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
     for y in range(height):
         for x in range(width):
             i = y * width + x
-            if elevation[i] < SEA_LEVEL or x in (0, width - 1) or y in (0, height - 1):
+            if elevation[i] <= SEA_LEVEL or x in (0, width - 1) or y in (0, height - 1):
                 seen[i] = True
                 heappush(heap, (float(elevation[i]), i))
     while heap:
@@ -151,7 +165,7 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
             i = y * width + x
             h, t, rainfall, rock = elevation[i], temp[i], rain[i], geology[i]
             river = h > 0 and flow[i] >= 72
-            if h < 0:
+            if h == SEA_LEVEL:
                 biome = "ocean"
             elif h > 1950:
                 biome = "alpine"
@@ -195,5 +209,6 @@ def generate_terrain(seed: int, width: int, height: int) -> tuple[Tile, ...]:
             result.append(Tile(x, y, h, t, rainfall, biome, rock, soil,
                                river, flow[i], {k: min(100, v) for k, v in values.items() if v >= 30},
                                ((downstream[i] % width, downstream[i] // width)
-                                if h > 0 and downstream[i] >= 0 else None)))
+                                if h > 0 and downstream[i] >= 0 else None),
+                               seabed_depth_m=seabed_depth[i]))
     return tuple(result)

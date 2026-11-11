@@ -211,68 +211,80 @@ def _hex_grid(world, scale: int) -> list[str]:
     return ['<g id="hex-grid" fill="none" stroke="#e7dfcc" stroke-width=".65" '
             'stroke-dasharray="2.3 3.7" opacity=".70">',
             f'<path d="{edges}"/>', '</g>']
-def _river_center(world, tile, scale: int) -> tuple[float, float]:
-    """A shared, terrain-bounded channel point for confluences and each reach."""
-    cx,cy = center(tile.x,tile.y,scale)
-    if not tile.river or tile.drains_to is None:
-        return cx,cy
-    next_tile = world.tile(*tile.drains_to)
-    tx,ty = center(next_tile.x,next_tile.y,scale)
-    vx,vy = tx-cx,ty-cy
-    length = hypot(vx,vy)
-    if length == 0:
-        return cx,cy
-    grade = abs(tile.elevation_m-next_tile.elevation_m)
-    # Low-gradient streams can wander within their hex corridors. Highlands
-    # remain sharply constrained by valleys and steep watercourses.
-    lowland = max(0.,1.-grade/370) * max(0.,1.-max(0,tile.elevation_m-250)/1000)
-    wave = (0.72*sin(tile.x*.58 + tile.y*.27 + world.seed*.51)
-            + 0.28*sin(tile.x*1.13-tile.y*.36 + world.seed*.23))
-    offset = scale*.33*lowland*wave
-    return cx-vy/length*offset, cy+vx/length*offset
-
-
 def _river_paths(world, scale: int) -> list[str]:
-    """Smooth the actual directed river graph, with terrain-limited meanders.
+    """Draw a gently meandering cubic stream with shared confluence tangents.
 
-    Each curve still starts and ends on the hydrology graph. This changes only
-    how a channel is drawn, not flow accumulation, geography or navigability.
+    The previous renderer displaced every segment independently with a
+    sinusoidal midpoint, making rivers look like repeating waves. Instead
+    this builds a consistent *stream direction at each vertex* from the main
+    upstream branch and the downstream node, then uses a Hermite-style cubic
+    at the shared points. The underlying drainage graph is unchanged.
     """
     parts = ['<g id="river-network" fill="none" stroke-linecap="round" stroke-linejoin="round">']
     widths = (1.25, 1.9, 2.7, 3.7, 4.8)
     buckets: list[list[str]] = [[] for _ in widths]
+    upstream = {}
+    for tile in world.tiles:
+        if not tile.river or tile.drains_to is None:
+            continue
+        key = tile.drains_to
+        incumbent = upstream.get(key)
+        if incumbent is None or tile.flow > incumbent.flow:
+            upstream[key] = tile
+
+    def position(tile):
+        cx, cy = center(tile.x, tile.y, scale)
+        # Tiny, slowly varying center displacements prevent overly geometric
+        # straight channels without introducing a new wave every tile.
+        if not tile.river:
+            return cx, cy
+        offset = scale * .045
+        return (cx + offset * sin(tile.x * .13 + tile.y * .11 + world.seed * .23),
+                cy + offset * sin(tile.x * .09 - tile.y * .14 + world.seed * .17))
+
+    def tangent(tile):
+        here = position(tile)
+        before = upstream.get((tile.x, tile.y))
+        after = world.tile(*tile.drains_to) if tile.drains_to is not None else None
+        p = position(before) if before is not None else here
+        q = position(after) if after is not None else here
+        if before is None and after is None:
+            return 1.0, 0.0
+        dx, dy = q[0] - p[0], q[1] - p[1]
+        mag = hypot(dx, dy)
+        return (dx / mag, dy / mag) if mag else (1.0, 0.0)
+
     for t in world.tiles:
         if not t.river or t.drains_to is None:
             continue
-        next_tile = world.tile(*t.drains_to)
-        x1,y1 = _river_center(world,t,scale)
-        x2,y2 = _river_center(world,next_tile,scale)
-        vx,vy = x2-x1,y2-y1
-        length = hypot(vx,vy)
+        nxt = world.tile(*t.drains_to)
+        x1, y1 = position(t)
+        x2, y2 = position(nxt)
+        length = hypot(x2 - x1, y2 - y1)
         if length <= 0:
             continue
-        # A visibly meandering lowland channel; mountain streams stay narrow
-        # and relatively direct. Seed/coordinates fix the direction of bends.
-        grade = abs(t.elevation_m - next_tile.elevation_m)
-        lowland = max(0.0, 1.0 - grade/370) * max(0.0, 1.0 - max(0,t.elevation_m-250)/1000)
-        wave = sin(t.x*.44+t.y*.39+world.seed*.41)
-        displacement = .41 * length * lowland * wave
-        nx,ny = -vy/length,vx/length
-        mx,my = (x1+x2)*.5 + nx*displacement, (y1+y2)*.5 + ny*displacement
-        # Quadratic Bezier control lies on the same river reach and cannot
-        # sever tributary joins (both endpoints remain tile centers).
-        segment = f'M{x1:.2f},{y1:.2f}Q{mx:.2f},{my:.2f} {x2:.2f},{y2:.2f}'
-        weight = min(len(widths)-1, int(log1p(t.flow/72)/1.15))
+        tx1, ty1 = tangent(t)
+        tx2, ty2 = tangent(nxt)
+        # Control handles share directions at confluences and naturally yield
+        # smooth channels; the bends come from drainage geometry, not waves.
+        handle = length * .32
+        c1x, c1y = x1 + handle * tx1, y1 + handle * ty1
+        c2x, c2y = x2 - handle * tx2, y2 - handle * ty2
+        segment = (f'M{x1:.2f},{y1:.2f}C{c1x:.2f},{c1y:.2f} '
+                   f'{c2x:.2f},{c2y:.2f} {x2:.2f},{y2:.2f}')
+        weight = min(len(widths) - 1, int(log1p(t.flow / 72) / 1.15))
         buckets[weight].append(segment)
-    for weight, paths in enumerate(buckets):
-        if not paths:
+    for weight, segments in enumerate(buckets):
+        if not segments:
             continue
-        d=''.join(paths)
-        wid=widths[weight]
+        d = ''.join(segments)
+        wid = widths[weight]
         parts.append(f'<path d="{d}" stroke="#345c66" stroke-width="{wid+1.2:.1f}" opacity=".70"/>')
         parts.append(f'<path d="{d}" stroke="#a6d7dc" stroke-width="{wid:.1f}"/>')
     parts.append('</g>')
     return parts
+
+
 def _mountain_symbols(world, scale: int) -> list[str]:
     """Show highland ridge texture and multiple snowy crests, not a white band."""
     parts = ['<g id="mountain-relief-hachures" stroke="#534f48" stroke-linecap="round" fill="none">']
@@ -400,6 +412,14 @@ def _places(world, scale: int) -> list[str]:
                      f'cx="{x:.1f}" cy="{y:.1f}" r="3.8" '
                      f'fill="{color}" stroke="#fff1d7" stroke-width="1.4">'
                      f'<title>{escape(site.name)}: {escape(site.reason)}</title></circle>')
+    parts.append('</g><g id="event-locations">')
+    for event in world.event_locations:
+        x, y = center(event.x, event.y, scale)
+        parts.append(f'<circle class="authored-event" cx="{x:.1f}" cy="{y:.1f}" '
+                     'r="6.0" fill="none" stroke="#fff1a5" stroke-width="2" '
+                     'stroke-dasharray="2 2">'
+                     f'<title>{escape(event.name)} — {escape(event.description)} '
+                     f'({escape(event.starts_at)} to {escape(event.ends_at)})</title></circle>')
     parts.append('</g><g id="settlements" font-family="Georgia,serif">')
     # Place labels in the least-crowded immediate quadrant, avoiding boundary.
     occupied = []
