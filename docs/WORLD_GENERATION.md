@@ -1,4 +1,4 @@
-# Oathmere: geography-first world generation (prototype v3 hex atlas)
+# Oathmere: geography-first world generation (prototype v4 terrain-aware roads)
 
 This system produces a deterministic *candidate atlas* from a numerical seed. It is **not yet wired into live game worlds or saved journals**. The current five-city catalog, travel rules, city inventories, player discovery and existing saved worlds remain unchanged. This separation is deliberate: a map must be reviewed and versioned before it becomes the game's authoritative world.
 
@@ -33,19 +33,28 @@ are a rendering projection, not game-state authority.
   confluence point for each tile. High-gradient streams stay comparatively
   straight. Visual sinuosity does **not** alter hydrological volume or
   river-related gameplay rules.
-- Cobblestone capital approaches, dirt secondary roads and bridges use the
-  exact same hex-coordinate projection as the rivers and settlements.
-  Roads connect only along a shared hex edge, and route distances use
-  equal-length hex steps.
+- Cobblestone capital approaches, dirt secondary roads, fords, and constructed
+  bridges use the same hex-coordinate projection as rivers and settlements.
+  Roads connect only along shared hex edges. Mountain routing penalizes steep
+  grades, excessive climbing, and high-altitude construction so a nearby lower
+  saddle is favored over a direct summit crossing. River entry carries an
+  infrastructure cost scaled by flow: the builder prefers a short detour or
+  shallow ford but accepts a bridge when the alternative is too circuitous.
+  The routing cost is *not* travel time: the cost of constructing an existing
+  bridge does not make its eventual journey artificially slow.
+- The JSON manifest records `crossings`, `bridges`, and `fords` separately
+  for each road. In the atlas, shallow fords use a small marker and actual
+  constructed bridges display their deck.
 
 This is not a tectonic/geological timescale simulator. The coast/ridge
 variability is procedural and physically motivated, not plate-dynamics-derived.
 Likewise, river bends are visualized within their drain corridors; a later
 geomorphology pass can integrate erosion, braided streams, lakes and deltas.
 
-**Migration note:** v3 intentionally changes generated tile topology, road
-lengths and geographic positions for a given seed. Versioned v2 manifests
-must not be silently reinterpreted as v3 or used to rewrite live saves.
+**Migration note:** v4 changes road geometry, crossing classification and
+travel times for a given seed. Generated v3 manifests must not be reinterpreted
+as v4 or used to overwrite existing saves. The 80×64 hex topology remains
+unchanged, as do the terrain and settlement locations for a given seed.
 The existing five-city gameplay runtime remains separate.
 
 ## Important design boundaries
@@ -71,3 +80,10 @@ python -m unittest discover -s tests -p 'test_worldgen.py' -v
 ```
 
 Covers seed reproducibility, terrain and resource invariants, mainland settlements, road connectivity/walkability, dungeon siting, schema serialization and SVG output. A 100-seed smoke test was also run over 64×44 maps without generation failures.
+## v4 road-planning regression tests
+
+The standalone worldgen tests include synthetic hex maps with one low mountain
+saddle, an isolated river obstacle with a short dry detour, an upstream ford
+versus a downstream deep crossing, and an unavoidable bridge. All use the same
+A* and cost rules as the atlas. The test suite also checks that cost of bridge
+construction does not inflate minutes traveled on an already built road.
