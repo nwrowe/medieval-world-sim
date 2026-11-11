@@ -96,7 +96,13 @@ class DurableCheckpointTests(TestCase):
         guild = self.game.action(alice, "found_guild", {"name": "Iron Circle"}, "guild")
         self.game.action(
             alice, "travel", {"destination": GOLDMEADOW}, "travel")
-        self.game.advance(alice, 60, "arrival")
+        remaining = self.game.world.actors[alice].arrival_minute - self.game.world.minute
+        index = 0
+        while remaining:
+            chunk = min(1440, remaining)
+            self.game.advance(alice, chunk, f"arrival-{index}")
+            remaining -= chunk
+            index += 1
         self.game.action(
             alice, "gather", {"item": "grain", "quantity": 1}, "gather")
         self.game.action(
