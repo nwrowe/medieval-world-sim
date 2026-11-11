@@ -64,7 +64,10 @@ class LineageExplorationTests(unittest.TestCase):
             game.action("travel", {"destination": IRONVALE}, "road-1")
             duration = game.world.actors["hero"].arrival_minute - game.world.minute
             self.assertNotIn(IRONVALE, game.snapshot()["player"]["discovered_cities"])
-            game.advance(duration)
+            while duration:
+                step = min(1440, duration)
+                game.advance(step)
+                duration -= step
             arrived = game.snapshot()
             self.assertIn(IRONVALE, arrived["player"]["discovered_cities"])
             self.assertTrue(next(c for c in arrived["cities"] if c["id"] == IRONVALE)["discovered"])
