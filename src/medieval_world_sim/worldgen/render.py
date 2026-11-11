@@ -10,7 +10,9 @@ from __future__ import annotations
 
 from base64 import b64encode
 from html import escape
-from math import floor, hypot, log1p, sqrt
+from math import ceil, floor, hypot, log1p, sin, sqrt
+
+from .hexgrid import center, edge_neighbor, map_size, vertices, SQRT3
 from struct import pack
 from zlib import compress, crc32
 
@@ -45,59 +47,66 @@ def _png_rgb(width: int, height: int, pixels: bytes) -> str:
 
 
 def _terrain_raster(world, tile_px: int) -> str:
-    """Interpolate biome colors and shade the topography at display resolution."""
+    """Rasterize per-hex biome colors with elevation-derived hillshading.
+
+    This intentionally does not interpolate an ocean or biome color across a
+    land/water boundary; the transition is exactly the shared hex edge.
+    """
     w, h = world.width, world.height
-    width, height = w * tile_px, h * tile_px
+    width, height = map_size(w, h, tile_px)
     heights = [max(0, t.elevation_m) for t in world.tiles]
-    rgb = [BIOME_COLORS[t.biome] for t in world.tiles]
-    # Vertex gradients, then bilinear interpolation, give smooth hillshading
-    # rather than the conspicuous tiled facets of direct bilinear derivatives.
-    gradients = []
-    for y in range(h):
-        for x in range(w):
-            left, right = heights[y * w + max(0, x - 1)], heights[y * w + min(w - 1, x + 1)]
-            above, below = heights[max(0, y - 1) * w + x], heights[min(h - 1, y + 1) * w + x]
-            gradients.append(((right - left) / (2 * world.cell_km * 1000),
-                              (below - above) / (2 * world.cell_km * 1000)))
-    output = bytearray(width * height * 3)
-    # Sunlight from north-west with exaggerated vertical relief for map reading.
+    output = bytearray((108, 151, 159) * (width * height))
+    painted = bytearray(width * height)
     sun = (-0.62, -0.48, 0.62)
-    sun_len = sqrt(sum(v * v for v in sun))
-    sun = tuple(v / sun_len for v in sun)
+    mag = sqrt(sum(v*v for v in sun))
+    sun = tuple(v/mag for v in sun)
+    for t in world.tiles:
+        x, y = t.x, t.y
+        left, right = heights[y*w+max(0,x-1)], heights[y*w+min(w-1,x+1)]
+        above, below = heights[max(0,y-1)*w+x], heights[min(h-1,y+1)*w+x]
+        dx = (right-left)/(2*world.cell_km*1000)
+        dy = (below-above)/(2*world.cell_km*1000)
+        nx, ny, nz = -dx*14, -dy*14, 1.0
+        nmag = sqrt(nx*nx+ny*ny+nz*nz)
+        light = (nx*sun[0] + ny*sun[1] + nz*sun[2])/nmag
+        shade = max(.62, min(1.26, .79 + .40*light))
+        base = BIOME_COLORS[t.biome]
+        cx, cy = center(x, y, tile_px)
+        for py in range(max(0, ceil(cy-tile_px-.5)),
+                        min(height, ceil(cy+tile_px-.5))):
+            oy = abs(py+.5-cy)
+            half_width = (SQRT3*tile_px*.5 if oy <= tile_px*.5
+                          else SQRT3*(tile_px-oy))
+            if half_width <= 0:
+                continue
+            from_x = max(0, ceil(cx-half_width-.5))
+            to_x = min(width, ceil(cx+half_width-.5))
+            for px in range(from_x, to_x):
+                texture = ((px*71+py*113+(px*py*17))%23-11)*.18
+                # A gentle intra-cell gradient keeps relief visible while the
+                # biome boundaries themselves remain crisp hexagon edges.
+                facet = 1 + max(-.035, min(.035,
+                    -(px+.5-cx)*dx*.006 - (py+.5-cy)*dy*.006))
+                pixel = py*width+px
+                painted[pixel] = 1
+                pos = pixel*3
+                for k in range(3):
+                    output[pos+k] = max(0,min(255,round(base[k]*shade*facet+texture)))
+    # Straight map frames can include tiny triangular slivers beyond the
+    # outermost hexes. Extend the nearest boundary hex rather than leaving
+    # conspicuous default-blue triangles over inland northern/southern edges.
     for py in range(height):
-        v = py / tile_px - 0.5
-        y0 = min(max(int(floor(v)), 0), h - 1)
-        y1 = min(y0 + 1, h - 1)
-        fy = min(1., max(0., v - y0))
-        row0, row1 = y0 * w, y1 * w
+        y = max(0,min(h-1,round((py+.5-tile_px)/(1.5*tile_px))))
+        row_offset = (y&1)*.5
         for px in range(width):
-            u = px / tile_px - 0.5
-            x0 = min(max(int(floor(u)), 0), w - 1)
-            x1 = min(x0 + 1, w - 1)
-            fx = min(1., max(0., u - x0))
-            ia, ib, ic, id_ = row0 + x0, row0 + x1, row1 + x0, row1 + x1
-            # Smoothly interpolated slope from the actual elevation model.
-            dx = ((gradients[ia][0] * (1 - fx) + gradients[ib][0] * fx) * (1 - fy)
-                  + (gradients[ic][0] * (1 - fx) + gradients[id_][0] * fx) * fy)
-            dy = ((gradients[ia][1] * (1 - fx) + gradients[ib][1] * fx) * (1 - fy)
-                  + (gradients[ic][1] * (1 - fx) + gradients[id_][1] * fx) * fy)
-            nx, ny, nz = -dx * 14, -dy * 14, 1.
-            nmag = sqrt(nx * nx + ny * ny + nz * nz)
-            light = (nx * sun[0] + ny * sun[1] + nz * sun[2]) / nmag
-            shade = max(0.57, min(1.23, 0.79 + 0.40 * light))
-            base = []
-            for k in range(3):
-                a = rgb[ia][k] * (1 - fx) + rgb[ib][k] * fx
-                b = rgb[ic][k] * (1 - fx) + rgb[id_][k] * fx
-                base.append(a * (1 - fy) + b * fy)
-            # Subtle, deterministic paper texture; never modifies relief/water.
-            texture = ((px * 71 + py * 113 + (px * py * 17)) % 23 - 11) * 0.16
-            off = (py * width + px) * 3
-            for k in range(3):
-                output[off + k] = max(0, min(255, round(base[k] * shade + texture)))
+            pixel = py*width+px
+            if painted[pixel]:
+                continue
+            x = max(0,min(w-1,round((px+.5)/(SQRT3*tile_px)-.5-row_offset)))
+            color=BIOME_COLORS[world.tile(x,y).biome]
+            off=pixel*3
+            output[off:off+3] = bytes(color)
     return _png_rgb(width, height, bytes(output))
-
-
 def _contour_segments(world, level: int, tile_px: int) -> str:
     """Marching-squares isolines with linear interpolation on height samples."""
     w, h = world.width, world.height
@@ -108,15 +117,15 @@ def _contour_segments(world, level: int, tile_px: int) -> str:
                     world.tile(x + 1, y).elevation_m,
                     world.tile(x + 1, y + 1).elevation_m,
                     world.tile(x, y + 1).elevation_m)
-            corners = ((x + .5, y + .5), (x + 1.5, y + .5),
-                       (x + 1.5, y + 1.5), (x + .5, y + 1.5))
+            corners = (center(x,y,tile_px), center(x+1,y,tile_px),
+                       center(x+1,y+1,tile_px), center(x,y+1,tile_px))
             hits = []
             for a in range(4):
                 b = (a + 1) % 4
                 if (vals[a] < level) != (vals[b] < level):
                     frac = (level - vals[a]) / (vals[b] - vals[a])
-                    ix = (corners[a][0] + (corners[b][0] - corners[a][0]) * frac) * tile_px
-                    iy = (corners[a][1] + (corners[b][1] - corners[a][1]) * frac) * tile_px
+                    ix = corners[a][0] + (corners[b][0] - corners[a][0]) * frac
+                    iy = corners[a][1] + (corners[b][1] - corners[a][1]) * frac
                     hits.append((a, ix, iy))
             if len(hits) == 2:
                 (_, ax, ay), (_, bx, by) = hits
@@ -131,23 +140,52 @@ def _contour_segments(world, level: int, tile_px: int) -> str:
     return ''.join(out)
 
 
+def _edge_path(world, scale: int, *, coastal: bool) -> str:
+    """Unique hex edges, or strictly the edges between land and ocean."""
+    segments = []
+    for t in world.tiles:
+        polygon = vertices(t.x,t.y,scale)
+        for e in range(6):
+            point = edge_neighbor(t.x,t.y,e)
+            in_bounds = 0 <= point[0] < world.width and 0 <= point[1] < world.height
+            if coastal:
+                if t.elevation_m <= 0 or not in_bounds:
+                    continue
+                if world.tile(*point).elevation_m > 0:
+                    continue
+            elif in_bounds and point < (t.x,t.y):
+                continue  # don't double-draw edges shared by hexes
+            x1,y1 = polygon[e]
+            x2,y2 = polygon[(e+1)%6]
+            segments.append(f'M{x1:.2f},{y1:.2f}L{x2:.2f},{y2:.2f}')
+    return ''.join(segments)
+
+
 def _coast_and_contours(world, scale: int) -> list[str]:
     parts = ['<g id="elevation-contours" fill="none" stroke-linecap="round">']
-    # Higher ridges show a denser visual rhythm without inventing elevation.
     for level in range(300, 3100, 300):
         path = _contour_segments(world, level, scale)
         if path:
-            major = (level % 600 == 0)
+            major = level % 600 == 0
             parts.append(f'<path d="{path}" stroke="#504c3f" '
                          f'stroke-width="{1.0 if major else .65}" '
                          f'opacity="{.29 if major else .17}"/>')
     parts.append('</g>')
-    coastline = _contour_segments(world, 0, scale)
-    parts.append(f'<path id="coastline" d="{coastline}" fill="none" stroke="#3a666c" '
-                 'stroke-width="2.2" opacity=".84" stroke-linecap="round"/>')
+    coast = _edge_path(world,scale,coastal=True)
+    parts.append('<g id="coastline" fill="none" stroke-linejoin="round" '
+                 'stroke-linecap="round">')
+    # A broad, land-green coastal fringe and a precise darker shoreline line.
+    parts.append(f'<path d="{coast}" stroke="#587758" stroke-width="5.3" opacity=".78"/>')
+    parts.append(f'<path d="{coast}" stroke="#345e59" stroke-width="1.9" opacity=".94"/>')
+    parts.append('</g>')
     return parts
 
 
+def _hex_grid(world, scale: int) -> list[str]:
+    edges = _edge_path(world,scale,coastal=False)
+    return ['<g id="hex-grid" fill="none" stroke="#e7dfcc" stroke-width=".65" '
+            'stroke-dasharray="2.3 3.7" opacity=".70">',
+            f'<path d="{edges}"/>', '</g>']
 def _river_paths(world, scale: int) -> list[str]:
     """Draw the directed drainage graph as joined, width-scaled stream segments."""
     parts = ['<g id="river-network" fill="none" stroke-linecap="round" stroke-linejoin="round">']
