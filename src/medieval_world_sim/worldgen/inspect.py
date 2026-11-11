@@ -119,6 +119,7 @@ small{color:#abb6ae}
 <h2>Local natural resources</h2><div id="resources"><p>Select a tile to inspect its potential.</p></div>
 <h2>Places and infrastructure</h2><div id="places"><p>Roads, settlements, and landmarks appear here.</p></div>
 <h2>Town resource economy</h2>
+<p><small>For a town-by-town regional comparison, open <a href="town-resources.md">the resource report</a> in the same folder.</small></p>
 <div id="economy-block"><p>Select a town hex to see its primary and secondary resources, geographic justification, local shortages and potential trading partners.</p></div>
 <p><small>This is a designer's survey. Land difficulty is 1 (easy) to 100 (very hard); sea and lake hexes have no foot route. Watercraft suitability is a separate, provisional survey. Road times are estimates, not yet connected to live travel. Potential resources are not player inventories.</small></p>
 </aside></main>
@@ -204,7 +205,16 @@ records.forEach(function(rec,index){
  option.textContent=rec.town;
  picker.append(option);
 });
-picker.onchange=function(){if(picker.value!=="")choose(Number(picker.value))};
+picker.onchange=function(){
+ if(picker.value==="")return;
+ choose(Number(picker.value));
+ // Reveal the selected hex in the scrollable map, not just its details.
+ if(selected){
+  var frame=map.getBoundingClientRect(),tile=selected.getBoundingClientRect();
+  map.scrollLeft+=tile.left+tile.width/2-(frame.left+frame.width/2);
+  map.scrollTop+=tile.top+tile.height/2-(frame.top+frame.height/2);
+ }
+};
 svg.addEventListener("click",function(e){var p=e.target.closest("polygon[data-index]");if(p&&svg.contains(p))choose(Number(p.dataset.index))});
 function zoom(next){scale=Math.max(1,Math.min(3.5,next));svg.style.width=Math.round(scale*100)+"%";document.getElementById("zoom-label").textContent=Math.round(scale*100)+"%"}
 document.getElementById("zoom-in").onclick=function(){zoom(scale*1.3)};
