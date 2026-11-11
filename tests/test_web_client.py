@@ -13,6 +13,16 @@ from importlib.resources import files
 
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.session import GameSession, SaveError
+
+
+def complete_session_trip(game):
+    """Replay long generated routes through bounded authorized clock advances."""
+    remaining = game.world.actors["hero"].arrival_minute - game.world.minute
+    while remaining:
+        increment = min(1440, remaining)
+        game.advance(increment)
+        remaining -= increment
+
 from medieval_world_sim.web.server import GameHTTPServer
 
 
@@ -157,12 +167,12 @@ class WebSessionTests(unittest.TestCase):
         self.game.create("Alin Marlow")
         initial_gold = self.game.world.initial_gold
         self.game.action("travel", {"destination": GOLDMEADOW}, "to-fields")
-        self.game.advance(self.game.world.actors["hero"].arrival_minute - self.game.world.minute)
+        complete_session_trip(self.game)
         self.game.action("gather", {"item": "grain", "quantity": 2}, "gather-1")
         self.game.action("regional_sell", {"item": "grain", "quantity": 1}, "sell-1")
         self.game.advance(90)
         self.game.action("travel", {"destination": "crownreach"}, "travel-1")
-        self.game.advance(self.game.world.actors["hero"].arrival_minute - self.game.world.minute)
+        complete_session_trip(self.game)
         before = self.game.snapshot()
         second = GameSession(self.save)
         self.assertEqual(second.snapshot(), before)
@@ -175,7 +185,7 @@ class WebSessionTests(unittest.TestCase):
     def test_saved_command_id_is_not_charged_twice(self):
         self.game.create("Eryn Vale")
         self.game.action("travel", {"destination": GOLDMEADOW}, "buy-fields")
-        self.game.advance(self.game.world.actors["hero"].arrival_minute - self.game.world.minute)
+        complete_session_trip(self.game)
         args = {"item": "grain", "quantity": 2}
         self.game.action("regional_buy", args, "one-purchase")
         before = self.game.snapshot()
