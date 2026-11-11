@@ -447,6 +447,8 @@ def main(argv=None):
                         help="Issue one-time 7-day account invites to stdout and exit")
     parser.add_argument("--dev-open-registration", action="store_true",
                         help="UNSAFE for public use: skip one-time invitation requirement")
+    parser.add_argument("--dev-seconds-travel", action="store_true",
+                        help="LOCAL TEST ONLY: one game minute per real second; compress road trips by 60x")
     parser.add_argument("--dev-fast-forward", action="store_true",
                         help="UNSAFE for public use: allow users to advance shared time manually")
     parser.add_argument("--no-npcs", action="store_true",
@@ -471,6 +473,7 @@ def main(argv=None):
         multi = MultiplayerGame(
             args.multiplayer_db, require_invites=not args.dev_open_registration,
             dev_fast_forward=args.dev_fast_forward,
+            dev_travel_seconds=args.dev_seconds_travel,
             npc_enabled=not args.no_npcs)
         try:
             if args.issue_invites:
@@ -494,7 +497,7 @@ def main(argv=None):
             multi.close()
         return
     if (args.issue_invites or args.dev_open_registration
-            or args.dev_fast_forward or args.no_npcs):
+            or args.dev_fast_forward or args.dev_seconds_travel or args.no_npcs):
         parser.error("Multiplayer development flags require --multiplayer-db")
     token = args.access_token
     if args.host == "0.0.0.0" and not token:
