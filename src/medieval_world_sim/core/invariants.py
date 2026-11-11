@@ -62,7 +62,8 @@ def validate_world(world: WorldEngine) -> None:
             if account.destination is None:
                 if (route or account.travel.departure_minute is not None
                         or account.travel.route_revealed_index != 0
-                        or account.travel.hex_target is not None):
+                        or account.travel.hex_target is not None
+                        or account.travel.route_durations):
                     raise AssertionError("Inactive journey retains a route")
             else:
                 if (not route or account.travel.departure_minute is None
@@ -72,6 +73,13 @@ def validate_world(world: WorldEngine) -> None:
                                or not 0 <= y < world.geography.height
                                for x, y in route)):
                     raise AssertionError("Invalid or out-of-bounds active journey")
+            durations = account.travel.route_durations
+            if (type(durations) is not tuple
+                    or any(type(t) is not int or t <= 0 for t in durations)
+                    or (durations and (len(durations) != len(route) - 1
+                        or sum(durations) != account.arrival_minute
+                           - account.travel.departure_minute))):
+                raise AssertionError("Invalid per-hex terrain crossing times")
             target = account.travel.hex_target
             if target is not None:
                 if (type(target) is not tuple or len(target) != 2
