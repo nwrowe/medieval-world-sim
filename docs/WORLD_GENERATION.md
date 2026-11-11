@@ -1,4 +1,4 @@
-# Oathmere: geography-first world generation (prototype v6 terrain clarity and authored content)
+# Oathmere: geography-first world generation (prototype v7 historical development)
 
 This system produces a deterministic *candidate atlas* from a numerical seed. It is **not yet wired into live game worlds or saved journals**. The current five-city catalog, travel rules, city inventories, player discovery and existing saved worlds remain unchanged. This separation is deliberate: a map must be reviewed and versioned before it becomes the game's authoritative world.
 
@@ -206,3 +206,24 @@ multiplayer server.
 Generated content is deterministic for a fixed seed, version, configuration
 and authoring file. A revised map must be explicitly reviewed and published;
 re-running it must never silently alter an existing playable world.
+
+## v7: geography-driven historical chronicle
+
+The atlas generator now exports `history.html` along with the interactive
+geographic `atlas.html`, static SVG and machine-readable world JSON.
+The chronicle models six fictional eras (Year -600 to Year 400): founding
+on fertile/water-accessible land, population changes under resource and
+climate limits, trade via terrain-aware roads, the growth of political
+leagues across accessible valleys, frontier disputes, and ruins/abandoned
+hamlets with an explicit geographic or commercial explanation.
+
+The historical map lets designers select an era to see *only the settlements
+and routes existing by that date*, view settlement and political details and
+read the turning points. It uses existing physical terrain without altering
+hydrology or displacing authored sites. Custom names flow into history.
+
+Historical records are **inference**, not active gameplay; population and
+trade indices are not live player/NPC counts or gold. See
+[Historical Development](HISTORICAL_DEVELOPMENT.md) for algorithms, schema,
+limitations and planned phases. Generated-world version **7** keeps existing
+v6 map snapshots intact; do not silently regenerate old saves.
