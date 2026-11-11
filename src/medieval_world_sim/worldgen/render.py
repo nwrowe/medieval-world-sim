@@ -13,6 +13,7 @@ from html import escape
 from math import ceil, floor, hypot, log1p, sin, sqrt
 
 from .hexgrid import center, edge_neighbor, map_size, vertices, SQRT3
+from .society import FORD_MAX_FLOW
 from struct import pack
 from zlib import compress, crc32
 
@@ -328,11 +329,16 @@ def _road_paths(world, scale: int) -> list[str]:
                 parts.append(f'<polyline points="{pts}" stroke="#ece1c8" stroke-width="3.3"/>')
                 parts.append(f'<polyline points="{pts}" stroke="#898375" stroke-width="1.25" '
                              'stroke-dasharray="1 3"/>')
-            # A short bridge deck across the water where a road enters a river.
+            # Fords mark shallow crossings; bridges are built only when the
+            # route's cost justifies traversing a larger river.
             for (px, py), (x, y) in zip(road.path, road.path[1:]):
                 if not world.tile(x, y).river or world.tile(px, py).river:
                     continue
                 cx, cy = center(x,y,scale)
+                if world.tile(x, y).flow <= FORD_MAX_FLOW:
+                    parts.append(f'<circle class="road-ford" cx="{cx:.1f}" cy="{cy:.1f}" r="2.8" '
+                                 'fill="#ead8b0" stroke="#47606a" stroke-width="1.1"/>')
+                    continue
                 fx,fy=center(px,py,scale)
                 vx, vy = cx-fx, cy-fy
                 length = hypot(vx, vy)
@@ -411,7 +417,7 @@ def render_svg(world) -> str:
         'role="img" aria-labelledby="title desc">',
         '<title id="title">Oathmere — shaded relief survey atlas</title>',
         '<desc id="desc">Procedurally generated shaded mountains, labeled contours, connected drainage, '
-        'hexagon tiles, jagged hex coastlines, meandering rivers, cobblestone trade roads, dirt roads, river bridges, settlements and exploration sites.</desc>',
+        'hexagon tiles, jagged hex coastlines, meandering rivers, cobblestone trade roads, dirt roads, strategic river bridges and natural fords, settlements and exploration sites.</desc>',
         '<rect width="100%" height="100%" fill="#e9dec3"/>',
         f'<path d="M{MARGIN},68H{width-MARGIN}" stroke="#977c52" stroke-width="1"/>',
         '<text x="29" y="36" font-family="Georgia,serif" font-size="26" '
