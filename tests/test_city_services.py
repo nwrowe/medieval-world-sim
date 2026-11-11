@@ -76,12 +76,12 @@ class CityContractTests(unittest.TestCase):
         w.execute("hero", "store_goods", {"item": "grain", "quantity": 30}, "store-1")
         self.assertEqual(w.actors["hero"].inventory["grain"], 10)
         self.assertEqual(w.actors["hero"].storage[GOLDMEADOW]["grain"], 30)
-        w.start_travel("hero", "crownreach")
-        w.advance(60)
+        trip = w.start_travel("hero", "crownreach")
+        w.advance(trip)
         with self.assertRaises(ActionError):
             w.retrieve_goods("hero", "grain", 1)
-        w.start_travel("hero", GOLDMEADOW)
-        w.advance(60)
+        trip = w.start_travel("hero", GOLDMEADOW)
+        w.advance(trip)
         w.retrieve_goods("hero", "grain", 30)
         self.assertEqual(w.actors["hero"].inventory["grain"], 40)
         with self.assertRaises(ActionError):
