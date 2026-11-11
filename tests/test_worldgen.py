@@ -17,7 +17,7 @@ class WorldGenerationTests(unittest.TestCase):
         c = generate_world(seed=43, width=64, height=44, cities=9, sites=25)
         self.assertEqual(a.to_dict(), b.to_dict())
         self.assertNotEqual(a.tiles, c.tiles)
-        self.assertEqual(a.version, 6)
+        self.assertEqual(a.version, 7)
 
     def test_terrain_dimensions_climate_and_river_network(self):
         world = self.world
@@ -290,7 +290,7 @@ class RoadSitingTests(unittest.TestCase):
         for road in w.roads:
             self.assertEqual(road.crossings, road.bridges + road.fords)
             self.assertGreater(road.travel_minutes, 0)
-        self.assertEqual(w.to_dict()["version"], 6)
+        self.assertEqual(w.to_dict()["version"], 7)
 
 
 class SurveyWaterAndLandmarkTests(unittest.TestCase):
@@ -427,7 +427,7 @@ class CoastAccessibilityAndAuthoringTests(unittest.TestCase):
         from medieval_world_sim.worldgen.inspect import render_inspector_html
         world = self.world
         template = export_content_template(world)
-        self.assertEqual(template["generator_version"], 6)
+        self.assertEqual(template["generator_version"], 7)
         self.assertEqual(template["seed"], 7)
         self.assertIn("crownreach", template["settlements"])
         self.assertEqual(len(template["sites"]), len(world.sites))
@@ -513,3 +513,131 @@ class CoastAccessibilityAndAuthoringTests(unittest.TestCase):
             path.write_text('{"schema_version":1,"schema_version":1}', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "Repeated JSON key"):
                 load_content(path)
+
+
+class HistoricalDevelopmentTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.world = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+
+    def test_historical_eras_are_reproducible_ordered_and_geographically_grounded(self):
+        w = self.world
+        chron = w.history
+        self.assertIsNotNone(chron)
+        self.assertEqual(len(chron.eras), 6)
+        self.assertEqual([x.year for x in chron.eras],
+                         sorted(x.year for x in chron.eras))
+        self.assertEqual(chron.present_year, chron.eras[-1].year)
+        self.assertEqual(len(chron.eras[-1].towns), len(w.settlements))
+        self.assertTrue(len(chron.eras[0].towns) < len(w.settlements))
+        all_ids = {s.id for s in w.settlements}
+        known = set()
+        for era in chron.eras:
+            self.assertEqual(len({s.id for s in era.towns}), len(era.towns))
+            for town in era.towns:
+                known.add(town.id)
+                self.assertIn(town.id, all_ids)
+                self.assertGreater(town.population, 0)
+                self.assertTrue(0 <= town.food_security <= 100)
+                self.assertIn(town.status, ("hamlet", "village", "town", "city"))
+                self.assertGreaterEqual(era.year, town.founded_year)
+                self.assertEqual((town.x, town.y),
+                                 (next(s.x for s in w.settlements if s.id == town.id),
+                                  next(s.y for s in w.settlements if s.id == town.id)))
+            self.assertEqual({t.id for t in era.towns}, known)
+        again = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+        self.assertEqual(w.history, again.history)
+        self.assertEqual(w.to_dict(), again.to_dict())
+
+    def test_historic_routes_activate_after_founding_and_track_trade(self):
+        w = self.world
+        modern = {tuple(sorted((r.a, r.b))): r for r in w.roads}
+        prior_routes = set()
+        for era in w.history.eras:
+            present = {t.id for t in era.towns}
+            current = set()
+            for road in era.roads:
+                key = tuple(sorted((road.a, road.b)))
+                self.assertIn(key, modern)
+                self.assertIn(road.a, present)
+                self.assertIn(road.b, present)
+                self.assertGreater(road.travel_minutes, 0)
+                self.assertGreater(road.trade_volume, 0)
+                self.assertIn(road.surface, ("trail", "dirt", "cobblestone"))
+                current.add(key)
+            self.assertTrue(prior_routes.issubset(current))
+            prior_routes = current
+
+    def test_political_membership_and_provenance_are_consistent(self):
+        w = self.world
+        self.assertTrue(any(e.kind == "founding" for era in w.history.eras
+                            for e in era.events))
+        self.assertTrue(any(e.kind == "road" for era in w.history.eras
+                            for e in era.events))
+        for era in w.history.eras:
+            members = {member for p in era.polities for member in p.member_ids}
+            self.assertEqual(members, {t.id for t in era.towns})
+            self.assertEqual(len(members),
+                             sum(len(p.member_ids) for p in era.polities))
+            for polity in era.polities:
+                self.assertIn(polity.seat_id, members)
+                self.assertGreater(polity.influence, 0)
+            assignment = {t.id: t.polity_id for t in era.towns}
+            for polity in era.polities:
+                for sid in polity.member_ids:
+                    self.assertEqual(assignment[sid], polity.id)
+            for e in era.events:
+                self.assertEqual(e.year, era.year)
+                self.assertTrue(e.title)
+                self.assertTrue(e.account)
+
+    def test_ruins_are_dry_sited_and_abandonment_is_recorded(self):
+        w = self.world
+        self.assertTrue(w.history.ruins)
+        sites = {s.id: s for s in w.sites}
+        abandonments = {e.site_id for era in w.history.eras
+                        for e in era.events if e.kind == "abandonment"}
+        self.assertGreaterEqual(len(abandonments), len(w.history.ruins))
+        for ruin in w.history.ruins:
+            self.assertIn(ruin.id, abandonments)
+            self.assertLess(ruin.founded_year, ruin.abandoned_year)
+            self.assertLessEqual(ruin.abandoned_year, w.history.present_year)
+            self.assertGreater(w.tile(ruin.x, ruin.y).elevation_m, 0)
+            self.assertNotIn(w.tile(ruin.x, ruin.y).waterbody, ("sea", "lake"))
+            self.assertTrue(ruin.cause)
+            if ruin.linked_site_id is not None:
+                site = sites[ruin.linked_site_id]
+                self.assertEqual((ruin.x, ruin.y), (site.x, site.y))
+
+    def test_historical_atlas_has_valid_svg_and_shows_eras(self):
+        from xml.etree import ElementTree
+        from medieval_world_sim.worldgen.history_view import render_history_html
+        from medieval_world_sim.worldgen.render import render_svg
+        w = self.world
+        before = w.to_dict()
+        html = render_history_html(w)
+        self.assertEqual(html, render_history_html(w))
+        self.assertEqual(before, w.to_dict())
+        self.assertIn('id="historical-overlays"', html)
+        self.assertIn('id="era"', html)
+        self.assertIn("The Chronicle of Oathmere", html)
+        self.assertIn(w.history.eras[-1].name, html)
+        self.assertIn("historical-event", html)
+        self.assertIn("atlas.html", html)
+        svg = html.split('<svg xmlns=', 1)[1].split('</svg>', 1)[0]
+        ElementTree.fromstring('<svg xmlns=' + svg + '</svg>')
+        plain = render_svg(w)
+        self.assertIn('id="river-network"', plain)
+
+    def test_authored_city_names_propagate_into_its_history(self):
+        from medieval_world_sim.worldgen.content import export_content_template
+        original = self.world
+        manifest = export_content_template(original)
+        manifest["settlements"]["crownreach"]["name"] = "Bayhaven"
+        updated = generate_world(seed=7, width=64, height=44, cities=9,
+                                 sites=25, content=manifest)
+        self.assertTrue(any(t.name == "Bayhaven" for era in updated.history.eras
+                            for t in era.towns))
+        self.assertEqual(original.tiles, updated.tiles)
+        self.assertEqual(original.roads, updated.roads)
+        self.assertNotEqual(original.history, updated.history)
