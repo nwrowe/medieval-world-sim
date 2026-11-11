@@ -1,4 +1,6 @@
 """Housing, practical training and travel vehicles; finite payments and road rules."""
+from realm_fixtures import IRONVALE
+
 import unittest
 
 from medieval_world_sim.catalog import CAPITAL
@@ -13,7 +15,7 @@ class HousingTests(unittest.TestCase):
         return WorldEngine([
             Actor("owner", "human", city=CAPITAL, gold=20000),
             Actor("worker", "npc", city=CAPITAL, gold=3000),
-            Actor("visitor", "human", city="ironvale", gold=1000),
+            Actor("visitor", "human", city=IRONVALE, gold=1000),
         ], seed=19)
 
     def test_prices_ascending_and_house_upgrade_pays_difference(self):
@@ -51,18 +53,18 @@ class HousingTests(unittest.TestCase):
         self.assertEqual(w.buy_vehicle("owner", "horse"), 250)
         w.select_vehicle("owner", "horse")
         self.assertEqual(w.housing_view("owner").travel_cargo_limit, 16)
-        self.assertEqual(w.estimated_travel_minutes("owner", "ironvale"), 72)
-        self.assertEqual(w.start_travel("owner", "ironvale"), 72)
+        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), 72)
+        self.assertEqual(w.start_travel("owner", IRONVALE), 72)
         w.advance(71)
-        self.assertEqual(w.actors["owner"].destination, "ironvale")
+        self.assertEqual(w.actors["owner"].destination, IRONVALE)
         w.advance(1)
-        self.assertEqual(w.actors["owner"].city, "ironvale")
+        self.assertEqual(w.actors["owner"].city, IRONVALE)
         with self.assertRaises(ActionError):
             w.select_vehicle("owner", None)  # mount must return to home to park
         self.assertEqual(w.start_travel("owner", CAPITAL), 72)
         w.advance(72)
         w.select_vehicle("owner", None)
-        self.assertEqual(w.start_travel("owner", "ironvale"), 90)
+        self.assertEqual(w.start_travel("owner", IRONVALE), 90)
         w.assert_invariants()
 
     def test_carriage_reduces_road_duration_and_expands_cargo_not_local_limit(self):
@@ -70,15 +72,15 @@ class HousingTests(unittest.TestCase):
         w.buy_home("owner", "estate")
         self.assertEqual(w.build_home_facility("owner", "carriage_house"), 550)
         self.assertEqual(w.buy_vehicle("owner", "carriage"), 950)
-        self.assertEqual(w.estimated_travel_minutes("owner", "ironvale"), 90)
+        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), 90)
         w.select_vehicle("owner", "carriage")
-        self.assertEqual(w.estimated_travel_minutes("owner", "ironvale"), 54)
+        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), 54)
         self.assertEqual(w.housing_view("owner").travel_cargo_limit, 20)
         # 18 units can travel in carriage but not on foot.
         w.actors["owner"].inventory["stone"] = 18
-        self.assertEqual(w.start_travel("owner", "ironvale"), 54)
+        self.assertEqual(w.start_travel("owner", IRONVALE), 54)
         w.advance(54)
-        self.assertEqual(w.actors["owner"].city, "ironvale")
+        self.assertEqual(w.actors["owner"].city, IRONVALE)
         with self.assertRaises(ActionError):
             w.buy_home("owner", "room")
         w.assert_invariants()
@@ -93,13 +95,13 @@ class HousingTests(unittest.TestCase):
         actor.inventory["iron_ore"] = 16
         gear = w._mint_gear(actor, "sword", 60, "crafted")
         with self.assertRaises(ActionError):
-            w.start_travel("owner", "ironvale")
+            w.start_travel("owner", IRONVALE)
         self.assertIsNone(w.actors["owner"].destination)
         # Atomic rollback replaces world state: use the current actor, not a
         # stale reference to the pre-rollback snapshot.
         w.actors["owner"].inventory["iron_ore"] = 15
         w.equip("owner", gear.id)
-        self.assertEqual(w.start_travel("owner", "ironvale"), 72)
+        self.assertEqual(w.start_travel("owner", IRONVALE), 72)
         w.assert_invariants()
 
     def test_missing_money_does_not_mint_property_or_vehicle(self):
@@ -143,8 +145,8 @@ class HousingTests(unittest.TestCase):
         self.assertEqual(w.housing_system.training_xp(actor, 1, "magic:alchemy"), 1)
         self.assertEqual(actor.housing.xp_remainders["magic:alchemy"], 5)
         # Remote practice gets no benefit; no free XP without real training.
-        actor.city = "ironvale"
-        actor.discovered_cities.add("ironvale")  # Manual relocation mirrors arrival discovery.
+        actor.city = IRONVALE
+        actor.discovered_cities.add(IRONVALE)  # Manual relocation mirrors arrival discovery.
         self.assertEqual(w.housing_system.training_xp(actor, 3, "work:smith"), 3)
         self.assertEqual(actor.housing.xp_remainders["work:smith"], 0)
         w.assert_invariants()
