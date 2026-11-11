@@ -140,12 +140,13 @@ import { createWorldViews } from "/world-views.mjs";
   }
   function timerSeconds(simSeconds) {
     const total = Math.max(0, Number(simSeconds) || 0);
+    const secondsPerMinute = state && state.dev_travel_seconds ? 1 : 60;
+    const scaled = total * secondsPerMinute / 60;
     if (!secureWorldClock || !state || state.next_world_tick_seconds == null)
-      return total;
-    // State durations are integral world minutes. The server provides the
-    // partial minute so hover timers can count down to the exact second.
-    const partial = 60 - Number(state.next_world_tick_seconds);
-    return Math.max(0, total - partial -
+      return scaled;
+    // A development minute is one real second in fast travel mode.
+    const partial = secondsPerMinute - Number(state.next_world_tick_seconds);
+    return Math.max(0, scaled - partial -
       Math.max(0, (Date.now() - clockSyncedAt) / 1000));
   }
   function timerAttrs(label, simSeconds) {
@@ -558,7 +559,7 @@ import { createWorldViews } from "/world-views.mjs";
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
       timerAttrs("Traveling to " + pretty(p.destination) + " · ", tripMinutes * 60) + ' ' +
       'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
-      '<span aria-hidden="true">♞</span><strong>' + esc(simDuration(tripMinutes)) +
+      '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
       '</strong></button>' : "";
     const hall = state.training_hall || {};
     const current = hall.active;
