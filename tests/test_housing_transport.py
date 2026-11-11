@@ -188,9 +188,10 @@ class HousingTests(unittest.TestCase):
     def test_default_characters_maintain_original_road_rules(self):
         w = self.world()
         self.assertEqual(w.housing_view("visitor").travel_cargo_limit, 12)
-        self.assertEqual(w.estimated_travel_minutes("visitor", CAPITAL), 90)
-        self.assertEqual(w.start_travel("visitor", CAPITAL), 90)
-        w.advance(90)
+        expected = w.travel_minutes(IRONVALE, CAPITAL)
+        self.assertEqual(w.estimated_travel_minutes("visitor", CAPITAL), expected)
+        self.assertEqual(w.start_travel("visitor", CAPITAL), expected)
+        w.advance(expected)
         w.assert_invariants()
 
 
