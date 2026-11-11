@@ -7,7 +7,7 @@ Game rules are shared by local single-player and multiplayer adapters.
 from __future__ import annotations
 
 
-from ..catalog import CAPITAL, CITIES, GOODS
+from ..catalog import CAPITAL, CITIES, GOODS, GEOGRAPHY
 from ..errors import ActionError
 from ..equipment import GEAR, GearItem
 from ..combat import MAX_STAMINA
@@ -46,6 +46,7 @@ from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
 from .invariants import validate_world
 from .commands import COMMAND_SPECS
+from .exploration import reveal
 
 from ..content.lineages import LINEAGES, select_lineage
 
@@ -54,6 +55,8 @@ class WorldEngine:
     """In-memory simulation. Domain actions validate then mutate atomically."""
 
     def __init__(self, actors: list[Actor], seed: int = 42):
+        self.geography = GEOGRAPHY
+        self.geography_settlements = {s.id: s for s in self.geography.settlements}
         if not actors or len({a.id for a in actors}) != len(actors):
             raise ValueError("Actor IDs must be unique and world nonempty")
         for a in actors:
@@ -86,6 +89,10 @@ class WorldEngine:
             seed=seed,
         )
         self.state.initial_gold = self.total_gold
+        for actor in self.actors.values():
+            if not actor.explored_hexes:
+                point = self.geography_settlements[actor.city]
+                reveal(self, actor, (point.x, point.y))
         self._current_action_id: str | None = None
         self._action_lock = RLock()
         self.travel = TravelSystem(self)
