@@ -8,7 +8,6 @@ from __future__ import annotations
 
 
 from ..catalog import CAPITAL, CITIES, GOODS, GEOGRAPHY
-from ..worldgen.hexgrid import hex_distance
 from ..errors import ActionError
 from ..equipment import GEAR, GearItem
 from ..combat import MAX_STAMINA
@@ -47,7 +46,7 @@ from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
 from .invariants import validate_world
 from .commands import COMMAND_SPECS
-from .exploration import reveal, current_hex
+from .exploration import reveal
 
 from ..content.lineages import LINEAGES, select_lineage
 
