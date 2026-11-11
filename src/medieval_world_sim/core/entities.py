@@ -114,6 +114,7 @@ class Actor:
     lineage_selected: bool = False
     discovered_cities: set[str] = field(default_factory=set)
     explored_hexes: set[int] = field(default_factory=set)
+    wilderness_hex: tuple[int, int] | None = None
     stored_gear: dict[str, list[int]] = field(default_factory=dict)
 
     @property
