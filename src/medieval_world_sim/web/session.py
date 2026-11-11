@@ -17,7 +17,7 @@ import secrets
 import threading
 import uuid
 
-from ..catalog import CAPITAL, CITIES
+from ..catalog import CAPITAL, CITIES, GEOGRAPHY_FINGERPRINT
 from ..core.engine import WorldEngine
 from ..core.commands import SINGLE_PLAYER_ACTIONS
 from ..core.entities import Actor
@@ -115,6 +115,7 @@ class GameSession:
     def _document(self) -> dict:
         return {
             "version": SAVE_VERSION, "name": self.name, "seed": self.seed,
+            "realm_fingerprint": GEOGRAPHY_FINGERPRINT,
             "start_city": self.start_city, "lineage": self.lineage,
             "records": self.records,
         }
@@ -139,6 +140,7 @@ class GameSession:
             with self.save_path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
             if (type(data) is not dict or data.get("version") != SAVE_VERSION
+                    or data.get("realm_fingerprint") != GEOGRAPHY_FINGERPRINT
                     or type(data.get("seed")) is not int
                     or type(data.get("name")) is not str
                     or type(data.get("records")) is not list):
