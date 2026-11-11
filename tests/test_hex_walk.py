@@ -100,6 +100,24 @@ class AdjacentExplorationTests(unittest.TestCase):
                       self.world.actors["hero"].explored_hexes)
         self.world.assert_invariants()
 
+    def test_road_fog_progress_is_visible_in_authorized_snapshots(self):
+        from medieval_world_sim.catalog import CITIES
+        world = WorldEngine([Actor("hero", "human", city=CAPITAL)],
+                            dev_travel_seconds=True)
+        destination = min((city for city in CITIES if city != CAPITAL),
+                          key=lambda city: world.estimated_travel_minutes("hero", city))
+        before = map_projection(world, world.actors["hero"])
+        duration = world.start_travel("hero", destination)
+        self.assertGreater(duration, 1)
+        world.advance(max(1, duration // 2))
+        during = map_projection(world, world.actors["hero"])
+        self.assertGreater(during["explored_count"], before["explored_count"])
+        self.assertNotEqual(during["position"], before["position"])
+        world.advance(duration - max(1, duration // 2))
+        after = map_projection(world, world.actors["hero"])
+        self.assertGreaterEqual(after["explored_count"], during["explored_count"])
+        self.assertEqual(world.actors["hero"].city, destination)
+
     def test_dev_speed_trips_are_scaled_but_real_map_is_unchanged(self):
         normal = WorldEngine([Actor("hero", "human", city=CAPITAL)])
         fast = WorldEngine([Actor("hero", "human", city=CAPITAL)],
