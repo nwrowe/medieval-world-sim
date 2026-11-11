@@ -35,6 +35,7 @@ class Tile:
     seabed_depth_m: int = 0  # underwater floor depth; sea surface elevation is 0
     natural_difficulty: int | None = None  # unmodified land, 1 easy to 100 hard
     travel_difficulty: int | None = None  # after road surfaces; None means no foot route
+    road_surface: str | None = None  # None, dirt or cobblestone
 
 
 def _hash(seed: int, x: int, y: int) -> float:
