@@ -359,7 +359,7 @@ class SurveyWaterAndLandmarkTests(unittest.TestCase):
         html = render_inspector_html(world, svg)
         self.assertEqual(before, world.to_dict())
         self.assertEqual(html, render_inspector_html(world, svg))
-        self.assertEqual(html.count('data-index="'), world.width * world.height)
+        self.assertEqual(html.count('<polygon data-index="'), world.width * world.height)
         self.assertIn('id="atlas-inspector-hit"', html)
         self.assertIn('id="atlas-data"', html)
         self.assertIn('id="lake-shores"', html)
