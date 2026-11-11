@@ -9,6 +9,8 @@ export function createWorldViews(ctx) {
 
   const sqrt3 = Math.sqrt(3);
   const radius = 8;
+  const travelTime = minutes => ctx.getState().dev_travel_seconds ?
+    Math.max(0, minutes) + "s" : dur(minutes);
   const biomeColors = {
     ocean: "#799eae", lake: "#83b1bd", grassland: "#b4c889",
     forest: "#628d68", rainforest: "#426b56", taiga: "#749282",
@@ -150,8 +152,7 @@ export function createWorldViews(ctx) {
     const p = state.player;
     const traveling = Boolean(p.destination);
     const inWilderness = Boolean(state.world_map && state.world_map.in_wilderness);
-    const travelTime = minutes => state.dev_travel_seconds ?
-      Math.max(0, minutes) + "s" : dur(minutes);
+
     const defeated = p.hp <= 0 || p.defeated_until != null;
     const timeToArrival = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
     const ready = !traveling && !defeated && state.minute >= p.ready_minute;
