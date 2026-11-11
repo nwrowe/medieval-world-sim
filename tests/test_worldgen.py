@@ -629,6 +629,22 @@ class HistoricalDevelopmentTests(unittest.TestCase):
         plain = render_svg(w)
         self.assertIn('id="river-network"', plain)
 
+    def test_markdown_chronicle_tracks_the_same_event_ids_and_ruins(self):
+        from medieval_world_sim.worldgen.history_text import render_chronicle
+        w = self.world
+        before = w.to_dict()
+        narrative = render_chronicle(w)
+        self.assertEqual(narrative, render_chronicle(w))
+        self.assertIn("The Chronicle of Oathmere", narrative)
+        for era in w.history.eras:
+            self.assertIn(era.name, narrative)
+            for event in era.events:
+                self.assertIn(event.title, narrative)
+        for ruin in w.history.ruins:
+            self.assertIn(ruin.name, narrative)
+            self.assertIn(ruin.cause, narrative)
+        self.assertEqual(w.to_dict(), before)
+
     def test_authored_city_names_propagate_into_its_history(self):
         from medieval_world_sim.worldgen.content import export_content_template
         original = self.world
