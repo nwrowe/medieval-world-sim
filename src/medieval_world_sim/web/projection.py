@@ -312,6 +312,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "discovered_cities": sorted(actor.discovered_cities),
             "city": actor.city, "destination": actor.destination,
             "arrival_minute": actor.arrival_minute,
+            "hex_target": (list(actor.travel.hex_target)
+                           if actor.travel.hex_target is not None else None),
             "gold": actor.gold, "hp": actor.hp, "max_hp": actor.max_hp,
             "stamina": actor.stamina, "max_stamina": actor.max_stamina,
             "hunger": actor.vitals.hunger, "level": actor.level,
