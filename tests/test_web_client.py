@@ -315,8 +315,12 @@ class WebHTTPTests(unittest.TestCase):
                                    "id": "to-fields"})
             self.assertEqual(status, 200)
             duration = data["state"]["player"]["arrival_minute"] - data["state"]["minute"]
-            status, data, _ = api(port, "POST", "/api/advance", {"minutes": duration})
-            self.assertEqual(status, 200)
+            while duration:
+                increment = min(1440, duration)
+                status, data, _ = api(port, "POST", "/api/advance",
+                                      {"minutes": increment})
+                self.assertEqual(status, 200)
+                duration -= increment
             self.assertEqual(data["state"]["player"]["city"], GOLDMEADOW)
             status, data, _ = api(port, "POST", "/api/action",
                                   {"action": "gather", "params": {"item": "grain", "quantity": 2},
@@ -334,8 +338,12 @@ class WebHTTPTests(unittest.TestCase):
             self.assertEqual(status, 200)
             self.assertEqual(data["state"]["player"]["destination"], "crownreach")
             duration = data["state"]["player"]["arrival_minute"] - data["state"]["minute"]
-            status, data, _ = api(port, "POST", "/api/advance", {"minutes": duration})
-            self.assertEqual(status, 200)
+            while duration:
+                increment = min(1440, duration)
+                status, data, _ = api(port, "POST", "/api/advance",
+                                      {"minutes": increment})
+                self.assertEqual(status, 200)
+                duration -= increment
             self.assertEqual(data["state"]["player"]["city"], "crownreach")
             self.assertIsNone(data["state"]["player"]["destination"])
             final = data["state"]
