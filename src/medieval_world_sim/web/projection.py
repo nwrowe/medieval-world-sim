@@ -103,7 +103,8 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
             "destination": npc.destination,
             "level": npc.level, "kind": "npc", "hp": npc.hp, "max_hp": npc.max_hp,
             "can_attack": (
-                npc.city == actor.city and npc.destination is None
+                npc.city == actor.city and actor.wilderness_hex is None
+                and npc.wilderness_hex is None and npc.destination is None
                 and npc.hp > 0 and npc.defeated_until is None
                 and actor.hp > 0 and actor.defeated_until is None and not is_traveling
                 and active_duel is None and not any(
@@ -123,7 +124,8 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
                 "level": other.level, "kind": "human",
                 "hp": other.hp, "max_hp": other.max_hp,
                 "can_attack": (
-                    other.city == actor.city and other.destination is None
+                    other.city == actor.city and actor.wilderness_hex is None
+                    and other.wilderness_hex is None and other.destination is None
                     and other.hp > 0 and other.defeated_until is None
                 and actor.hp > 0 and actor.defeated_until is None and not is_traveling
                     and active_duel is None and not any(
@@ -165,7 +167,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         places.append({
             "id": city_id,
             "name": city.name if discovered else "Uncharted road exit",
-            "discovered": discovered, "is_current": city_id == actor.city,
+            "discovered": discovered, "is_current": city_id == actor.city
+            and actor.wilderness_hex is None,
             "minutes": (0 if is_traveling or actor.wilderness_hex is not None
                         or actor.hp <= 0 or actor.defeated_until is not None
                         else w.estimated_travel_minutes(actor_id, city_id)),
@@ -388,7 +391,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
            "race_cost": RACE_STAMINA_COST, "entry_fee": RACE_ENTRY,
            "cooldown_remaining": max(0, w.state.last_race_minute.get(
                actor_id, -RACE_COOLDOWN) + RACE_COOLDOWN - now)},
-        "gatherable": dict(w.cities[actor.city].deposits),
+        "gatherable": (dict(w.cities[actor.city].deposits)
+                       if actor.wilderness_hex is None else {}),
         "quotes": quote_list,
         "housing": housing_data,
         "homes": [
