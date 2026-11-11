@@ -50,7 +50,6 @@ class ChronicleAuditTests(unittest.TestCase):
                              "crownreach")
         self.game.action(self.b, "travel",
                          {"destination": GOLDMEADOW}, "leave")
-        minutes = self.game.world.actors[self.b].arrival_minute - self.game.world.minute
         finish_trip(self.game, self.a, self.b, "pass-time")
         self.assertEqual(self.game.snapshot(self.b)["player"]["city"], GOLDMEADOW)
         self.game.close()
@@ -134,7 +133,6 @@ class ChronicleAuditTests(unittest.TestCase):
         in_transit = self.game.social_snapshot(self.a)
         bob_info = next(x for x in in_transit["users"] if x["id"] == self.b)
         self.assertFalse(bob_info["can_attack"])
-        trip = self.game.world.actors[self.b].arrival_minute - self.game.world.minute
         finish_trip(self.game, self.c, self.b, "bob-arrives")
         arrived = self.game.social_snapshot(self.a)
         bob_info = next(x for x in arrived["users"] if x["id"] == self.b)
@@ -142,7 +140,6 @@ class ChronicleAuditTests(unittest.TestCase):
         self.assertFalse(bob_info["can_attack"])
         self.game.action(self.a, "travel", {"destination": GOLDMEADOW},
                          "alice-outbound")
-        trip = self.game.world.actors[self.a].arrival_minute - self.game.world.minute
         finish_trip(self.game, self.c, self.a, "alice-arrives")
         together = self.game.social_snapshot(self.a)
         bob_info = next(x for x in together["users"] if x["id"] == self.b)
