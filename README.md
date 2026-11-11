@@ -74,7 +74,8 @@ Open `generated-world/atlas.html` to inspect elevation, natural and road-adjuste
 walking difficulty, estimated travel times and authored sites.
 Open `generated-world/history.html` to step through six geography-driven
 historical eras, including founded towns, trade roads, political leagues and
-abandoned sites. See [Historical Development](docs/HISTORICAL_DEVELOPMENT.md). Every run also
+abandoned sites. The same source data is exported as `generated-world/chronicle.md`
+for later lore writing. See [Historical Development](docs/HISTORICAL_DEVELOPMENT.md). Every run also
 exports `world-content.template.json`: copy it, edit settlement names,
 ruin/dungeon coordinates or scheduled event locations, and pass it back using
 `--content path/to/world-content.json` to regenerate the atlas.
