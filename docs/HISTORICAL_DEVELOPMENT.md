@@ -49,6 +49,8 @@ Open:
   estimated populations, changing land routes, political leagues and
   abandoned sites. Clicking a historic town or ruin shows its history.
 - **`seed7/atlas.svg`** — static geographical atlas.
+- **`seed7/chronicle.md`** — readable history, events and ruin provenance suitable
+  for editing into game lore.
 - **`seed7/world.json`** — versioned complete world plus the machine-readable
   `history` object, with years, towns, roads, polities, events and ruins.
 - **`seed7/world-content.template.json`** — plain JSON to rename cities and
