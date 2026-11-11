@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from .society import ExplorationSite, Road, Settlement, generate_roads, generate_settlements, generate_sites
 from .terrain import Tile, generate_terrain
 
-GENERATOR_VERSION = 2
+GENERATOR_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -31,7 +31,7 @@ class GeneratedWorld:
         return asdict(self)
 
 
-def generate_world(seed: int = 42, width: int = 80, height: int = 56,
+def generate_world(seed: int = 42, width: int = 80, height: int = 64,
                    cities: int = 12, sites: int = 45, cell_km: float = 3.0) -> GeneratedWorld:
     if type(seed) is not int or not -(2**31) <= seed < 2**31:
         raise ValueError("Seed must be a signed 32-bit integer")
