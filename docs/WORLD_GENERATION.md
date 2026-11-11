@@ -209,7 +209,8 @@ re-running it must never silently alter an existing playable world.
 
 ## v7: geography-driven historical chronicle
 
-The atlas generator now exports `history.html` along with the interactive
+The atlas generator now exports `history.html` and a readable `chronicle.md`
+along with the interactive
 geographic `atlas.html`, static SVG and machine-readable world JSON.
 The chronicle models six fictional eras (Year -600 to Year 400): founding
 on fertile/water-accessible land, population changes under resource and
