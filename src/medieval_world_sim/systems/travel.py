@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import heapq
-from ..catalog import CITIES, ROADS
+from ..catalog import CITIES
 from ..combat import STAMINA_REGEN_MINUTES
 from ..content.magic_tree import MANA_REGEN_MINUTES
 from ..errors import ActionError
+from ..core.exploration import reveal_travel_progress, reveal
 
 HOUR = 60
 HEALTH_REGEN_MINUTES = 3
@@ -17,35 +18,68 @@ class TravelSystem:
     def __init__(self, world):
         self.world = world
 
-    def travel_minutes(self, origin: str, destination: str) -> int:
+    def travel_route(self, origin: str, destination: str):
+        """Shortest route on geographically generated inter-town road edges.
+
+        Returns travel minutes AND every traversed hex; the latter is persisted
+        to reveal fog progressively instead of teleporting to a distant city.
+        """
         if origin not in CITIES or destination not in CITIES:
             raise ActionError("Unknown city")
+        home = self.world.geography_settlements[origin]
         if origin == destination:
-            return 0
-        edges: dict[str, list[tuple[str, int]]] = {city: [] for city in CITIES}
-        for (a, b), time in ROADS.items():
-            edges[a].append((b, time))
-            edges[b].append((a, time))
+            return 0, ((home.x, home.y),)
+        edges = {city: [] for city in CITIES}
+        for road in self.world.geography.roads:
+            edges[road.a].append((road.b, road))
+            edges[road.b].append((road.a, road))
         frontier = [(0, origin)]
         best = {origin: 0}
+        previous = {}
         while frontier:
             time, city = heapq.heappop(frontier)
-            if city == destination:
-                return time
             if time != best[city]:
                 continue
-            for neighbor, minutes in edges[city]:
-                alt = time + minutes
+            if city == destination:
+                legs = []
+                node = destination
+                while node != origin:
+                    prev, road = previous[node]
+                    leg = road.path if road.a == prev else tuple(reversed(road.path))
+                    legs.append(leg)
+                    node = prev
+                joined = []
+                for leg in reversed(legs):
+                    joined.extend(leg if not joined else leg[1:])
+                return time, tuple(joined)
+            for neighbor, road in edges[city]:
+                alt = time + road.travel_minutes
                 if alt < best.get(neighbor, float("inf")):
                     best[neighbor] = alt
+                    previous[neighbor] = (city, road)
                     heapq.heappush(frontier, (alt, neighbor))
         raise ActionError("No road to destination")
+
+    def travel_minutes(self, origin: str, destination: str) -> int:
+        return self.travel_route(origin, destination)[0]
+
+    def available_destinations(self, actor) -> set[str]:
+        """Allow travel to surveyed towns or to the next uncharted road exit."""
+        neighbors = set()
+        for road in self.world.geography.roads:
+            if road.a == actor.city:
+                neighbors.add(road.b)
+            if road.b == actor.city:
+                neighbors.add(road.a)
+        return (neighbors | actor.discovered_cities) - {actor.city}
 
     def start_travel(self, actor_id: str, destination: str) -> int:
         actor = self.world._actor(actor_id)
         city = self.world._at_city(actor)
-        time = self.world.travel_minutes(city, destination)
-        if time == 0:
+        if destination not in self.available_destinations(actor):
+            raise ActionError("Destination is not a mapped city or adjacent road exit")
+        time, path = self.travel_route(city, destination)
+        if not time:
             raise ActionError("Already in destination")
         load = sum(actor.inventory.values()) + len(actor.gear_ids)
         capacity = self.world.housing_system.travel_cargo_limit(actor)
@@ -57,8 +91,12 @@ class TravelSystem:
         if actor.magic.road_charm:
             time = max(1, (time * (100 - actor.magic.road_charm) + 99) // 100)
             actor.magic.road_charm = 0
+        actor.travel.departure_minute = self.world.minute
+        actor.travel.route_hexes = path
+        actor.travel.route_revealed_index = 0
         actor.destination = destination
         actor.arrival_minute = self.world.minute + time
+        reveal(self.world, actor, path[0])
         self.world._emit("travel_started", actor.id, city, destination, actor.arrival_minute)
         return time
 
@@ -84,6 +122,9 @@ class TravelSystem:
                 for city, spec in CITIES.items():
                     for item, rate in spec.deposits.items():
                         self.world.deposits[city][item] = min(DEPOSIT_CAP, self.world.deposits[city][item] + rate)
+            for a in self.world.actors.values():
+                if a.destination is not None:
+                    reveal_travel_progress(self.world, a)
             for arrival, actor_id in arrivals:
                 if arrival == moment:
                     a = self.world.actors[actor_id]
@@ -91,6 +132,9 @@ class TravelSystem:
                     a.discovered_cities.add(a.city)
                     a.destination = None
                     a.arrival_minute = None
+                    a.travel.departure_minute = None
+                    a.travel.route_hexes = ()
+                    a.travel.route_revealed_index = 0
                     self.world._emit("arrived", actor_id, a.city)
         # Regeneration is computed from elapsed discrete world-minute boundaries
         # and is independent of whether time is advanced in one or many steps.
@@ -106,6 +150,9 @@ class TravelSystem:
         health_ticks = (end // interval - start_minute // interval
                         if not getattr(self.world, "_legacy_health_regen", False) else 0)
         self.world.minute = end
+        for actor in self.world.actors.values():
+            if actor.destination is not None:
+                reveal_travel_progress(self.world, actor)
         self.world.curriculum_system.settle(end)
         for actor in self.world.actors.values():
             actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
