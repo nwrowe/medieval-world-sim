@@ -9,8 +9,10 @@ from .hydrology import Waterway, survey_water
 from .landmarks import Landmark, generate_landmarks
 from .content import EventLocation, apply_content
 from .access import survey_land_access
+from .history import WorldHistory, generate_history
+from dataclasses import replace
 
-GENERATOR_VERSION = 6
+GENERATOR_VERSION = 7
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,7 @@ class GeneratedWorld:
     waterways: tuple[Waterway, ...]
     landmarks: tuple[Landmark, ...]
     event_locations: tuple[EventLocation, ...] = ()
+    history: WorldHistory | None = None
 
     def tile(self, x: int, y: int) -> Tile:
         if not (0 <= x < self.width and 0 <= y < self.height):
@@ -54,7 +57,8 @@ def generate_world(seed: int = 42, width: int = 80, height: int = 64,
     landmarks = generate_landmarks(tiles, width, height, settlements, roads, waterways)
     generated = GeneratedWorld(seed, GENERATOR_VERSION, width, height, cell_km,
                                tiles, settlements, roads, places, waterways, landmarks)
-    return apply_content(generated, content) if content is not None else generated
+    authored = apply_content(generated, content) if content is not None else generated
+    return replace(authored, history=generate_history(authored))
 
 
 __all__ = ["GENERATOR_VERSION", "GeneratedWorld", "generate_world"]
