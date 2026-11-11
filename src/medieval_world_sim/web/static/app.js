@@ -480,6 +480,29 @@ import { createWorldViews } from "/world-views.mjs";
       '<p class="small">Begin in Crownreach with 240 gold. Unexplored cities are hidden on your map.</p>' +
       '</div></div>';
   }
+  function refreshVital(old, label, value, maximum, kind, next) {
+    if (!old) return;
+    // Preserve the hovered/focused DOM node across each world tick. Replacing
+    // it with outerHTML dismisses the CSS tooltip and causes flashing.
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = meterStat(label, value, maximum, kind, next);
+    const fresh = wrapper.firstElementChild;
+    if (!fresh) return;
+    old.setAttribute("aria-label", fresh.getAttribute("aria-label"));
+    for (const key of ["hoverText", "timerLabel", "timerEnd", "timerFixed"]) {
+      if (key in fresh.dataset) old.dataset[key] = fresh.dataset[key];
+      else delete old.dataset[key];
+    }
+    const oldText = old.querySelector(".vital-caption strong");
+    const newText = fresh.querySelector(".vital-caption strong");
+    if (oldText && newText) oldText.textContent = newText.textContent;
+    const oldProgress = old.querySelector("progress");
+    const newProgress = fresh.querySelector("progress");
+    if (oldProgress && newProgress) {
+      oldProgress.max = newProgress.max;
+      oldProgress.value = newProgress.value;
+    }
+  }
   function offlinePage() {
     return '<div class="entry"><div class="entry-card"><div class="entry-seal">⌁</div>' +
       '<h1>World unavailable</h1><p>Could not reach the Python game server. ' +
@@ -490,14 +513,16 @@ import { createWorldViews } from "/world-views.mjs";
   function meterStat(label, value, max, kind, simSeconds) {
     const v = Number(value) || 0;
     const maximum = Math.max(1, Number(max) || 1);
-    const hint = v >= maximum ? "Full" :
-      simSeconds == null ? "No passive recovery available" : "Next increase in ";
+    const hint = v >= maximum ? label + ": Full" :
+      simSeconds == null ? label + ": No passive recovery available" :
+      label + ": Next increase in ";
     const timing = v < maximum && simSeconds != null ?
       timerAttrs(hint, simSeconds) : ' data-hover-text="' + esc(hint) + '"';
     return '<div class="vital vital-' + kind +
       '"' + timing + ' tabindex="0" aria-label="' +
       esc(label + ': ' + v + ' of ' + maximum + '. ' +
-        (simSeconds == null ? hint : hint + fullCountdown(timerSeconds(simSeconds)))) + '">' +
+        (v >= maximum || simSeconds == null ? hint :
+          hint + fullCountdown(timerSeconds(simSeconds)))) + '">' +
       '<div class="vital-caption"><span class="vital-icon" aria-hidden="true">' +
       (kind === "health" ? "+" : kind === "stamina" ?
         '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
@@ -637,7 +662,7 @@ import { createWorldViews } from "/world-views.mjs";
       '<header class="topbar"><div class="topbar-inner">' +
       '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
       '<div class="statbar" aria-label="Character vitals">' +
-      meterStat("Health", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
+      meterStat("Life", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
       meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
       meterStat("Mana", p.mana, p.max_mana, "mana", p.mana_next_sim_seconds) +
       '<div class="gold-total"><strong>' +
@@ -917,12 +942,12 @@ import { createWorldViews } from "/world-views.mjs";
     // Pushed clock ticks also change the health, stamina and mana values.
     const p = state.player;
     for (const [kind, label, value, maximum, next] of [
-      ["health", "Health", p.hp, p.max_hp, p.health_next_sim_seconds],
+      ["health", "Life", p.hp, p.max_hp, p.health_next_sim_seconds],
       ["stamina", "Stamina", p.stamina, p.max_stamina, p.stamina_next_sim_seconds],
       ["mana", "Mana", p.mana, p.max_mana, p.mana_next_sim_seconds],
     ]) {
-      const old = document.querySelector(".vital-" + kind);
-      if (old) old.outerHTML = meterStat(label, value, maximum, kind, next);
+      refreshVital(document.querySelector(".vital-" + kind),
+                   label, value, maximum, kind, next);
     }
     const dock = document.querySelector(".chat-dock");
     if (dock) {
@@ -978,18 +1003,15 @@ import { createWorldViews } from "/world-views.mjs";
     }
     const header = document.querySelector(".statbar");
     if (header) {
-      const fresh = [
-        meterStat("Health", state.player.hp, state.player.max_hp,
-                  "health", state.player.health_next_sim_seconds),
-        meterStat("Stamina", state.player.stamina, state.player.max_stamina,
-                  "stamina", state.player.stamina_next_sim_seconds),
-        meterStat("Mana", state.player.mana, state.player.max_mana,
-                  "mana", state.player.mana_next_sim_seconds)
-      ];
-      const oldVitals = header.querySelectorAll(".vital");
-      oldVitals.forEach((node, i) => {
-        if (fresh[i] && node.outerHTML !== fresh[i]) node.outerHTML = fresh[i];
-      });
+      refreshVital(header.querySelector(".vital-health"), "Life",
+                   state.player.hp, state.player.max_hp, "health",
+                   state.player.health_next_sim_seconds);
+      refreshVital(header.querySelector(".vital-stamina"), "Stamina",
+                   state.player.stamina, state.player.max_stamina, "stamina",
+                   state.player.stamina_next_sim_seconds);
+      refreshVital(header.querySelector(".vital-mana"), "Mana",
+                   state.player.mana, state.player.max_mana, "mana",
+                   state.player.mana_next_sim_seconds);
       const moneyLabel = header.querySelector(".gold-total strong");
       if (moneyLabel) moneyLabel.textContent = money(state.player.gold);
     }
