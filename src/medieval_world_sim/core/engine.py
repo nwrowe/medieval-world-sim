@@ -291,6 +291,9 @@ class WorldEngine:
             raise ActionError("Finish your road journey before exploring")
         if actor.hp <= 0 or actor.defeated_until is not None:
             raise ActionError("Cannot explore while recovering")
+        if any(actor_id in (duel.attacker_id, duel.defender_id)
+               for duel in self.state.duels.values()):
+            raise ActionError("Finish your duel before exploring")
         if hex_distance(current_hex(self, actor), (x, y)) != 1:
             raise ActionError("Explore adjacent hexes one step at a time")
         tile = self.geography.tile(x, y)
