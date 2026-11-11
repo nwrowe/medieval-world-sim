@@ -25,6 +25,10 @@ ACHIEVEMENTS = {
 MERIT_UPGRADES = {
     "roadcraft": {"name": "Roadcraft", "cost": 2, "description": "5% shorter road journeys"},
     "horsemanship": {"name": "Horsemanship", "cost": 2, "description": "+2 to your horse-race score"},
+    "awareness_1": {"name": "Awareness I", "cost": 2,
+                    "description": "See and permanently explore within 3 hexes instead of 2"},
+    "awareness_2": {"name": "Awareness II", "cost": 3,
+                    "description": "Increase sight and exploration radius to 4 hexes"},
 }
 
 class MeritSystem:
@@ -67,12 +71,18 @@ class MeritSystem:
         owned = self.world.state.merit_upgrades.setdefault(actor_id, set())
         if perk in owned:
             raise ActionError("Upgrade already purchased")
+        if perk == "awareness_2" and "awareness_1" not in owned:
+            raise ActionError("Awareness II requires Awareness I")
         cost = MERIT_UPGRADES[perk]["cost"]
         balance = self.world.state.merit_balance.get(actor_id, 0)
         if balance < cost:
             raise ActionError("Insufficient merit points")
         self.world.state.merit_balance[actor_id] = balance - cost
         owned.add(perk)
+        if perk in ("awareness_1", "awareness_2"):
+            from ..core.exploration import current_hex, reveal
+            reveal(self.world, self.world._actor(actor_id),
+                   current_hex(self.world, self.world._actor(actor_id)))
         self.world._emit("merit_upgrade", actor_id, perk, cost)
         return {"perk": perk, "cost": cost}
 
