@@ -1,4 +1,6 @@
 """Focused architecture checks for the magic tree, not economic balancing."""
+from realm_fixtures import IRONVALE
+
 import unittest
 from dataclasses import FrozenInstanceError
 
@@ -213,7 +215,7 @@ class MagicTreeArchitectureTests(unittest.TestCase):
     def test_cannot_practice_while_traveling_or_defeated(self):
         w = world()
         w.unlock_magic("mage", "elemental.kindle_flame")
-        w.start_travel("mage", "ironvale")
+        w.start_travel("mage", IRONVALE)
         with self.assertRaises(ActionError):
             w.execute("mage", "practice_magic",
                       {"node_id": "elemental.kindle_flame"}, "on-road")
