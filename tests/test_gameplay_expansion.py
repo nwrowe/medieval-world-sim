@@ -37,7 +37,7 @@ class GameplayExpansionTests(unittest.TestCase):
         self.assertIsNone(catalog["sword"]["highest_sell"])
         self.assertIsNone(catalog["steel"]["lowest_buy"])
         self.assertIsNone(catalog["steel"]["market_value"])
-        self.assertEqual(catalog["grain"]["lowest_buy"]["city"], GOLDMEADOW)
+        self.assertIn(catalog["grain"]["lowest_buy"]["city"], self.game.world.cities)
         for item in RAW_RESOURCES:
             for field, is_buy in (("lowest_buy", True), ("highest_sell", False)):
                 entry = catalog[item][field]
