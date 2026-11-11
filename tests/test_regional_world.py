@@ -1,3 +1,4 @@
+from realm_fixtures import IRONVALE, EMBERFALL, GREENHOLLOW
 import unittest
 
 from medieval_world_sim.catalog import CAPITAL, CITIES, EQUIPMENT, RECIPES
@@ -10,9 +11,9 @@ class RegionalWorldTests(unittest.TestCase):
     def build(self):
         return RegionalWorld([
             Actor("owner", "human", gold=500),
-            Actor("miner", "npc", city="ironvale", gold=30),
-            Actor("collier", "human", city="emberfall", gold=30),
-            Actor("logger", "npc", city="greenhollow", gold=30),
+            Actor("miner", "npc", city=IRONVALE, gold=30),
+            Actor("collier", "human", city=EMBERFALL, gold=30),
+            Actor("logger", "npc", city=GREENHOLLOW, gold=30),
         ])
 
     def test_exactly_four_producing_cities_plus_capital(self):
@@ -24,7 +25,7 @@ class RegionalWorldTests(unittest.TestCase):
     def test_travel_timing_and_no_teleporting_trade(self):
         w = self.build()
         w.gather("miner", "iron_ore", 2)
-        self.assertEqual(w.travel_minutes("ironvale", "emberfall"), 160)
+        self.assertEqual(w.travel_minutes(IRONVALE, EMBERFALL), 160)
         self.assertEqual(w.start_travel("miner", CAPITAL), 90)
         with self.assertRaises(ActionError):
             w.gather("miner", "iron_ore")
@@ -36,13 +37,13 @@ class RegionalWorldTests(unittest.TestCase):
 
     def test_stock_regeneration_and_worker_cooldown(self):
         w = self.build()
-        self.assertEqual(w.deposits["ironvale"]["iron_ore"], 8)
+        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], 8)
         w.gather("miner", "iron_ore", 2)
-        self.assertEqual(w.deposits["ironvale"]["iron_ore"], 6)
+        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], 6)
         with self.assertRaises(ActionError):
             w.gather("miner", "iron_ore", 1)
         w.advance(60)
-        self.assertEqual(w.deposits["ironvale"]["iron_ore"], 9)
+        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], 9)
         w.gather("miner", "iron_ore", 1)
 
     def test_escrow_blocks_overselling_and_remote_acceptance(self):
@@ -56,7 +57,7 @@ class RegionalWorldTests(unittest.TestCase):
         self.assertEqual(w.offers[offer].quantity, 2)
         # Seller can depart, but the listing remains escrowed in Ironvale.
         w.start_travel("miner", CAPITAL)
-        w.start_travel("owner", "ironvale")
+        w.start_travel("owner", IRONVALE)
         w.advance(90)
         w.accept_offer("owner", "owner", offer, 1)
         self.assertEqual(w.actors["owner"].inventory["iron_ore"], 1)
@@ -64,7 +65,7 @@ class RegionalWorldTests(unittest.TestCase):
         self.assertEqual(w.total_gold, gold_before)
         with self.assertRaises(ActionError):
             w.cancel_offer("miner", offer)  # cannot teleport escrow home
-        w.start_travel("miner", "ironvale")
+        w.start_travel("miner", IRONVALE)
         w.advance(90)
         w.cancel_offer("miner", offer)
         self.assertEqual(w.actors["miner"].inventory["iron_ore"], 1)
@@ -151,7 +152,7 @@ class RegionalWorldTests(unittest.TestCase):
         self.assertEqual(w.total_gold, before)
         # Leaving the capital still requires staying within road cargo limits.
         with self.assertRaises(ActionError):
-            w.start_travel("owner", "ironvale")
+            w.start_travel("owner", IRONVALE)
         w.assert_invariants()
 
     def test_invalid_gather_and_wages(self):
