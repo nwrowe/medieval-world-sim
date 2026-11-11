@@ -74,6 +74,7 @@ class TravelState:
     departure_minute: int | None = None
     route_hexes: tuple[tuple[int, int], ...] = ()
     route_revealed_index: int = 0
+    hex_target: tuple[int, int] | None = None
 
 
 @dataclass
