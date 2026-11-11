@@ -71,6 +71,9 @@ class TravelState:
     destination: str | None = None
     arrival_minute: int | None = None
     ready_minute: int = 0
+    departure_minute: int | None = None
+    route_hexes: tuple[tuple[int, int], ...] = ()
+    route_revealed_index: int = 0
 
 
 @dataclass
@@ -110,6 +113,7 @@ class Actor:
     lineage: str = "human"
     lineage_selected: bool = False
     discovered_cities: set[str] = field(default_factory=set)
+    explored_hexes: set[int] = field(default_factory=set)
     stored_gear: dict[str, list[int]] = field(default_factory=dict)
 
     @property
