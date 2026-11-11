@@ -1,4 +1,4 @@
-# Oathmere: geography-first world generation (prototype v7 historical development)
+# Oathmere: geography-first world generation (prototype v8 regional economy)
 
 This system produces a deterministic *candidate atlas* from a numerical seed. It is **not yet wired into live game worlds or saved journals**. The current five-city catalog, travel rules, city inventories, player discovery and existing saved worlds remain unchanged. This separation is deliberate: a map must be reviewed and versioned before it becomes the game's authoritative world.
 
@@ -228,3 +228,25 @@ trade indices are not live player/NPC counts or gold. See
 [Historical Development](HISTORICAL_DEVELOPMENT.md) for algorithms, schema,
 limitations and planned phases. Generated-world version **7** keeps existing
 v6 map snapshots intact; do not silently regenerate old saves.
+
+## v8: town natural resources and industry import dependencies
+
+Generated worlds now carry a `resource_profiles` record for each settlement.
+This classifies **all nine existing raw materials** as primary, secondary or
+not locally produced. It grounds every classification in the same five-hex
+catchment used for the original production estimate, providing supporting hex
+counts, mean potential and actual mapped geology/vegetation/soil evidence.
+
+The generator also exports `town-resources.md` (town comparison and explanations)
+and `town-resources.json` (typed data for an eventual economy adapter). Click
+a town in `atlas.html` to inspect the same information and identify suggested
+overland suppliers and raw-input requirements for the game's actual crafting
+recipes. Intermediate goods such as steel are expanded into their upstream
+iron/coal requirements. **Source potential is not warehouse stock, local
+demand or guaranteed exportable surplus.** See
+[Regional Resource Economy](REGIONAL_RESOURCES.md) for details.
+
+The standalone geography generator is version **8**; old saved generated v7
+manifests should be retained. This is **not yet integrated** with the five-city
+playable economy, and it does not change accounts, markets, companies or
+player inventories.

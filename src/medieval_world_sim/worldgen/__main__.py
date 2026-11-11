@@ -8,6 +8,7 @@ from .render import render_svg
 from .inspect import render_inspector_html
 from .history_view import render_history_html
 from .history_text import render_chronicle
+from .resource_report import render_resource_json, render_resource_markdown
 from .content import export_content_template, load_content
 
 
@@ -38,6 +39,10 @@ def main():
                                                encoding="utf-8")
     (args.output / "chronicle.md").write_text(render_chronicle(world),
                                               encoding="utf-8")
+    (args.output / "town-resources.json").write_text(render_resource_json(world),
+                                                     encoding="utf-8")
+    (args.output / "town-resources.md").write_text(render_resource_markdown(world),
+                                                   encoding="utf-8")
     print(f"World seed {args.seed}: {len(world.settlements)} settlements, "
           f"{len(world.roads)} roads, {len(world.sites)} exploration sites")
     print(f"Water survey: {sum(t.waterbody == 'lake' for t in world.tiles)} lake hexes, "
@@ -47,7 +52,8 @@ def main():
           "historical ruins and abandoned hamlets")
     print(f"Saved {args.output / 'world.json'}, {args.output / 'atlas.svg'}, "
           f"{args.output / 'atlas.html'}, {args.output / 'history.html'}, "
-          f"{args.output / 'chronicle.md'} and the editable world-content template")
+          f"{args.output / 'chronicle.md'}, {args.output / 'town-resources.md'}, "
+          f"{args.output / 'town-resources.json'} and the editable world-content template")
 
 
 if __name__ == "__main__":

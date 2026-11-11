@@ -10,9 +10,10 @@ from .landmarks import Landmark, generate_landmarks
 from .content import EventLocation, apply_content
 from .access import survey_land_access
 from .history import WorldHistory, generate_history
+from .resources import TownResourceProfile, generate_resource_profiles
 from dataclasses import replace
 
-GENERATOR_VERSION = 7
+GENERATOR_VERSION = 8
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class GeneratedWorld:
     landmarks: tuple[Landmark, ...]
     event_locations: tuple[EventLocation, ...] = ()
     history: WorldHistory | None = None
+    resource_profiles: tuple[TownResourceProfile, ...] = ()
 
     def tile(self, x: int, y: int) -> Tile:
         if not (0 <= x < self.width and 0 <= y < self.height):
@@ -58,7 +60,8 @@ def generate_world(seed: int = 42, width: int = 80, height: int = 64,
     generated = GeneratedWorld(seed, GENERATOR_VERSION, width, height, cell_km,
                                tiles, settlements, roads, places, waterways, landmarks)
     authored = apply_content(generated, content) if content is not None else generated
-    return replace(authored, history=generate_history(authored))
+    return replace(authored, history=generate_history(authored),
+                   resource_profiles=generate_resource_profiles(authored))
 
 
 __all__ = ["GENERATOR_VERSION", "GeneratedWorld", "generate_world"]
