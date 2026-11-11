@@ -21,8 +21,8 @@ class CityState:
     def create(cls, city_id: str, definition: CitySpec) -> "CityState":
         capital = city_id == "crownreach"
         return cls(city_id, definition, {resource: 8 for resource in definition.deposits},
-                   population=500 if capital else 120,
-                   household_gold=3600 if capital else 600,
+                   population=definition.population,
+                   household_gold=max(600, definition.population * 5),
                    merchant_stock={item: 10 for item in definition.deposits})
 
     @property
