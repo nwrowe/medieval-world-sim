@@ -1,4 +1,6 @@
 """Regression coverage for architecture boundaries, safe transactions and commands."""
+from realm_fixtures import IRONVALE
+
 import unittest
 from unittest.mock import patch
 
@@ -23,17 +25,17 @@ class ArchitecturalTests(unittest.TestCase):
         self.assertEqual(alice.stamina, 45)
         alice.level = 2
         self.assertEqual(alice.progression.level, 2)
-        alice.destination = "ironvale"
-        self.assertEqual(alice.travel.destination, "ironvale")
+        alice.destination = IRONVALE
+        self.assertEqual(alice.travel.destination, IRONVALE)
 
     def test_cities_hold_mutable_state_and_keep_catalog_separate(self):
         w = self.world()
-        city = w.cities["ironvale"]
+        city = w.cities[IRONVALE]
         self.assertEqual(city.name, "Ironvale")
         old = city.deposits["iron_ore"]
         w.advance(60)
-        self.assertEqual(w.cities["ironvale"].deposits["iron_ore"], old + 3)
-        self.assertEqual(w.deposits["ironvale"]["iron_ore"], old + 3)
+        self.assertEqual(w.cities[IRONVALE].deposits["iron_ore"], old + 3)
+        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], old + 3)
 
     def test_services_are_composed_not_inherited(self):
         w = self.world()
