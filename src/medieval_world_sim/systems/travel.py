@@ -64,20 +64,19 @@ class TravelSystem:
         return self.travel_route(origin, destination)[0]
 
     def available_destinations(self, actor) -> set[str]:
-        """Allow travel to surveyed towns or to the next uncharted road exit."""
-        neighbors = set()
-        for road in self.world.geography.roads:
-            if road.a == actor.city:
-                neighbors.add(road.b)
-            if road.b == actor.city:
-                neighbors.add(road.a)
-        return (neighbors | actor.discovered_cities) - {actor.city}
+        """Book a caravan route to any settlement on the known road network.
+
+        A destination's identity and exact location can remain fogged; the
+        road planner can still book the journey. Every intervening hex is
+        revealed only as the journey actually progresses through the world.
+        """
+        return set(CITIES) - {actor.city}
 
     def start_travel(self, actor_id: str, destination: str) -> int:
         actor = self.world._actor(actor_id)
         city = self.world._at_city(actor)
         if destination not in self.available_destinations(actor):
-            raise ActionError("Destination is not a mapped city or adjacent road exit")
+            raise ActionError("Destination is not connected to the geographic road network")
         time, path = self.travel_route(city, destination)
         if not time:
             raise ActionError("Already in destination")
