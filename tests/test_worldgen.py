@@ -17,7 +17,7 @@ class WorldGenerationTests(unittest.TestCase):
         c = generate_world(seed=43, width=64, height=44, cities=9, sites=25)
         self.assertEqual(a.to_dict(), b.to_dict())
         self.assertNotEqual(a.tiles, c.tiles)
-        self.assertEqual(a.version, 3)
+        self.assertEqual(a.version, 4)
 
     def test_terrain_dimensions_climate_and_river_network(self):
         world = self.world
@@ -224,3 +224,70 @@ class HexTopologyTests(unittest.TestCase):
         self.assertIn('Q',first.split('<g id="river-network"')[1].split('</g>')[0])
         self.assertEqual(w.to_dict(),generate_world(seed=7,width=64,height=44,cities=9,sites=25).to_dict())
         ElementTree.fromstring(first)
+
+
+class RoadSitingTests(unittest.TestCase):
+    """Small synthetic hex worlds make route-construction choices observable."""
+
+    @staticmethod
+    def _plain(width, height, *, elevations=None, rivers=None):
+        from medieval_world_sim.worldgen.terrain import Tile
+        elevations = elevations or {}
+        rivers = rivers or {}
+        return tuple(
+            Tile(x, y, elevations.get((x, y), 160), 12, 1000,
+                 "grassland", "sedimentary", 65,
+                 (x, y) in rivers, rivers.get((x, y), 0), {}, None)
+            for y in range(height) for x in range(width)
+        )
+
+    def test_road_uses_lower_saddle_instead_of_climbing_nearest_peak(self):
+        from medieval_world_sim.worldgen.society import _path
+        width, height = 11, 9
+        heights = {(5, y): (410 if y == 7 else 2300) for y in range(height)}
+        terrain = self._plain(width, height, elevations=heights)
+        path, travel_cost = _path(terrain, width, height, (1, 4), (9, 4))
+        self.assertIn((5, 7), path)
+        self.assertNotIn((5, 4), path)
+        self.assertGreater(travel_cost, 0)
+
+    def test_road_detours_around_isolated_river_instead_of_building_bridge(self):
+        from medieval_world_sim.worldgen.society import _path
+        width, height = 9, 7
+        terrain = self._plain(width, height, rivers={(4, 3): 1400})
+        path, _ = _path(terrain, width, height, (1, 3), (7, 3))
+        self.assertNotIn((4, 3), path)
+        self.assertLessEqual(len(path) - 1, 9)  # Modest detour, not a long bypass.
+
+    def test_road_selects_shallow_ford_over_nearby_deep_bridge(self):
+        from medieval_world_sim.worldgen.society import _path, _crossing_kind
+        width, height = 11, 9
+        river = {(5, y): (130 if y == 3 else 1450) for y in range(height)}
+        terrain = self._plain(width, height, rivers=river)
+        path, _ = _path(terrain, width, height, (1, 4), (9, 4))
+        entries = [(x, y) for (px, py), (x, y) in zip(path, path[1:])
+                   if _crossing_kind(terrain[py * width + px],
+                                     terrain[y * width + x]) is not None]
+        self.assertEqual(entries, [(5, 3)])
+        self.assertEqual(_crossing_kind(terrain[4 * width + 4],
+                                         terrain[3 * width + 5]), "ford")
+
+    def test_unavoidable_deep_crossing_builds_bridge_but_not_fake_travel_time(self):
+        from medieval_world_sim.worldgen.society import (
+            _path, _crossing_kind, _road_build_cost, _road_travel_cost)
+        width, height = 9, 7
+        river = {(4, y): 1500 for y in range(height)}
+        terrain = self._plain(width, height, rivers=river)
+        path, travel_cost = _path(terrain, width, height, (1, 3), (7, 3))
+        pairs = [(terrain[a[1] * width + a[0]], terrain[b[1] * width + b[0]])
+                 for a, b in zip(path, path[1:])]
+        self.assertEqual(sum(_crossing_kind(a, b) == "bridge" for a, b in pairs), 1)
+        self.assertAlmostEqual(travel_cost, sum(_road_travel_cost(a, b) for a, b in pairs))
+        self.assertLess(travel_cost, sum(_road_build_cost(a, b) for a, b in pairs))
+
+    def test_serialized_roads_track_fords_and_bridges_separately(self):
+        w = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+        for road in w.roads:
+            self.assertEqual(road.crossings, road.bridges + road.fords)
+            self.assertGreater(road.travel_minutes, 0)
+        self.assertEqual(w.to_dict()["version"], 4)
