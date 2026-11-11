@@ -11,7 +11,7 @@ def main():
     parser = argparse.ArgumentParser(description="Generate a seed-based Oathmere world atlas")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--width", type=int, default=80)
-    parser.add_argument("--height", type=int, default=56)
+    parser.add_argument("--height", type=int, default=64)
     parser.add_argument("--cities", type=int, default=12)
     parser.add_argument("--sites", type=int, default=45)
     parser.add_argument("--cell-km", type=float, default=3.0)
