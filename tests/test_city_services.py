@@ -1,4 +1,6 @@
 """Playable civic work, personal city storage, and magic-rules compatibility."""
+from realm_fixtures import GOLDMEADOW
+
 import json
 import tempfile
 import unittest
@@ -12,13 +14,13 @@ from medieval_world_sim.web.session import GameSession
 
 class CityContractTests(unittest.TestCase):
     def world(self, *, goods=None):
-        return WorldEngine([Actor("hero", "human", city="goldmeadow", gold=240,
+        return WorldEngine([Actor("hero", "human", city=GOLDMEADOW, gold=240,
                                   inventory=dict(goods or {}))])
 
     def test_four_jobs_use_real_city_funds_and_resource_costs(self):
         w = self.world(goods={"herbs": 1})
         starting_gold = w.initial_gold
-        city = w.cities["goldmeadow"]
+        city = w.cities[GOLDMEADOW]
         before = city.gold
         church = w.execute("hero", "complete_city_contract",
                            {"contract_id": "church_supplies"}, "church-1")
@@ -57,7 +59,7 @@ class CityContractTests(unittest.TestCase):
                 w.complete_city_contract("hero", contract)
         self.assertEqual((w.total_gold, w.actors["hero"].gold, len(w.events)), initial)
 
-        city = w.cities["goldmeadow"]
+        city = w.cities[GOLDMEADOW]
         city_gold = city.gold
         city.gold = 0
         w.crown_gold += city_gold  # move rather than destroy preexisting world gold
@@ -72,12 +74,12 @@ class CityContractTests(unittest.TestCase):
             w.start_travel("hero", "crownreach")
         w.execute("hero", "store_goods", {"item": "grain", "quantity": 30}, "store-1")
         self.assertEqual(w.actors["hero"].inventory["grain"], 10)
-        self.assertEqual(w.actors["hero"].storage["goldmeadow"]["grain"], 30)
+        self.assertEqual(w.actors["hero"].storage[GOLDMEADOW]["grain"], 30)
         w.start_travel("hero", "crownreach")
         w.advance(60)
         with self.assertRaises(ActionError):
             w.retrieve_goods("hero", "grain", 1)
-        w.start_travel("hero", "goldmeadow")
+        w.start_travel("hero", GOLDMEADOW)
         w.advance(60)
         w.retrieve_goods("hero", "grain", 30)
         self.assertEqual(w.actors["hero"].inventory["grain"], 40)
