@@ -27,11 +27,11 @@ from ..errors import ActionError
 from .chronicle import event_category, _friendly_event, TRADE_EVENTS, COMBAT_EVENTS
 from .projection import world_snapshot
 
-SAVE_VERSION = 1
+SAVE_VERSION = 2
 PLAYER_ID = "hero"
 INITIAL_GOLD = 240
 START_CITY = CAPITAL
-LEGACY_START_CITY = "goldmeadow"
+LEGACY_START_CITY = START_CITY
 MAX_RECORDS = 20000
 ADVANCE_LIMIT = 1440
 # Legacy public alias; policy is registered once beside engine commands.
@@ -87,7 +87,7 @@ class GameSession:
             for idx in range(3):
                 npc_id = f"npc:{city}:{idx}"
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
-                self.npc_names[npc_id] = names.pop()
+                self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
         return WorldEngine(actors, seed=self.seed)
 
     def create(self, name: str, lineage: str = "human") -> None:
