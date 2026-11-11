@@ -1,5 +1,6 @@
 """Chronicle audit, legacy save migration and live public city visibility."""
 from realm_fixtures import GOLDMEADOW
+from medieval_world_sim.catalog import CAPITAL, CITIES
 
 from datetime import datetime
 import json
@@ -14,6 +15,17 @@ from test_live_activity import LiveEventTests, next_sse_activity
 
 
 PASSWORD = "correct horse battery staple"
+
+
+def finish_trip(game, principal, actor_id, receipt_prefix):
+    remaining = game.world.actors[actor_id].arrival_minute - game.world.minute
+    step_number = 0
+    while remaining:
+        chunk = min(1440, remaining)
+        game.advance(principal, chunk, f"{receipt_prefix}-{step_number}")
+        remaining -= chunk
+        step_number += 1
+
 
 
 class ChronicleAuditTests(unittest.TestCase):
@@ -39,7 +51,7 @@ class ChronicleAuditTests(unittest.TestCase):
         self.game.action(self.b, "travel",
                          {"destination": GOLDMEADOW}, "leave")
         minutes = self.game.world.actors[self.b].arrival_minute - self.game.world.minute
-        self.game.advance(self.a, minutes, "pass-time")
+        finish_trip(self.game, self.a, self.b, "pass-time")
         self.assertEqual(self.game.snapshot(self.b)["player"]["city"], GOLDMEADOW)
         self.game.close()
         self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
@@ -95,26 +107,21 @@ class ChronicleAuditTests(unittest.TestCase):
                              self.game.snapshot(self.c)["events"]))
 
     def test_old_sqlite_journal_migrates_without_fabricating_past_timestamps(self):
-        self.game.action(self.a, "travel",
-                         {"destination": GOLDMEADOW}, "to-fields")
-        self.game.advance(self.b, 60, "arrive-fields")
-        self.game.action(self.a, "gather",
-                         {"item": "grain", "quantity": 1}, "old-command")
+        self.game.action(self.a, "claim_merit",
+                         {"achievement": "first_steps"}, "old-command")
         # Simulate a pre-timestamp-database entry. Leave the schema in place.
         self.game.db.execute(
             "UPDATE world_journal SET recorded_at=NULL WHERE request_id='old-command'")
         self.game.close()
         self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)
         past = [e for e in self.game.snapshot(self.a)["events"]
-                if e["kind"] == "gathered"]
+                if e["kind"] == "merit_claimed"]
         self.assertEqual(len(past), 1)
         self.assertIsNone(past[0]["recorded_at"])
-        # Resource harvesting has a one-hour work cooldown.
-        self.game.advance(self.b, 60, "second-harvest")
-        self.game.action(self.a, "gather",
-                         {"item": "grain", "quantity": 1}, "new-command")
+        # Ensure a new event is timestamped without inventing past timestamps.
+        self.game.action(self.a, "buy_home", {"tier": "room"}, "new-command")
         current = [e for e in self.game.snapshot(self.a)["events"]
-                   if e["kind"] == "gathered"]
+                   if e["kind"] in ("merit_claimed", "home_purchased")]
         self.assertIsNotNone(current[0]["recorded_at"])
         self.assertIsNone(current[1]["recorded_at"])
 
@@ -128,7 +135,7 @@ class ChronicleAuditTests(unittest.TestCase):
         bob_info = next(x for x in in_transit["users"] if x["id"] == self.b)
         self.assertFalse(bob_info["can_attack"])
         trip = self.game.world.actors[self.b].arrival_minute - self.game.world.minute
-        self.game.advance(self.c, trip, "bob-arrives")
+        finish_trip(self.game, self.c, self.b, "bob-arrives")
         arrived = self.game.social_snapshot(self.a)
         bob_info = next(x for x in arrived["users"] if x["id"] == self.b)
         self.assertEqual(bob_info["city"], GOLDMEADOW)
@@ -136,7 +143,7 @@ class ChronicleAuditTests(unittest.TestCase):
         self.game.action(self.a, "travel", {"destination": GOLDMEADOW},
                          "alice-outbound")
         trip = self.game.world.actors[self.a].arrival_minute - self.game.world.minute
-        self.game.advance(self.c, trip, "alice-arrives")
+        finish_trip(self.game, self.c, self.a, "alice-arrives")
         together = self.game.social_snapshot(self.a)
         bob_info = next(x for x in together["users"] if x["id"] == self.b)
         self.assertTrue(bob_info["can_attack"])
@@ -147,6 +154,8 @@ class ChronicleAuditTests(unittest.TestCase):
 
     def test_authentic_stream_pushes_arrivals_to_other_players(self):
         token, _ = self.game.login("alice", PASSWORD)
+        target = min((c for c in CITIES if c != CAPITAL),
+                     key=lambda city: self.game.world.travel_minutes(CAPITAL, city))
         with serve(self.game) as port:
             conn, response = LiveEventTests.stream(port, token)
             try:
@@ -157,19 +166,19 @@ class ChronicleAuditTests(unittest.TestCase):
                 self.assertEqual(bob["city"], "crownreach")
                 self.assertTrue(bob["can_attack"])
                 self.game.action(self.b, "travel",
-                                 {"destination": GOLDMEADOW}, "outbound")
+                                 {"destination": target}, "outbound")
                 moving = next_sse_activity(response)
                 self.assertFalse(next(u for u in moving["users"]
                     if u["id"] == self.b)["can_attack"])
-                self.game.advance(self.c, 60, "outbound-arrival")
+                finish_trip(self.game, self.c, self.b, "outbound-arrival")
                 elsewhere = next_sse_activity(response)
                 bob = next(u for u in elsewhere["users"] if u["id"] == self.b)
-                self.assertEqual(bob["city"], GOLDMEADOW)
+                self.assertEqual(bob["city"], target)
                 self.assertFalse(bob["can_attack"])
                 self.game.action(self.b, "travel",
                                  {"destination": "crownreach"}, "returning")
                 next_sse_activity(response)
-                self.game.advance(self.c, 60, "return-arrival")
+                finish_trip(self.game, self.c, self.b, "return-arrival")
                 returned = next_sse_activity(response)
                 bob = next(u for u in returned["users"] if u["id"] == self.b)
                 self.assertEqual(bob["city"], "crownreach")
@@ -198,12 +207,13 @@ class LegacyStartTests(unittest.TestCase):
             self.assertEqual(GameSession(path).snapshot()["player"]["city"],
                              "crownreach")
             stored = json.loads(path.read_text(encoding="utf-8"))
-            # Pre-change saves have no start_city field and began in Goldmeadow.
+            # No five-city migration: a fresh realm without start_city still
+            # begins in the current capital, not the retired Goldmeadow.
             stored.pop("start_city", None)
             path.write_text(json.dumps(stored), encoding="utf-8")
             old = GameSession(path)
-            self.assertEqual(old.snapshot()["player"]["city"], GOLDMEADOW)
-            old.action("gather", {"item": "grain", "quantity": 1}, "old-gather")
+            self.assertEqual(old.snapshot()["player"]["city"], CAPITAL)
+            old.action("claim_merit", {"achievement": "first_steps"}, "first-merit")
             self.assertEqual(GameSession(path).snapshot(), old.snapshot())
 
 
