@@ -64,6 +64,11 @@ import { createWorldViews } from "/world-views.mjs";
   let latestContract = null;
   let introActor = null;
   let travelIntent = null;
+  let hexIntent = null;
+  let mapZoom = 2.5;
+  let forceMapCenter = false;
+  let mapPollBusy = false;
+  let lastMapPollAt = 0;
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
@@ -557,8 +562,8 @@ import { createWorldViews } from "/world-views.mjs";
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
-      timerAttrs("Traveling to " + pretty(p.destination) + " · ", tripMinutes * 60) + ' ' +
-      'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
+      timerAttrs("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
+      'aria-label="' + esc("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination))) + '">' +
       '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
       '</strong></button>' : "";
     const hall = state.training_hall || {};
@@ -704,7 +709,8 @@ import { createWorldViews } from "/world-views.mjs";
   }
   // View modules receive a narrow interface rather than owning networking,
   // action execution or the mutable simulation state.
-  const { renderWorld, renderTravelConfirmation, renderMarket, renderMagic, renderHome } =
+  const { renderWorld, renderTravelConfirmation, renderHexConfirmation,
+    renderMarket, renderMagic, renderHome } =
     createWorldViews({
       getState: () => state,
       getPending: () => pending,
@@ -713,6 +719,8 @@ import { createWorldViews } from "/world-views.mjs";
       setSchool: value => { school = value; },
       getLatestPractice: () => latestPractice,
       getTravelIntent: () => travelIntent,
+      getHexIntent: () => hexIntent,
+      getMapZoom: () => mapZoom,
       getSelectedAttunements: () => selectedAttunements,
       esc, pretty, dur, disabled, button, panel, heading, isBusy, progress, money,
     });
@@ -1068,13 +1076,14 @@ import { createWorldViews } from "/world-views.mjs";
       root.innerHTML = introductionPage();
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay() +
-      (tab === "world" ? renderTravelConfirmation() : "");
+      (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "");
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
     const map = root.querySelector(".terrain-map-scroll");
     if (map && state && state.world_map) {
       const hex = state.world_map.position.join(",");
-      if (hex !== lastMapHex) {
+      if (!oldScroll || hex !== lastMapHex || forceMapCenter) {
+        forceMapCenter = false;
         const marker = map.querySelector(".survey-player");
         if (marker) {
           const frame = map.getBoundingClientRect();
@@ -1212,9 +1221,10 @@ import { createWorldViews } from "/world-views.mjs";
   });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && travelIntent) {
+    if (event.key === "Escape" && (travelIntent || hexIntent)) {
       event.preventDefault();
       travelIntent = null;
+      hexIntent = null;
       render();
     }
   });
@@ -1376,9 +1386,36 @@ import { createWorldViews } from "/world-views.mjs";
       case "horse-race":
         action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
-      case "explore-hex":
-        action("explore_hex", { x: Number(element.dataset.x), y: Number(element.dataset.y) },
-          "New terrain explored"); break;
+      case "explore-hex": {
+        const x = Number(element.dataset.x), y = Number(element.dataset.y);
+        if (isBusy() || !(state.world_map.steps || []).some(t =>
+          t.x === x && t.y === y)) break;
+        hexIntent = { x, y };
+        render();
+        const cancel = root.querySelector('[data-ui="hex-travel-cancel"]');
+        if (cancel) cancel.focus();
+        break;
+      }
+      case "hex-travel-cancel": hexIntent = null; render(); break;
+      case "hex-travel-confirm": {
+        const destination = hexIntent;
+        if (!destination || isBusy() || !(state.world_map.steps || []).some(t =>
+          t.x === destination.x && t.y === destination.y)) {
+          hexIntent = null;
+          render();
+          break;
+        }
+        hexIntent = null;
+        action("explore_hex", destination, "Hex journey started");
+        break;
+      }
+      case "map-zoom-in":
+        mapZoom = Math.min(4, Math.round((mapZoom + .5) * 10) / 10);
+        forceMapCenter = true; render(); break;
+      case "map-zoom-out":
+        mapZoom = Math.max(1, Math.round((mapZoom - .5) * 10) / 10);
+        forceMapCenter = true; render(); break;
+      case "map-center": forceMapCenter = true; render(); break;
       case "travel":
       case "map-travel": {
         const city = state.cities.find(c => c.id === element.dataset.target);
@@ -1519,9 +1556,43 @@ import { createWorldViews } from "/world-views.mjs";
     }
   });
 
+  async function refreshTravelMap() {
+    // Push updates intentionally omit the per-character private map. Fetch
+    // only during a visible active journey, not on every background tick.
+    if (!state || !state.started || !state.player.destination ||
+        tab !== "world" || pending || mapPollBusy || offline || authNeeded)
+      return;
+    const now = Date.now();
+    const cadence = state.dev_travel_seconds ? 950 : 2500;
+    if (now - lastMapPollAt < cadence) return;
+    lastMapPollAt = now;
+    mapPollBusy = true;
+    try {
+      const latest = await request("/api/state");
+      if (!state || pending || tab !== "world" || !latest.started) return;
+      // Full state replacement is required here: the streamed activity delta
+      // never includes private hex discovery, tile data, or trip position.
+      if ((latest.activity_revision || 0) >= (state.activity_revision || 0)) {
+        state = latest;
+        render();
+      }
+    } catch (error) {
+      // Transient network failures should not erase an already working map.
+    } finally {
+      mapPollBusy = false;
+    }
+  }
+  document.addEventListener("keydown", event => {
+    const hex = event.target.closest('[data-ui="explore-hex"]');
+    if (hex && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      hex.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+  });
   load();
   setInterval(() => {
     updateEasternClock();
     updateHoverTimers();
+    refreshTravelMap();
   }, 1000);
 })();

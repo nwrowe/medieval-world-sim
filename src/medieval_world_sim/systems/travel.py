@@ -72,6 +72,17 @@ class TravelSystem:
         """
         return set(CITIES) - {actor.city}
 
+    def hex_minutes(self, actor, x: int, y: int) -> int:
+        """A one-hex hike costs terrain-dependent simulated minutes.
+
+        Normal play uses 3–12 minutes; one simulated minute is one real
+        second in the explicit accelerated playtest mode. Quoting duration
+        does not reveal any unvisited deposit or named landmark.
+        """
+        tile = self.world.geography.tile(x, y)
+        difficulty = tile.travel_difficulty
+        return max(3, min(12, 3 + int(difficulty) // 10))
+
     def start_travel(self, actor_id: str, destination: str) -> int:
         actor = self.world._actor(actor_id)
         city = self.world._at_city(actor)
@@ -95,6 +106,7 @@ class TravelSystem:
         actor.travel.departure_minute = self.world.minute
         actor.travel.route_hexes = path
         actor.travel.route_revealed_index = 0
+        actor.travel.hex_target = None
         actor.destination = destination
         actor.arrival_minute = self.world.minute + time
         reveal(self.world, actor, path[0])
@@ -129,14 +141,26 @@ class TravelSystem:
             for arrival, actor_id in arrivals:
                 if arrival == moment:
                     a = self.world.actors[actor_id]
-                    a.city = a.destination  # type: ignore[assignment]
-                    a.discovered_cities.add(a.city)
+                    if a.travel.hex_target is not None:
+                        target = a.travel.hex_target
+                        a.wilderness_hex = target
+                        for town in self.world.geography.settlements:
+                            if (town.x, town.y) == target:
+                                a.city = town.id
+                                a.wilderness_hex = None
+                                a.discovered_cities.add(town.id)
+                                break
+                        self.world._emit("hex_arrived", actor_id, *target)
+                    else:
+                        a.city = a.destination  # type: ignore[assignment]
+                        a.discovered_cities.add(a.city)
+                        self.world._emit("arrived", actor_id, a.city)
                     a.destination = None
                     a.arrival_minute = None
                     a.travel.departure_minute = None
                     a.travel.route_hexes = ()
                     a.travel.route_revealed_index = 0
-                    self.world._emit("arrived", actor_id, a.city)
+                    a.travel.hex_target = None
         # Regeneration is computed from elapsed discrete world-minute boundaries
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES

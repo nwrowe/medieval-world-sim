@@ -97,11 +97,14 @@ def _decode(value, depth=0):
         # original schema; all other model/schema drift must still fail.
         migration_fields = set()
         magic_migration = {"next_practice_minute"}
+        travel_migration = {"hex_target"}
         if (present != expected and not (
                 cls is Actor and present <= expected and
                 expected - present <= migration_fields) and not (
                 cls is MagicState and present <= expected and
-                expected - present <= magic_migration)):
+                expected - present <= magic_migration) and not (
+                cls is TravelState and present <= expected and
+                expected - present <= travel_migration)):
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)
                       for name, node in value["values"].items()})

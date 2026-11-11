@@ -54,14 +54,15 @@ def validate_world(world: WorldEngine) -> None:
                         or p[1] * world.geography.width + p[0]
                         not in account.explored_hexes):
                     raise AssertionError("Invalid wilderness location")
-                if account.destination is not None:
+                if account.destination is not None and account.travel.hex_target is None:
                     raise AssertionError("Cannot travel between towns from wilderness")
             route = account.travel.route_hexes
             if not isinstance(route, tuple):
                 raise AssertionError("Travel route must be immutable")
             if account.destination is None:
                 if (route or account.travel.departure_minute is not None
-                        or account.travel.route_revealed_index != 0):
+                        or account.travel.route_revealed_index != 0
+                        or account.travel.hex_target is not None):
                     raise AssertionError("Inactive journey retains a route")
             else:
                 if (not route or account.travel.departure_minute is None
@@ -71,6 +72,17 @@ def validate_world(world: WorldEngine) -> None:
                                or not 0 <= y < world.geography.height
                                for x, y in route)):
                     raise AssertionError("Invalid or out-of-bounds active journey")
+            target = account.travel.hex_target
+            if target is not None:
+                if (type(target) is not tuple or len(target) != 2
+                        or any(type(v) is not int for v in target)
+                        or not 0 <= target[0] < world.geography.width
+                        or not 0 <= target[1] < world.geography.height
+                        or world.geography.tile(*target).elevation_m <= 0
+                        or world.geography.tile(*target).waterbody in ("sea", "lake")
+                        or account.destination is None
+                        or not route or route[-1] != target):
+                    raise AssertionError("Invalid hex journey target")
             if any(type(getattr(account.cooldowns, channel)) is not int
                    or getattr(account.cooldowns, channel) < 0
                    or max(0, getattr(account.cooldowns, channel) - world.minute) > 1440

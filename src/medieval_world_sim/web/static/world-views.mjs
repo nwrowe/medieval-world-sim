@@ -38,12 +38,8 @@ export function createWorldViews(ctx) {
     const width = Math.ceil(sqrt3 * radius * (atlas.width + .5));
     const height = Math.ceil(radius * (1.5 * (atlas.height - 1) + 2));
     const tiles = new Map(atlas.tiles.map(t => [t.i,t]));
-    const [playerX, playerY] = atlas.position;
-    const adjacentOffsets = playerY % 2 ?
-      [[1,-1],[1,0],[1,1],[0,1],[-1,0],[0,-1]] :
-      [[0,-1],[1,0],[0,1],[-1,1],[-1,0],[-1,-1]];
-    const adjacent = new Set(adjacentOffsets.map(([dx,dy]) =>
-      (playerY+dy) * atlas.width + playerX + dx));
+    const nearbySteps = new Map((atlas.steps || []).map(step =>
+      [step.y * atlas.width + step.x, step]));
     const canStep = !state.player.destination && state.player.hp > 0 &&
       state.player.defeated_until == null && !isBusy();
     const hexes = Array.from(atlas.relief, (tier,index) => {
@@ -59,12 +55,10 @@ export function createWorldViews(ctx) {
         '<path d="M-5 3 L-1 -5 L2 -1 L4 -4 L7 3" fill="none" stroke="' +
         (tile ? "#57584b" : "#737674") + '" stroke-width=".85" opacity=".6"/>' : "";
       const [cx,cy] = hexCenter(x,y);
-      const walkable = (tile ? Number(atlas.relief[index]) > 0 :
-                        Number(tier) > 0);
-      const step = canStep && adjacent.has(index) && walkable;
+      const step = canStep && nearbySteps.has(index);
       const attrs = step ? ' data-ui="explore-hex" data-x="' + x +
         '" data-y="' + y + '" tabindex="0" role="button" ' +
-        'aria-label="Explore hex ' + x + ', ' + y + '"' : '';
+        'aria-label="Travel to adjacent hex ' + x + ', ' + y + '"' : '';
       return '<g><polygon class="' + (step ? 'hex-step-target' : '') +
         '" points="' + points(x,y) + '" fill="' + fill + '"' + attrs +
         (faded ? ' opacity=".67"' : "") + ' stroke="#e5ddc9" stroke-opacity=".34"' +
@@ -97,19 +91,29 @@ export function createWorldViews(ctx) {
         esc(city.name) + '</text></g>';
     }).join("");
     const [px,py] = hexCenter(atlas.position[0], atlas.position[1]);
+    const zoom = ctx.getMapZoom();
     const svg = '<svg class="terrain-atlas-svg" viewBox="0 0 ' + width + ' ' + height +
-      '" width="' + width + '" height="' + height +
+      '" width="' + Math.round(width * zoom) + '" height="' +
+      Math.round(height * zoom) +
       '" aria-label="Explored hex map with unknown terrain shown in gray">' +
       '<g class="survey-hexes">' + hexes + '</g>' +
       '<g class="survey-roads" fill="none" stroke="#67503a" stroke-width="1.9" ' +
-      'stroke-linecap="round">' + roadlines + '</g>' +
-      '<g class="survey-sites">' + sites + '</g>' +
-      '<g class="survey-towns">' + towns + '</g>' +
+      'stroke-linecap="round" pointer-events="none">' + roadlines + '</g>' +
+      '<g class="survey-sites" pointer-events="none">' + sites + '</g>' +
+      '<g class="survey-towns" pointer-events="none">' + towns + '</g>' +
       '<circle class="survey-player" cx="' + px.toFixed(1) + '" cy="' +
       py.toFixed(1) + '" r="5.5" fill="#fff1ab" stroke="#384d40" stroke-width="2.4">' +
       '<title>Your current position</title></circle></svg>';
     return '<section class="terrain-atlas" aria-label="Oathmere hex exploration map">' +
-      '<div class="terrain-map-scroll">' + svg + '</div>' +
+      '<div class="terrain-map-toolbar">' +
+      '<span>Map zoom</span>' +
+      button("−", 'data-ui="map-zoom-out" aria-label="Zoom out"'
+        + disabled(zoom <= 1), "secondary") +
+      '<strong>' + Math.round(zoom * 100) + '%</strong>' +
+      button("+", 'data-ui="map-zoom-in" aria-label="Zoom in"'
+        + disabled(zoom >= 4), "secondary") +
+      button("Center", 'data-ui="map-center"', "secondary") +
+      '</div><div class="terrain-map-scroll">' + svg + '</div>' +
       '<div class="terrain-atlas-legend"><span>■ Full color: in sight</span>' +
       '<span>■ Muted color: explored</span><span>■ Gray: uncharted</span>' +
       '<span>Vision radius: ' + atlas.sight_radius + ' hexes</span>' +
@@ -119,6 +123,26 @@ export function createWorldViews(ctx) {
       '<p class="small terrain-map-hint">Click a highlighted adjacent land hex ' +
       'to explore. Coastlines and mountain outlines remain visible through fog. ' +
       'Return to a town to use markets and other city services.</p></section>';
+  }
+  function renderHexConfirmation() {
+    const state = ctx.getState();
+    const target = ctx.getHexIntent();
+    if (!state || !target || !state.world_map || state.player.destination) return "";
+    const step = (state.world_map.steps || []).find(t =>
+      t.x === target.x && t.y === target.y);
+    if (!step) return "";
+    return '<div class="travel-confirm-overlay" role="presentation">' +
+      '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="hex-travel-title" aria-describedby="hex-travel-description">' +
+      '<div class="section-kicker">Explore the wilderness</div>' +
+      '<h2 id="hex-travel-title">Travel to hex ' + step.x + ', ' + step.y + '?</h2>' +
+      '<p id="hex-travel-description">Estimated travel time: <strong>' +
+      esc(travelTime(step.minutes)) + '</strong>. The surrounding terrain will ' +
+      'be discovered when you arrive.</p>' +
+      '<div class="travel-confirm-actions">' +
+      button("Cancel", 'data-ui="hex-travel-cancel"', "secondary") +
+      button("Begin journey", 'data-ui="hex-travel-confirm"', "gold") +
+      '</div></section></div>';
   }
   function renderTravelConfirmation() {
     const state = ctx.getState();
@@ -175,7 +199,8 @@ export function createWorldViews(ctx) {
     }).join("") || '<p class="small">No gatherable natural resources remain here; visit a different region.</p>';
     const journey = traveling ?
       '<section class="journey"><div class="section-kicker">Journey in progress</div>' +
-      '<h3>Road to ' + esc(pretty(p.destination)) + '</h3>' +
+      '<h3>' + (p.hex_target ? 'Exploring hex ' + p.hex_target.join(", ") :
+        'Road to ' + esc(pretty(p.destination))) + '</h3>' +
       '<p>' + esc(travelTime(timeToArrival)) + ' until arrival. Your purchases and abilities ' +
       'are paused while traveling.</p>' +
       (secureWorldClock ?
@@ -522,5 +547,6 @@ export function createWorldViews(ctx) {
   }
 
 
-  return { renderWorld, renderTravelConfirmation, renderMarket, renderMagic, renderHome };
+  return { renderWorld, renderTravelConfirmation, renderHexConfirmation,
+    renderMarket, renderMagic, renderHome };
 }

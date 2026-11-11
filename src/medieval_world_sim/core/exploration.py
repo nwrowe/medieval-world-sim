@@ -6,7 +6,7 @@ before delivery to any client. Only coarse gray relief is public to everyone.
 from __future__ import annotations
 
 from . import entities
-from ..worldgen.hexgrid import hex_distance
+from ..worldgen.hexgrid import hex_distance, neighbors
 
 BASE_SIGHT = 2
 MAX_SIGHT = 4
@@ -127,7 +127,15 @@ def map_projection(world, actor: entities.Actor) -> dict:
         "current": town.id == actor.city and actor.destination is None,
     } for town in geography.settlements
         if town.y * geography.width + town.x in observed]
+    steps = []
+    if actor.destination is None and actor.hp > 0 and actor.defeated_until is None:
+        for nx, ny in neighbors(*pos, geography.width, geography.height):
+            tile = geography.tile(nx, ny)
+            if tile.elevation_m > 0 and tile.waterbody not in ("sea", "lake"):
+                steps.append({"x": nx, "y": ny,
+                              "minutes": world.travel.hex_minutes(actor, nx, ny)})
     return {
+        "steps": steps,
         "width": geography.width, "height": geography.height,
         "relief": public_relief(geography),
         "tiles": details,

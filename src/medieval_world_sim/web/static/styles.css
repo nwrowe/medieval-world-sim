@@ -942,7 +942,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 }
 .terrain-atlas-svg {
   display: block;
-  width: max(100%, 1115px);
+  width: auto;
   height: auto;
   max-width: none;
   background: #7d969c;
@@ -966,3 +966,22 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .terrain-map-scroll { min-height: 300px; max-height: 52vh; }
   .terrain-atlas-legend { font-size: 11px; gap: 5px 12px; }
 }
+
+/* Interactive cartography: genuine SVG coordinate scaling, not browser zoom. */
+.terrain-map-toolbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  background: #2d4035;
+  padding: 8px 12px;
+  color: #e8dcc0;
+  font-size: 13px;
+}
+.terrain-map-toolbar .button { min-width: 35px; padding: 6px 12px; }
+.terrain-map-toolbar strong { min-width: 42px; text-align: center; }
+.terrain-atlas .survey-player { pointer-events: none; }
+.terrain-atlas .hex-step-target { stroke: #f8e7a3; stroke-width: 2.1; }
+.terrain-atlas .hex-step-target:focus { outline: none; stroke: #ffffff; stroke-width: 3; }
