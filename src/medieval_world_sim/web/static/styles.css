@@ -919,6 +919,10 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .magic-school-description {color:#607568;font-size:13px;line-height:1.65;margin:4px 0 18px;max-width:770px}
 
 /* Generated geography, persistent exploration and subdued unsurveyed relief. */
+.terrain-atlas .hex-step-target { cursor: pointer; stroke: #f9e9b5; stroke-width: 1.65; }
+.terrain-atlas .hex-step-target:hover,
+.terrain-atlas .hex-step-target:focus { stroke: #fff6a2; stroke-width: 3; outline: none; }
+.terrain-map-hint { margin: 0; padding: 8px 14px 12px; background: #2b3c33; }
 .terrain-atlas {
   margin: 13px 0 20px;
   border: 1px solid rgba(139, 155, 125, .55);
