@@ -60,9 +60,11 @@ class MultiplayerGame:
     def __init__(self, db_path: str | Path, *,
                  require_invites: bool = True,
                  dev_fast_forward: bool = False,
+                 dev_travel_seconds: bool = False,
                  npc_enabled: bool = False):
         self.require_invites = require_invites
         self.dev_fast_forward = dev_fast_forward
+        self.dev_travel_seconds = dev_travel_seconds
         if type(npc_enabled) is not bool:
             raise ValueError("npc_enabled must be a boolean")
         self.npc_enabled = npc_enabled
@@ -172,7 +174,7 @@ class MultiplayerGame:
                 npc_id = f"npc:{city}:{idx}"
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
                 self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
-        return WorldEngine(actors, seed=42)
+        return WorldEngine(actors, seed=42, dev_travel_seconds=self.dev_travel_seconds)
 
     def _join_actor(self, actor_id: str, city: str = START_CITY,
                     lineage: str | None = None):
@@ -307,11 +309,12 @@ class MultiplayerGame:
             if not self.names:
                 return
             now = int(time.time())
-            minutes = min(max(0, now - self._clock_anchor) // 60, ADVANCE_LIMIT)
+            tick = 1 if self.dev_travel_seconds else 60
+            minutes = min(max(0, now - self._clock_anchor) // tick, ADVANCE_LIMIT)
             if minutes == 0:
                 return
             old_anchor = self._clock_anchor
-            new_anchor = old_anchor + minutes * 60
+            new_anchor = old_anchor + minutes * tick
             actor_id = next(iter(self.names))
             prior_events = len(self.world.events)
             timestamp = datetime.now(timezone.utc).isoformat()
@@ -483,7 +486,8 @@ class MultiplayerGame:
     def _next_world_tick_seconds(self) -> int | None:
         if self.dev_fast_forward:
             return None
-        return max(1, 60 - min(59, max(0, int(time.time()) - self._clock_anchor)))
+        tick = 1 if self.dev_travel_seconds else 60
+        return max(1, tick - min(tick - 1, max(0, int(time.time()) - self._clock_anchor)))
 
     def social_snapshot(self, actor_id: str) -> dict:
         self._tick_world_clock()
