@@ -53,18 +53,21 @@ class HousingTests(unittest.TestCase):
         self.assertEqual(w.buy_vehicle("owner", "horse"), 250)
         w.select_vehicle("owner", "horse")
         self.assertEqual(w.housing_view("owner").travel_cargo_limit, 16)
-        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), 72)
-        self.assertEqual(w.start_travel("owner", IRONVALE), 72)
-        w.advance(71)
+        base = w.travel_minutes(CAPITAL, IRONVALE)
+        mounted = w.housing_system.road_minutes(w.actors["owner"], base)
+        self.assertLess(mounted, base)
+        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), mounted)
+        self.assertEqual(w.start_travel("owner", IRONVALE), mounted)
+        w.advance(mounted - 1)
         self.assertEqual(w.actors["owner"].destination, IRONVALE)
         w.advance(1)
         self.assertEqual(w.actors["owner"].city, IRONVALE)
         with self.assertRaises(ActionError):
             w.select_vehicle("owner", None)  # mount must return to home to park
-        self.assertEqual(w.start_travel("owner", CAPITAL), 72)
-        w.advance(72)
+        self.assertEqual(w.start_travel("owner", CAPITAL), mounted)
+        w.advance(mounted)
         w.select_vehicle("owner", None)
-        self.assertEqual(w.start_travel("owner", IRONVALE), 90)
+        self.assertEqual(w.start_travel("owner", IRONVALE), base)
         w.assert_invariants()
 
     def test_carriage_reduces_road_duration_and_expands_cargo_not_local_limit(self):
@@ -72,14 +75,17 @@ class HousingTests(unittest.TestCase):
         w.buy_home("owner", "estate")
         self.assertEqual(w.build_home_facility("owner", "carriage_house"), 550)
         self.assertEqual(w.buy_vehicle("owner", "carriage"), 950)
-        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), 90)
+        base = w.travel_minutes(CAPITAL, IRONVALE)
+        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), base)
         w.select_vehicle("owner", "carriage")
-        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), 54)
+        carriage = w.housing_system.road_minutes(w.actors["owner"], base)
+        self.assertLess(carriage, base)
+        self.assertEqual(w.estimated_travel_minutes("owner", IRONVALE), carriage)
         self.assertEqual(w.housing_view("owner").travel_cargo_limit, 20)
         # 18 units can travel in carriage but not on foot.
         w.actors["owner"].inventory["stone"] = 18
-        self.assertEqual(w.start_travel("owner", IRONVALE), 54)
-        w.advance(54)
+        self.assertEqual(w.start_travel("owner", IRONVALE), carriage)
+        w.advance(carriage)
         self.assertEqual(w.actors["owner"].city, IRONVALE)
         with self.assertRaises(ActionError):
             w.buy_home("owner", "room")
@@ -101,7 +107,9 @@ class HousingTests(unittest.TestCase):
         # stale reference to the pre-rollback snapshot.
         w.actors["owner"].inventory["iron_ore"] = 15
         w.equip("owner", gear.id)
-        self.assertEqual(w.start_travel("owner", IRONVALE), 72)
+        self.assertEqual(w.start_travel("owner", IRONVALE),
+                         w.housing_system.road_minutes(w.actors["owner"],
+                                                     w.travel_minutes(CAPITAL, IRONVALE)))
         w.assert_invariants()
 
     def test_missing_money_does_not_mint_property_or_vehicle(self):
