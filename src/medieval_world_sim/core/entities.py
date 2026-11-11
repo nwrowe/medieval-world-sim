@@ -73,6 +73,7 @@ class TravelState:
     ready_minute: int = 0
     departure_minute: int | None = None
     route_hexes: tuple[tuple[int, int], ...] = ()
+    route_durations: tuple[int, ...] = ()
     route_revealed_index: int = 0
     hex_target: tuple[int, int] | None = None
 
