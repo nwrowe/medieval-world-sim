@@ -30,6 +30,8 @@ class Tile:
     flow: int
     resources: dict[str, int]  # potential 0..100; not a mutable inventory
     drains_to: tuple[int, int] | None = None  # computed hydrological parent, not navigation
+    waterbody: str = "land"  # land, sea, lake or river
+    navigable: bool = False  # survey potential, not a live travel permission
 
 
 def _hash(seed: int, x: int, y: int) -> float:

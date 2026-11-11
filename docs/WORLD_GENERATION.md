@@ -1,4 +1,4 @@
-# Oathmere: geography-first world generation (prototype v4 terrain-aware roads)
+# Oathmere: geography-first world generation (prototype v5 interactive atlas and waterways)
 
 This system produces a deterministic *candidate atlas* from a numerical seed. It is **not yet wired into live game worlds or saved journals**. The current five-city catalog, travel rules, city inventories, player discovery and existing saved worlds remain unchanged. This separation is deliberate: a map must be reviewed and versioned before it becomes the game's authoritative world.
 
@@ -10,7 +10,7 @@ Requires Python 3.11+; uses only the standard library.
 python -m medieval_world_sim.worldgen --seed 7 --width 80 --height 64 --cities 12 --sites 45 --output generated-world
 ```
 
-Open the improved `generated-world/atlas.svg` in a browser and inspect `generated-world/world.json`. Each tile represents 3 km by default. The JSON contains the generator version and seed, elevation (m), temperature (°C), annual rainfall (mm), biome, geology, soil quality, hydrological flow and downstream drainage references, resource potential, settlement populations, inferred local production, road geometries, dirt/cobbled surfaces and travel times, and candidate wilderness sites.
+Open `generated-world/atlas.html` for a **clickable, zoomable hex inspector**, or open the static `atlas.svg`; all geographic metadata is also exported in `world.json`. Each tile represents 3 km by default. The JSON contains the generator version and seed, elevation (m), temperature (°C), annual rainfall (mm), biome, geology, soil quality, hydrological flow and downstream drainage references, resource potential, settlement populations, inferred local production, road geometries, dirt/cobbled surfaces and travel times, and candidate wilderness sites.
 
 ### Reading the hex atlas
 
@@ -87,3 +87,40 @@ saddle, an isolated river obstacle with a short dry detour, an upstream ford
 versus a downstream deep crossing, and an unavoidable bridge. All use the same
 A* and cost rules as the atlas. The test suite also checks that cost of bridge
 construction does not inflate minutes traveled on an already built road.
+
+## v5: inland water, surveyed navigation and strategic landmarks
+
+The CLI exports three review artifacts at once: `atlas.html` (self-contained
+interactive survey), `atlas.svg` (static detailed relief), and `world.json`
+(versioned structured world). No server or third-party Python libraries are
+needed.
+
+- Click any hex in `atlas.html` to inspect its underlying elevation,
+  temperature, rainfall, soil, geology, production potential, waterways, roads,
+  settlements, dungeon entrances and strategic landmarks. Zoom buttons and
+  Ctrl+wheel aid inspection. The overlay does **not** mutate the world and is
+  intended for designers, not players with fog of war.
+- **Inland lakes** are identified from connected topographic depressions in a
+  priority-flood spill-level survey. Tiny artifacts and very large closed
+  basins are deliberately excluded until a more accurate basin/evaporation
+  model exists. Lakes preserve their measured land elevation while receiving a
+  lake biome, waterbody identity and blue hex tile color; shorelines follow the
+  hex edges. Roads and towns cannot occupy flooded lake tiles.
+- **Navigability candidates** use a connected-hex network: coastal water,
+  inland lake tiles and sufficiently broad/gentle river reaches receive a
+  potential navigation flag. The `waterways` manifest entry stores connected
+  networks and a proposed vessel class. These are survey estimates, *not*
+  ship actions, ports with functioning markets, or guaranteed end-to-end
+  navigable commercial routes.
+- **Strategic landmarks** are placed where built roads actually choose deep
+  bridges and shallow fords, where roads negotiate low mountain saddles, or
+  where a settlement can access sheltered sea or lake shore. Each has a
+  coordinate, type, description and potential strategic importance. They can
+  later support forts, tolls, caravan risk, fishing, shipping and quests, but
+  they currently confer no gameplay benefits.
+
+**Migration:** v5 adds `waterbody` and `navigable` tile attributes,
+`waterways` and `landmarks` world collections and can adjust roads and
+settlements to avoid lake tiles. Re-generating an existing v4 world is not a
+save migration: preserve the original v4 snapshot until an explicit,
+auditable game-world adapter is introduced.

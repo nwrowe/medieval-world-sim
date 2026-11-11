@@ -65,7 +65,7 @@ def _nearby(tiles: tuple[Tile, ...], width: int, height: int, x: int, y: int, ra
         for nx in range(max(0, x - radius), min(width, x + radius + 1)):
             if (nx - x) ** 2 + (ny - y) ** 2 <= radius ** 2:
                 tile = tiles[ny * width + nx]
-                if tile.elevation_m > 0:
+                if tile.elevation_m > 0 and tile.waterbody != 'lake':
                     yield tile
 
 
@@ -87,7 +87,7 @@ def generate_settlements(tiles: tuple[Tile, ...], width: int, height: int,
         raise ValueError("City count must be 3..30")
     # Roads are land-only in v1. Keep founding sites on the largest connected
     # mainland until ports, boats and over-water travel exist.
-    land = {(t.x, t.y) for t in tiles if t.elevation_m > 0}
+    land = {(t.x, t.y) for t in tiles if t.elevation_m > 0 and t.waterbody != 'lake'}
     components = []
     while land:
         start = min(land)
@@ -113,7 +113,7 @@ def generate_settlements(tiles: tuple[Tile, ...], width: int, height: int,
             local_slope = max(abs(t.elevation_m - tile.elevation_m) for t in surrounding)
             if local_slope > 690:
                 continue
-            fresh = any(t.river for t in surrounding)
+            fresh = any(t.river or t.waterbody == 'lake' for t in surrounding)
             sea = any(t.elevation_m <= 0 for t in
                       (tiles[ny * width + nx] for nx, ny in neighbors(x, y, width, height)))
             mean_soil = sum(t.soil for t in surrounding) / len(surrounding)
@@ -251,7 +251,7 @@ def _path(tiles: tuple[Tile, ...], width: int, height: int, start, goal):
         for nx, ny in neighbors(ix, iy, width, height):
             j = ny * width + nx
             target, source = tiles[j], tiles[i]
-            if target.elevation_m <= 0:
+            if target.elevation_m <= 0 or target.waterbody == 'lake':
                 continue
             proposed = best[i] + _road_build_cost(source, target)
             if proposed < best.get(j, float("inf")):
@@ -326,7 +326,7 @@ def generate_sites(tiles: tuple[Tile, ...], width: int, height: int,
     for y in range(2, height - 2, 2):
         for x in range(2, width - 2, 2):
             tile = tiles[y * width + x]
-            if tile.elevation_m <= 0:
+            if tile.elevation_m <= 0 or tile.waterbody == 'lake':
                 continue
             away = min(hypot(x - s.x, y - s.y) for s in settlements)
             if away < 3:

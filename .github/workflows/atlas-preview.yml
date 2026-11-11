@@ -1,0 +1,29 @@
+name: Generated atlas previews
+
+on:
+  pull_request:
+    paths:
+      - 'src/medieval_world_sim/worldgen/**'
+      - '.github/workflows/atlas-preview.yml'
+  workflow_dispatch:
+
+jobs:
+  atlas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Render Seed 7 and Seed 42 surveys
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m medieval_world_sim.worldgen --seed 7 --output world-atlas/seed7
+          python -m medieval_world_sim.worldgen --seed 42 --output world-atlas/seed42
+      - name: Upload stand-alone atlases
+        uses: actions/upload-artifact@v4
+        with:
+          name: oathmere-seed7-and-seed42-atlases
+          path: world-atlas/
+          retention-days: 14

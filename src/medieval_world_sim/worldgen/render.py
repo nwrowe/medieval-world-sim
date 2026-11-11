@@ -22,7 +22,7 @@ MARGIN = 28
 TOP = 85
 BOTTOM = 82
 BIOME_COLORS = {
-    "ocean": (105, 147, 158), "alpine": (177, 178, 171),
+    "ocean": (105, 147, 158), "lake": (114, 162, 171), "alpine": (177, 178, 171),
     "mountain": (147, 143, 132), "tundra": (185, 187, 167),
     "wetland": (102, 137, 121), "desert": (217, 189, 129),
     "steppe": (187, 177, 125), "hills": (171, 155, 119),
@@ -162,6 +162,24 @@ def _edge_path(world, scale: int, *, coastal: bool) -> str:
     return ''.join(segments)
 
 
+
+def _lake_edges(world, scale: int) -> str:
+    """Trace precise hex-edge outlines of inland lakes, without smoothing."""
+    segments = []
+    for tile in world.tiles:
+        if tile.waterbody != "lake":
+            continue
+        verts = vertices(tile.x, tile.y, scale)
+        for edge in range(6):
+            nx, ny = edge_neighbor(tile.x, tile.y, edge)
+            if 0 <= nx < world.width and 0 <= ny < world.height:
+                if world.tile(nx, ny).waterbody == "lake":
+                    continue
+            a, b = verts[edge], verts[(edge + 1) % 6]
+            segments.append(f'M{a[0]:.2f},{a[1]:.2f}L{b[0]:.2f},{b[1]:.2f}')
+    return ''.join(segments)
+
+
 def _coast_and_contours(world, scale: int) -> list[str]:
     parts = ['<g id="elevation-contours" fill="none" stroke-linecap="round">']
     for level in range(300, 3100, 300):
@@ -178,6 +196,12 @@ def _coast_and_contours(world, scale: int) -> list[str]:
     # A broad, land-green coastal fringe and a precise darker shoreline line.
     parts.append(f'<path d="{coast}" stroke="#587758" stroke-width="5.3" opacity=".78"/>')
     parts.append(f'<path d="{coast}" stroke="#345e59" stroke-width="1.9" opacity=".94"/>')
+    parts.append('</g>')
+    lakes = _lake_edges(world, scale)
+    parts.append('<g id="lake-shores" fill="none" stroke-linejoin="round">')
+    if lakes:
+        parts.append(f'<path d="{lakes}" stroke="#e4dbbd" stroke-width="3.2" opacity=".85"/>')
+        parts.append(f'<path d="{lakes}" stroke="#477381" stroke-width="1.5"/>')
     parts.append('</g>')
     return parts
 
@@ -362,6 +386,20 @@ def _places(world, scale: int) -> list[str]:
                      'fill="#633c55" stroke="#f5e6cf" stroke-width="1.2">'
                      f'<title>{escape(site.name)} — {escape(site.kind.replace("_", " "))} '
                      f'(danger {site.danger})</title></path>')
+    parts.append('</g><g id="strategic-landmarks">')
+    symbols = {"bridge": "#674b39", "ford": "#9f793e",
+               "mountain_pass": "#674f7d", "harbor": "#345977",
+               "lake_landing": "#43807d"}
+    for site in world.landmarks:
+        x, y = center(site.x, site.y, scale)
+        color = symbols.get(site.kind, "#635344")
+        if site.kind in ("bridge", "ford"):
+            # Road renderer already draws the appropriate crossing deck/ford.
+            continue
+        parts.append(f'<circle class="strategic-{escape(site.kind)}" '
+                     f'cx="{x:.1f}" cy="{y:.1f}" r="3.8" '
+                     f'fill="{color}" stroke="#fff1d7" stroke-width="1.4">'
+                     f'<title>{escape(site.name)}: {escape(site.reason)}</title></circle>')
     parts.append('</g><g id="settlements" font-family="Georgia,serif">')
     # Place labels in the least-crowded immediate quadrant, avoiding boundary.
     occupied = []
@@ -416,7 +454,7 @@ def render_svg(world) -> str:
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
         'role="img" aria-labelledby="title desc">',
         '<title id="title">Oathmere — shaded relief survey atlas</title>',
-        '<desc id="desc">Procedurally generated shaded mountains, labeled contours, connected drainage, '
+        '<desc id="desc">Procedurally generated shaded mountains, labeled contours, connected drainage, lakes and navigable waters, '
         'hexagon tiles, jagged hex coastlines, meandering rivers, cobblestone trade roads, dirt roads, strategic river bridges and natural fords, settlements and exploration sites.</desc>',
         '<rect width="100%" height="100%" fill="#e9dec3"/>',
         f'<path d="M{MARGIN},68H{width-MARGIN}" stroke="#977c52" stroke-width="1"/>',

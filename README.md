@@ -62,13 +62,16 @@ Oathmere now has a separate, seeded **world atlas generator** that builds terrai
 climate, rivers and geology before founding settlements, routing roads and placing
 exploration sites. The v3 generator uses true six-neighbor hex topology,
 hex-aligned coastlines, varied mountain uplift, shaded relief and terrain-aware
-river meanders. It exports a reviewable SVG map and versioned JSON manifest;
+river meanders. It exports a clickable HTML tile inspector, static SVG map and versioned JSON manifest;
 it does **not** replace the active five-city map or mutate existing saves.
 
 ```bash
 python -m medieval_world_sim.worldgen --seed 7 --output generated-world
 python -m unittest discover -s tests -p 'test_worldgen.py' -v
 ```
+
+Open `generated-world/atlas.html` in a browser to inspect individual hexes,
+landmarks and navigable-water candidates.
 
 See [World Generation](docs/WORLD_GENERATION.md) for geographic assumptions,
 settlement and site rules, migration boundaries and recommended next phases.

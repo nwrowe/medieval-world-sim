@@ -17,7 +17,7 @@ class WorldGenerationTests(unittest.TestCase):
         c = generate_world(seed=43, width=64, height=44, cities=9, sites=25)
         self.assertEqual(a.to_dict(), b.to_dict())
         self.assertNotEqual(a.tiles, c.tiles)
-        self.assertEqual(a.version, 4)
+        self.assertEqual(a.version, 5)
 
     def test_terrain_dimensions_climate_and_river_network(self):
         world = self.world
@@ -290,4 +290,84 @@ class RoadSitingTests(unittest.TestCase):
         for road in w.roads:
             self.assertEqual(road.crossings, road.bridges + road.fords)
             self.assertGreater(road.travel_minutes, 0)
-        self.assertEqual(w.to_dict()["version"], 4)
+        self.assertEqual(w.to_dict()["version"], 5)
+
+
+class SurveyWaterAndLandmarkTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.world = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+
+    def test_lakes_and_navigation_retain_geographic_invariants(self):
+        from medieval_world_sim.worldgen.hexgrid import neighbors
+        world = self.world
+        self.assertTrue(any(t.waterbody == "sea" for t in world.tiles))
+        self.assertTrue(any(w.kind == "sea" for w in world.waterways))
+        for tile in world.tiles:
+            self.assertIn(tile.waterbody, ("land", "sea", "lake", "river"))
+            if tile.waterbody == "lake":
+                self.assertEqual(tile.biome, "lake")
+                self.assertGreater(tile.elevation_m, 0)
+                self.assertTrue(tile.navigable)
+                self.assertEqual(tile.resources, {})
+            if tile.waterbody == "sea":
+                self.assertLessEqual(tile.elevation_m, 0)
+                self.assertTrue(tile.navigable)
+        for network in world.waterways:
+            self.assertTrue(network.tiles)
+            self.assertIn(network.kind, ("sea", "lake", "river"))
+            self.assertGreater(network.length_km, 0)
+            for x, y in network.tiles:
+                self.assertTrue(world.tile(x, y).navigable)
+        for road in world.roads:
+            for x, y in road.path:
+                self.assertNotIn(world.tile(x, y).waterbody, ("sea", "lake"))
+            for (x, y), (nx, ny) in zip(road.path, road.path[1:]):
+                self.assertIn((nx, ny), list(neighbors(x, y, world.width, world.height)))
+
+    def test_landmarks_correspond_to_real_crossings_passes_and_shores(self):
+        from medieval_world_sim.worldgen.hexgrid import neighbors
+        from medieval_world_sim.worldgen.society import _crossing_kind
+        world = self.world
+        road_edges = [(a, b) for r in world.roads for a, b in zip(r.path, r.path[1:])]
+        road_tiles = {p for r in world.roads for p in r.path}
+        self.assertTrue(world.landmarks)
+        for mark in world.landmarks:
+            self.assertTrue(1 <= mark.importance <= 10)
+            self.assertGreater(world.tile(mark.x, mark.y).elevation_m, 0)
+            if mark.kind in ("bridge", "ford"):
+                self.assertTrue(any(b == (mark.x, mark.y) and
+                         _crossing_kind(world.tile(*a), world.tile(*b)) == mark.kind
+                         for a, b in road_edges))
+            if mark.kind == "mountain_pass":
+                self.assertIn((mark.x, mark.y), road_tiles)
+                self.assertTrue(any(world.tile(nx, ny).elevation_m >
+                                    world.tile(mark.x, mark.y).elevation_m + 270
+                                    for nx, ny in neighbors(mark.x, mark.y, world.width, world.height)))
+            if mark.kind in ("harbor", "lake_landing"):
+                sea = "sea" if mark.kind == "harbor" else "lake"
+                self.assertTrue(any(world.tile(nx, ny).waterbody == sea
+                                    for nx, ny in neighbors(mark.x, mark.y,
+                                                            world.width, world.height)))
+
+    def test_interactive_atlas_is_reproducible_and_has_clickable_hexes(self):
+        from xml.etree import ElementTree
+        from medieval_world_sim.worldgen.inspect import render_inspector_html
+        world = self.world
+        before = world.to_dict()
+        svg = render_svg(world)
+        html = render_inspector_html(world, svg)
+        self.assertEqual(before, world.to_dict())
+        self.assertEqual(html, render_inspector_html(world, svg))
+        self.assertEqual(html.count('<polygon data-index="'), world.width * world.height)
+        self.assertIn('id="atlas-inspector-hit"', html)
+        self.assertIn('id="atlas-data"', html)
+        self.assertIn('id="lake-shores"', html)
+        self.assertIn('id="strategic-landmarks"', html)
+        self.assertIn("Navigability", html)
+        self.assertIn("resources", html)
+        self.assertIn("waterways", str(world.to_dict()))
+        self.assertIn("landmarks", str(world.to_dict()))
+        # The embedded SVG remains valid after inserting 2816 hit targets.
+        embedded = html.split('<svg xmlns=', 1)[1].split('</svg>', 1)[0]
+        ElementTree.fromstring('<svg xmlns=' + embedded + '</svg>')
