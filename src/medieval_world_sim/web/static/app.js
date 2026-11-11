@@ -67,6 +67,8 @@ import { createWorldViews } from "/world-views.mjs";
   let hexIntent = null;
   let mapZoom = 2.5;
   let forceMapCenter = false;
+  let mapPollBusy = false;
+  let lastMapPollAt = 0;
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
@@ -560,8 +562,8 @@ import { createWorldViews } from "/world-views.mjs";
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
-      timerAttrs("Traveling to " + pretty(p.destination) + " · ", tripMinutes * 60) + ' ' +
-      'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
+      timerAttrs("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
+      'aria-label="' + esc("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination))) + '">' +
       '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
       '</strong></button>' : "";
     const hall = state.training_hall || {};
@@ -1554,9 +1556,43 @@ import { createWorldViews } from "/world-views.mjs";
     }
   });
 
+  async function refreshTravelMap() {
+    // Push updates intentionally omit the per-character private map. Fetch
+    // only during a visible active journey, not on every background tick.
+    if (!state || !state.started || !state.player.destination ||
+        tab !== "world" || pending || mapPollBusy || offline || authNeeded)
+      return;
+    const now = Date.now();
+    const cadence = state.dev_travel_seconds ? 950 : 2500;
+    if (now - lastMapPollAt < cadence) return;
+    lastMapPollAt = now;
+    mapPollBusy = true;
+    try {
+      const latest = await request("/api/state");
+      if (!state || pending || tab !== "world" || !latest.started) return;
+      // Full state replacement is required here: the streamed activity delta
+      // never includes private hex discovery, tile data, or trip position.
+      if ((latest.activity_revision || 0) >= (state.activity_revision || 0)) {
+        state = latest;
+        render();
+      }
+    } catch (error) {
+      // Transient network failures should not erase an already working map.
+    } finally {
+      mapPollBusy = false;
+    }
+  }
+  document.addEventListener("keydown", event => {
+    const hex = event.target.closest('[data-ui="explore-hex"]');
+    if (hex && (event.key === "Enter" || event.key === " ")) {
+      event.preventDefault();
+      hex.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    }
+  });
   load();
   setInterval(() => {
     updateEasternClock();
     updateHoverTimers();
+    refreshTravelMap();
   }, 1000);
 })();
