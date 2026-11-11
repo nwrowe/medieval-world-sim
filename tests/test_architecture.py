@@ -5,6 +5,8 @@ import unittest
 from unittest.mock import patch
 
 from medieval_world_sim.core.engine import WorldEngine
+from medieval_world_sim.catalog import CITIES
+from medieval_world_sim.systems.travel import DEPOSIT_CAP
 from medieval_world_sim.core.entities import Actor, Vitals, Progression, TravelState, Wage
 from medieval_world_sim.core.transactions import transfer_gold
 from medieval_world_sim.errors import ActionError
@@ -31,11 +33,13 @@ class ArchitecturalTests(unittest.TestCase):
     def test_cities_hold_mutable_state_and_keep_catalog_separate(self):
         w = self.world()
         city = w.cities[IRONVALE]
-        self.assertEqual(city.name, "Ironvale")
+        self.assertEqual(city.name, CITIES[IRONVALE].name)
+        self.assertIn("iron_ore", CITIES[IRONVALE].deposits)
         old = city.deposits["iron_ore"]
         w.advance(60)
-        self.assertEqual(w.cities[IRONVALE].deposits["iron_ore"], old + 3)
-        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], old + 3)
+        expected = min(DEPOSIT_CAP, old + CITIES[IRONVALE].deposits["iron_ore"])
+        self.assertEqual(w.cities[IRONVALE].deposits["iron_ore"], expected)
+        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], expected)
 
     def test_services_are_composed_not_inherited(self):
         w = self.world()
