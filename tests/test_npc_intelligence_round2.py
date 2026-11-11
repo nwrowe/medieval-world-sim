@@ -58,12 +58,14 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
             world.store_goods(key, "stone", 290)
             self.assertEqual(world.actors[key].storage[CAPITAL]["stone"], 290)
             self.assertEqual(world.actors[key].inventory["stone"], 10)
-            self.assertEqual(world.start_travel(key, IRONVALE), 90)
-        world.advance(90)
+            self.assertEqual(world.start_travel(key, IRONVALE),
+                             world.travel_minutes(CAPITAL, IRONVALE))
+        world.advance(world.travel_minutes(CAPITAL, IRONVALE))
         for key in ("hero", "trader"):
             self.assertEqual(world.actors[key].city, IRONVALE)
-            self.assertEqual(world.start_travel(key, CAPITAL), 90)
-        world.advance(90)
+            self.assertEqual(world.start_travel(key, CAPITAL),
+                             world.travel_minutes(IRONVALE, CAPITAL))
+        world.advance(world.travel_minutes(IRONVALE, CAPITAL))
         for key in ("hero", "trader"):
             world.retrieve_goods(key, "stone", 290)
             self.assertEqual(world.actors[key].inventory["stone"], 300)
@@ -96,12 +98,12 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             world.equip("hero", sword.id)
         world.assert_invariants()
-        world.start_travel("hero", IRONVALE)
-        world.advance(90)
+        trip = world.start_travel("hero", IRONVALE)
+        world.advance(trip)
         with self.assertRaises(ActionError):
             world.retrieve_gear("hero", sword.id)
-        world.start_travel("hero", CAPITAL)
-        world.advance(90)
+        trip = world.start_travel("hero", CAPITAL)
+        world.advance(trip)
         world.retrieve_gear("hero", sword.id)
         self.assertIn(sword.id, world.actors["hero"].gear_ids)
         self.assertNotIn(sword.id, world.actors["hero"].stored_gear[CAPITAL])
