@@ -7,6 +7,9 @@ from math import hypot, sqrt
 from .terrain import RESOURCE_KEYS, Tile, neighbors
 from .hexgrid import hex_distance
 
+# Small streams can be forded; larger channels need a costly constructed bridge.
+FORD_MAX_FLOW = 260
+
 BIOME_PREFIX = {
     "forest": "Elder", "rainforest": "Viridian", "taiga": "Frost", "grassland": "Golden",
     "steppe": "Ash", "desert": "Dust", "hills": "Stone", "mountain": "Iron",
@@ -37,6 +40,8 @@ class Road:
     travel_minutes: int
     crossings: int
     surface: str = "dirt"  # inferred infrastructure, not a random decoration
+    bridges: int = 0  # constructed crossings of larger rivers
+    fords: int = 0  # shallow natural crossings; no bridge infrastructure
 
 
 @dataclass(frozen=True)
@@ -172,35 +177,87 @@ def generate_settlements(tiles: tuple[Tile, ...], width: int, height: int,
     return tuple(settlements)
 
 
+def _crossing_kind(source: Tile, target: Tile) -> str | None:
+    """Classify a river entry, not every step spent on the river tile."""
+    if source.river or not target.river:
+        return None
+    return "ford" if target.flow <= FORD_MAX_FLOW else "bridge"
+
+
+def _road_build_cost(source: Tile, target: Tile) -> float:
+    """Relative route-building cost: passes and crossings are capital decisions.
+
+    Distances are hex-edge steps. Climbing and cutting across a high ridgeline
+    are costly even if the route looks shorter in a flat map. River crossings
+    charge for earthworks / a bridge, encouraging a nearby ford or a modest
+    upstream detour instead of gratuitous bridges.
+    """
+    climb = max(0, target.elevation_m - source.elevation_m)
+    descent = max(0, source.elevation_m - target.elevation_m)
+    grade = climb + descent
+    # Both cut/fill and high-altitude exposure contribute. Ascents are worse
+    # than descents, but precipitous descent also requires switchbacks.
+    slope_cost = (grade / 360) ** 1.45 + (climb / 430) ** 2
+    if grade > 320:
+        slope_cost += ((grade - 320) / 245) ** 2
+    high_ground = max(0, max(source.elevation_m, target.elevation_m) - 750)
+    pass_cost = 1.15 * (high_ground / 550) ** 2
+    wetland_cost = 0.95 if target.biome == "wetland" else 0.0
+    entry = _crossing_kind(source, target)
+    crossing_cost = 0.0
+    if entry == "ford":
+        crossing_cost = 2.2 + min(1.2, target.flow / 250)
+    elif entry == "bridge":
+        crossing_cost = 6.0 + min(13.0, target.flow / 220)
+    if source.river and target.river:
+        crossing_cost += 1.3  # Prefer banks over longitudinal roads in water.
+    return 1.0 + slope_cost + pass_cost + wetland_cost + crossing_cost
+
+
+def _road_travel_cost(source: Tile, target: Tile) -> float:
+    """Time to use an existing road, excluding the cost of building its bridge."""
+    grade = abs(target.elevation_m - source.elevation_m)
+    ford = _crossing_kind(source, target) == "ford"
+    return (1.0 + min(2.5, grade / 550)
+            + (0.55 if target.biome == "wetland" else 0.0)
+            + (0.55 if ford else 0.0))
+
+
 def _path(tiles: tuple[Tile, ...], width: int, height: int, start, goal):
-    """A* on traversable land. Slope, swamp and river crossings cost time."""
+    """A* minimizing route construction cost over six-way hex adjacency.
+
+    Returns the chosen path and its *travel* cost, which is intentionally
+    separate from construction cost: a costly bridge shouldn't make an already
+    built road take hours longer to traverse.
+    """
     si, gi = start[1] * width + start[0], goal[1] * width + goal[0]
-    queue = [(0., si)]
-    best = {si: 0.}
+    queue = [(0.0, si)]
+    best = {si: 0.0}
     previous = {}
     while queue:
-        _, i = heappop(queue)
-        if i == gi:
-            route = [i]
-            while route[-1] != si:
-                route.append(previous[route[-1]])
-            return tuple((j % width, j // width) for j in reversed(route)), best[i]
+        estimate, i = heappop(queue)
         ix, iy = i % width, i // width
+        if estimate > best[i] + hex_distance((ix, iy), goal) + 1e-9:
+            continue  # stale queue entry
+        if i == gi:
+            route_indices = [i]
+            while route_indices[-1] != si:
+                route_indices.append(previous[route_indices[-1]])
+            route_indices.reverse()
+            travel_cells = sum(_road_travel_cost(tiles[a], tiles[b])
+                               for a, b in zip(route_indices, route_indices[1:]))
+            return (tuple((j % width, j // width) for j in route_indices),
+                    travel_cells)
         for nx, ny in neighbors(ix, iy, width, height):
             j = ny * width + nx
             target, source = tiles[j], tiles[i]
             if target.elevation_m <= 0:
                 continue
-            distance = 1.0  # Every hex edge is one tile-to-tile step.
-            slope = abs(target.elevation_m - source.elevation_m)
-            cost = distance * (1 + min(4, slope / 440) + (0.55 if target.biome == "wetland" else 0)
-                               + (0.20 if target.river and not source.river else 0))
-            proposed = best[i] + cost
+            proposed = best[i] + _road_build_cost(source, target)
             if proposed < best.get(j, float("inf")):
                 best[j] = proposed
                 previous[j] = i
-                heuristic = hex_distance((nx, ny), goal)
-                heappush(queue, (proposed + heuristic, j))
+                heappush(queue, (proposed + hex_distance((nx, ny), goal), j))
     raise ValueError("No land route between settlements")
 
 
@@ -236,8 +293,13 @@ def generate_roads(tiles: tuple[Tile, ...], width: int, height: int,
         origin, dest = settlements[a], settlements[b]
         path, weighted_cells = _path(tiles, width, height, (origin.x, origin.y), (dest.x, dest.y))
         geometric = len(path) - 1  # Hex edges all have equal physical length.
-        crossings = sum(tiles[y * width + x].river and not tiles[py * width + px].river
-                        for (px, py), (x, y) in zip(path, path[1:]))
+        crossing_kinds = [
+            _crossing_kind(tiles[py * width + px], tiles[y * width + x])
+            for (px, py), (x, y) in zip(path, path[1:])
+        ]
+        bridges = crossing_kinds.count("bridge")
+        fords = crossing_kinds.count("ford")
+        crossings = bridges + fords
         # High-volume capital approaches earn stone paving; secondary routes
         # remain dirt. Mountain gradients and long construction routes discourage
         # expensive paving. This is an initial proxy for historical traffic.
@@ -250,7 +312,7 @@ def generate_roads(tiles: tuple[Tile, ...], width: int, height: int,
                  and geometric * cell_km <= 135 and roughness <= 210)
         roads.append(Road(origin.id, dest.id, path, round(geometric * cell_km, 1),
                           max(1, int(weighted_cells * cell_km / 4 * 60)), crossings,
-                          "cobblestone" if paved else "dirt"))
+                          "cobblestone" if paved else "dirt", bridges, fords))
     return tuple(roads)
 
 
