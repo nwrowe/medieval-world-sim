@@ -72,8 +72,12 @@ class PlayableAtlasTests(unittest.TestCase):
         base = actor.explored_hexes.copy()
         with self.assertRaises(ActionError):
             world.buy_merit_upgrade("hero", "awareness_2")
+        # Atomic failed actions can replace the state aggregate; always read
+        # the active actor from world rather than a stale pre-rollback object.
+        actor = world.actors["hero"]
         world.state.merit_balance["hero"] = 5
         world.buy_merit_upgrade("hero", "awareness_1")
+        actor = world.actors["hero"]
         self.assertEqual(sight_radius(world, actor), 3)
         three = actor.explored_hexes.copy()
         self.assertTrue(base < three)
