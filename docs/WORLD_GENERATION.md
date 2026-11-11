@@ -1,4 +1,4 @@
-# Oathmere: geography-first world generation (prototype v2 atlas)
+# Oathmere: geography-first world generation (prototype v3 hex atlas)
 
 This system produces a deterministic *candidate atlas* from a numerical seed. It is **not yet wired into live game worlds or saved journals**. The current five-city catalog, travel rules, city inventories, player discovery and existing saved worlds remain unchanged. This separation is deliberate: a map must be reviewed and versioned before it becomes the game's authoritative world.
 
@@ -7,44 +7,46 @@ This system produces a deterministic *candidate atlas* from a numerical seed. It
 Requires Python 3.11+; uses only the standard library.
 
 ```bash
-python -m medieval_world_sim.worldgen --seed 42 --width 80 --height 56 --cities 12 --sites 45 --output generated-world
+python -m medieval_world_sim.worldgen --seed 7 --width 80 --height 64 --cities 12 --sites 45 --output generated-world
 ```
 
 Open the improved `generated-world/atlas.svg` in a browser and inspect `generated-world/world.json`. Each tile represents 3 km by default. The JSON contains the generator version and seed, elevation (m), temperature (°C), annual rainfall (mm), biome, geology, soil quality, hydrological flow and downstream drainage references, resource potential, settlement populations, inferred local production, road geometries, dirt/cobbled surfaces and travel times, and candidate wilderness sites.
 
-### Reading the detailed atlas
+### Reading the hex atlas
 
-The SVG is a **geography-faithful cartographic renderer**. It interpolates the
-underlying tile colors and computes north-west sun hillshading from elevation,
-then overlays 300 m elevation contours, slope hachures and snow-tipped summit
-symbols. The shoreline is the zero-elevation isoline. Rivers follow the stored
-priority-flood `drains_to` network rather than plotting unrelated blue dots;
-line weight reflects catchment flow. Dirt roads use warm earth-colored strokes,
-while higher-volume capital approaches get gray cobblestone outlines and small
-paving marks. Bridges are indicated at mapped road/river crossings. Scale bar,
-compass rose, labels, forests and dungeon markers make the atlas reviewable.
+The v3 atlas uses **pointy-top hexagonal cells** with odd-row offsets and
+**six-way adjacency** shared by river drainage and land-road pathfinding.
+A nominal 3 km step and an 80×64 hex survey cover approximately 240×168 km.
+Geographic coordinates remain integer (x, y) cell IDs; map pixel positions
+are a rendering projection, not game-state authority.
 
-Road surfacing is an **inferred first-pass infrastructure proxy**, not a new
-political system: short, accessible capital approaches with sufficient local
-population may be cobbled, while other roads remain dirt. The actual routes,
-route costs and paths still come from the pathfinding model, so the renderer
-cannot change travel time or accessibility. Surface labels and tile drainage
-are serialized in the world manifest. This adds fields to the earlier draft,
-so the generator manifest version is now **2**. No live-world data is migrated.
+- Pale dashed edges show individual hexes. Coastlines and their dark green
+  fringe follow **actual edges between land and sea cells**, never smoothed
+  zero-elevation contours that cut diagonally across cells.
+- Shaded relief comes from elevation; 300 m contour isolines, slope hachures
+  and snow-tipped summit symbols distinguish highland geology.
+- Coastlines combine multiple noise frequencies to form bays, inlets and
+  headlands. The principal mountain axis now wanders, breaks into varying
+  ridge heights and widths, and has secondary spurs and passes.
+- Rivers follow the **priority-flood drainage graph**, but visible lowland
+  reaches use smooth, deterministic bends, including a consistent shared
+  confluence point for each tile. High-gradient streams stay comparatively
+  straight. Visual sinuosity does **not** alter hydrological volume or
+  river-related gameplay rules.
+- Cobblestone capital approaches, dirt secondary roads and bridges use the
+  exact same hex-coordinate projection as the rivers and settlements.
+  Roads connect only along a shared hex edge, and route distances use
+  equal-length hex steps.
 
-The SVG embeds a small rasterized relief texture using only the Python standard
-library and retains vector symbols, roads, rivers and labels. An external SVG
-viewer or converter can export a PNG preview; the generator itself stays
-third-party-dependency-free.
+This is not a tectonic/geological timescale simulator. The coast/ridge
+variability is procedural and physically motivated, not plate-dynamics-derived.
+Likewise, river bends are visualized within their drain corridors; a later
+geomorphology pass can integrate erosion, braided streams, lakes and deltas.
 
-**Generation pipeline** (in this order):
-
-1. **Geological structure:** a noise-modulated coastline, mountain chain and foothill relief determine elevation and rock type. Each seed changes physical geography.
-2. **Climate:** latitude, lapse rate, proximity to the sea, regional moisture variation and orographic rain shadow drive annual temperature and rainfall. Biomes follow these fields.
-3. **Hydrology and ecology:** a depression-safe priority-flood drainage network creates directional watersheds and river accumulation. Soil and natural resources derive from rainfall, biomes, elevation and geology. Ore favors igneous/metamorphic highlands; coal favors sheltered sedimentary basins; grain, herbs, timber and grazing differ by local conditions.
-4. **Settlement formation:** candidate sites score farmland, freshwater, raw material diversity, approachable slopes and access to yet-unserved territory. Settlements are spread across the reachable mainland. A central economic site becomes Crownreach, rather than assigning a random town the capital role. Other names and livelihoods follow their setting.
-5. **Roads and trade:** a minimum spanning network joins all towns; terrain-sensitive land paths avoid ocean and penalize steep slopes, wetlands and river crossings. Secondary links provide alternate routes. Road length and estimated walking time come from each actual path, not predetermined city IDs.
-6. **Exploration:** dungeon and point-of-interest candidates follow environmental affordances: limestone caverns, mineral mines, old-growth shrines, wetland crypts, summit ruins, remote river temples, road watchtowers and bandit camps near trade corridors. Clues and danger ratings are derived, not arbitrary room contents.
+**Migration note:** v3 intentionally changes generated tile topology, road
+lengths and geographic positions for a given seed. Versioned v2 manifests
+must not be silently reinterpreted as v3 or used to rewrite live saves.
+The existing five-city gameplay runtime remains separate.
 
 ## Important design boundaries
 
