@@ -71,7 +71,10 @@ python -m unittest discover -s tests -p 'test_worldgen.py' -v
 ```
 
 Open `generated-world/atlas.html` to inspect elevation, natural and road-adjusted
-walking difficulty, estimated travel times and authored sites. Every run also
+walking difficulty, estimated travel times and authored sites.
+Open `generated-world/history.html` to step through six geography-driven
+historical eras, including founded towns, trade roads, political leagues and
+abandoned sites. See [Historical Development](docs/HISTORICAL_DEVELOPMENT.md). Every run also
 exports `world-content.template.json`: copy it, edit settlement names,
 ruin/dungeon coordinates or scheduled event locations, and pass it back using
 `--content path/to/world-content.json` to regenerate the atlas.
