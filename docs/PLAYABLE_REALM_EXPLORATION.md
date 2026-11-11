@@ -19,6 +19,19 @@ export OATHMERE_WORLD_SEED=781239    # Linux/macOS (example; choose privately)
 # $env:OATHMERE_WORLD_SEED = "781239"
 ```
 
+The server can also load the **curated world-content manifest** (town
+names, dungeon and ruin locations, event sites) you previously authored:
+
+```sh
+export OATHMERE_WORLD_CONTENT=/path/to/world-content.json
+# Windows PowerShell:
+# $env:OATHMERE_WORLD_CONTENT = "C:\\Oathmere\\world-content.json"
+```
+
+The file must match the selected world seed, size and generator version.
+Both the terrain and hidden authored locations are included in the realm's
+fingerprint; changing the file requires a newly initialized realm.
+
 Start the existing Oathmere web server against a **fresh** database/save
 path. The resolved geographic fingerprint is stored in the save or SQLite
 world metadata; running that database with a different generator version,
