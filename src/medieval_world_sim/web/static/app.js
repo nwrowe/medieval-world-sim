@@ -1055,7 +1055,10 @@ import { createWorldViews } from "/world-views.mjs";
       '</aside>';
   }
 
+  let lastMapHex = null;
   function render() {
+    const previous = root.querySelector(".terrain-map-scroll");
+    const oldScroll = previous ? [previous.scrollLeft, previous.scrollTop] : null;
     if (authNeeded) root.innerHTML = authPage();
     else if (offline) root.innerHTML = offlinePage();
     else if (state && !state.started) root.innerHTML = newCharacterPage();
@@ -1068,6 +1071,23 @@ import { createWorldViews } from "/world-views.mjs";
       (tab === "world" ? renderTravelConfirmation() : "");
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
+    const map = root.querySelector(".terrain-map-scroll");
+    if (map && state && state.world_map) {
+      const hex = state.world_map.position.join(",");
+      if (hex !== lastMapHex) {
+        const marker = map.querySelector(".survey-player");
+        if (marker) {
+          const frame = map.getBoundingClientRect();
+          const point = marker.getBoundingClientRect();
+          map.scrollLeft += point.left + point.width / 2 - frame.left - frame.width / 2;
+          map.scrollTop += point.top + point.height / 2 - frame.top - frame.height / 2;
+        }
+        lastMapHex = hex;
+      } else if (oldScroll) {
+        map.scrollLeft = oldScroll[0];
+        map.scrollTop = oldScroll[1];
+      }
+    }
   }
 
   root.addEventListener("submit", async event => {
@@ -1206,7 +1226,7 @@ import { createWorldViews } from "/world-views.mjs";
       expandedUniversitySchool = details.open ? null : details.dataset.university;
       return;
     }
-    const element = event.target.closest("button");
+    const element = event.target.closest("button, [data-ui=\"explore-hex\"]");
     if (!element || pending || element.disabled) return;
     if (element.dataset.tab) {
       navigateTo(element.dataset.tab);
