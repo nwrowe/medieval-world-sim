@@ -132,5 +132,74 @@ class PlayableAtlasTests(unittest.TestCase):
         self.assertEqual(decoded.travel.route_revealed_index, actor.travel.route_revealed_index)
 
 
+    def test_single_player_journey_merit_and_exploration_replay(self):
+        import tempfile
+        from pathlib import Path
+        from medieval_world_sim.web.session import GameSession
+        with tempfile.TemporaryDirectory() as tmp:
+            save = Path(tmp) / "fresh-realm.json"
+            session = GameSession(save)
+            session.create("Aster Reed")
+            initial = session.snapshot()
+            self.assertEqual(initial["world_map"]["sight_radius"], 2)
+            self.assertLess(initial["world_map"]["explored_count"],
+                            initial["world_map"]["total_hexes"])
+            destination = next(c for c in CITIES if c != CAPITAL)
+            total = session.action("travel", {"destination": destination}, "discover-journey")
+            session.advance(total)
+            after = session.snapshot()
+            self.assertEqual(after["player"]["city"], destination)
+            self.assertGreater(after["world_map"]["explored_count"],
+                               initial["world_map"]["explored_count"])
+            session.action("claim_merit", {"achievement": "first_steps"}, "merit-first")
+            session.action("claim_merit", {"achievement": "roadfarer"}, "merit-road")
+            session.action("buy_merit_upgrade", {"perk": "awareness_1"}, "merit-aware")
+            upgraded = session.snapshot()
+            self.assertEqual(upgraded["world_map"]["sight_radius"], 3)
+            self.assertEqual(GameSession(save).snapshot()["world_map"], upgraded["world_map"])
+            self.assertEqual(GameSession(save).snapshot()["merits"], upgraded["merits"])
+
+    def test_two_multiplayer_accounts_keep_independent_discovery_after_restart(self):
+        import tempfile
+        from pathlib import Path
+        from medieval_world_sim.web.multiplayer import MultiplayerGame
+        with tempfile.TemporaryDirectory() as tmp:
+            database = Path(tmp) / "realm.sqlite"
+            game = MultiplayerGame(database, require_invites=False,
+                                   dev_fast_forward=True)
+            try:
+                token_a, _ = game.register_and_login(
+                    "explorera", "correct horse battery staple", "Aster Reed")
+                token_b, _ = game.register_and_login(
+                    "explorerb", "correct horse battery staple", "Bryn Flint")
+                aid = game.identity(token_a).actor_id
+                bid = game.identity(token_b).actor_id
+                prior_a = game.snapshot(aid)["world_map"]["explored_count"]
+                prior_b = game.snapshot(bid)["world_map"]["explored_count"]
+                self.assertEqual(prior_a, prior_b)
+                destination = next(c for c in CITIES if c != CAPITAL)
+                game.action(aid, "travel", {"destination": destination}, "first-trip")
+                minutes = game.world.actors[aid].arrival_minute - game.world.minute
+                game.advance(bid, minutes, "finish-trip")
+                a = game.snapshot(aid)["world_map"]
+                b = game.snapshot(bid)["world_map"]
+                self.assertGreater(a["explored_count"], prior_a)
+                self.assertEqual(b["explored_count"], prior_b)
+                self.assertEqual(b["sight_radius"], 2)
+                self.assertNotEqual(a["tiles"], b["tiles"])
+                saved = a
+            finally:
+                game.close()
+            restarted = MultiplayerGame(database, require_invites=False,
+                                        dev_fast_forward=True)
+            try:
+                self.assertEqual(restarted.snapshot(aid)["world_map"], saved)
+                self.assertEqual(restarted.snapshot(bid)["world_map"]["explored_count"],
+                                 prior_b)
+            finally:
+                restarted.close()
+
+
+
 if __name__ == "__main__":
     unittest.main()
