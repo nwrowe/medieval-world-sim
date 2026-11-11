@@ -17,15 +17,32 @@ def sight_radius(world, actor: entities.Actor) -> int:
     return BASE_SIGHT + int("awareness_1" in upgrades) + int("awareness_2" in upgrades)
 
 
-def current_hex(world, actor: entities.Actor) -> tuple[int, int]:
+def travel_progress_index(actor: entities.Actor, now: int) -> int:
+    """Index of the last completed route hex; honor actual terrain costs."""
     path = actor.travel.route_hexes
     start = actor.travel.departure_minute
     end = actor.arrival_minute
-    if actor.destination is not None and path and start is not None and end is not None:
-        duration = max(1, end - start)
-        elapsed = max(0, min(duration, world.minute - start))
-        step = min(len(path) - 1, elapsed * (len(path) - 1) // duration)
-        return path[step]
+    if not path or start is None or end is None:
+        return 0
+    duration = max(1, end - start)
+    elapsed = max(0, min(duration, now - start))
+    durations = actor.travel.route_durations
+    if durations:
+        total = 0
+        index = 0
+        for step in durations:
+            total += step
+            if elapsed < total:
+                break
+            index += 1
+        return min(index, len(path) - 1)
+    return min(len(path) - 1, elapsed * (len(path) - 1) // duration)
+
+
+def current_hex(world, actor: entities.Actor) -> tuple[int, int]:
+    path = actor.travel.route_hexes
+    if actor.destination is not None and path:
+        return path[travel_progress_index(actor, world.minute)]
     if actor.wilderness_hex is not None:
         return actor.wilderness_hex
     settlement = world.geography_settlements[actor.city]
@@ -57,9 +74,7 @@ def reveal_travel_progress(world, actor: entities.Actor) -> None:
     path = actor.travel.route_hexes
     if not path or actor.arrival_minute is None or actor.travel.departure_minute is None:
         return
-    total = max(1, actor.arrival_minute - actor.travel.departure_minute)
-    elapsed = max(0, min(total, world.minute - actor.travel.departure_minute))
-    last = min(len(path) - 1, elapsed * (len(path) - 1) // total)
+    last = travel_progress_index(actor, world.minute)
     for i in range(actor.travel.route_revealed_index + 1, last + 1):
         reveal(world, actor, path[i])
     actor.travel.route_revealed_index = max(last, actor.travel.route_revealed_index)
