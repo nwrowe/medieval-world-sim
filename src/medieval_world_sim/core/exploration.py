@@ -133,6 +133,7 @@ def map_projection(world, actor: entities.Actor) -> dict:
         "tiles": details,
         "roads": [list(edge) for edge in sorted(edges)],
         "towns": towns, "position": list(pos),
+        "in_wilderness": actor.wilderness_hex is not None,
         "sight_radius": sight_radius(world, actor),
         "explored_count": len(observed), "total_hexes": len(geography.tiles),
     }
