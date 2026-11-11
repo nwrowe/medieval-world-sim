@@ -129,7 +129,7 @@ function zoom(next){scale=Math.max(1,Math.min(3.5,next));svg.style.width=Math.ro
 document.getElementById("zoom-in").onclick=function(){zoom(scale*1.3)};
 document.getElementById("zoom-out").onclick=function(){zoom(scale/1.3)};
 document.getElementById("reset").onclick=function(){zoom(1);map.scrollTop=0;map.scrollLeft=0};
-map.addEventListener("wheel",function(e){if(e.ctrlKey){e.preventDefault();zoom(scale*(e.deltaY>0?.9:1.1))}},{passive:false});
+map.addEventListener("wheel",function(e){if(e.ctrlKey){e.preventDefault();zoom(scale * (e.deltaY > 0 ? 0.9 : 1.1))}},{passive:false});
 })();
 </script></body></html>"""
     return (page.replace("__TITLE__", escape(title))
