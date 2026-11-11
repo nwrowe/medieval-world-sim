@@ -917,3 +917,48 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 
 /* Brief lore replaces the instructional ribbon on magic school pages. */
 .magic-school-description {color:#607568;font-size:13px;line-height:1.65;margin:4px 0 18px;max-width:770px}
+
+/* Generated geography, persistent exploration and subdued unsurveyed relief. */
+.terrain-atlas {
+  margin: 13px 0 20px;
+  border: 1px solid rgba(139, 155, 125, .55);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #45564d;
+  box-shadow: inset 0 2px 30px rgba(24, 34, 29, .34);
+}
+.terrain-map-scroll {
+  position: relative;
+  width: 100%;
+  max-height: min(64vh, 690px);
+  min-height: 360px;
+  overflow: auto;
+  scrollbar-color: #9e9c82 #435046;
+  scrollbar-width: thin;
+}
+.terrain-atlas-svg {
+  display: block;
+  width: max(100%, 1115px);
+  height: auto;
+  max-width: none;
+  background: #7d969c;
+}
+.terrain-atlas-legend {
+  display: flex;
+  gap: 10px 20px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: rgba(36, 49, 43, .98);
+  font-size: 12px;
+  line-height: 1.6;
+  color: #eddfbd;
+}
+.terrain-atlas-legend span:nth-child(1) { color: #a6d5a0; }
+.terrain-atlas-legend span:nth-child(2) { color: #b8b4a0; }
+.terrain-atlas-legend span:nth-child(3) { color: #bcc1c0; }
+.terrain-atlas .survey-towns text { pointer-events: none; }
+.terrain-atlas .survey-player { filter: drop-shadow(0 0 4px #fff4b2); }
+@media(max-width:700px) {
+  .terrain-map-scroll { min-height: 300px; max-height: 52vh; }
+  .terrain-atlas-legend { font-size: 11px; gap: 5px 12px; }
+}
