@@ -1,4 +1,6 @@
 """World integrity checks are owned separately from gameplay mutations."""
+from realm_fixtures import GOLDMEADOW
+
 import unittest
 
 from medieval_world_sim.core.engine import WorldEngine
@@ -8,7 +10,7 @@ from medieval_world_sim.core.invariants import validate_world
 
 class WorldValidationTests(unittest.TestCase):
     def setUp(self):
-        self.world = WorldEngine([Actor("hero", "human", city="goldmeadow")])
+        self.world = WorldEngine([Actor("hero", "human", city=GOLDMEADOW)])
 
     def test_validation_entrypoints_are_equivalent(self):
         self.assertIsNone(validate_world(self.world))
