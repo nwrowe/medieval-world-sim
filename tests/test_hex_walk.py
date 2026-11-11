@@ -34,12 +34,19 @@ class AdjacentExplorationTests(unittest.TestCase):
         known = set(self.player.explored_hexes)
         result = self.world.explore_hex("hero", x, y)
         self.assertEqual((result["x"], result["y"]), (x, y))
+        self.assertEqual(current_hex(self.world, self.world.actors["hero"]), start)
+        self.assertEqual(self.world.actors["hero"].travel.hex_target, (x, y))
+        self.assertGreaterEqual(result["minutes"], 3)
+        self.assertLessEqual(result["minutes"], 12)
+        self.world.assert_invariants()
+        self.world.advance(result["minutes"])
         self.assertEqual(current_hex(self.world, self.world.actors["hero"]), (x, y))
         self.assertTrue(known.issubset(self.world.actors["hero"].explored_hexes))
         self.assertEqual(map_projection(self.world, self.world.actors["hero"])["position"],
                          [x, y])
         self.world.assert_invariants()
-        self.world.explore_hex("hero", *start)
+        back = self.world.explore_hex("hero", *start)
+        self.world.advance(back["minutes"])
         self.assertIsNone(self.world.actors["hero"].wilderness_hex)
         self.assertEqual(current_hex(self.world, self.world.actors["hero"]), start)
         self.assertTrue(known.issubset(self.world.actors["hero"].explored_hexes))
@@ -56,7 +63,8 @@ class AdjacentExplorationTests(unittest.TestCase):
 
     def test_wilderness_cannot_trade_or_start_long_distance_road_journey(self):
         x, y = self._neighbor()
-        self.world.explore_hex("hero", x, y)
+        trip = self.world.explore_hex("hero", x, y)
+        self.world.advance(trip["minutes"])
         if self.world.actors["hero"].wilderness_hex is None:
             self.skipTest("First neighboring hex is another town")
         other = next(c for c in CITIES if c != CAPITAL)
@@ -64,6 +72,32 @@ class AdjacentExplorationTests(unittest.TestCase):
             self.world.start_travel("hero", other)
         with self.assertRaises(ActionError):
             self.world.regional_buy("hero", "grain", 1)
+        self.world.assert_invariants()
+
+    def test_quote_is_in_snapshot_and_replayable_hex_trip_arrives_after_time(self):
+        from medieval_world_sim.web.checkpoint import _encode, _decode
+        actor = self.world.actors["hero"]
+        target = self._neighbor()
+        candidates = map_projection(self.world, actor)["steps"]
+        quote = next(step for step in candidates
+                     if (step["x"], step["y"]) == target)
+        trip = self.world.explore_hex("hero", *target)
+        self.assertEqual(quote["minutes"], trip["minutes"])
+        self.assertEqual(self.world.actors["hero"].travel.hex_target, target)
+        self.assertEqual(_decode(_encode(self.world.actors["hero"].travel)).hex_target, target)
+        with self.assertRaises(ActionError):
+            self.world.explore_hex("hero", *target)
+        if trip["minutes"] > 1:
+            self.world.advance(trip["minutes"] - 1)
+            self.assertIsNotNone(self.world.actors["hero"].travel.hex_target)
+            self.assertEqual(map_projection(self.world, self.world.actors["hero"])["steps"], [])
+            self.world.advance(1)
+        else:
+            self.world.advance(trip["minutes"])
+        self.assertIsNone(self.world.actors["hero"].travel.hex_target)
+        self.assertEqual(current_hex(self.world, self.world.actors["hero"]), target)
+        self.assertIn(target[1] * self.world.geography.width + target[0],
+                      self.world.actors["hero"].explored_hexes)
         self.world.assert_invariants()
 
     def test_dev_speed_trips_are_scaled_but_real_map_is_unchanged(self):
