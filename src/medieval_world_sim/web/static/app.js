@@ -64,6 +64,9 @@ import { createWorldViews } from "/world-views.mjs";
   let latestContract = null;
   let introActor = null;
   let travelIntent = null;
+  let hexIntent = null;
+  let mapZoom = 2.5;
+  let forceMapCenter = false;
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
@@ -704,7 +707,8 @@ import { createWorldViews } from "/world-views.mjs";
   }
   // View modules receive a narrow interface rather than owning networking,
   // action execution or the mutable simulation state.
-  const { renderWorld, renderTravelConfirmation, renderMarket, renderMagic, renderHome } =
+  const { renderWorld, renderTravelConfirmation, renderHexConfirmation,
+    renderMarket, renderMagic, renderHome } =
     createWorldViews({
       getState: () => state,
       getPending: () => pending,
@@ -713,6 +717,8 @@ import { createWorldViews } from "/world-views.mjs";
       setSchool: value => { school = value; },
       getLatestPractice: () => latestPractice,
       getTravelIntent: () => travelIntent,
+      getHexIntent: () => hexIntent,
+      getMapZoom: () => mapZoom,
       getSelectedAttunements: () => selectedAttunements,
       esc, pretty, dur, disabled, button, panel, heading, isBusy, progress, money,
     });
@@ -1068,13 +1074,14 @@ import { createWorldViews } from "/world-views.mjs";
       root.innerHTML = introductionPage();
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay() +
-      (tab === "world" ? renderTravelConfirmation() : "");
+      (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "");
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
     const map = root.querySelector(".terrain-map-scroll");
     if (map && state && state.world_map) {
       const hex = state.world_map.position.join(",");
-      if (hex !== lastMapHex) {
+      if (hex !== lastMapHex || forceMapCenter) {
+        forceMapCenter = false;
         const marker = map.querySelector(".survey-player");
         if (marker) {
           const frame = map.getBoundingClientRect();
@@ -1212,9 +1219,10 @@ import { createWorldViews } from "/world-views.mjs";
   });
 
   document.addEventListener("keydown", event => {
-    if (event.key === "Escape" && travelIntent) {
+    if (event.key === "Escape" && (travelIntent || hexIntent)) {
       event.preventDefault();
       travelIntent = null;
+      hexIntent = null;
       render();
     }
   });
@@ -1376,9 +1384,36 @@ import { createWorldViews } from "/world-views.mjs";
       case "horse-race":
         action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
-      case "explore-hex":
-        action("explore_hex", { x: Number(element.dataset.x), y: Number(element.dataset.y) },
-          "New terrain explored"); break;
+      case "explore-hex": {
+        const x = Number(element.dataset.x), y = Number(element.dataset.y);
+        if (isBusy() || !(state.world_map.steps || []).some(t =>
+          t.x === x && t.y === y)) break;
+        hexIntent = { x, y };
+        render();
+        const cancel = root.querySelector('[data-ui="hex-travel-cancel"]');
+        if (cancel) cancel.focus();
+        break;
+      }
+      case "hex-travel-cancel": hexIntent = null; render(); break;
+      case "hex-travel-confirm": {
+        const destination = hexIntent;
+        if (!destination || isBusy() || !(state.world_map.steps || []).some(t =>
+          t.x === destination.x && t.y === destination.y)) {
+          hexIntent = null;
+          render();
+          break;
+        }
+        hexIntent = null;
+        action("explore_hex", destination, "Hex journey started");
+        break;
+      }
+      case "map-zoom-in":
+        mapZoom = Math.min(4, Math.round((mapZoom + .5) * 10) / 10);
+        forceMapCenter = true; render(); break;
+      case "map-zoom-out":
+        mapZoom = Math.max(1, Math.round((mapZoom - .5) * 10) / 10);
+        forceMapCenter = true; render(); break;
+      case "map-center": forceMapCenter = true; render(); break;
       case "travel":
       case "map-travel": {
         const city = state.cities.find(c => c.id === element.dataset.target);
