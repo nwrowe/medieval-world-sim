@@ -27,6 +27,9 @@ def main():
     (args.output / "atlas.html").write_text(render_inspector_html(world, svg), encoding="utf-8")
     print(f"World seed {args.seed}: {len(world.settlements)} settlements, "
           f"{len(world.roads)} roads, {len(world.sites)} exploration sites")
+    print(f"Water survey: {sum(t.waterbody == 'lake' for t in world.tiles)} lake hexes, "
+          f"{len(world.waterways)} navigable networks, "
+          f"{len(world.landmarks)} strategic landmarks")
     print(f"Saved {args.output / 'world.json'}, {args.output / 'atlas.svg'} "
           f"and {args.output / 'atlas.html'}")
 
