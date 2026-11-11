@@ -75,7 +75,14 @@ walking difficulty, estimated travel times and authored sites.
 Open `generated-world/history.html` to step through six geography-driven
 historical eras, including founded towns, trade roads, political leagues and
 abandoned sites. The same source data is exported as `generated-world/chronicle.md`
-for later lore writing. See [Historical Development](docs/HISTORICAL_DEVELOPMENT.md). Every run also
+for later lore writing. See [Historical Development](docs/HISTORICAL_DEVELOPMENT.md).
+
+For the regional economy, open `generated-world/town-resources.md` to compare
+**primary resources, secondary resources, local shortages, geographic evidence
+and potential overland suppliers** across towns. The atlas inspector shows
+each town's industry-input needs and the generator also exports
+`town-resources.json` for a future live economy adapter. See
+[Regional Resource Economy](docs/REGIONAL_RESOURCES.md). Every run also
 exports `world-content.template.json`: copy it, edit settlement names,
 ruin/dungeon coordinates or scheduled event locations, and pass it back using
 `--content path/to/world-content.json` to regenerate the atlas.
