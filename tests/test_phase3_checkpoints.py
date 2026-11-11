@@ -1,4 +1,6 @@
 """Phase 3 checkpoint recovery: strict JSON, tail replay, escrow and failure atomicity."""
+from realm_fixtures import GOLDMEADOW
+
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import TestCase
@@ -93,19 +95,19 @@ class DurableCheckpointTests(TestCase):
         self.game.action(alice, "equip", {"gear_id": gear_id}, "equip-sword")
         guild = self.game.action(alice, "found_guild", {"name": "Iron Circle"}, "guild")
         self.game.action(
-            alice, "travel", {"destination": "goldmeadow"}, "travel")
+            alice, "travel", {"destination": GOLDMEADOW}, "travel")
         self.game.advance(alice, 60, "arrival")
         self.game.action(
             alice, "gather", {"item": "grain", "quantity": 1}, "gather")
         self.game.action(
             alice, "store_goods", {"item": "grain", "quantity": 1}, "store")
         before = self.game.world.actors[alice]
-        self.assertEqual(before.storage["goldmeadow"]["grain"], 1)
+        self.assertEqual(before.storage[GOLDMEADOW]["grain"], 1)
         self.assertIn(gear_id, before.gear_ids)
         self.game.create_checkpoint()
         self.restart()
         after = self.game.world.actors[alice]
-        self.assertEqual(after.storage["goldmeadow"]["grain"], 1)
+        self.assertEqual(after.storage[GOLDMEADOW]["grain"], 1)
         self.assertEqual(after.equipped, before.equipped)
         self.assertIn(gear_id, after.gear_ids)
         self.assertEqual(self.game.world.gear[gear_id].kind, "sword")
