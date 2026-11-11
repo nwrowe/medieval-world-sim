@@ -5,8 +5,10 @@ from dataclasses import asdict, dataclass
 
 from .society import ExplorationSite, Road, Settlement, generate_roads, generate_settlements, generate_sites
 from .terrain import Tile, generate_terrain
+from .hydrology import Waterway, survey_water
+from .landmarks import Landmark, generate_landmarks
 
-GENERATOR_VERSION = 4
+GENERATOR_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,8 @@ class GeneratedWorld:
     settlements: tuple[Settlement, ...]
     roads: tuple[Road, ...]
     sites: tuple[ExplorationSite, ...]
+    waterways: tuple[Waterway, ...]
+    landmarks: tuple[Landmark, ...]
 
     def tile(self, x: int, y: int) -> Tile:
         if not (0 <= x < self.width and 0 <= y < self.height):
@@ -37,12 +41,14 @@ def generate_world(seed: int = 42, width: int = 80, height: int = 64,
         raise ValueError("Seed must be a signed 32-bit integer")
     if not 0.5 <= cell_km <= 25:
         raise ValueError("cell_km must be 0.5..25")
-    tiles = generate_terrain(seed, width, height)
+    tiles, waterways = survey_water(generate_terrain(seed, width, height), width,
+                                   height, cell_km)
     settlements = generate_settlements(tiles, width, height, cities)
     roads = generate_roads(tiles, width, height, settlements, cell_km)
     places = generate_sites(tiles, width, height, settlements, roads, sites)
+    landmarks = generate_landmarks(tiles, width, height, settlements, roads, waterways)
     return GeneratedWorld(seed, GENERATOR_VERSION, width, height, cell_km,
-                          tiles, settlements, roads, places)
+                          tiles, settlements, roads, places, waterways, landmarks)
 
 
 __all__ = ["GENERATOR_VERSION", "GeneratedWorld", "generate_world"]
