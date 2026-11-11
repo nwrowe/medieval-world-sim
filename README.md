@@ -70,7 +70,10 @@ python -m medieval_world_sim.worldgen --seed 7 --output generated-world
 python -m unittest discover -s tests -p 'test_worldgen.py' -v
 ```
 
-Open `generated-world/atlas.html` in a browser to inspect individual hexes,\nlandmarks and navigable-water candidates.\n\nSee [World Generation](docs/WORLD_GENERATION.md) for geographic assumptions,
+Open `generated-world/atlas.html` in a browser to inspect individual hexes,
+landmarks and navigable-water candidates.
+
+See [World Generation](docs/WORLD_GENERATION.md) for geographic assumptions,
 settlement and site rules, migration boundaries and recommended next phases.
 
 ## Read next
