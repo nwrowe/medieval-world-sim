@@ -82,7 +82,7 @@ class TownResourceProfile:
 
 
 def _reasons(resource: str, catchment, supporters, potential: float, producing: bool):
-    label, *signals = EXPLANATIONS[resource]
+    label = EXPLANATIONS[resource][0]
     supported = len(supporters)
     count = len(catchment)
     if not producing:
@@ -91,8 +91,8 @@ def _reasons(resource: str, catchment, supporters, potential: float, producing: 
                     f"{label}; their average potential ({potential:.1f}/100) "
                     "is below the local production threshold. Import is likely "
                     "needed for industries using this material.")
-        return (f"No surveyed dry-land hex within five tiles supports "
-                f"{label}. This is a local production shortage, not proof "
+        return (f"0 of {count} surveyed dry-land hexes within five tiles support "
+                f"{label}. This is a local production shortage, not proof 
                 "the resource is absent everywhere.")
     if resource in ("iron_ore", "coal", "stone"):
         geology = {}
