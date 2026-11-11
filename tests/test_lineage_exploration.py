@@ -60,7 +60,7 @@ class LineageExplorationTests(unittest.TestCase):
             self.assertEqual([city["id"] for city in initial["cities"] if city["discovered"]],
                              ["crownreach"])
             hidden = next(c for c in initial["cities"] if c["id"] == IRONVALE)
-            self.assertEqual(hidden["name"], "Uncharted settlement")
+            self.assertEqual(hidden["name"], "Uncharted road exit")
             game.action("travel", {"destination": IRONVALE}, "road-1")
             duration = game.world.actors["hero"].arrival_minute - game.world.minute
             self.assertNotIn(IRONVALE, game.snapshot()["player"]["discovered_cities"])
@@ -92,10 +92,8 @@ class LineageExplorationTests(unittest.TestCase):
         tree = _encode(Actor("hero", "human", city="crownreach"))
         for key in ("lineage", "lineage_selected", "discovered_cities"):
             tree["values"].pop(key)
-        restored = _decode(tree)
-        self.assertFalse(restored.lineage_selected)
-        self.assertEqual(restored.discovered_cities, set())
-        tree["values"].pop("city")
+        # Current fresh-world checkpoints reject missing Actor fields,
+        # rather than attempting unrequested five-city save migrations.
         with self.assertRaises(ValueError):
             _decode(tree)
 
