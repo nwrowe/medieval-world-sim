@@ -26,6 +26,8 @@ def current_hex(world, actor: entities.Actor) -> tuple[int, int]:
         elapsed = max(0, min(duration, world.minute - start))
         step = min(len(path) - 1, elapsed * (len(path) - 1) // duration)
         return path[step]
+    if actor.wilderness_hex is not None:
+        return actor.wilderness_hex
     settlement = world.geography_settlements[actor.city]
     return (settlement.x, settlement.y)
 
@@ -131,6 +133,7 @@ def map_projection(world, actor: entities.Actor) -> dict:
         "tiles": details,
         "roads": [list(edge) for edge in sorted(edges)],
         "towns": towns, "position": list(pos),
+        "in_wilderness": actor.wilderness_hex is not None,
         "sight_radius": sight_radius(world, actor),
         "explored_count": len(observed), "total_hexes": len(geography.tiles),
     }

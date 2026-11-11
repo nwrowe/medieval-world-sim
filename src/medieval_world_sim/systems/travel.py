@@ -90,6 +90,8 @@ class TravelSystem:
         if actor.magic.road_charm:
             time = max(1, (time * (100 - actor.magic.road_charm) + 99) // 100)
             actor.magic.road_charm = 0
+        if self.world.dev_travel_seconds:
+            time = max(1, (time + 59) // 60)
         actor.travel.departure_minute = self.world.minute
         actor.travel.route_hexes = path
         actor.travel.route_revealed_index = 0

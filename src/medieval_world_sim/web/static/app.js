@@ -140,12 +140,13 @@ import { createWorldViews } from "/world-views.mjs";
   }
   function timerSeconds(simSeconds) {
     const total = Math.max(0, Number(simSeconds) || 0);
+    const secondsPerMinute = state && state.dev_travel_seconds ? 1 : 60;
+    const scaled = total * secondsPerMinute / 60;
     if (!secureWorldClock || !state || state.next_world_tick_seconds == null)
-      return total;
-    // State durations are integral world minutes. The server provides the
-    // partial minute so hover timers can count down to the exact second.
-    const partial = 60 - Number(state.next_world_tick_seconds);
-    return Math.max(0, total - partial -
+      return scaled;
+    // A development minute is one real second in fast travel mode.
+    const partial = secondsPerMinute - Number(state.next_world_tick_seconds);
+    return Math.max(0, scaled - partial -
       Math.max(0, (Date.now() - clockSyncedAt) / 1000));
   }
   function timerAttrs(label, simSeconds) {
@@ -558,7 +559,7 @@ import { createWorldViews } from "/world-views.mjs";
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
       timerAttrs("Traveling to " + pretty(p.destination) + " · ", tripMinutes * 60) + ' ' +
       'aria-label="' + esc("Traveling to " + pretty(p.destination)) + '">' +
-      '<span aria-hidden="true">♞</span><strong>' + esc(simDuration(tripMinutes)) +
+      '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
       '</strong></button>' : "";
     const hall = state.training_hall || {};
     const current = hall.active;
@@ -1054,7 +1055,10 @@ import { createWorldViews } from "/world-views.mjs";
       '</aside>';
   }
 
+  let lastMapHex = null;
   function render() {
+    const previous = root.querySelector(".terrain-map-scroll");
+    const oldScroll = previous ? [previous.scrollLeft, previous.scrollTop] : null;
     if (authNeeded) root.innerHTML = authPage();
     else if (offline) root.innerHTML = offlinePage();
     else if (state && !state.started) root.innerHTML = newCharacterPage();
@@ -1067,6 +1071,23 @@ import { createWorldViews } from "/world-views.mjs";
       (tab === "world" ? renderTravelConfirmation() : "");
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
+    const map = root.querySelector(".terrain-map-scroll");
+    if (map && state && state.world_map) {
+      const hex = state.world_map.position.join(",");
+      if (hex !== lastMapHex) {
+        const marker = map.querySelector(".survey-player");
+        if (marker) {
+          const frame = map.getBoundingClientRect();
+          const point = marker.getBoundingClientRect();
+          map.scrollLeft += point.left + point.width / 2 - frame.left - frame.width / 2;
+          map.scrollTop += point.top + point.height / 2 - frame.top - frame.height / 2;
+        }
+        lastMapHex = hex;
+      } else if (oldScroll) {
+        map.scrollLeft = oldScroll[0];
+        map.scrollTop = oldScroll[1];
+      }
+    }
   }
 
   root.addEventListener("submit", async event => {
@@ -1205,7 +1226,7 @@ import { createWorldViews } from "/world-views.mjs";
       expandedUniversitySchool = details.open ? null : details.dataset.university;
       return;
     }
-    const element = event.target.closest("button");
+    const element = event.target.closest("button, [data-ui=\"explore-hex\"]");
     if (!element || pending || element.disabled) return;
     if (element.dataset.tab) {
       navigateTo(element.dataset.tab);
@@ -1355,6 +1376,9 @@ import { createWorldViews } from "/world-views.mjs";
       case "horse-race":
         action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
+      case "explore-hex":
+        action("explore_hex", { x: Number(element.dataset.x), y: Number(element.dataset.y) },
+          "New terrain explored"); break;
       case "travel":
       case "map-travel": {
         const city = state.cities.find(c => c.id === element.dataset.target);

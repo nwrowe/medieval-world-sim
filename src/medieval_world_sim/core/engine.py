@@ -8,6 +8,7 @@ from __future__ import annotations
 
 
 from ..catalog import CAPITAL, CITIES, GOODS, GEOGRAPHY
+from ..worldgen.hexgrid import hex_distance
 from ..errors import ActionError
 from ..equipment import GEAR, GearItem
 from ..combat import MAX_STAMINA
@@ -46,7 +47,7 @@ from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
 from .invariants import validate_world
 from .commands import COMMAND_SPECS
-from .exploration import reveal
+from .exploration import reveal, current_hex
 
 from ..content.lineages import LINEAGES, select_lineage
 
@@ -54,7 +55,8 @@ from ..content.lineages import LINEAGES, select_lineage
 class WorldEngine:
     """In-memory simulation. Domain actions validate then mutate atomically."""
 
-    def __init__(self, actors: list[Actor], seed: int = 42):
+    def __init__(self, actors: list[Actor], seed: int = 42, *, dev_travel_seconds: bool = False):
+        self.dev_travel_seconds = dev_travel_seconds
         self.geography = GEOGRAPHY
         self.geography_settlements = {s.id: s for s in self.geography.settlements}
         if not actors or len({a.id for a in actors}) != len(actors):
@@ -224,6 +226,8 @@ class WorldEngine:
         if isinstance(account, Actor):
             if account.destination is not None:
                 raise ActionError("Cannot act while traveling")
+            if account.wilderness_hex is not None:
+                raise ActionError("Return to a settlement to use city services")
             if account.hp <= 0 or account.defeated_until is not None:
                 raise ActionError("Cannot act while recovering from defeat")
         return account.city
@@ -270,6 +274,40 @@ class WorldEngine:
             raise ActionError("Finish combat before selecting a lineage")
         select_lineage(actor, lineage)
         self._emit("lineage_chosen", actor_id, lineage)
+
+    @atomic_action
+    def explore_hex(self, actor_id: str, x: int, y: int) -> dict:
+        """Move exactly one adjacent dry-land hex; never trust client discovery.
+
+        City commerce and other settlement-only actions are disabled outside
+        towns. Server-side ownership and replay rules apply to every step.
+        """
+        actor = self._actor(actor_id)
+        if type(x) is not int or type(y) is not int:
+            raise ActionError("Hex coordinates must be integers")
+        if not 0 <= x < self.geography.width or not 0 <= y < self.geography.height:
+            raise ActionError("Target hex is outside the world")
+        if actor.destination is not None:
+            raise ActionError("Finish your road journey before exploring")
+        if actor.hp <= 0 or actor.defeated_until is not None:
+            raise ActionError("Cannot explore while recovering")
+        if any(actor_id in (duel.attacker_id, duel.defender_id)
+               for duel in self.state.duels.values()):
+            raise ActionError("Finish your duel before exploring")
+        if hex_distance(current_hex(self, actor), (x, y)) != 1:
+            raise ActionError("Explore adjacent hexes one step at a time")
+        tile = self.geography.tile(x, y)
+        if tile.elevation_m <= 0 or tile.waterbody in ("sea", "lake"):
+            raise ActionError("Water is impassable on foot")
+        actor.wilderness_hex = (x, y)
+        for town in self.geography.settlements:
+            if (town.x, town.y) == (x, y):
+                actor.city = town.id
+                actor.wilderness_hex = None
+                break
+        reveal(self, actor, (x, y))
+        self._emit("hex_explored", actor_id, x, y)
+        return {"x": x, "y": y, "at_settlement": actor.wilderness_hex is None}
 
     @atomic_action
     def start_travel(self, actor_id: str, destination: str) -> int:
@@ -446,7 +484,7 @@ class WorldEngine:
             minutes = max(1, (minutes * 95 + 99) // 100)
         if actor.magic.road_charm:
             minutes = max(1, (minutes * (100 - actor.magic.road_charm) + 99) // 100)
-        return minutes
+        return max(1, (minutes + 59) // 60) if self.dev_travel_seconds else minutes
 
     @atomic_action
     def buy_home(self, actor_id: str, tier: str) -> int:

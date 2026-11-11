@@ -9,6 +9,8 @@ export function createWorldViews(ctx) {
 
   const sqrt3 = Math.sqrt(3);
   const radius = 8;
+  const travelTime = minutes => ctx.getState().dev_travel_seconds ?
+    Math.max(0, minutes) + "s" : dur(minutes);
   const biomeColors = {
     ocean: "#799eae", lake: "#83b1bd", grassland: "#b4c889",
     forest: "#628d68", rainforest: "#426b56", taiga: "#749282",
@@ -36,6 +38,14 @@ export function createWorldViews(ctx) {
     const width = Math.ceil(sqrt3 * radius * (atlas.width + .5));
     const height = Math.ceil(radius * (1.5 * (atlas.height - 1) + 2));
     const tiles = new Map(atlas.tiles.map(t => [t.i,t]));
+    const [playerX, playerY] = atlas.position;
+    const adjacentOffsets = playerY % 2 ?
+      [[1,-1],[1,0],[1,1],[0,1],[-1,0],[0,-1]] :
+      [[0,-1],[1,0],[0,1],[-1,1],[-1,0],[-1,-1]];
+    const adjacent = new Set(adjacentOffsets.map(([dx,dy]) =>
+      (playerY+dy) * atlas.width + playerX + dx));
+    const canStep = !state.player.destination && state.player.hp > 0 &&
+      state.player.defeated_until == null && !isBusy();
     const hexes = Array.from(atlas.relief, (tier,index) => {
       const x = index % atlas.width, y = Math.floor(index / atlas.width);
       const tile = tiles.get(index);
@@ -49,7 +59,14 @@ export function createWorldViews(ctx) {
         '<path d="M-5 3 L-1 -5 L2 -1 L4 -4 L7 3" fill="none" stroke="' +
         (tile ? "#57584b" : "#737674") + '" stroke-width=".85" opacity=".6"/>' : "";
       const [cx,cy] = hexCenter(x,y);
-      return '<g><polygon points="' + points(x,y) + '" fill="' + fill + '"' +
+      const walkable = (tile ? Number(atlas.relief[index]) > 0 :
+                        Number(tier) > 0);
+      const step = canStep && adjacent.has(index) && walkable;
+      const attrs = step ? ' data-ui="explore-hex" data-x="' + x +
+        '" data-y="' + y + '" tabindex="0" role="button" ' +
+        'aria-label="Explore hex ' + x + ', ' + y + '"' : '';
+      return '<g><polygon class="' + (step ? 'hex-step-target' : '') +
+        '" points="' + points(x,y) + '" fill="' + fill + '"' + attrs +
         (faded ? ' opacity=".67"' : "") + ' stroke="#e5ddc9" stroke-opacity=".34"' +
         ' stroke-width=".65"><title>' + esc(caption) + '</title></polygon>' +
         (mount ? '<g transform="translate(' + cx.toFixed(1) + ' ' + cy.toFixed(1) +
@@ -97,7 +114,11 @@ export function createWorldViews(ctx) {
       '<span>■ Muted color: explored</span><span>■ Gray: uncharted</span>' +
       '<span>Vision radius: ' + atlas.sight_radius + ' hexes</span>' +
       '<span>Explored: ' + atlas.explored_count + ' / ' + atlas.total_hexes +
-      '</span></div></section>';
+      '</span><span>' + (atlas.in_wilderness ? 'Exploring wilderness' :
+        'In a settlement') + '</span></div>' +
+      '<p class="small terrain-map-hint">Click a highlighted adjacent land hex ' +
+      'to explore. Coastlines and mountain outlines remain visible through fog. ' +
+      'Return to a town to use markets and other city services.</p></section>';
   }
   function renderTravelConfirmation() {
     const state = ctx.getState();
@@ -114,7 +135,7 @@ export function createWorldViews(ctx) {
       '<div class="section-kicker">Royal roads</div>' +
       '<h2 id="travel-confirm-title">Travel to ' + esc(title) + '?</h2>' +
       '<p id="travel-confirm-description">Estimated journey: <strong>' +
-      esc(dur(city.minutes)) + '</strong>. You cannot trade, gather, or train while traveling.</p>' +
+      esc(travelTime(city.minutes)) + '</strong>. You cannot trade, gather, or train while traveling.</p>' +
       '<p class="small">Road cargo: ' + p.cargo + ' / ' + p.cargo_limit +
       (blocked ? ' · Travel is currently unavailable.' : '') + '</p>' +
       '<div class="travel-confirm-actions">' +
@@ -130,17 +151,19 @@ export function createWorldViews(ctx) {
     const secureWorldClock = ctx.getSecureWorldClock();
     const p = state.player;
     const traveling = Boolean(p.destination);
+    const inWilderness = Boolean(state.world_map && state.world_map.in_wilderness);
+
     const defeated = p.hp <= 0 || p.defeated_until != null;
     const timeToArrival = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
     const ready = !traveling && !defeated && state.minute >= p.ready_minute;
     const destinations = state.cities.filter(c => !c.is_current).map(city =>
       '<div class="mini-card"><div class="mini-card-top">' +
       '<div><div class="mini-card-title">' + esc(city.name) + '</div>' +
-      '<div class="mini-card-sub">' + esc(dur(city.minutes)) +
+      '<div class="mini-card-sub">' + esc(travelTime(city.minutes)) +
       (city.discovered ? ' along the royal roads' : ' into uncharted territory') + '</div></div>' +
       '<span class="muted">◈</span></div>' +
       button(city.discovered ? "Travel" : "Explore", 'data-ui="travel" data-target="' + esc(city.id) + '"' +
-        disabled(isBusy() || p.cargo > p.cargo_limit), "full secondary") + '</div>'
+        disabled(isBusy() || inWilderness || p.cargo > p.cargo_limit), "full secondary") + '</div>'
     ).join("");
     const gathering = Object.entries(state.gatherable).map(([item, available]) => {
       const quantity = Math.min(2, available);
@@ -153,7 +176,7 @@ export function createWorldViews(ctx) {
     const journey = traveling ?
       '<section class="journey"><div class="section-kicker">Journey in progress</div>' +
       '<h3>Road to ' + esc(pretty(p.destination)) + '</h3>' +
-      '<p>' + esc(dur(timeToArrival)) + ' until arrival. Your purchases and abilities ' +
+      '<p>' + esc(travelTime(timeToArrival)) + ' until arrival. Your purchases and abilities ' +
       'are paused while traveling.</p>' +
       (secureWorldClock ?
         '<p class="small">Arrival is automatic as server time passes.</p>' :
@@ -163,6 +186,9 @@ export function createWorldViews(ctx) {
         'has recovered before beginning another activity.</div>' : "";
     return heading("", "World Map", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
       worldMap() +
+      (inWilderness ? '<div class="callout"><strong>Wilderness</strong>' +
+        'Explore adjacent hexes or return to a settlement for trade, crafting ' +
+        'and other town services.</div>' : '') +
       (p.cargo > p.cargo_limit ?
         '<div class="callout"><strong>Travel cargo exceeded</strong>You have ' +
         p.cargo + ' of ' + p.cargo_limit + ' road cargo units. ' +
