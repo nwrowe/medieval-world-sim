@@ -299,15 +299,17 @@ class WorldEngine:
         tile = self.geography.tile(x, y)
         if tile.elevation_m <= 0 or tile.waterbody in ("sea", "lake"):
             raise ActionError("Water is impassable on foot")
-        actor.wilderness_hex = (x, y)
-        for town in self.geography.settlements:
-            if (town.x, town.y) == (x, y):
-                actor.city = town.id
-                actor.wilderness_hex = None
-                break
-        reveal(self, actor, (x, y))
-        self._emit("hex_explored", actor_id, x, y)
-        return {"x": x, "y": y, "at_settlement": actor.wilderness_hex is None}
+        # Book a real, replayable journey; do not teleport on clicking the map.
+        duration = self.travel.hex_minutes(actor, x, y)
+        start = current_hex(self, actor)
+        actor.destination = actor.city  # Maintains existing travel invariants.
+        actor.arrival_minute = self.minute + duration
+        actor.travel.departure_minute = self.minute
+        actor.travel.route_hexes = (start, (x, y))
+        actor.travel.route_revealed_index = 0
+        actor.travel.hex_target = (x, y)
+        self._emit("hex_journey_started", actor_id, x, y, actor.arrival_minute)
+        return {"x": x, "y": y, "minutes": duration, "arrival_minute": actor.arrival_minute}
 
     @atomic_action
     def start_travel(self, actor_id: str, destination: str) -> int:
