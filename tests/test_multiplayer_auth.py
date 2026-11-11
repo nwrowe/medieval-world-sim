@@ -195,6 +195,7 @@ class MultiAccountHTTPTests(unittest.TestCase):
             self.assertIn("SameSite=Strict", cookie)
             alice_cookie = cookie.split(";", 1)[0]
             csrf = registered["csrf"]
+            alice_actor_id = registered["state"]["actor_id"]
             status, alice_state, _ = api(port, "GET", "/api/state",
                                          headers={"Cookie": alice_cookie})
             self.assertEqual(status, 200)
@@ -216,8 +217,7 @@ class MultiAccountHTTPTests(unittest.TestCase):
                 "id": "trip-to-fields"
             }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
             self.assertEqual(status, 200)
-            remaining = (self.game.world.actors[self.game.identity(
-                alice_cookie.split("=", 1)[1]).actor_id].arrival_minute
+            remaining = (self.game.world.actors[alice_actor_id].arrival_minute
                 - self.game.world.minute)
             index = 0
             while remaining:
