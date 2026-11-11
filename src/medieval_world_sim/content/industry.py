@@ -1,7 +1,10 @@
 """Stable resource, equipment and industry definitions shared by game and atlas.
 
 Separate from geography to avoid importing the world generator recursively.
-"""\nfrom dataclasses import dataclass\n\nRAW_RESOURCES = (
+"""
+from dataclasses import dataclass
+
+RAW_RESOURCES = (
     "iron_ore", "coal", "stone", "timber", "herbs", "grain", "hides", "vegetables", "meat",
 )
 PROCESSED_RESOURCES = ("steel", "leather", "planks")
