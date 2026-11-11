@@ -33,7 +33,7 @@ from ..systems.trades import TradeAssets, TradeProposal
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
 
-CHECKPOINT_VERSION = 1
+CHECKPOINT_VERSION = 2
 CHECKPOINT_INTERVAL = 50
 MAX_BYTES = 32 * 1024 * 1024
 MAX_DEPTH = 70
@@ -95,7 +95,7 @@ def _decode(value, depth=0):
         present = set(value["values"])
         # Only allow explicitly defaultable Actor fields added after the
         # original schema; all other model/schema drift must still fail.
-        migration_fields = {"lineage", "lineage_selected", "discovered_cities", "stored_gear"}
+        migration_fields = set()
         magic_migration = {"next_practice_minute"}
         if (present != expected and not (
                 cls is Actor and present <= expected and
@@ -242,10 +242,6 @@ def restore_latest(game: MultiplayerGame) -> int:
     if len(state.events) and any(event.event_id != i + 1
                                  for i, event in enumerate(state.events)):
         raise ValueError("Checkpoint event IDs are not contiguous")
-    # A legacy checkpoint predates the atlas. Preserve at least the
-    # character's actual location, without fabricating historical visits.
-    for actor in state.actors.values():
-        actor.discovered_cities.add(actor.city)
     game.world.state = state
     game.names = names
     game.event_times = event_times
