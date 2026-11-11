@@ -17,7 +17,7 @@ class WorldGenerationTests(unittest.TestCase):
         c = generate_world(seed=43, width=64, height=44, cities=9, sites=25)
         self.assertEqual(a.to_dict(), b.to_dict())
         self.assertNotEqual(a.tiles, c.tiles)
-        self.assertEqual(a.version, 7)
+        self.assertEqual(a.version, 8)
 
     def test_terrain_dimensions_climate_and_river_network(self):
         world = self.world
@@ -290,7 +290,7 @@ class RoadSitingTests(unittest.TestCase):
         for road in w.roads:
             self.assertEqual(road.crossings, road.bridges + road.fords)
             self.assertGreater(road.travel_minutes, 0)
-        self.assertEqual(w.to_dict()["version"], 7)
+        self.assertEqual(w.to_dict()["version"], 8)
 
 
 class SurveyWaterAndLandmarkTests(unittest.TestCase):
@@ -427,7 +427,7 @@ class CoastAccessibilityAndAuthoringTests(unittest.TestCase):
         from medieval_world_sim.worldgen.inspect import render_inspector_html
         world = self.world
         template = export_content_template(world)
-        self.assertEqual(template["generator_version"], 7)
+        self.assertEqual(template["generator_version"], 8)
         self.assertEqual(template["seed"], 7)
         self.assertIn("crownreach", template["settlements"])
         self.assertEqual(len(template["sites"]), len(world.sites))
@@ -657,3 +657,123 @@ class HistoricalDevelopmentTests(unittest.TestCase):
         self.assertEqual(original.tiles, updated.tiles)
         self.assertEqual(original.roads, updated.roads)
         self.assertNotEqual(original.history, updated.history)
+
+
+class GeographicTownResourceTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.world = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+
+    def test_every_raw_resource_is_classified_with_real_local_evidence(self):
+        from medieval_world_sim.content.catalog import RAW_RESOURCES
+        from medieval_world_sim.worldgen.society import _nearby
+        w = self.world
+        self.assertEqual(len(w.resource_profiles), len(w.settlements))
+        self.assertEqual([p.settlement_id for p in w.resource_profiles],
+                         [s.id for s in w.settlements])
+        distinct_production = set()
+        for town, profile in zip(w.settlements, w.resource_profiles):
+            self.assertEqual(profile.settlement_name, town.name)
+            catchment = list(_nearby(w.tiles, w.width, w.height, town.x, town.y, 5))
+            records = profile.primary + profile.secondary + profile.lacking
+            self.assertEqual({r.resource for r in records}, set(RAW_RESOURCES))
+            self.assertEqual(len(records), len(RAW_RESOURCES))
+            self.assertLessEqual(len(profile.primary), 2)
+            distinct_production.add(tuple(sorted(town.production.items())))
+            for record in records:
+                expected = sum(t.resources.get(record.resource, 0)
+                               for t in catchment) / len(catchment)
+                supporters = sum(t.resources.get(record.resource, 0) > 0
+                                 for t in catchment)
+                self.assertAlmostEqual(record.potential, expected, delta=.006)
+                self.assertEqual(record.supporting_hexes, supporters)
+                self.assertEqual(record.surveyed_hexes, len(catchment))
+                self.assertEqual(record.estimated_units_per_hour,
+                                 town.production.get(record.resource, 0))
+                self.assertIn(str(supporters), record.explanation)
+                if record.tier == "lacking":
+                    self.assertEqual(record.estimated_units_per_hour, 0)
+                else:
+                    self.assertGreater(record.estimated_units_per_hour, 0)
+            self.assertEqual(set(town.production),
+                             {r.resource for r in profile.primary + profile.secondary})
+        self.assertGreater(len(distinct_production), 1)
+
+    def test_recipe_dependencies_include_existing_processed_upstream_inputs(self):
+        from medieval_world_sim.content.catalog import RECIPES
+        from medieval_world_sim.worldgen.resources import _raw_requirements
+        self.assertEqual(_raw_requirements("steelworks"), {"coal": 1, "iron_ore": 2})
+        self.assertEqual(_raw_requirements("forge"),
+                         {"coal": 1, "iron_ore": 2, "timber": 1})
+        self.assertEqual(_raw_requirements("armorer"),
+                         {"coal": 3, "hides": 2, "iron_ore": 6})
+        self.assertEqual(_raw_requirements("tavern"),
+                         {"grain": 2, "meat": 1, "vegetables": 1})
+        for profile in self.world.resource_profiles:
+            self.assertEqual({r.recipe for r in profile.industries}, set(RECIPES))
+            produced = {r.resource for r in profile.primary + profile.secondary}
+            for industry in profile.industries:
+                inputs = set(industry.raw_inputs_per_craft)
+                self.assertEqual(set(industry.available_locally), inputs & produced)
+                self.assertEqual(set(industry.imports_needed), inputs - produced)
+                self.assertEqual(industry.classification,
+                                 "local_inputs" if not industry.imports_needed else
+                                 "import_dependent" if industry.available_locally else
+                                 "no_local_inputs")
+
+    def test_supplier_candidates_have_real_production_and_connected_road_time(self):
+        from medieval_world_sim.worldgen.resources import _road_distances
+        w = self.world
+        towns = {s.id: s for s in w.settlements}
+        for profile in w.resource_profiles:
+            lacking = {r.resource for r in profile.lacking}
+            distances = _road_distances(w, profile.settlement_id)
+            for lead in profile.supplier_candidates:
+                self.assertIn(lead.resource, lacking)
+                self.assertNotEqual(lead.source_id, profile.settlement_id)
+                supplier = towns[lead.source_id]
+                self.assertEqual(lead.source_name, supplier.name)
+                self.assertEqual(lead.estimated_source_units_per_hour,
+                                 supplier.production[lead.resource])
+                self.assertEqual(lead.route_minutes, distances[supplier.id])
+                self.assertGreater(lead.route_minutes, 0)
+            self.assertEqual(len({r.resource for r in profile.supplier_candidates}),
+                             len(profile.supplier_candidates))
+
+    def test_report_and_inspector_explain_resources_not_real_export_stock(self):
+        import json
+        from medieval_world_sim.worldgen.resource_report import (
+            render_resource_json, render_resource_markdown)
+        from medieval_world_sim.worldgen.inspect import render_inspector_html
+        w = self.world
+        before = w.to_dict()
+        data = json.loads(render_resource_json(w))
+        self.assertEqual(data["generator_version"], 8)
+        self.assertEqual(data["world_seed"], w.seed)
+        self.assertEqual(len(data["towns"]), len(w.settlements))
+        report = render_resource_markdown(w)
+        html = render_inspector_html(w)
+        self.assertIn("Primary natural resources", html)
+        self.assertIn("Lacking locally", html)
+        self.assertIn('id="town-list"', html)
+        self.assertIn("Town resource economy", html)
+        self.assertIn("No local production", report)
+        for town in w.settlements:
+            self.assertIn(town.name, report)
+        self.assertEqual(w.to_dict(), before)
+
+    def test_name_overrides_only_change_display_names_not_geologic_supply(self):
+        from medieval_world_sim.worldgen.content import export_content_template
+        w = self.world
+        edited = export_content_template(w)
+        edited["settlements"]["crownreach"]["name"] = "Bayhaven"
+        modified = generate_world(seed=7, width=64, height=44, cities=9, sites=25,
+                                  content=edited)
+        original = {p.settlement_id: p for p in w.resource_profiles}
+        revised = {p.settlement_id: p for p in modified.resource_profiles}
+        self.assertEqual(revised["crownreach"].settlement_name, "Bayhaven")
+        self.assertEqual(original["crownreach"].primary, revised["crownreach"].primary)
+        self.assertEqual(original["crownreach"].secondary, revised["crownreach"].secondary)
+        self.assertEqual(original["crownreach"].lacking, revised["crownreach"].lacking)
+        self.assertEqual(w.tiles, modified.tiles)
+        self.assertEqual(w.roads, modified.roads)
