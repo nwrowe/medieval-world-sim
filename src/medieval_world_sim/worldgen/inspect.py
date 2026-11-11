@@ -11,6 +11,7 @@ import json
 
 from .hexgrid import vertices
 from .render import MARGIN, TILE_PX, TOP, render_svg
+from .access import minutes_per_hex
 
 
 def render_inspector_html(world, svg: str | None = None) -> str:
@@ -38,15 +39,26 @@ def render_inspector_html(world, svg: str | None = None) -> str:
     for mark in world.landmarks:
         landmarks.setdefault((mark.x, mark.y), []).append(mark.name)
     roads = {(x, y) for road in world.roads for x, y in road.path}
+    events = {}
+    for event in world.event_locations:
+        events.setdefault((event.x, event.y), []).append(
+            f"{event.name} ({event.starts_at} to {event.ends_at})")
     record = [
         {"x": t.x, "y": t.y, "biome": t.biome,
          "height": t.elevation_m, "temp": t.temperature_c,
          "rain": t.rainfall_mm, "geology": t.geology, "soil": t.soil,
-         "water": t.waterbody, "navigable": t.navigable,
+         "water": t.waterbody, "watercraft": t.navigable,
+         "seabed_depth": t.seabed_depth_m,
+         "natural_difficulty": t.natural_difficulty,
+         "travel_difficulty": t.travel_difficulty,
+         "road_surface": t.road_surface,
+         "foot_minutes": (round(minutes_per_hex(t.travel_difficulty, world.cell_km), 1)
+                          if t.travel_difficulty is not None else None),
          "flow": t.flow if t.river else 0,
          "resources": t.resources, "town": settlements.get((t.x, t.y), ""),
          "sites": sites.get((t.x, t.y), []),
          "landmarks": landmarks.get((t.x, t.y), []),
+         "events": events.get((t.x, t.y), []),
          "road": (t.x, t.y) in roads}
         for t in world.tiles
     ]
@@ -84,7 +96,7 @@ small{color:#abb6ae}
 <body><main>
 <div id="map-view">__SVG__</div>
 <aside aria-live="polite">
-<h1>The Royal Survey</h1><p>Seed __SEED__ · Click any hex for elevation, climate, geology, resources, waterways and nearby landmarks.</p>
+<h1>The Royal Survey</h1><p>Seed __SEED__ · Click any hex for elevation, terrain difficulty, estimated walking time, climate, resources and authored locations.</p>
 <div class="toolbar"><button id="zoom-in" type="button">Zoom +</button>
 <button id="zoom-out" type="button">Zoom −</button>
 <button id="reset" type="button">Reset</button>
@@ -93,7 +105,7 @@ small{color:#abb6ae}
 <div class="info" id="facts"></div>
 <h2>Local natural resources</h2><div id="resources"><p>Select a tile to inspect its potential.</p></div>
 <h2>Places and infrastructure</h2><div id="places"><p>Roads, settlements, and landmarks appear here.</p></div>
-<p><small>This is a designer's survey. Navigation denotes geographic suitability, not a currently playable ship route. Potential resources are not player inventories.</small></p>
+<p><small>This is a designer's survey. Land difficulty is 1 (easy) to 100 (very hard); sea and lake hexes have no foot route. Watercraft suitability is a separate, provisional survey. Road times are estimates, not yet connected to live travel. Potential resources are not player inventories.</small></p>
 </aside></main>
 <script id="atlas-data" type="application/json">__DATA__</script>
 <script>
@@ -116,12 +128,18 @@ function choose(index){
  [["Elevation",t.height+" m"],["Temperature",t.temp+" °C"],
  ["Annual rainfall",t.rain+" mm"],["Soil fertility",t.soil+" / 100"],
  ["Geology",t.geology],["Water",t.water],
- ["Navigability",t.navigable?"Potentially navigable":"Not navigable"],
+ ["Seabed depth",t.water==="sea"?t.seabed_depth+" m":"—"],
+ ["Natural land difficulty",t.natural_difficulty===null?"No land passage":t.natural_difficulty+" / 100"],
+ ["Road-adjusted difficulty",t.travel_difficulty===null?"No land passage":t.travel_difficulty+" / 100"],
+ ["Estimated foot time / hex",t.foot_minutes===null?"No land passage":t.foot_minutes+" minutes"],
+ ["Road",t.road_surface||"No constructed road"],
+ ["Watercraft suitability",t.watercraft?"Potential water route":"Not assessed as navigable water"],
  ["River flow",t.flow||"—"]].forEach(function(k){facts.append(info(k[0],k[1]))});
  tags("resources",Object.keys(t.resources).sort().map(function(k){return k.replace(/_/g," ")+" · "+t.resources[k]+"/100"}));
  var places=[];if(t.road)places.push("Road");if(t.town)places.push("Settlement: "+t.town);
  t.sites.forEach(function(s){places.push("Exploration: "+s)});
  t.landmarks.forEach(function(s){places.push("Landmark: "+s)});
+ t.events.forEach(function(s){places.push("Scheduled event: "+s)});
  tags("places",places);
 }
 svg.addEventListener("click",function(e){var p=e.target.closest("polygon[data-index]");if(p&&svg.contains(p))choose(Number(p.dataset.index))});
