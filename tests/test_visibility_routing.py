@@ -54,6 +54,8 @@ class VisibilityRoutingTests(unittest.TestCase):
         site = min(sites, key=lambda s: costs[(s.x, s.y)])
         with self.assertRaises(ActionError):
             world.explore_hex("hero", site.x, site.y)
+        # Atomic failed actions may swap out the authoritative actor aggregate.
+        actor = world.actors["hero"]
         for place in (city, site):
             actor.explored_hexes.add(place.y * world.geography.width + place.x)
         quoted = map_projection(world, actor)["steps"]
