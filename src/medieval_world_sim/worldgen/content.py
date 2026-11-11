@@ -213,8 +213,7 @@ def export_content_template(world):
         "landmarks": {m.id: {"name": m.name, "kind": m.kind, "x": m.x, "y": m.y,
                              "importance": m.importance, "reason": m.reason}
                       for m in world.landmarks if not m.id.startswith("custom-")},
-        "additional_sites": [asdict(s) | {"biome": None} for s in ()
-                             ],  # Blank slots: new locations must have a unique ID.
+        "additional_sites": [],  # New sites must use stable, unique author IDs.
         "additional_landmarks": [],
         "event_locations": [asdict(e) for e in world.event_locations],
     }
