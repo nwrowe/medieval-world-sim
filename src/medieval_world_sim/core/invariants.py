@@ -43,6 +43,19 @@ def validate_world(world: WorldEngine) -> None:
                     or any(type(i) is not int or not 0 <= i < len(world.geography.tiles)
                            for i in account.explored_hexes)):
                 raise AssertionError("Invalid per-character discovered hex set")
+            if account.wilderness_hex is not None:
+                p = account.wilderness_hex
+                if (not isinstance(p, tuple) or len(p) != 2
+                        or any(type(n) is not int for n in p)
+                        or not 0 <= p[0] < world.geography.width
+                        or not 0 <= p[1] < world.geography.height
+                        or world.geography.tile(*p).elevation_m <= 0
+                        or world.geography.tile(*p).waterbody in ("sea", "lake")
+                        or p[1] * world.geography.width + p[0]
+                        not in account.explored_hexes):
+                    raise AssertionError("Invalid wilderness location")
+                if account.destination is not None:
+                    raise AssertionError("Cannot travel between towns from wilderness")
             route = account.travel.route_hexes
             if not isinstance(route, tuple):
                 raise AssertionError("Travel route must be immutable")
