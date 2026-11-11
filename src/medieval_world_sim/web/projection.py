@@ -166,7 +166,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "id": city_id,
             "name": city.name if discovered else "Uncharted road exit",
             "discovered": discovered, "is_current": city_id == actor.city,
-            "minutes": (0 if is_traveling or actor.hp <= 0 or actor.defeated_until is not None
+            "minutes": (0 if is_traveling or actor.wilderness_hex is not None
+                        or actor.hp <= 0 or actor.defeated_until is not None
                         else w.estimated_travel_minutes(actor_id, city_id)),
         })
     quote_list = [
