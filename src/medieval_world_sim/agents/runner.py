@@ -1,4 +1,4 @@
-"""An accelerated 5-city economy: independent NPCs propose validated commands.
+"""An accelerated generated-realm economy: NPCs propose validated commands.
 
 No privileged direct mutations during runtime. Setup is authorized through the
 same WorldEngine APIs; the controller uses a seeded RNG only for decisions.
@@ -10,7 +10,7 @@ from dataclasses import dataclass, field, replace
 import random
 from statistics import median
 
-from ..catalog import CAPITAL
+from ..catalog import CAPITAL, CITIES
 from ..core.engine import WorldEngine
 from ..core.entities import Actor, Wage
 from ..errors import ActionError
@@ -21,18 +21,20 @@ from .critics import Critic, HeuristicCritic, PlaytestObserver, aggregate_issues
 
 
 INDUSTRIES = ("steelworks", "forge", "tannery", "leatherworker", "bakery", "apothecary")
-RESOURCES = (
-    ("ironvale", "iron_ore"),
-    ("emberfall", "coal"),
-    ("greenhollow", "timber"),
-    ("goldmeadow", "hides"),
-    ("goldmeadow", "grain"),
-    ("greenhollow", "herbs"),
-    ("ironvale", "iron_ore"),
-    ("emberfall", "coal"),
-    ("greenhollow", "timber"),
-    ("goldmeadow", "hides"),
-)
+def _resource_home(resource: str) -> str | None:
+    """Use actual generated extraction; never spawn actors in retired towns."""
+    producing = [(spec.deposits.get(resource, 0), spec.population, city)
+                 for city, spec in CITIES.items()
+                 if city != CAPITAL and spec.deposits.get(resource, 0) > 0]
+    return max(producing)[2] if producing else None
+
+
+_RESOURCE_ORDER = ("iron_ore", "coal", "timber", "hides", "grain", "herbs",
+                   "iron_ore", "coal", "timber", "hides")
+RESOURCES = tuple((home, resource) for resource in _RESOURCE_ORDER
+                  if (home := _resource_home(resource)) is not None)
+if len(RESOURCES) < 4:
+    raise RuntimeError("The generated realm has too few resource-producing towns")
 
 
 @dataclass
@@ -278,7 +280,7 @@ class AutonomousSimulation:
 def create_simulation(npcs: int = 50, seed: int = 42, *,
                       playtesters: bool = False, reflection_every: int = 30,
                       critic: Critic | None = None) -> AutonomousSimulation:
-    """Seed 4 staffed companies and independent workers across 5 cities.
+    """Seed staffed companies and independent workers across generated towns.
 
     All initial gold is explicitly assigned, never silently minted during play.
     """
