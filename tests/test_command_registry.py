@@ -1,4 +1,6 @@
 """The authoritative command registry owns method signatures and web exposure."""
+from realm_fixtures import GOLDMEADOW
+
 import unittest
 from dataclasses import FrozenInstanceError
 
@@ -40,7 +42,7 @@ class CommandRegistryTests(unittest.TestCase):
             COMMAND_SPECS["travel"].method = "gather"
 
     def test_execute_preserves_validation_and_deduplication(self):
-        world = WorldEngine([Actor("hero", "human", city="goldmeadow")])
+        world = WorldEngine([Actor("hero", "human", city=GOLDMEADOW)])
         with self.assertRaisesRegex(ActionError, "parameter mismatch"):
             world.execute("hero", "gather", {"item": "grain"}, "bad")
         with self.assertRaisesRegex(ActionError, "Unknown or forbidden"):

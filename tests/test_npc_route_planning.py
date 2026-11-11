@@ -1,4 +1,6 @@
 """Regressions for route-level NPC planning, telemetry and critic signals."""
+from realm_fixtures import IRONVALE
+
 from dataclasses import replace
 import unittest
 
@@ -21,8 +23,8 @@ class NPCPlanningTests(unittest.TestCase):
         key = "playtest_optimizer"
         memory = sim.memories[key]
         # Use the real city travel command, then purchase normal merchant stock.
-        duration = world.estimated_travel_minutes(key, "ironvale")
-        world.execute(key, "travel", {"destination": "ironvale"}, "road")
+        duration = world.estimated_travel_minutes(key, IRONVALE)
+        world.execute(key, "travel", {"destination": IRONVALE}, "road")
         world.advance(duration)
         before = observe(world, key, include_progression=True)
         trades = [option for option in route_candidates(before)
@@ -78,7 +80,7 @@ class NPCPlanningTests(unittest.TestCase):
 
     def test_critic_flags_existing_local_loss_pattern(self):
         base = {
-            "city": "ironvale", "target": "iron_ore", "ok": True,
+            "city": IRONVALE, "target": "iron_ore", "ok": True,
             "minute": 1800, "quantity": 4,
             "level_delta": 0, "discovered": [], "error": "",
             "events": [],
@@ -88,8 +90,8 @@ class NPCPlanningTests(unittest.TestCase):
             {**base, "action": "regional_sell", "gold_delta": 12},
         )
         request = ReflectionRequest(
-            "optimizer", "optimizer", "session_end", 720, "ironvale",
-            232, 1, ("crownreach", "ironvale"), 2,
+            "optimizer", "optimizer", "session_end", 720, IRONVALE,
+            232, 1, ("crownreach", IRONVALE), 2,
             {"regional_buy": 1, "regional_sell": 1}, {}, recent)
         report = HeuristicCritic().assess(request)
         self.assertIn("same_city_trade_loss",
@@ -99,13 +101,13 @@ class NPCPlanningTests(unittest.TestCase):
     def test_critic_uses_actual_skill_progress_and_route_profit(self):
         request = ReflectionRequest(
             "optimizer", "optimizer", "session_end", 6000, "crownreach",
-            300, 1, ("crownreach", "ironvale"), 24,
+            300, 1, ("crownreach", IRONVALE), 24,
             {"regional_sell": 1}, {},
             ({"action": "regional_sell", "ok": True, "target": "iron_ore",
               "city": "crownreach", "gold_delta": 24,
               "level_delta": 0, "discovered": [], "error": "", "events": [],
               "work_xp_delta": 0, "trade_profit": -4},),
-            trade_cycles=({"source": "ironvale", "destination": "crownreach",
+            trade_cycles=({"source": IRONVALE, "destination": "crownreach",
                            "item": "iron_ore", "spent": 28,
                            "revenue": 24, "profit": -4},))
         report = HeuristicCritic().assess(request)
@@ -119,7 +121,7 @@ class NPCPlanningTests(unittest.TestCase):
         memory = NPCMemory()
         view = observe(sim.world, "playtest_explorer", include_progression=True)
         observer = PlaytestObserver("explorer", "explorer", memory, every=1)
-        memory.record_arrival(360, "ironvale")
+        memory.record_arrival(360, IRONVALE)
         memory.record(view, view, NPCAction("practice_magic", {"node_id": "x"}), ())
         observer.maybe_reflect(view)
         self.assertIn("new_discovery", [x["code"] for x in

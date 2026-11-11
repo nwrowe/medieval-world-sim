@@ -1,4 +1,6 @@
 """Authenticated local multi-account server and durable shared-world journal tests."""
+from realm_fixtures import GOLDMEADOW
+
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 import json
@@ -63,7 +65,7 @@ class MultiAccountPersistenceTests(unittest.TestCase):
             self.assertNotIn("strength", person)
             self.assertNotIn("defense", person)
         self.game.action(alice, "travel",
-                         {"destination": "goldmeadow"}, "to-fields")
+                         {"destination": GOLDMEADOW}, "to-fields")
         self.game.advance(bob, 60, "arrive-fields")
         self.game.action(alice, "gather", {"item": "grain", "quantity": 1}, "gather-a")
         self.assertEqual(self.game.snapshot(alice)["player"]["inventory"].get("grain"), 1)
@@ -117,8 +119,8 @@ class MultiAccountPersistenceTests(unittest.TestCase):
     def test_reused_request_id_mismatched_payload_and_cross_account_isolation(self):
         _, _, alice = self.register("alice", "Alice River")
         _, _, bob = self.register("bob", "Bryn Stone")
-        self.game.action(alice, "travel", {"destination": "goldmeadow"}, "trip-a")
-        self.game.action(bob, "travel", {"destination": "goldmeadow"}, "trip-b")
+        self.game.action(alice, "travel", {"destination": GOLDMEADOW}, "trip-a")
+        self.game.action(bob, "travel", {"destination": GOLDMEADOW}, "trip-b")
         self.game.advance(alice, 60, "arrive-both")
         self.game.action(alice, "gather", {"item": "grain", "quantity": 1}, "req-1")
         with self.assertRaises(ActionError):
@@ -199,7 +201,7 @@ class MultiAccountHTTPTests(unittest.TestCase):
             self.assertEqual(status, 400)
             self.assertIn("Invalid action request fields", forged["error"])
             status, _, _ = api(port, "POST", "/api/action", {
-                "action": "travel", "params": {"destination": "goldmeadow"},
+                "action": "travel", "params": {"destination": GOLDMEADOW},
                 "id": "trip-to-fields"
             }, headers={"Cookie": alice_cookie, "X-CSRF-Token": csrf})
             self.assertEqual(status, 200)

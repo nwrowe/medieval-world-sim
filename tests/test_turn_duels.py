@@ -1,4 +1,6 @@
 """Turn-based encounters, spells, loot, hospitalization and save replay."""
+from realm_fixtures import GREENHOLLOW, GOLDMEADOW
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -35,7 +37,7 @@ class DuelWebTests(unittest.TestCase):
         self.assertEqual(self.do("start_duel", {"defender_id": enemy["id"]}, "start"), start)
         self.assertEqual(self.game.snapshot()["player"]["stamina"], 100)
         with self.assertRaises(ActionError):
-            self.do("travel", {"destination": "goldmeadow"}, "no-travel")
+            self.do("travel", {"destination": GOLDMEADOW}, "no-travel")
         with self.assertRaises(ActionError):
             self.game.advance(10)
         first = self.do("duel_turn", {"move": "strike", "node_id": ""}, "first")
@@ -130,7 +132,7 @@ class DuelWebTests(unittest.TestCase):
 
 class FieldSpellTests(unittest.TestCase):
     def test_alchemy_and_elemental_material_conversion(self):
-        actor = Actor("hero", "human", city="greenhollow",
+        actor = Actor("hero", "human", city=GREENHOLLOW,
                       inventory={"herbs": 2, "iron_ore": 2, "coal": 1})
         world = WorldEngine([actor])
         world.unlock_magic("hero", "alchemy.purify_reagents")

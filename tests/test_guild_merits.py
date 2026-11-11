@@ -1,4 +1,6 @@
 """Guild and merit foundations: authority, replay, accounting and safe war schema."""
+from realm_fixtures import GOLDMEADOW
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -79,12 +81,12 @@ class MeritReplayTests(unittest.TestCase):
             self.command("claim_merit", {"achievement": "spellbound"}, "not-yet")
         self.command("unlock_magic", {"node_id": "restoration.soothe_wounds"}, "learn")
         self.command("claim_merit", {"achievement": "spellbound"}, "spell")
-        before = self.session.world.estimated_travel_minutes("hero", "goldmeadow")
+        before = self.session.world.estimated_travel_minutes("hero", GOLDMEADOW)
         self.command("buy_merit_upgrade", {"perk": "roadcraft"}, "roadcraft")
         self.assertEqual(self.session.snapshot()["merits"]["balance"], 0)
         self.assertEqual(self.session.snapshot()["merits"]["total_earned"], 2)
         self.assertIn("roadcraft", self.session.world.state.merit_upgrades["hero"])
-        after = self.command("travel", {"destination": "goldmeadow"}, "travel-perk")
+        after = self.command("travel", {"destination": GOLDMEADOW}, "travel-perk")
         self.assertLess(after, before)
         self.assertEqual(GameSession(self.path).snapshot(), self.session.snapshot())
         self.session.world.assert_invariants()

@@ -1,4 +1,6 @@
 """NPC policies cannot mutate state; all game actions go through WorldEngine."""
+from realm_fixtures import IRONVALE
+
 import unittest
 import random
 
@@ -31,7 +33,7 @@ class NpcSystemTests(unittest.TestCase):
     def test_policy_randomness_reproducible_and_varies_with_seed(self):
         sim = create_simulation(24, seed=1)
         view = observe(sim.world, "gatherer_0")
-        profile = NPCProfile("gatherer_0", "gatherer", "ironvale", "iron_ore",
+        profile = NPCProfile("gatherer_0", "gatherer", IRONVALE, "iron_ore",
                              curiosity=0.8, volatility=5.0)
         # Compare the seeded Gaussian stream directly, and policy actions when alternatives exist.
         a = random.Random(13)

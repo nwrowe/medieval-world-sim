@@ -9,6 +9,7 @@ from dataclasses import asdict
 
 from ..catalog import CAPITAL, CITIES, RAW_RESOURCES, GOODS, PROCESSED_RESOURCES, CONSUMABLES
 from ..core.engine import WorldEngine
+from ..core.exploration import map_projection
 from ..content.housing import HOMES, HOME_ORDER, FACILITIES, VEHICLES
 from ..content.magic_tree import SCHOOLS
 from ..equipment import GEAR, suggested_value, effective_attack, effective_defense
@@ -153,11 +154,17 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
     is_traveling = actor.destination is not None
     now = w.minute
     cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
+    # The server advertises only previously discovered cities and the next
+    # available road exits. Undiscovered inland cities are never enumerated.
     places = []
+    available = w.travel.available_destinations(actor)
     for city_id, city in CITIES.items():
         discovered = city_id in actor.discovered_cities
+        if not discovered and city_id not in available:
+            continue
         places.append({
-            "id": city_id, "name": city.name if discovered else "Uncharted settlement",
+            "id": city_id,
+            "name": city.name if discovered else "Uncharted road exit",
             "discovered": discovered, "is_current": city_id == actor.city,
             "minutes": (0 if is_traveling or actor.hp <= 0 or actor.defeated_until is not None
                         else w.estimated_travel_minutes(actor_id, city_id)),
@@ -207,7 +214,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
     world_items = []
     for item in sorted(GOODS | set(GEAR)):
         if item in RAW_RESOURCES:
-            quotes = [w.regional_quote(city, item) for city in CITIES]
+            quotes = [w.regional_quote(city, item)
+                      for city in sorted(actor.discovered_cities)]
             buys = [q for q in quotes if q.sell_capacity > 0]
             sells = [q for q in quotes if q.buy_capacity > 0
                      and w.cities[q.city].gold >= q.player_sell_price]
@@ -287,6 +295,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "stored_gear_here": stored_gear_here,
         "equipment_catalog": gear_catalog,
         "world_items": world_items,
+        "world_map": map_projection(w, actor),
         "guilds": w.guild_system.view(actor_id),
         "merits": w.merit_system.view(actor_id),
         "training_hall": w.curriculum_system.view(actor_id),

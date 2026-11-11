@@ -1,4 +1,6 @@
 """Real-time account-scoped notifications, PvP and University action coverage."""
+from realm_fixtures import GOLDMEADOW
+
 import http.client
 import json
 from importlib.resources import files
@@ -85,7 +87,7 @@ class PvPSkirmishTests(unittest.TestCase):
             self.game.action(self.alice, "pvp_strike",
                              {"defender_id": self.bob}, "retired-pvp-api")
         self.game.action(self.alice, "travel",
-                         {"destination": "goldmeadow"}, "travel-first")
+                         {"destination": GOLDMEADOW}, "travel-first")
         with self.assertRaises(ActionError):
             self.game.action(self.alice, "start_duel",
                              {"defender_id": self.bob}, "attack-on-the-road")

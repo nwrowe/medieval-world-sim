@@ -1,4 +1,6 @@
 """New player experience and economic integrity for healing, horses and search."""
+from realm_fixtures import GOLDMEADOW
+
 from pathlib import Path
 import tempfile
 import unittest
@@ -35,7 +37,7 @@ class GameplayExpansionTests(unittest.TestCase):
         self.assertIsNone(catalog["sword"]["highest_sell"])
         self.assertIsNone(catalog["steel"]["lowest_buy"])
         self.assertIsNone(catalog["steel"]["market_value"])
-        self.assertEqual(catalog["grain"]["lowest_buy"]["city"], "goldmeadow")
+        self.assertEqual(catalog["grain"]["lowest_buy"]["city"], GOLDMEADOW)
         for item in RAW_RESOURCES:
             for field, is_buy in (("lowest_buy", True), ("highest_sell", False)):
                 entry = catalog[item][field]
@@ -93,7 +95,7 @@ class GameplayExpansionTests(unittest.TestCase):
         self.assertEqual(GameSession(self.path).snapshot(), self.game.snapshot())
 
     def test_healing_regenerates_on_simulated_boundaries(self):
-        world = WorldEngine([Actor("hero", "human", city="goldmeadow")])
+        world = WorldEngine([Actor("hero", "human", city=GOLDMEADOW)])
         hero = world.actors["hero"]
         hero.hp = 5
         world.advance(2)
@@ -113,7 +115,7 @@ class GameplayExpansionTests(unittest.TestCase):
         world.assert_invariants()
 
     def test_legacy_advance_does_not_rewrite_prior_health(self):
-        world = WorldEngine([Actor("hero", "human", city="goldmeadow")])
+        world = WorldEngine([Actor("hero", "human", city=GOLDMEADOW)])
         hero = world.actors["hero"]
         hero.hp = 15
         world._legacy_health_regen = True

@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from heapq import heappop, heappush
 
-from ..content.catalog import RAW_RESOURCES, RECIPES
+from ..content.industry import RAW_RESOURCES, RECIPES
 from .society import _nearby
 
 PRIMARY_COUNT = 2

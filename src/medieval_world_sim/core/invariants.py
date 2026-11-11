@@ -39,6 +39,25 @@ def validate_world(world: WorldEngine) -> None:
                     or not account.discovered_cities <= CITIES.keys()
                     or account.city not in account.discovered_cities):
                 raise AssertionError("Invalid lineage or explored atlas")
+            if (type(account.explored_hexes) is not set
+                    or any(type(i) is not int or not 0 <= i < len(world.geography.tiles)
+                           for i in account.explored_hexes)):
+                raise AssertionError("Invalid per-character discovered hex set")
+            route = account.travel.route_hexes
+            if not isinstance(route, tuple):
+                raise AssertionError("Travel route must be immutable")
+            if account.destination is None:
+                if (route or account.travel.departure_minute is not None
+                        or account.travel.route_revealed_index != 0):
+                    raise AssertionError("Inactive journey retains a route")
+            else:
+                if (not route or account.travel.departure_minute is None
+                        or not 0 <= account.travel.route_revealed_index < len(route)
+                        or any(type(x) is not int or type(y) is not int
+                               or not 0 <= x < world.geography.width
+                               or not 0 <= y < world.geography.height
+                               for x, y in route)):
+                    raise AssertionError("Invalid or out-of-bounds active journey")
             if any(type(getattr(account.cooldowns, channel)) is not int
                    or getattr(account.cooldowns, channel) < 0
                    or max(0, getattr(account.cooldowns, channel) - world.minute) > 1440

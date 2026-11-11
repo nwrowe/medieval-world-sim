@@ -17,7 +17,7 @@ import secrets
 import threading
 import uuid
 
-from ..catalog import CAPITAL, CITIES
+from ..catalog import CAPITAL, CITIES, GEOGRAPHY_FINGERPRINT
 from ..core.engine import WorldEngine
 from ..core.commands import SINGLE_PLAYER_ACTIONS
 from ..core.entities import Actor
@@ -27,11 +27,11 @@ from ..errors import ActionError
 from .chronicle import event_category, _friendly_event, TRADE_EVENTS, COMBAT_EVENTS
 from .projection import world_snapshot
 
-SAVE_VERSION = 1
+SAVE_VERSION = 2
 PLAYER_ID = "hero"
 INITIAL_GOLD = 240
 START_CITY = CAPITAL
-LEGACY_START_CITY = "goldmeadow"
+LEGACY_START_CITY = START_CITY
 MAX_RECORDS = 20000
 ADVANCE_LIMIT = 1440
 # Legacy public alias; policy is registered once beside engine commands.
@@ -87,7 +87,7 @@ class GameSession:
             for idx in range(3):
                 npc_id = f"npc:{city}:{idx}"
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
-                self.npc_names[npc_id] = names.pop()
+                self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
         return WorldEngine(actors, seed=self.seed)
 
     def create(self, name: str, lineage: str = "human") -> None:
@@ -115,6 +115,7 @@ class GameSession:
     def _document(self) -> dict:
         return {
             "version": SAVE_VERSION, "name": self.name, "seed": self.seed,
+            "realm_fingerprint": GEOGRAPHY_FINGERPRINT,
             "start_city": self.start_city, "lineage": self.lineage,
             "records": self.records,
         }
@@ -139,6 +140,7 @@ class GameSession:
             with self.save_path.open("r", encoding="utf-8") as handle:
                 data = json.load(handle)
             if (type(data) is not dict or data.get("version") != SAVE_VERSION
+                    or data.get("realm_fingerprint") != GEOGRAPHY_FINGERPRINT
                     or type(data.get("seed")) is not int
                     or type(data.get("name")) is not str
                     or type(data.get("records")) is not list):

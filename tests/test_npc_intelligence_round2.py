@@ -1,4 +1,6 @@
 """Integrated regressions for mastered magic, city armories and NPC planning."""
+from realm_fixtures import IRONVALE
+
 from dataclasses import replace
 import random
 import unittest
@@ -52,14 +54,14 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
             actor = world.actors[key]
             actor.inventory["stone"] = 300
             with self.assertRaisesRegex(ActionError, "Travel cargo limit"):
-                world.start_travel(key, "ironvale")
+                world.start_travel(key, IRONVALE)
             world.store_goods(key, "stone", 290)
             self.assertEqual(world.actors[key].storage[CAPITAL]["stone"], 290)
             self.assertEqual(world.actors[key].inventory["stone"], 10)
-            self.assertEqual(world.start_travel(key, "ironvale"), 90)
+            self.assertEqual(world.start_travel(key, IRONVALE), 90)
         world.advance(90)
         for key in ("hero", "trader"):
-            self.assertEqual(world.actors[key].city, "ironvale")
+            self.assertEqual(world.actors[key].city, IRONVALE)
             self.assertEqual(world.start_travel(key, CAPITAL), 90)
         world.advance(90)
         for key in ("hero", "trader"):
@@ -75,7 +77,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
         hero.inventory["grain"] = 12
         sword = world._mint_gear(hero, "sword", 10, "capital_starter_vendor")
         with self.assertRaisesRegex(ActionError, "Travel cargo limit"):
-            world.start_travel("hero", "ironvale")
+            world.start_travel("hero", IRONVALE)
         world.equip("hero", sword.id)
         with self.assertRaisesRegex(ActionError, "Unequip"):
             world.store_gear("hero", sword.id)
@@ -94,7 +96,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             world.equip("hero", sword.id)
         world.assert_invariants()
-        world.start_travel("hero", "ironvale")
+        world.start_travel("hero", IRONVALE)
         world.advance(90)
         with self.assertRaises(ActionError):
             world.retrieve_gear("hero", sword.id)
@@ -139,7 +141,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
     def test_recover_stalled_trade_once_and_store_undeliverable_goods(self):
         sim = create_simulation(20, seed=42, playtesters=True)
         view = observe(sim.world, "playtest_optimizer", include_progression=True)
-        route = TradeRoute("ironvale", CAPITAL, "iron_ore", 4, 4, 20, 0)
+        route = TradeRoute(IRONVALE, CAPITAL, "iron_ore", 4, 4, 20, 0)
         exhausted = replace(view, minute=4 * 1440,
                             inventory=(("iron_ore", 4),),
                             regional_quotes=tuple(
@@ -148,7 +150,7 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
         self.assertIsNone(deliver_route(exhausted, route))
         fallback = recover_route(exhausted, route)
         self.assertEqual(fallback.name, "travel")
-        self.assertNotIn(fallback.params["destination"], (CAPITAL, "ironvale"))
+        self.assertNotIn(fallback.params["destination"], (CAPITAL, IRONVALE))
         memory = NPCMemory(active_route=route)
         memory.record_trade(exhausted, exhausted,
                             NPCAction("travel", fallback.params))

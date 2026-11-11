@@ -22,6 +22,7 @@ import threading
 import time
 
 from ..catalog import CITIES
+from ..core.exploration import reveal
 from ..core.engine import WorldEngine
 from ..core.commands import MULTIPLAYER_ACTIONS
 from ..core.entities import Actor
@@ -170,15 +171,17 @@ class MultiplayerGame:
             for idx in range(3):
                 npc_id = f"npc:{city}:{idx}"
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
-                self.npc_names[npc_id] = names.pop()
+                self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
         return WorldEngine(actors, seed=42)
 
-    def _join_actor(self, actor_id: str, city: str = LEGACY_START_CITY,
+    def _join_actor(self, actor_id: str, city: str = START_CITY,
                     lineage: str | None = None):
         if actor_id in self.world.actors:
             raise ValueError("Duplicate player registration in world")
         actor = Actor(actor_id, "human", city=city, gold=INITIAL_GOLD)
         actor.discovered_cities.add(city)
+        point = self.world.geography_settlements[city]
+        reveal(self.world, actor, (point.x, point.y))
         if lineage is not None:
             from ..content.lineages import select_lineage
             select_lineage(actor, lineage)

@@ -6,58 +6,99 @@ export function createWorldViews(ctx) {
   const { esc, pretty, dur, disabled, button, panel, heading,
     isBusy, progress, money } = ctx;
 
-  const mapLocations = {
-    crownreach: { x: 50, y: 47.6 },
-    ironvale: { x: 33.3, y: 27.6 },
-    greenhollow: { x: 71.1, y: 33.2 },
-    emberfall: { x: 65.0, y: 69.4 },
-    goldmeadow: { x: 30.6, y: 78.5 },
+
+  const sqrt3 = Math.sqrt(3);
+  const radius = 8;
+  const biomeColors = {
+    ocean: "#799eae", lake: "#83b1bd", grassland: "#b4c889",
+    forest: "#628d68", rainforest: "#426b56", taiga: "#749282",
+    hills: "#a9a183", mountain: "#938b7d", alpine: "#ded6c4",
+    tundra: "#b4c0b5", desert: "#d1bd89", steppe: "#c0bd8f",
+    wetland: "#7d9e8a"
   };
+  const reliefColors = ["#87999e", "#959c96", "#8a918d", "#858783", "#96948e"];
+  function hexCenter(x, y) {
+    return [sqrt3 * radius * (x + (y % 2) * .5 + .5),
+      radius * (1 + y * 1.5)];
+  }
+  function points(x, y) {
+    const [cx,cy] = hexCenter(x,y);
+    return Array.from({length:6},(_,i) => {
+      const angle = -Math.PI / 2 + i * Math.PI / 3;
+      return (cx + radius * Math.cos(angle)).toFixed(1) + "," +
+        (cy + radius * Math.sin(angle)).toFixed(1);
+    }).join(" ");
+  }
   function worldMap() {
     const state = ctx.getState();
-    const pending = ctx.getPending();
-    const p = state.player;
-    const destination = p.destination;
-    // The underlying atlas remains a fixed image. Server-owned discovery
-    // determines what can be seen; the player cannot reveal places by UI state.
-    const fogHoles = state.cities.filter(city => city.discovered || city.is_current).map(city => {
-      const point = mapLocations[city.id];
-      return point ? '<circle cx="' + (point.x * 10) + '" cy="' +
-        (point.y * 6.2) + '" r="145" fill="url(#atlas-clearing)"/>' : '';
-    }).join('');
-    const fog = '<svg class="atlas-fog" viewBox="0 0 1000 620" preserveAspectRatio="none" ' +
-      'aria-hidden="true"><defs><radialGradient id="atlas-clearing">' +
-      '<stop offset="0%" stop-color="black"/>' +
-      '<stop offset="63%" stop-color="black"/>' +
-      '<stop offset="100%" stop-color="white"/></radialGradient>' +
-      '<mask id="atlas-discovery"><rect width="1000" height="620" fill="white"/>' +
-      fogHoles + '</mask></defs><rect width="1000" height="620" ' +
-      'fill="#26362e" opacity=".94" mask="url(#atlas-discovery)"/></svg>';
-    const pins = state.cities.map(city => {
-      const point = mapLocations[city.id];
-      if (!point) return "";
-      const current = city.id === p.city;
-      const arriving = city.id === destination;
-      const inactive = pending || Boolean(destination) || p.hp <= 0 ||
-        p.defeated_until != null || p.cargo > p.cargo_limit || current;
-      return '<button class="map-pin map-' + esc(city.id) +
-        (current ? ' is-here' : '') + (arriving ? ' is-destination' : '') +
-        (!city.discovered && !current ? ' is-unexplored' : '') +
-        '" type="button" data-ui="map-travel" data-target="' + esc(city.id) +
-        '" title="' + esc(city.name) +
-        (current ? " — you are here" : arriving ? " — destination" :
-          " — " + dur(city.minutes) + " away, preview journey") +
-        '"' + disabled(inactive) + '>' +
-        '<span class="map-pin-light"></span><strong>' + esc(city.name.replace(" (capital)", "")) +
-        '</strong>' + (current ? '<small>You are here</small>' :
-        arriving ? '<small>Destination</small>' : '') + '</button>';
+    const atlas = state.world_map;
+    if (!atlas) return '<p class="small">The map has not been surveyed.</p>';
+    const width = Math.ceil(sqrt3 * radius * (atlas.width + .5));
+    const height = Math.ceil(radius * (1.5 * (atlas.height - 1) + 2));
+    const tiles = new Map(atlas.tiles.map(t => [t.i,t]));
+    const hexes = Array.from(atlas.relief, (tier,index) => {
+      const x = index % atlas.width, y = Math.floor(index / atlas.width);
+      const tile = tiles.get(index);
+      const fill = tile ? (biomeColors[tile.biome] || "#abb08f") :
+        (reliefColors[Number(tier)] || reliefColors[1]);
+      const faded = tile && !tile.visible;
+      const caption = tile ? "Hex " + x + "," + y + " — " +
+        tile.biome + ", " + tile.elevation_m + " m" :
+        "Unexplored terrain";
+      const mount = Number(tier) >= 3 ?
+        '<path d="M-5 3 L-1 -5 L2 -1 L4 -4 L7 3" fill="none" stroke="' +
+        (tile ? "#57584b" : "#737674") + '" stroke-width=".85" opacity=".6"/>' : "";
+      const [cx,cy] = hexCenter(x,y);
+      return '<g><polygon points="' + points(x,y) + '" fill="' + fill + '"' +
+        (faded ? ' opacity=".67"' : "") + ' stroke="#e5ddc9" stroke-opacity=".34"' +
+        ' stroke-width=".65"><title>' + esc(caption) + '</title></polygon>' +
+        (mount ? '<g transform="translate(' + cx.toFixed(1) + ' ' + cy.toFixed(1) +
+          ')" pointer-events="none">' + mount + '</g>' : '') + '</g>';
     }).join("");
-    return '<section class="world-atlas" aria-label="Illustrated map of the Five Cities">' +
-      '<div class="atlas-canvas"><img src="/world-map.svg" alt="Antique ink-drawn fantasy realm with mountains, rivers, forests and royal roads">' +
-      fog + pins + '</div><div class="atlas-footer"><span>✦ The golden light marks your location</span>' +
-      '<span>Uncharted places emerge when you reach them</span></div></section>';
+    const roadlines = atlas.roads.map(pair => {
+      const [a,b] = pair;
+      const ac = hexCenter(a % atlas.width, Math.floor(a / atlas.width));
+      const bc = hexCenter(b % atlas.width, Math.floor(b / atlas.width));
+      return '<path d="M' + ac.map(z=>z.toFixed(1)).join(",") + 'L' +
+        bc.map(z=>z.toFixed(1)).join(",") + '" />';
+    }).join("");
+    const sites = atlas.tiles.filter(t=>t.sites && t.sites.length).map(tile => {
+      const [cx,cy] = hexCenter(tile.i % atlas.width, Math.floor(tile.i / atlas.width));
+      return '<path d="M' + cx.toFixed(1) + ',' + (cy-3.8).toFixed(1) +
+        ' l3.8,3.8 l-3.8,3.8 l-3.8,-3.8 z" fill="#83607c" ' +
+        'stroke="#e7cf9d" stroke-width="1.1"><title>' +
+        esc(tile.sites.map(site=>site.name).join(", ")) + '</title></path>';
+    }).join("");
+    const towns = atlas.towns.map(city=>{
+      const [x,y] = hexCenter(city.x, city.y);
+      return '<g class="survey-city-marker"><circle cx="' + x.toFixed(1) +
+        '" cy="' + y.toFixed(1) + '" r="5" fill="#d6b26c" ' +
+        'stroke="#483a2d" stroke-width="1.5"/>' +
+        '<text x="' + (x+7).toFixed(1) + '" y="' + (y-6).toFixed(1) +
+        '" fill="#2d382d" stroke="#e7debb" stroke-width="2" paint-order="stroke"' +
+        ' font-family="Georgia,serif" font-size="11">' +
+        esc(city.name) + '</text></g>';
+    }).join("");
+    const [px,py] = hexCenter(atlas.position[0], atlas.position[1]);
+    const svg = '<svg class="terrain-atlas-svg" viewBox="0 0 ' + width + ' ' + height +
+      '" width="' + width + '" height="' + height +
+      '" aria-label="Explored hex map with unknown terrain shown in gray">' +
+      '<g class="survey-hexes">' + hexes + '</g>' +
+      '<g class="survey-roads" fill="none" stroke="#67503a" stroke-width="1.9" ' +
+      'stroke-linecap="round">' + roadlines + '</g>' +
+      '<g class="survey-sites">' + sites + '</g>' +
+      '<g class="survey-towns">' + towns + '</g>' +
+      '<circle class="survey-player" cx="' + px.toFixed(1) + '" cy="' +
+      py.toFixed(1) + '" r="5.5" fill="#fff1ab" stroke="#384d40" stroke-width="2.4">' +
+      '<title>Your current position</title></circle></svg>';
+    return '<section class="terrain-atlas" aria-label="Oathmere hex exploration map">' +
+      '<div class="terrain-map-scroll">' + svg + '</div>' +
+      '<div class="terrain-atlas-legend"><span>■ Full color: in sight</span>' +
+      '<span>■ Muted color: explored</span><span>■ Gray: uncharted</span>' +
+      '<span>Vision radius: ' + atlas.sight_radius + ' hexes</span>' +
+      '<span>Explored: ' + atlas.explored_count + ' / ' + atlas.total_hexes +
+      '</span></div></section>';
   }
-
   function renderTravelConfirmation() {
     const state = ctx.getState();
     const target = ctx.getTravelIntent();
@@ -108,8 +149,7 @@ export function createWorldViews(ctx) {
         button(quantity > 0 ? "Gather " + quantity : "Unavailable", 'data-ui="gather" data-item="' +
           esc(item) + '" data-qty="' + quantity + '"' +
           disabled(!ready || quantity < 1 || pending), "s secondary") + '</div>';
-    }).join("") || '<p class="small">The capital has no natural resource deposits. ' +
-      'Visit the surrounding cities to gather materials.</p>';
+    }).join("") || '<p class="small">No gatherable natural resources remain here; visit a different region.</p>';
     const journey = traveling ?
       '<section class="journey"><div class="section-kicker">Journey in progress</div>' +
       '<h3>Road to ' + esc(pretty(p.destination)) + '</h3>' +
@@ -128,7 +168,7 @@ export function createWorldViews(ctx) {
         p.cargo + ' of ' + p.cargo_limit + ' road cargo units. ' +
         'Store extra goods in the city inventory before departure; city storage is unlimited.</div>' : '') +
       '<div class="two-col"><div class="stack">' + journey +
-      panel("Roads and unexplored settlements", "Travel to a location to add it to your personal atlas.",
+      panel("Roads and destinations", "Follow connected roads to reveal new settlements and terrain.",
         '<div class="card-grid">' + destinations + '</div>') +
       panel("Gather nearby resources", "Collect resources to sell locally or take to another city.",
         '<div class="resource-list">' + gathering + '</div>' +
@@ -145,13 +185,13 @@ export function createWorldViews(ctx) {
           button("Next day", 'data-ui="advance" data-minutes="1440"' + disabled(pending), "ghost") +
           '</div><p class="small mt-12">Stamina and mana recover with simulated time.</p>') +
       '</div><aside class="stack">' +
-      panel("Roads of the Five Cities", "Current road network",
-        '<div class="route-map"><strong>✦ Crownreach</strong>' +
-        state.cities.filter(city => city.id !== 'crownreach').map(city =>
-          '<span>✦ ' + esc(city.discovered ? city.name : 'Unexplored road') + '</span>'
-        ).join('') + '</div>' +
-        '<p class="small">All roads presently lead through the royal capital. ' +
-        'Travel times account for your current vehicle.</p>') +
+      panel("Exploration and Awareness", "Your discovered map is permanent",
+        '<p class="small">The world shows gray elevation relief beyond your sight. ' +
+        'Travel opens new hexes along the whole route, and your discoveries stay mapped. ' +
+        'Purchase Awareness I and II in Merits to expand your radius from 2 to 3 and 4.</p>' +
+        '<p class="small">You can travel to mapped cities or explore the next uncharted ' +
+        'road exit. Undiscovered ruins and natural resources are not transmitted ' +
+        'to your browser.</p>') +
       '</aside></div>';
   }
 

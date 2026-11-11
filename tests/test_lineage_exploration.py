@@ -1,4 +1,6 @@
 """Regression coverage for persistent lineages and discovery-based exploration."""
+from realm_fixtures import IRONVALE
+
 import json
 import tempfile
 import unittest
@@ -57,15 +59,15 @@ class LineageExplorationTests(unittest.TestCase):
             self.assertTrue(initial["player"]["lineage_selected"])
             self.assertEqual([city["id"] for city in initial["cities"] if city["discovered"]],
                              ["crownreach"])
-            hidden = next(c for c in initial["cities"] if c["id"] == "ironvale")
+            hidden = next(c for c in initial["cities"] if c["id"] == IRONVALE)
             self.assertEqual(hidden["name"], "Uncharted settlement")
-            game.action("travel", {"destination": "ironvale"}, "road-1")
+            game.action("travel", {"destination": IRONVALE}, "road-1")
             duration = game.world.actors["hero"].arrival_minute - game.world.minute
-            self.assertNotIn("ironvale", game.snapshot()["player"]["discovered_cities"])
+            self.assertNotIn(IRONVALE, game.snapshot()["player"]["discovered_cities"])
             game.advance(duration)
             arrived = game.snapshot()
-            self.assertIn("ironvale", arrived["player"]["discovered_cities"])
-            self.assertTrue(next(c for c in arrived["cities"] if c["id"] == "ironvale")["discovered"])
+            self.assertIn(IRONVALE, arrived["player"]["discovered_cities"])
+            self.assertTrue(next(c for c in arrived["cities"] if c["id"] == IRONVALE)["discovered"])
             restored = GameSession(path).snapshot()
             self.assertEqual(restored["player"]["discovered_cities"],
                              arrived["player"]["discovered_cities"])

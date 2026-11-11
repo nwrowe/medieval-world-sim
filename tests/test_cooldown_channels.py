@@ -1,4 +1,6 @@
 """Independent 24-hour cooldown stack tests and journal compatibility."""
+from realm_fixtures import GOLDMEADOW
+
 import json
 import tempfile
 import unittest
@@ -12,7 +14,7 @@ from medieval_world_sim.web.session import GameSession
 
 class CooldownTests(unittest.TestCase):
     def test_job_queue_stacks_to_24_hours_then_blocks(self):
-        w = WorldEngine([Actor("hero", "human", city="goldmeadow",
+        w = WorldEngine([Actor("hero", "human", city=GOLDMEADOW,
                                inventory={"herbs": 26})])
         original_total = w.initial_gold
         for n in range(24):

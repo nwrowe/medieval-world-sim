@@ -1,4 +1,6 @@
 """Recovered Phase 4 SSE cache and presence protocol safety regressions."""
+from realm_fixtures import GOLDMEADOW
+
 import http.client
 import json
 from pathlib import Path
@@ -99,7 +101,7 @@ class RecoveredActivityTests(unittest.TestCase):
         # Movement affects city and combat eligibility and requires a new
         # authorized roster, never a misleading presence-only patch.
         self.game.action(self.bob, "travel", {
-            "destination": "goldmeadow"}, "bob-travel")
+            "destination": GOLDMEADOW}, "bob-travel")
         after_move = self.game.social_snapshot(self.alice)
         movement = activity_delta(current, after_move)
         self.assertIn("users", movement)

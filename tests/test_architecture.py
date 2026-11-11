@@ -1,8 +1,12 @@
 """Regression coverage for architecture boundaries, safe transactions and commands."""
+from realm_fixtures import IRONVALE
+
 import unittest
 from unittest.mock import patch
 
 from medieval_world_sim.core.engine import WorldEngine
+from medieval_world_sim.catalog import CITIES
+from medieval_world_sim.systems.travel import DEPOSIT_CAP
 from medieval_world_sim.core.entities import Actor, Vitals, Progression, TravelState, Wage
 from medieval_world_sim.core.transactions import transfer_gold
 from medieval_world_sim.errors import ActionError
@@ -23,17 +27,19 @@ class ArchitecturalTests(unittest.TestCase):
         self.assertEqual(alice.stamina, 45)
         alice.level = 2
         self.assertEqual(alice.progression.level, 2)
-        alice.destination = "ironvale"
-        self.assertEqual(alice.travel.destination, "ironvale")
+        alice.destination = IRONVALE
+        self.assertEqual(alice.travel.destination, IRONVALE)
 
     def test_cities_hold_mutable_state_and_keep_catalog_separate(self):
         w = self.world()
-        city = w.cities["ironvale"]
-        self.assertEqual(city.name, "Ironvale")
+        city = w.cities[IRONVALE]
+        self.assertEqual(city.name, CITIES[IRONVALE].name)
+        self.assertIn("iron_ore", CITIES[IRONVALE].deposits)
         old = city.deposits["iron_ore"]
         w.advance(60)
-        self.assertEqual(w.cities["ironvale"].deposits["iron_ore"], old + 3)
-        self.assertEqual(w.deposits["ironvale"]["iron_ore"], old + 3)
+        expected = min(DEPOSIT_CAP, old + CITIES[IRONVALE].deposits["iron_ore"])
+        self.assertEqual(w.cities[IRONVALE].deposits["iron_ore"], expected)
+        self.assertEqual(w.deposits[IRONVALE]["iron_ore"], expected)
 
     def test_services_are_composed_not_inherited(self):
         w = self.world()
@@ -111,7 +117,7 @@ class ArchitecturalTests(unittest.TestCase):
     def test_legacy_baseline_is_available_independently(self):
         old = LegacyWorld.create(5, seed=1)
         self.assertEqual(old.summary()["citizens"], 5)
-        self.assertEqual(len(self.world().cities), 5)
+        self.assertEqual(len(self.world().cities), len(CITIES))
 
 
 if __name__ == "__main__":
