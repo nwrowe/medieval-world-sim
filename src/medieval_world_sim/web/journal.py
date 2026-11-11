@@ -14,6 +14,7 @@ import secrets
 import time
 
 from ..core.commands import MULTIPLAYER_ACTIONS
+from ..catalog import GEOGRAPHY_FINGERPRINT
 from .session import ADVANCE_LIMIT, LEGACY_START_CITY, START_CITY
 from . import ledger, checkpoint, npc_runtime
 
@@ -65,6 +66,25 @@ def create_schema(game: MultiplayerGame) -> None:
             UNIQUE(actor_id, request_id)
         );
     """)
+    # Worlds are intentionally fresh. Never replay an account journal against
+    # a silently changed terrain/road/resource snapshot: that can invalidate
+    # positions, inventories and player discoveries.
+    current = GEOGRAPHY_FINGERPRINT.encode("ascii")
+    recorded = game.db.execute(
+        "SELECT value FROM world_meta WHERE name='realm_fingerprint'").fetchone()
+    if recorded is not None:
+        if recorded[0] != current:
+            raise ValueError("Realm geography changed; start a fresh database "
+                             "or explicitly migrate the authoritative world")
+    else:
+        active = game.db.execute("SELECT COUNT(*) FROM accounts").fetchone()[0]
+        journaled = game.db.execute("SELECT COUNT(*) FROM world_journal").fetchone()[0]
+        if active or journaled:
+            raise ValueError("Existing multiplayer data predates the new geography. "
+                             "Use a new database file for the fresh realm.")
+        game.db.execute(
+            "INSERT INTO world_meta(name,value) VALUES('realm_fingerprint', ?)",
+            (current,))
     # Previous multi-account databases lack an event wall-clock column.
     # Add it without rewriting or inventing timestamps for older rows.
     columns = {column[1] for column in game.db.execute(
