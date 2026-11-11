@@ -17,7 +17,7 @@ class WorldGenerationTests(unittest.TestCase):
         c = generate_world(seed=43, width=64, height=44, cities=9, sites=25)
         self.assertEqual(a.to_dict(), b.to_dict())
         self.assertNotEqual(a.tiles, c.tiles)
-        self.assertEqual(a.version, 2)
+        self.assertEqual(a.version, 3)
 
     def test_terrain_dimensions_climate_and_river_network(self):
         world = self.world
@@ -159,3 +159,68 @@ class AtlasRendererTests(unittest.TestCase):
         png = root.find('.//s:image', ns).get('href')
         self.assertTrue(base64.b64decode(png.split(',', 1)[1]).startswith(b'\x89PNG\r\n\x1a\n'))
         self.assertIn('30 km', svg)
+
+
+class HexTopologyTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.world = generate_world(seed=7, width=64, height=44, cities=9, sites=25)
+
+    def test_interior_hex_has_six_reciprocal_equal_length_neighbors(self):
+        from medieval_world_sim.worldgen.hexgrid import center, neighbors, edge_neighbor, hex_distance
+        from math import hypot, sqrt
+        w=self.world
+        for y in range(2,w.height-2):
+            for x in range(2,w.width-2):
+                adjacent=list(neighbors(x,y,w.width,w.height))
+                self.assertEqual(len(adjacent),6)
+                self.assertEqual(len(set(adjacent)),6)
+                for nx,ny in adjacent:
+                    self.assertIn((x,y),list(neighbors(nx,ny,w.width,w.height)))
+                    self.assertEqual(hex_distance((x,y),(nx,ny)),1)
+                    self.assertAlmostEqual(hypot(center(x,y,10)[0]-center(nx,ny,10)[0],
+                                                 center(x,y,10)[1]-center(nx,ny,10)[1]),
+                                           sqrt(3)*10,places=7)
+                    self.assertTrue(any(edge_neighbor(x,y,e)==(nx,ny) for e in range(6)))
+
+    def test_hex_roads_rivers_and_coastline_follow_actual_edges(self):
+        from medieval_world_sim.worldgen.hexgrid import neighbors
+        from medieval_world_sim.worldgen.render import _edge_path
+        w=self.world
+        for tile in w.tiles:
+            if tile.drains_to is not None:
+                self.assertIn(tile.drains_to, list(neighbors(tile.x,tile.y,w.width,w.height)))
+        for road in w.roads:
+            for a,b in zip(road.path,road.path[1:]):
+                self.assertIn(b,list(neighbors(*a,w.width,w.height)))
+        expected=sum(1 for t in w.tiles if t.elevation_m>0
+                     for nx,ny in neighbors(t.x,t.y,w.width,w.height)
+                     if w.tile(nx,ny).elevation_m<=0)
+        path=_edge_path(w,14,coastal=True)
+        self.assertEqual(path.count('M'),expected)
+        self.assertGreater(expected,30)
+        self.assertEqual(_edge_path(w,14,coastal=False).count('M'),
+                         sum(1 for t in w.tiles for _ in range(6)
+                             if True) - sum(1 for t in w.tiles for nx,ny in neighbors(t.x,t.y,w.width,w.height)
+                                          if (nx,ny)<(t.x,t.y)))
+
+    def test_seed_seven_keeps_crownreach_by_coastal_bay(self):
+        w=self.world
+        cap=w.settlements[0]
+        water=sum(w.tile(x,y).elevation_m<=0
+                  for y in range(max(0,cap.y-5), min(w.height,cap.y+6))
+                  for x in range(max(0,cap.x-5), min(w.width,cap.x+6)))
+        self.assertGreater(water,4)
+
+    def test_svg_hex_grid_river_curves_and_reproducibility(self):
+        from xml.etree import ElementTree
+        from medieval_world_sim.worldgen.render import render_svg
+        w=self.world
+        first=render_svg(w)
+        self.assertEqual(first,render_svg(w))
+        self.assertIn('id="hex-grid"',first)
+        self.assertIn('stroke-dasharray="2.3 3.7"',first)
+        self.assertIn('id="coastline"',first)
+        self.assertIn('Q',first.split('<g id="river-network"')[1].split('</g>')[0])
+        self.assertEqual(w.to_dict(),generate_world(seed=7,width=64,height=44,cities=9,sites=25).to_dict())
+        ElementTree.fromstring(first)
