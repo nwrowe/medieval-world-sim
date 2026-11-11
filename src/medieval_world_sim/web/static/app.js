@@ -1596,7 +1596,35 @@ import { createWorldViews } from "/world-views.mjs";
       // never includes private hex discovery, tile data, or trip position.
       if ((latest.activity_revision || 0) >= (state.activity_revision || 0)) {
         state = latest;
-        render();
+        // Keep the persistent topbar DOM and hovered vital tooltip alive.
+        // Only repaint the World panel and its scrollable map.
+        refreshLiveSurfaces();
+        const content = document.getElementById("main-content");
+        if (content) {
+          const previous = content.querySelector(".terrain-map-scroll");
+          const left = previous ? previous.scrollLeft : 0;
+          const top = previous ? previous.scrollTop : 0;
+          content.innerHTML = renderWorld();
+          const updated = content.querySelector(".terrain-map-scroll");
+          if (updated) {
+            const hex = latest.world_map.position.join(",");
+            if (hex !== lastMapHex) {
+              const player = updated.querySelector(".survey-player");
+              if (player) {
+                const frame = updated.getBoundingClientRect();
+                const point = player.getBoundingClientRect();
+                updated.scrollLeft += point.left + point.width / 2 -
+                  frame.left - frame.width / 2;
+                updated.scrollTop += point.top + point.height / 2 -
+                  frame.top - frame.height / 2;
+              }
+              lastMapHex = hex;
+            } else {
+              updated.scrollLeft = left;
+              updated.scrollTop = top;
+            }
+          }
+        }
       }
     } catch (error) {
       // Transient network failures should not erase an already working map.
