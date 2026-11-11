@@ -88,7 +88,7 @@ def _reasons(resource: str, catchment, supporters, potential: float, producing: 
     if not producing:
         if supported:
             return (f"Only {supported} of {count} surveyed dry-land hexes show "
-                    f"{label}; their average potential ({potential:.1f}/100) "
+                    f"{label}; catchment-wide mean potential ({potential:.1f}/100) "
                     "is below the local production threshold. Import is likely "
                     "needed for industries using this material.")
         return (f"0 of {count} surveyed dry-land hexes within five tiles support "
