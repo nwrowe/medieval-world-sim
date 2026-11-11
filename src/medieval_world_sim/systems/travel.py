@@ -178,6 +178,7 @@ class TravelSystem:
             time = max(1, (time + 59) // 60)
         actor.travel.departure_minute = self.world.minute
         actor.travel.route_hexes = path
+        actor.travel.route_durations = ()
         actor.travel.route_revealed_index = 0
         actor.travel.hex_target = None
         actor.destination = destination
@@ -232,6 +233,7 @@ class TravelSystem:
                     a.arrival_minute = None
                     a.travel.departure_minute = None
                     a.travel.route_hexes = ()
+                    a.travel.route_durations = ()
                     a.travel.route_revealed_index = 0
                     a.travel.hex_target = None
         # Regeneration is computed from elapsed discrete world-minute boundaries
