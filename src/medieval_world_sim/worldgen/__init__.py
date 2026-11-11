@@ -7,8 +7,10 @@ from .society import ExplorationSite, Road, Settlement, generate_roads, generate
 from .terrain import Tile, generate_terrain
 from .hydrology import Waterway, survey_water
 from .landmarks import Landmark, generate_landmarks
+from .content import EventLocation, apply_content
+from .access import survey_land_access
 
-GENERATOR_VERSION = 5
+GENERATOR_VERSION = 6
 
 
 @dataclass(frozen=True)
@@ -24,6 +26,7 @@ class GeneratedWorld:
     sites: tuple[ExplorationSite, ...]
     waterways: tuple[Waterway, ...]
     landmarks: tuple[Landmark, ...]
+    event_locations: tuple[EventLocation, ...] = ()
 
     def tile(self, x: int, y: int) -> Tile:
         if not (0 <= x < self.width and 0 <= y < self.height):
@@ -36,7 +39,8 @@ class GeneratedWorld:
 
 
 def generate_world(seed: int = 42, width: int = 80, height: int = 64,
-                   cities: int = 12, sites: int = 45, cell_km: float = 3.0) -> GeneratedWorld:
+                   cities: int = 12, sites: int = 45, cell_km: float = 3.0,
+                   content: dict | None = None) -> GeneratedWorld:
     if type(seed) is not int or not -(2**31) <= seed < 2**31:
         raise ValueError("Seed must be a signed 32-bit integer")
     if not 0.5 <= cell_km <= 25:
@@ -45,10 +49,12 @@ def generate_world(seed: int = 42, width: int = 80, height: int = 64,
                                    height, cell_km)
     settlements = generate_settlements(tiles, width, height, cities)
     roads = generate_roads(tiles, width, height, settlements, cell_km)
+    tiles, roads = survey_land_access(tiles, roads, width, height, cell_km)
     places = generate_sites(tiles, width, height, settlements, roads, sites)
     landmarks = generate_landmarks(tiles, width, height, settlements, roads, waterways)
-    return GeneratedWorld(seed, GENERATOR_VERSION, width, height, cell_km,
-                          tiles, settlements, roads, places, waterways, landmarks)
+    generated = GeneratedWorld(seed, GENERATOR_VERSION, width, height, cell_km,
+                               tiles, settlements, roads, places, waterways, landmarks)
+    return apply_content(generated, content) if content is not None else generated
 
 
 __all__ = ["GENERATOR_VERSION", "GeneratedWorld", "generate_world"]
