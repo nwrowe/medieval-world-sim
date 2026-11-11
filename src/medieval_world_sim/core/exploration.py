@@ -26,6 +26,8 @@ def current_hex(world, actor: entities.Actor) -> tuple[int, int]:
         elapsed = max(0, min(duration, world.minute - start))
         step = min(len(path) - 1, elapsed * (len(path) - 1) // duration)
         return path[step]
+    if actor.wilderness_hex is not None:
+        return actor.wilderness_hex
     settlement = world.geography_settlements[actor.city]
     return (settlement.x, settlement.y)
 
