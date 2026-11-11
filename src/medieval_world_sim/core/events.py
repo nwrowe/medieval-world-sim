@@ -21,6 +21,9 @@ EVENT_FIELDS = {
         "actor_id",
         "city"
     ],
+    "hex_explored": ["actor_id", "x", "y"],
+    "hex_journey_started": ["actor_id", "x", "y", "arrival_minute"],
+    "hex_arrived": ["actor_id", "x", "y"],
     "recovered": [
         "actor_id"
     ],
