@@ -1082,7 +1082,7 @@ import { createWorldViews } from "/world-views.mjs";
     const map = root.querySelector(".terrain-map-scroll");
     if (map && state && state.world_map) {
       const hex = state.world_map.position.join(",");
-      if (hex !== lastMapHex || forceMapCenter) {
+      if (!oldScroll || hex !== lastMapHex || forceMapCenter) {
         forceMapCenter = false;
         const marker = map.querySelector(".survey-player");
         if (marker) {
