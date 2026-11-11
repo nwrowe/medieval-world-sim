@@ -55,7 +55,8 @@ from ..content.lineages import LINEAGES, select_lineage
 class WorldEngine:
     """In-memory simulation. Domain actions validate then mutate atomically."""
 
-    def __init__(self, actors: list[Actor], seed: int = 42):
+    def __init__(self, actors: list[Actor], seed: int = 42, *, dev_travel_seconds: bool = False):
+        self.dev_travel_seconds = dev_travel_seconds
         self.geography = GEOGRAPHY
         self.geography_settlements = {s.id: s for s in self.geography.settlements}
         if not actors or len({a.id for a in actors}) != len(actors):
@@ -480,7 +481,7 @@ class WorldEngine:
             minutes = max(1, (minutes * 95 + 99) // 100)
         if actor.magic.road_charm:
             minutes = max(1, (minutes * (100 - actor.magic.road_charm) + 99) // 100)
-        return minutes
+        return max(1, (minutes + 59) // 60) if self.dev_travel_seconds else minutes
 
     @atomic_action
     def buy_home(self, actor_id: str, tier: str) -> int:
