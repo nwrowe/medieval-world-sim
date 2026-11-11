@@ -1355,6 +1355,9 @@ import { createWorldViews } from "/world-views.mjs";
       case "horse-race":
         action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
+      case "explore-hex":
+        action("explore_hex", { x: Number(element.dataset.x), y: Number(element.dataset.y) },
+          "New terrain explored"); break;
       case "travel":
       case "map-travel": {
         const city = state.cities.find(c => c.id === element.dataset.target);
