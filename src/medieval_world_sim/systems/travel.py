@@ -139,7 +139,15 @@ class TravelSystem:
                for d in self.world.state.duels.values()):
             return []
         costs, _ = self.terrain_routes(actor)
-        return [{"x": x, "y": y, "minutes": costs[(x, y)]}
+        names = {}
+        width = self.world.geography.width
+        for place in (*self.world.geography.sites,
+                      *self.world.geography.landmarks,
+                      *self.world.geography.settlements):
+            if place.y * width + place.x in actor.explored_hexes:
+                names[(place.x, place.y)] = place.name
+        return [{"x": x, "y": y, "minutes": costs[(x, y)],
+                 "label": names.get((x, y), f"Hex {x}, {y}")}
                 for x, y in sorted(self.selectable_hexes(actor))
                 if (x, y) in costs]
 
