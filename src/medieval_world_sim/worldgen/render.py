@@ -412,6 +412,14 @@ def _places(world, scale: int) -> list[str]:
                      f'cx="{x:.1f}" cy="{y:.1f}" r="3.8" '
                      f'fill="{color}" stroke="#fff1d7" stroke-width="1.4">'
                      f'<title>{escape(site.name)}: {escape(site.reason)}</title></circle>')
+    parts.append('</g><g id="event-locations">')
+    for event in world.event_locations:
+        x, y = center(event.x, event.y, scale)
+        parts.append(f'<circle class="authored-event" cx="{x:.1f}" cy="{y:.1f}" '
+                     'r="6.0" fill="none" stroke="#fff1a5" stroke-width="2" '
+                     'stroke-dasharray="2 2">'
+                     f'<title>{escape(event.name)} — {escape(event.description)} '
+                     f'({escape(event.starts_at)} to {escape(event.ends_at)})</title></circle>')
     parts.append('</g><g id="settlements" font-family="Georgia,serif">')
     # Place labels in the least-crowded immediate quadrant, avoiding boundary.
     occupied = []
