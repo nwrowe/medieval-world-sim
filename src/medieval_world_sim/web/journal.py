@@ -85,6 +85,23 @@ def create_schema(game: MultiplayerGame) -> None:
         game.db.execute(
             "INSERT INTO world_meta(name,value) VALUES('realm_fingerprint', ?)",
             (current,))
+    # A replayed travel command must use the same duration scaling that was
+    # active when it committed; otherwise journeys and exploration diverge.
+    speed = b"seconds" if game.dev_travel_seconds else b"normal"
+    saved_speed = game.db.execute(
+        "SELECT value FROM world_meta WHERE name='travel_clock_mode'").fetchone()
+    if saved_speed is not None and saved_speed[0] != speed:
+        raise ValueError("Travel clock mode changed for this saved realm. "
+                         "Use a separate database for --dev-seconds-travel.")
+    if saved_speed is None:
+        prior_actions = game.db.execute(
+            "SELECT COUNT(*) FROM world_journal").fetchone()[0]
+        if prior_actions and game.dev_travel_seconds:
+            raise ValueError("Cannot enable seconds travel on a database "
+                             "with previously recorded normal journeys")
+        game.db.execute(
+            "INSERT INTO world_meta(name,value) VALUES('travel_clock_mode', ?)",
+            (speed,))
     # Previous multi-account databases lack an event wall-clock column.
     # Add it without rewriting or inventing timestamps for older rows.
     columns = {column[1] for column in game.db.execute(
