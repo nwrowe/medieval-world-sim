@@ -117,7 +117,7 @@ class ArchitecturalTests(unittest.TestCase):
     def test_legacy_baseline_is_available_independently(self):
         old = LegacyWorld.create(5, seed=1)
         self.assertEqual(old.summary()["citizens"], 5)
-        self.assertEqual(len(self.world().cities), 5)
+        self.assertEqual(len(self.world().cities), len(CITIES))
 
 
 if __name__ == "__main__":
