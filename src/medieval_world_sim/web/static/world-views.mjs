@@ -58,7 +58,7 @@ export function createWorldViews(ctx) {
       const step = canStep && nearbySteps.has(index);
       const attrs = step ? ' data-ui="explore-hex" data-x="' + x +
         '" data-y="' + y + '" tabindex="0" role="button" ' +
-        'aria-label="Travel to adjacent hex ' + x + ', ' + y + '"' : '';
+        'aria-label="Travel to hex ' + x + ', ' + y + '"' : '';
       return '<g><polygon class="' + (step ? 'hex-step-target' : '') +
         '" points="' + points(x,y) + '" fill="' + fill + '"' + attrs +
         (faded ? ' opacity=".67"' : "") + ' stroke="#e5ddc9" stroke-opacity=".34"' +
@@ -74,21 +74,32 @@ export function createWorldViews(ctx) {
         bc.map(z=>z.toFixed(1)).join(",") + '" />';
     }).join("");
     const sites = atlas.tiles.filter(t=>t.sites && t.sites.length).map(tile => {
-      const [cx,cy] = hexCenter(tile.i % atlas.width, Math.floor(tile.i / atlas.width));
-      return '<path d="M' + cx.toFixed(1) + ',' + (cy-3.8).toFixed(1) +
+      const x = tile.i % atlas.width, y = Math.floor(tile.i / atlas.width);
+      const [cx,cy] = hexCenter(x, y);
+      const active = canStep && nearbySteps.has(tile.i);
+      const attrs = active ? ' data-ui="explore-hex" data-x="' + x +
+        '" data-y="' + y + '" role="button" tabindex="0"' : '';
+      return '<g class="survey-site-marker' + (active ? ' map-destination' : '') +
+        '"' + attrs + '><circle cx="' + cx.toFixed(1) + '" cy="' +
+        cy.toFixed(1) + '" r="7" fill="transparent"/>' +
+        '<path d="M' + cx.toFixed(1) + ',' + (cy-3.8).toFixed(1) +
         ' l3.8,3.8 l-3.8,3.8 l-3.8,-3.8 z" fill="#83607c" ' +
-        'stroke="#e7cf9d" stroke-width="1.1"><title>' +
-        esc(tile.sites.map(site=>site.name).join(", ")) + '</title></path>';
+        'stroke="#e7cf9d" stroke-width="1.1"/><title>' +
+        esc(tile.sites.map(site=>site.name).join(", ")) + '</title></g>';
     }).join("");
     const towns = atlas.towns.map(city=>{
       const [x,y] = hexCenter(city.x, city.y);
-      return '<g class="survey-city-marker"><circle cx="' + x.toFixed(1) +
-        '" cy="' + y.toFixed(1) + '" r="5" fill="#d6b26c" ' +
+      const active = canStep && nearbySteps.has(city.y * atlas.width + city.x);
+      const attrs = active ? ' data-ui="explore-hex" data-x="' + city.x +
+        '" data-y="' + city.y + '" role="button" tabindex="0"' : '';
+      return '<g class="survey-city-marker' + (active ? ' map-destination' : '') +
+        '"' + attrs + '><circle cx="' + x.toFixed(1) +
+        '" cy="' + y.toFixed(1) + '" r="6" fill="#d6b26c" ' +
         'stroke="#483a2d" stroke-width="1.5"/>' +
         '<text x="' + (x+7).toFixed(1) + '" y="' + (y-6).toFixed(1) +
         '" fill="#2d382d" stroke="#e7debb" stroke-width="2" paint-order="stroke"' +
         ' font-family="Georgia,serif" font-size="11">' +
-        esc(city.name) + '</text></g>';
+        esc(city.name) + '</text><title>' + esc(city.name) + '</title></g>';
     }).join("");
     const [px,py] = hexCenter(atlas.position[0], atlas.position[1]);
     const zoom = ctx.getMapZoom();
@@ -99,8 +110,8 @@ export function createWorldViews(ctx) {
       '<g class="survey-hexes">' + hexes + '</g>' +
       '<g class="survey-roads" fill="none" stroke="#67503a" stroke-width="1.9" ' +
       'stroke-linecap="round" pointer-events="none">' + roadlines + '</g>' +
-      '<g class="survey-sites" pointer-events="none">' + sites + '</g>' +
-      '<g class="survey-towns" pointer-events="none">' + towns + '</g>' +
+      '<g class="survey-sites">' + sites + '</g>' +
+      '<g class="survey-towns">' + towns + '</g>' +
       '<circle class="survey-player" cx="' + px.toFixed(1) + '" cy="' +
       py.toFixed(1) + '" r="5.5" fill="#fff1ab" stroke="#384d40" stroke-width="2.4">' +
       '<title>Your current position</title></circle></svg>';
@@ -117,11 +128,12 @@ export function createWorldViews(ctx) {
       '<div class="terrain-atlas-legend"><span>■ Full color: in sight</span>' +
       '<span>■ Muted color: explored</span><span>■ Gray: uncharted</span>' +
       '<span>Vision radius: ' + atlas.sight_radius + ' hexes</span>' +
-      '<span>Explored: ' + atlas.explored_count + ' / ' + atlas.total_hexes +
-      '</span><span>' + (atlas.in_wilderness ? 'Exploring wilderness' :
+      '<span>Explored: ' + Number(atlas.explored_percent).toFixed(1) +
+      '%</span><span>' + (atlas.in_wilderness ? 'Exploring wilderness' :
         'In a settlement') + '</span></div>' +
-      '<p class="small terrain-map-hint">Click a highlighted adjacent land hex ' +
-      'to explore. Coastlines and mountain outlines remain visible through fog. ' +
+      '<p class="small terrain-map-hint">Click any highlighted land hex within ' +
+      'sight, or a previously discovered city or location anywhere on the map. ' +
+      'Journeys use the cost of each terrain hex crossed. ' +
       'Return to a town to use markets and other city services.</p></section>';
   }
   function renderHexConfirmation() {
@@ -135,10 +147,10 @@ export function createWorldViews(ctx) {
       '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
       'aria-labelledby="hex-travel-title" aria-describedby="hex-travel-description">' +
       '<div class="section-kicker">Explore the wilderness</div>' +
-      '<h2 id="hex-travel-title">Travel to hex ' + step.x + ', ' + step.y + '?</h2>' +
+      '<h2 id="hex-travel-title">Travel to ' + esc(step.label) + '?</h2>' +
       '<p id="hex-travel-description">Estimated travel time: <strong>' +
-      esc(travelTime(step.minutes)) + '</strong>. The surrounding terrain will ' +
-      'be discovered when you arrive.</p>' +
+      esc(travelTime(step.minutes)) + '</strong>. Every hex along the journey ' +
+      'will be explored as you cross it.</p>' +
       '<div class="travel-confirm-actions">' +
       button("Cancel", 'data-ui="hex-travel-cancel"', "secondary") +
       button("Begin journey", 'data-ui="hex-travel-confirm"', "gold") +

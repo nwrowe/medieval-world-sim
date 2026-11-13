@@ -13,6 +13,16 @@ from importlib.resources import files
 
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.session import GameSession, SaveError
+
+
+def complete_session_trip(game):
+    """Replay long generated routes through bounded authorized clock advances."""
+    remaining = game.world.actors["hero"].arrival_minute - game.world.minute
+    while remaining:
+        increment = min(1440, remaining)
+        game.advance(increment)
+        remaining -= increment
+
 from medieval_world_sim.web.server import GameHTTPServer
 
 
@@ -146,7 +156,7 @@ class WebSessionTests(unittest.TestCase):
         self.assertTrue(view["started"])
         self.assertEqual(view["player"]["gold"], 240)
         self.assertEqual(view["player"]["city"], "crownreach")
-        self.assertEqual(len(view["cities"]), 5)
+        self.assertEqual(len(view["cities"]), len(self.game.world.cities))
         self.assertEqual(len(view["magic_nodes"]), 37)
         self.assertEqual(view["player"]["cargo_limit"], 12)
         self.assertTrue(self.save.exists())
@@ -157,12 +167,12 @@ class WebSessionTests(unittest.TestCase):
         self.game.create("Alin Marlow")
         initial_gold = self.game.world.initial_gold
         self.game.action("travel", {"destination": GOLDMEADOW}, "to-fields")
-        self.game.advance(60)
+        complete_session_trip(self.game)
         self.game.action("gather", {"item": "grain", "quantity": 2}, "gather-1")
         self.game.action("regional_sell", {"item": "grain", "quantity": 1}, "sell-1")
         self.game.advance(90)
         self.game.action("travel", {"destination": "crownreach"}, "travel-1")
-        self.game.advance(60)
+        complete_session_trip(self.game)
         before = self.game.snapshot()
         second = GameSession(self.save)
         self.assertEqual(second.snapshot(), before)
@@ -175,7 +185,7 @@ class WebSessionTests(unittest.TestCase):
     def test_saved_command_id_is_not_charged_twice(self):
         self.game.create("Eryn Vale")
         self.game.action("travel", {"destination": GOLDMEADOW}, "buy-fields")
-        self.game.advance(60)
+        complete_session_trip(self.game)
         args = {"item": "grain", "quantity": 2}
         self.game.action("regional_buy", args, "one-purchase")
         before = self.game.snapshot()
@@ -237,14 +247,14 @@ class WebSessionTests(unittest.TestCase):
         document.pop("start_city", None)
         self.save.write_text(json.dumps(document), encoding="utf-8")
         self.game = GameSession(self.save)
-        self.game.action("gather", {"item": "grain", "quantity": 1}, "legacy-gather")
+        self.game.action("buy_home", {"tier": "room"}, "legacy-home")
         document = json.loads(self.save.read_text(encoding="utf-8"))
         for record in document["records"]:
             record.pop("recorded_at", None)
         self.save.write_text(json.dumps(document), encoding="utf-8")
         old = GameSession(self.save)
         self.assertEqual(old.snapshot()["events"][0]["recorded_at"], None)
-        old.action("regional_sell", {"item": "grain", "quantity": 1}, "fresh-sale")
+        old.action("claim_merit", {"achievement": "first_steps"}, "fresh-merit")
         self.assertIsNotNone(old.snapshot()["events"][0]["recorded_at"])
         self.assertEqual(GameSession(self.save).snapshot(), old.snapshot())
 
@@ -304,8 +314,13 @@ class WebHTTPTests(unittest.TestCase):
                                    "params": {"destination": GOLDMEADOW},
                                    "id": "to-fields"})
             self.assertEqual(status, 200)
-            status, data, _ = api(port, "POST", "/api/advance", {"minutes": 60})
-            self.assertEqual(status, 200)
+            duration = data["state"]["player"]["arrival_minute"] - data["state"]["minute"]
+            while duration:
+                increment = min(1440, duration)
+                status, data, _ = api(port, "POST", "/api/advance",
+                                      {"minutes": increment})
+                self.assertEqual(status, 200)
+                duration -= increment
             self.assertEqual(data["state"]["player"]["city"], GOLDMEADOW)
             status, data, _ = api(port, "POST", "/api/action",
                                   {"action": "gather", "params": {"item": "grain", "quantity": 2},
@@ -322,8 +337,13 @@ class WebHTTPTests(unittest.TestCase):
                                    "id": "trip-a"})
             self.assertEqual(status, 200)
             self.assertEqual(data["state"]["player"]["destination"], "crownreach")
-            status, data, _ = api(port, "POST", "/api/advance", {"minutes": 60})
-            self.assertEqual(status, 200)
+            duration = data["state"]["player"]["arrival_minute"] - data["state"]["minute"]
+            while duration:
+                increment = min(1440, duration)
+                status, data, _ = api(port, "POST", "/api/advance",
+                                      {"minutes": increment})
+                self.assertEqual(status, 200)
+                duration -= increment
             self.assertEqual(data["state"]["player"]["city"], "crownreach")
             self.assertIsNone(data["state"]["player"]["destination"])
             final = data["state"]

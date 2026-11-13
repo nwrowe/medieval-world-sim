@@ -97,7 +97,7 @@ def _decode(value, depth=0):
         # original schema; all other model/schema drift must still fail.
         migration_fields = set()
         magic_migration = {"next_practice_minute"}
-        travel_migration = {"hex_target"}
+        travel_migration = {"hex_target", "route_durations"}
         if (present != expected and not (
                 cls is Actor and present <= expected and
                 expected - present <= migration_fields) and not (

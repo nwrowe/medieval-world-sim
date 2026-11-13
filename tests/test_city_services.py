@@ -22,13 +22,14 @@ class CityContractTests(unittest.TestCase):
         starting_gold = w.initial_gold
         city = w.cities[GOLDMEADOW]
         before = city.gold
+        stock_before = city.merchant_stock.get("herbs", 0)
         church = w.execute("hero", "complete_city_contract",
                            {"contract_id": "church_supplies"}, "church-1")
         self.assertEqual(church.reward, 11)
         self.assertEqual(w.actors["hero"].gold, 251)
         self.assertEqual(city.gold, before - 11)
         self.assertEqual(w.actors["hero"].inventory["herbs"], 0)
-        self.assertEqual(city.merchant_stock["herbs"], 1)
+        self.assertEqual(city.merchant_stock["herbs"], stock_before + 1)
         self.assertEqual(w.total_gold, starting_gold)
         self.assertEqual(w.execute("hero", "complete_city_contract",
             {"contract_id": "church_supplies"}, "church-1"), church)
@@ -75,12 +76,12 @@ class CityContractTests(unittest.TestCase):
         w.execute("hero", "store_goods", {"item": "grain", "quantity": 30}, "store-1")
         self.assertEqual(w.actors["hero"].inventory["grain"], 10)
         self.assertEqual(w.actors["hero"].storage[GOLDMEADOW]["grain"], 30)
-        w.start_travel("hero", "crownreach")
-        w.advance(60)
+        trip = w.start_travel("hero", "crownreach")
+        w.advance(trip)
         with self.assertRaises(ActionError):
             w.retrieve_goods("hero", "grain", 1)
-        w.start_travel("hero", GOLDMEADOW)
-        w.advance(60)
+        trip = w.start_travel("hero", GOLDMEADOW)
+        w.advance(trip)
         w.retrieve_goods("hero", "grain", 30)
         self.assertEqual(w.actors["hero"].inventory["grain"], 40)
         with self.assertRaises(ActionError):
@@ -116,9 +117,9 @@ class SaveCompatibilityTests(unittest.TestCase):
             path = Path(folder) / "save.json"
             game = GameSession(path)
             game.create("Cale Rowan")
-            # Exercise legacy Goldmeadow saves alongside the new Crownreach spawn.
+            # Exercise storage in a real resource-producing generated town.
             old_document = json.loads(path.read_text(encoding="utf-8"))
-            old_document.pop("start_city", None)
+            old_document["start_city"] = GOLDMEADOW
             path.write_text(json.dumps(old_document), encoding="utf-8")
             game = GameSession(path)
             game.action("gather", {"item": "grain", "quantity": 2}, "gather")

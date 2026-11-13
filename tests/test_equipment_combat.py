@@ -28,8 +28,8 @@ class EquipmentCombatTests(unittest.TestCase):
 
     def test_starter_purchase_restricted_by_location_and_funds(self):
         w = self.world()
-        w.start_travel("hero", IRONVALE)
-        w.advance(90)
+        trip = w.start_travel("hero", IRONVALE)
+        w.advance(trip)
         before = w.total_gold
         with self.assertRaises(ActionError):
             w.buy_starter_gear("hero", "sword")
@@ -37,8 +37,8 @@ class EquipmentCombatTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.buy_starter_gear("hero", "healing_potion")
         # Repeated purchases are possible, but not without money.
-        w.start_travel("hero", CAPITAL)
-        w.advance(90)
+        trip = w.start_travel("hero", CAPITAL)
+        w.advance(trip)
         w.actors["hero"].gold = 0
         w.initial_gold = w.total_gold
         with self.assertRaises(ActionError):

@@ -1,4 +1,4 @@
-"""Choose a five-city regional, trading, combat or archived economy scenario."""
+"""Choose a generated-realm, trading, combat or archived economy scenario."""
 import argparse
 import json
 

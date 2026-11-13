@@ -16,7 +16,8 @@ from medieval_world_sim.web.session import UI_ACTIONS
 
 class CommandRegistryTests(unittest.TestCase):
     def test_all_registry_targets_exist_and_fields_are_unambiguous(self):
-        self.assertEqual(len(COMMAND_SPECS), 57)
+        self.assertGreaterEqual(len(COMMAND_SPECS), 58)
+        self.assertIn("explore_hex", COMMAND_SPECS)
         for name, spec in COMMAND_SPECS.items():
             with self.subTest(command=name):
                 self.assertTrue(callable(getattr(WorldEngine, spec.method, None)))

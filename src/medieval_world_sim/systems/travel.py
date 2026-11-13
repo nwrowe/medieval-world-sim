@@ -5,7 +5,8 @@ from ..catalog import CITIES
 from ..combat import STAMINA_REGEN_MINUTES
 from ..content.magic_tree import MANA_REGEN_MINUTES
 from ..errors import ActionError
-from ..core.exploration import reveal_travel_progress, reveal
+from ..core.exploration import reveal_travel_progress, reveal, current_hex, sight_radius
+from ..worldgen.hexgrid import hex_distance, neighbors
 
 HOUR = 60
 HEALTH_REGEN_MINUTES = 3
@@ -83,6 +84,96 @@ class TravelSystem:
         difficulty = tile.travel_difficulty
         return max(3, min(12, 3 + int(difficulty) // 10))
 
+    def terrain_routes(self, actor, goals=None):
+        """Shortest dry-land routes, optionally ending once all goals are reached.
+
+        Quoting a two-hex view should not traverse the entire 5,120-cell
+        world. A requested distant site still uses exact shortest-path costs.
+        Passing no goals retains exhaustive paths for diagnostics and tests.
+        """
+        start = current_hex(self.world, actor)
+        width, height = self.world.geography.width, self.world.geography.height
+        costs = {start: 0}
+        previous = {}
+        queue = [(0, start)]
+        remaining = set(goals) if goals is not None else None
+        while queue:
+            cost, point = heapq.heappop(queue)
+            if cost != costs[point]:
+                continue
+            if remaining is not None:
+                remaining.discard(point)
+                if not remaining:
+                    break
+            for nx, ny in neighbors(*point, width, height):
+                tile = self.world.geography.tile(nx, ny)
+                if tile.elevation_m <= 0 or tile.waterbody in ("sea", "lake"):
+                    continue
+                target = (nx, ny)
+                total = cost + self.hex_minutes(actor, nx, ny)
+                if total < costs.get(target, float("inf")):
+                    costs[target] = total
+                    previous[target] = point
+                    heapq.heappush(queue, (total, target))
+        return costs, previous
+
+    def selectable_hexes(self, actor):
+        """Visible nearby land plus permanently discovered towns and sites."""
+        start = current_hex(self.world, actor)
+        sight = sight_radius(self.world, actor)
+        width, height = self.world.geography.width, self.world.geography.height
+        target_positions = set()
+        for y in range(max(0, start[1] - sight),
+                       min(height, start[1] + sight + 1)):
+            for x in range(max(0, start[0] - sight),
+                           min(width, start[0] + sight + 1)):
+                if hex_distance(start, (x, y)) <= sight:
+                    tile = self.world.geography.tile(x, y)
+                    if tile.elevation_m > 0 and tile.waterbody not in ("sea", "lake"):
+                        target_positions.add((x, y))
+        for site in (*self.world.geography.sites,
+                     *self.world.geography.landmarks,
+                     *self.world.geography.settlements):
+            if site.y * width + site.x in actor.explored_hexes:
+                tile = self.world.geography.tile(site.x, site.y)
+                if tile.elevation_m > 0 and tile.waterbody not in ("sea", "lake"):
+                    target_positions.add((site.x, site.y))
+        return target_positions - {start}
+
+    def quote_hex_routes(self, actor):
+        """Publicly selectable destinations and precise authoritative costs."""
+        if actor.destination is not None or actor.hp <= 0 or actor.defeated_until is not None:
+            return []
+        if any(actor.id in (d.attacker_id, d.defender_id)
+               for d in self.world.state.duels.values()):
+            return []
+        destinations = self.selectable_hexes(actor)
+        costs, _ = self.terrain_routes(actor, destinations)
+        names = {}
+        width = self.world.geography.width
+        for place in (*self.world.geography.sites,
+                      *self.world.geography.landmarks,
+                      *self.world.geography.settlements):
+            if place.y * width + place.x in actor.explored_hexes:
+                names[(place.x, place.y)] = place.name
+        return [{"x": x, "y": y, "minutes": costs[(x, y)],
+                 "label": names.get((x, y), f"Hex {x}, {y}")}
+                for x, y in sorted(destinations)
+                if (x, y) in costs]
+
+    def plan_hex_journey(self, actor, target):
+        if target not in self.selectable_hexes(actor):
+            raise ActionError("Destination is not visible or a discovered landmark")
+        costs, previous = self.terrain_routes(actor, {target})
+        if target not in costs:
+            raise ActionError("No safe land route to this destination")
+        start = current_hex(self.world, actor)
+        route = [target]
+        while route[-1] != start:
+            route.append(previous[route[-1]])
+        route.reverse()
+        return costs[target], tuple(route)
+
     def start_travel(self, actor_id: str, destination: str) -> int:
         actor = self.world._actor(actor_id)
         city = self.world._at_city(actor)
@@ -105,6 +196,7 @@ class TravelSystem:
             time = max(1, (time + 59) // 60)
         actor.travel.departure_minute = self.world.minute
         actor.travel.route_hexes = path
+        actor.travel.route_durations = ()
         actor.travel.route_revealed_index = 0
         actor.travel.hex_target = None
         actor.destination = destination
@@ -159,6 +251,7 @@ class TravelSystem:
                     a.arrival_minute = None
                     a.travel.departure_minute = None
                     a.travel.route_hexes = ()
+                    a.travel.route_durations = ()
                     a.travel.route_revealed_index = 0
                     a.travel.hex_target = None
         # Regeneration is computed from elapsed discrete world-minute boundaries

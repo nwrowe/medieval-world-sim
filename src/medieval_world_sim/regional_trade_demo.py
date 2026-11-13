@@ -1,17 +1,20 @@
 """An honest three-unit arbitrage route with real gold, stock and travel."""
 from .core.engine import WorldEngine
 from .core.entities import Actor
-from .catalog import CAPITAL
+from .catalog import CAPITAL, CITIES
 
 
 def main() -> None:
-    world = WorldEngine([Actor("merchant", "human", city="ironvale", gold=100)])
+    source = max((spec.deposits.get("iron_ore", 0), city)
+                 for city, spec in CITIES.items()
+                 if city != CAPITAL and spec.deposits.get("iron_ore", 0) > 0)[1]
+    world = WorldEngine([Actor("merchant", "human", city=source, gold=100)])
     first_gold = world.actors["merchant"].gold
     beginning = world.total_gold
-    local = world.regional_quote("ironvale", "iron_ore")
+    local = world.regional_quote(source, "iron_ore")
     destination = world.regional_quote(CAPITAL, "iron_ore")
     quantity = 3
-    print(f"Ironvale: buy iron ore for {local.player_buy_price}g per unit.")
+    print(f"{CITIES[source].name}: buy iron ore for {local.player_buy_price}g per unit.")
     print(f"Crownreach: sell iron ore for {destination.player_sell_price}g per unit.")
     spent = world.execute("merchant", "regional_buy", {
         "item": "iron_ore", "quantity": quantity

@@ -18,7 +18,8 @@ class NpcSystemTests(unittest.TestCase):
         roles = {p.role for p in simulation.profiles}
         self.assertEqual(roles, {"manager", "worker", "hauler", "gatherer", "adventurer"})
         self.assertEqual(len(simulation.world.companies), 6)
-        self.assertEqual(len(simulation.world.cities), 5)
+        self.assertEqual(len(simulation.world.cities),
+                         len(simulation.world.geography.settlements))
         self.assertEqual(simulation.world.total_gold, simulation.world.initial_gold)
 
     def test_observation_does_not_expose_mutable_world_state(self):

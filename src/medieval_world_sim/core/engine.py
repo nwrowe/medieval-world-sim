@@ -8,7 +8,6 @@ from __future__ import annotations
 
 
 from ..catalog import CAPITAL, CITIES, GOODS, GEOGRAPHY
-from ..worldgen.hexgrid import hex_distance
 from ..errors import ActionError
 from ..equipment import GEAR, GearItem
 from ..combat import MAX_STAMINA
@@ -47,7 +46,7 @@ from ..systems.contracts import CityContractSystem, CityContractResult
 from .quality import CompanyQuality
 from .invariants import validate_world
 from .commands import COMMAND_SPECS
-from .exploration import reveal, current_hex
+from .exploration import reveal
 
 from ..content.lineages import LINEAGES, select_lineage
 
@@ -277,7 +276,7 @@ class WorldEngine:
 
     @atomic_action
     def explore_hex(self, actor_id: str, x: int, y: int) -> dict:
-        """Move exactly one adjacent dry-land hex; never trust client discovery.
+        """Travel by safe land to a visible hex or previously discovered site.
 
         City commerce and other settlement-only actions are disabled outside
         towns. Server-side ownership and replay rules apply to every step.
@@ -294,18 +293,20 @@ class WorldEngine:
         if any(actor_id in (duel.attacker_id, duel.defender_id)
                for duel in self.state.duels.values()):
             raise ActionError("Finish your duel before exploring")
-        if hex_distance(current_hex(self, actor), (x, y)) != 1:
-            raise ActionError("Explore adjacent hexes one step at a time")
-        tile = self.geography.tile(x, y)
-        if tile.elevation_m <= 0 or tile.waterbody in ("sea", "lake"):
-            raise ActionError("Water is impassable on foot")
-        # Book a real, replayable journey; do not teleport on clicking the map.
-        duration = self.travel.hex_minutes(actor, x, y)
-        start = current_hex(self, actor)
+        # Enforce the same carried-item limit as regional road travel.
+        load = sum(actor.inventory.values()) + len(actor.gear_ids)
+        limit = self.housing_system.travel_cargo_limit(actor)
+        if load > limit:
+            raise ActionError(f"Travel cargo limit is {limit} units; carrying {load}")
+        # The authoritative route can cross several hexes, but each step
+        # contributes its own terrain cost. Client input only names an endpoint.
+        duration, route = self.travel.plan_hex_journey(actor, (x, y))
         actor.destination = actor.city  # Maintains existing travel invariants.
         actor.arrival_minute = self.minute + duration
         actor.travel.departure_minute = self.minute
-        actor.travel.route_hexes = (start, (x, y))
+        actor.travel.route_hexes = route
+        actor.travel.route_durations = tuple(
+            self.travel.hex_minutes(actor, *step) for step in route[1:])
         actor.travel.route_revealed_index = 0
         actor.travel.hex_target = (x, y)
         self._emit("hex_journey_started", actor_id, x, y, actor.arrival_minute)

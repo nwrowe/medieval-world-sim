@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from medieval_world_sim.core.engine import WorldEngine
+from medieval_world_sim.catalog import CAPITAL
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.session import GameSession
@@ -14,8 +15,13 @@ from medieval_world_sim.web.session import GameSession
 
 class CooldownTests(unittest.TestCase):
     def test_job_queue_stacks_to_24_hours_then_blocks(self):
-        w = WorldEngine([Actor("hero", "human", city=GOLDMEADOW,
+        # The capital has no native herb merchant stock, allowing this test
+        # to isolate the job queue rather than hitting a source-town stock cap.
+        w = WorldEngine([Actor("hero", "human", city=CAPITAL,
                                inventory={"herbs": 26})])
+        # Isolate the cooldown ceiling from the finite city stock ceiling:
+        # this fixture starts with an empty herb merchant bin.
+        w.cities[CAPITAL].merchant_stock["herbs"] = 0
         original_total = w.initial_gold
         for n in range(24):
             w.execute("hero", "complete_city_contract",
@@ -30,6 +36,8 @@ class CooldownTests(unittest.TestCase):
         actor = w.actors["hero"]  # A failed atomic action restores a deep-copied state.
         self.assertEqual(previous, (len(w.events), actor.gold))
         w.advance(60)
+        # At minute 60 one slot of queued work is free, independently of
+        # merchant stock and without inventing or transferring extra goods.
         w.complete_city_contract("hero", "church_supplies")
         self.assertEqual(w.actors["hero"].cooldowns.job - w.minute, 1440)
         self.assertEqual(w.total_gold, original_total)

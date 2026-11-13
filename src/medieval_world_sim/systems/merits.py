@@ -18,6 +18,10 @@ ACHIEVEMENTS = {
     "stablehand": Achievement("Stablehand", "Own a racehorse"),
     "rider": Achievement("Rider", "Complete your first race"),
     "guild_founder": Achievement("Banner Bearer", "Found a guild"),
+    "explore_25": Achievement("Cartographer I", "Explore 25% of the world"),
+    "explore_50": Achievement("Cartographer II", "Explore 50% of the world"),
+    "explore_75": Achievement("Cartographer III", "Explore 75% of the world"),
+    "explore_100": Achievement("Master Cartographer", "Explore 100% of the world"),
     **{"school:" + school: Achievement(
         name + " Scholar", "Complete all eight courses in " + name)
        for school, (name, _, _, _) in SCHOOLS.items()},
@@ -40,6 +44,11 @@ class MeritSystem:
         events = self.world.events
         if key.startswith("school:"):
             return len(self.world.curriculum_system.completed_indices(actor_id, key[7:])) == 8
+        if key.startswith("explore_"):
+            threshold = int(key.split("_", 1)[1])
+            observed = len(actor.explored_hexes)
+            total = len(self.world.geography.tiles)
+            return observed * 100 >= threshold * total
         if key == "first_steps": return True
         if key == "apprentice": return actor.level >= 2
         if key == "roadfarer": return any(e.kind == "arrived" and e.data.get("actor_id") == actor_id for e in events)
