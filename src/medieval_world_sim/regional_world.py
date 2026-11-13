@@ -1,4 +1,4 @@
-"""Compatibility facade: five-city authoritative WorldEngine.
+"""Compatibility facade: authoritative generated-realm WorldEngine.
 
 New code should import WorldEngine from core.engine and domain entities from core.entities.
 """
