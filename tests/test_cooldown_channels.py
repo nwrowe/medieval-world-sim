@@ -19,6 +19,9 @@ class CooldownTests(unittest.TestCase):
         # to isolate the job queue rather than hitting a source-town stock cap.
         w = WorldEngine([Actor("hero", "human", city=CAPITAL,
                                inventory={"herbs": 26})])
+        # Isolate the cooldown ceiling from the finite city stock ceiling:
+        # this fixture starts with an empty herb merchant bin.
+        w.cities[CAPITAL].merchant_stock["herbs"] = 0
         original_total = w.initial_gold
         for n in range(24):
             w.execute("hero", "complete_city_contract",
@@ -33,9 +36,8 @@ class CooldownTests(unittest.TestCase):
         actor = w.actors["hero"]  # A failed atomic action restores a deep-copied state.
         self.assertEqual(previous, (len(w.events), actor.gold))
         w.advance(60)
-        # Buy one herb back from the merchant to make space for the next
-        # legitimate delivery without altering resource/gold conservation.
-        w.regional_buy("hero", "herbs", 1)
+        # At minute 60 one slot of queued work is free, independently of
+        # merchant stock and without inventing or transferring extra goods.
         w.complete_city_contract("hero", "church_supplies")
         self.assertEqual(w.actors["hero"].cooldowns.job - w.minute, 1440)
         self.assertEqual(w.total_gold, original_total)
