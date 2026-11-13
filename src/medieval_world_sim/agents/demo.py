@@ -10,7 +10,7 @@ from .runner import create_simulation
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Five-city autonomous NPC economy")
+    parser = argparse.ArgumentParser(description="Generated-realm autonomous NPC economy")
     parser.add_argument("--npcs", type=int, default=30)
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--seed", type=int, default=42)
@@ -44,7 +44,7 @@ def main() -> None:
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        print(f"Five-city NPC economy | seed={args.seed}, NPCs={args.npcs}, days={args.days}")
+        print(f"Generated-realm NPC economy | seed={args.seed}, NPCs={args.npcs}, days={args.days}")
         print(f"Gold conserved: {report['gold_conserved']} ({report['gold_total']})")
         print(f"Trades: {report['market_trades']}, volume: {report['market_gold_volume']} gold")
         print(f"Gathered: {report['resources_gathered']}, shifts: {report['shifts_completed']}, "
