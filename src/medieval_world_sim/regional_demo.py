@@ -3,17 +3,27 @@
 Usage:
     python -m medieval_world_sim.regional_demo
 """
-from .catalog import CAPITAL
+from .catalog import CAPITAL, CITIES
 from .regional_world import Actor, RegionalWorld, Wage
+
+
+def resource_town(resource: str) -> str:
+    """Choose a real generated town with a physical source of this resource."""
+    candidates = [(spec.deposits.get(resource, 0), city)
+                  for city, spec in CITIES.items()
+                  if city != CAPITAL and spec.deposits.get(resource, 0) > 0]
+    if not candidates:
+        raise RuntimeError(f"No generated town produces {resource}")
+    return max(candidates)[1]
 
 
 def run() -> RegionalWorld:
     world = RegionalWorld([
         Actor("player", "human", gold=500),
-        Actor("ore_miner", "npc", city="ironvale", gold=30),
-        Actor("coal_miner", "npc", city="emberfall", gold=30),
-        Actor("woodcutter", "npc", city="greenhollow", gold=30),
-        Actor("farmer", "npc", city="goldmeadow", gold=30),
+        Actor("ore_miner", "npc", city=resource_town("iron_ore"), gold=30),
+        Actor("coal_miner", "npc", city=resource_town("coal"), gold=30),
+        Actor("woodcutter", "npc", city=resource_town("timber"), gold=30),
+        Actor("farmer", "npc", city=resource_town("grain"), gold=30),
     ])
     starting_gold = world.total_gold
     world.found_company("player", "royal_steelworks", "steelworks", investment=180)
@@ -28,7 +38,10 @@ def run() -> RegionalWorld:
         world.gather(actor, resource, count)
         world.start_travel(actor, CAPITAL)
 
-    world.advance(90)  # all arrive within 90 simulated minutes
+    # Wait for all real geographic journeys rather than assuming 90 minutes.
+    final_arrival = max(a.arrival_minute or world.minute
+                        for a in world.actors.values())
+    world.advance(final_arrival - world.minute)
 
     for actor, resource, count, price, buyer in (
         ("ore_miner", "iron_ore", 2, 4, "royal_steelworks"),
@@ -59,7 +72,7 @@ def run() -> RegionalWorld:
 
 def main() -> None:
     world = run()
-    print("Five-city medieval economy | in-memory demo")
+    print("Generated-realm medieval economy | in-memory demo")
     print(f"Simulated time: {world.minute} minutes")
     print(f"Gold conserved: {world.total_gold}")
     print(f"Companies: {', '.join(world.companies)}")
