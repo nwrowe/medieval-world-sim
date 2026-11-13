@@ -4,11 +4,13 @@ python -m medieval_world_sim --scenario housing
 """
 from .core.engine import WorldEngine
 from .core.entities import Actor
-from .catalog import CAPITAL
+from .catalog import CAPITAL, CITIES
 
 
 def main() -> None:
     w = WorldEngine([Actor("resident", "human", city=CAPITAL, gold=8000)])
+    destination = min((c for c in CITIES if c != CAPITAL),
+                      key=lambda c: w.travel_minutes(CAPITAL, c))
     before = w.total_gold
     print("Home price progression:")
     print("  Room -> Cottage -> Townhouse -> Estate -> Manor")
@@ -20,10 +22,12 @@ def main() -> None:
     view = w.housing_view("resident")
     print(f"  Owned: {view.tier} in {view.city}; training bonus {view.training_bonus_pct}%")
     print(f"  Selected: {view.active_vehicle}; cargo limit {view.travel_cargo_limit}")
-    print(f"  Crownreach -> Ironvale: {w.travel_minutes(CAPITAL, 'ironvale')} minutes on foot")
-    print(f"  Crownreach -> Ironvale: {w.estimated_travel_minutes('resident', 'ironvale')} minutes by carriage")
-    w.start_travel("resident", "ironvale")
-    w.advance(54)
+    print(f"  Crownreach -> {CITIES[destination].name}: "
+          f"{w.travel_minutes(CAPITAL, destination)} minutes on foot")
+    print(f"  Crownreach -> {CITIES[destination].name}: "
+          f"{w.estimated_travel_minutes('resident', destination)} minutes by carriage")
+    trip = w.start_travel("resident", destination)
+    w.advance(trip)
     w.assert_invariants()
     print(f"  Arrived in {w.actors['resident'].city}; gold conserved: {before == w.total_gold}")
 
