@@ -53,7 +53,7 @@ jobs:
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json > /tmp/sim-results.json
-      - name: Smoke test five-city supply chain
+      - name: Smoke test generated-realm supply chain
         env:
           PYTHONPATH: src
         run: python -m medieval_world_sim.regional_demo > /tmp/regional-demo.txt
