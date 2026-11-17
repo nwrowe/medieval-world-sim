@@ -413,7 +413,8 @@ import { createWorldViews } from "/world-views.mjs";
       '<form id="accountRegisterForm" class="stack">' +
       '<label for="registerUsername">Username</label>' +
       '<input id="registerUsername" class="field" autocomplete="username" ' +
-      'minlength="3" maxlength="24" required>' +
+      'minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" ' +
+      'title="3–24 letters, numbers or underscores only" required>' +
       '<label for="registerCharacter">Character name</label>' +
       '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
       (inviteRequired ?
