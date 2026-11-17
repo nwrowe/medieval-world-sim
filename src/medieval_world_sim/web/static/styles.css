@@ -102,6 +102,15 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .activity li {display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #e8e5db;padding:10px 0;font-size:12px;line-height:1.4}
 .activity li:last-child {border-bottom:0}
 .activity time {color:#899087;white-space:nowrap;font-size:10px}
+.activity li.activity-encounter { display:block; }
+.activity-encounter details { width:100%; }
+.activity-encounter summary { display:flex;align-items:flex-start;
+  justify-content:space-between;gap:12px;cursor:pointer;list-style:revert; }
+.activity-encounter summary:focus-visible { outline:2px solid #56715a;outline-offset:3px; }
+.activity-encounter summary::marker { color:#45664e; }
+.activity-encounter .encounter-rounds { padding:8px 0 0 23px;margin:0; }
+.activity-encounter .encounter-rounds li { display:flex;gap:12px;align-items:flex-start;
+  padding:6px 0;font-size:11px; }
 .empty {padding:25px 10px;color:var(--muted);font-size:13px;text-align:center}
 .callout {border:1px solid #d4d9c5;background:#eef2e7;border-radius:12px;padding:15px;line-height:1.55;font-size:12px;color:#40574c}
 .callout strong {display:block;font-size:13px;margin-bottom:4px}
