@@ -32,6 +32,9 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
     gear_kinds = {}
     equipped_kinds = {}
     rendered_events = []
+    active_encounters = {}
+    encounter_outcomes = {}
+    public_names = {**npc_names, **human_names, actor_id: name}
     for event in w.events:
         # A player's Chronicle must never expose another account's private
         # purchases, inventory changes, employment or other action history.
@@ -56,17 +59,51 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
                 event, gear_kinds=gear_kinds,
                 equipped_kinds=equipped_kinds,
                 recorded_at=event_times.get(event.event_id),
-                human_names=human_names)
+                human_names=public_names)
             equipped_kinds[prior_slot] = gear_kinds.get(info.get("gear_id"), prior_slot)
         else:
             rendered = _friendly_event(
                 event, gear_kinds=gear_kinds,
                 equipped_kinds=equipped_kinds,
                 recorded_at=event_times.get(event.event_id),
-                human_names=human_names)
+                human_names=public_names)
             if event.kind == "unequipped":
                 equipped_kinds.pop(info.get("slot"), None)
+        # A duel's starting event ID is its durable presentation identifier.
+        # Pair indexing supports interleaved duels between different players;
+        # only events visible to this actor are annotated.
+        if event.kind.startswith("duel_"):
+            if event.kind == "duel_finished":
+                left, right = info.get("winner_id"), info.get("loser_id")
+            else:
+                left, right = info.get("attacker_id"), info.get("defender_id")
+            if isinstance(left, str) and isinstance(right, str):
+                pair = tuple(sorted((left, right)))
+                if event.kind == "duel_started":
+                    active_encounters[pair] = (event.event_id, left, right)
+                encounter = active_encounters.get(pair)
+                if encounter:
+                    identifier, attacker, defender = encounter
+                    rendered["encounter_id"] = identifier
+                    rendered["encounter_attacker"] = public_names.get(
+                        attacker, "Unknown adventurer")
+                    rendered["encounter_defender"] = public_names.get(
+                        defender, "Unknown adventurer")
+                    outcome = (
+                        public_names.get(info.get("winner_id"), "Unknown adventurer") +
+                        " won" if event.kind == "duel_finished" else
+                        "Draw" if event.kind == "duel_draw" else
+                        "Attacker retreated" if event.kind == "duel_fled" else
+                        "Defender retreated" if event.kind == "duel_defender_fled" else None
+                    )
+                    if outcome:
+                        encounter_outcomes[identifier] = outcome
+                        del active_encounters[pair]
         rendered_events.append(rendered)
+    for item in rendered_events:
+        if "encounter_id" in item:
+            item["encounter_outcome"] = encounter_outcomes.get(
+                item["encounter_id"], "In progress")
     duel = w.state.duels.get(actor_id)
     duel_role = "attacker" if duel else None
     if multiplayer and not duel:
