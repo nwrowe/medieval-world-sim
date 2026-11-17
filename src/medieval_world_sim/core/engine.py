@@ -306,7 +306,8 @@ class WorldEngine:
         actor.travel.departure_minute = self.minute
         actor.travel.route_hexes = route
         actor.travel.route_durations = tuple(
-            self.travel.hex_minutes(actor, *step) for step in route[1:])
+            self.travel.edge_minutes(actor, a, b)
+            for a, b in zip(route, route[1:]))
         actor.travel.route_revealed_index = 0
         actor.travel.hex_target = (x, y)
         self._emit("hex_journey_started", actor_id, x, y, actor.arrival_minute)
