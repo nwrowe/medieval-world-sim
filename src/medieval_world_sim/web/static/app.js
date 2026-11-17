@@ -789,12 +789,7 @@ import { createWorldViews } from "/world-views.mjs";
       'placeholder="Trade, combat, equipment…" maxlength="100" value="' +
       esc(chronicleQuery) + '"></div>' +
       '<div id="chronicle-list">' + chronicleItems(chronicleEvents()) + '</div>' +
-      '</section>' +
-      '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
-      'Older actions without saved timestamps are marked earlier. ' +
-      (secureWorldClock ?
-        'The multiplayer simulation follows server time.</p>' :
-        'The simulation advances only when you take time-based actions.</p>');
+      '</section>';
   }
   function characterRow(label, value) {
     return '<div class="character-row"><span>' + esc(label) +
