@@ -12,8 +12,20 @@ ruins and landmark markers clickable from anywhere** while they remain on
 reachable land. Exploration outside the current radius does **not** reveal
 ordinary unexplored coordinates or undiscovered landmarks.
 
-The server selects a shortest legal land route using the **sum of individual
-terrain traversal costs**, not the number of hexes or the direct-line distance.
+The server selects a minimum-time legal land route using Dijkstra on **directed
+hex-edge time costs**, not the fewest hexes or direct-line distance. Crossing
+a generated road edge is three times faster than the same bare-ground step
+(rounding up to at least one minute); mixed road and off-road routes are
+considered together. The journey booking and map quote call the same planner.
+The engine also persists each actual weighted step duration so live fog
+reveals at the correct time, not at the old bare-ground speed.
+
+The graph has V dry-land hexes and at most 6V directed edges. Its heap
+search costs O((V+E)log V), with early termination for nearby goals. Far
+multi-destination quotes can reuse a full one-source shortest-path tree;
+the LRU holds a maximum of four start-hex trees and is invalidated on
+geography replacement. Only the user's discovered destinations are exposed.
+Historical journeys use their original algorithm during journal replay.
 Every intermediate hex is retained in the saved actor's route and revealed
 when crossed. The journey confirmation shows the authoritative total. Water
 is impassable without future boat/navigation support. A site on an isolated
