@@ -961,6 +961,14 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .terrain-atlas-legend span:nth-child(2) { color: #b8b4a0; }
 .terrain-atlas-legend span:nth-child(3) { color: #bcc1c0; }
 .terrain-atlas .survey-towns text { pointer-events: none; }
+.terrain-atlas .survey-towns .map-destination,
+.terrain-atlas .survey-sites .map-destination { cursor: pointer; pointer-events: all; }
+.terrain-atlas .survey-towns .map-destination:hover circle,
+.terrain-atlas .survey-towns .map-destination:focus circle { stroke: #fff1a6; stroke-width: 2.6; }
+.terrain-atlas .survey-sites .map-destination:hover path,
+.terrain-atlas .survey-sites .map-destination:focus path { stroke: #fff1a6; stroke-width: 2.4; }
+.map-key-city { color: #c19b53; text-shadow: 0 0 1px #372920; font-size: 15px; }
+.map-key-poi { color: #292c2a; text-shadow: 0 0 1px #dcbf87; font-size: 15px; }
 .terrain-atlas .survey-player { filter: drop-shadow(0 0 4px #fff4b2); }
 @media(max-width:700px) {
   .terrain-map-scroll { min-height: 300px; max-height: 52vh; }
