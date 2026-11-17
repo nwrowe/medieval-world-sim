@@ -101,7 +101,7 @@ class CurriculumSystem:
         return {"school": school, "index": count, "ends_at": ends_at}
 
     def choose(self, actor_id: str, school: str, index: int) -> dict:
-        """Enroll in any unfinished course, regardless of course order."""
+        """Enroll in any unfinished course; capstone requires seven prior courses."""
         actor = self.world._actor(actor_id)
         self.world._at_city(actor)
         if school not in CURRENT_SCHOOLS:
@@ -113,6 +113,12 @@ class CurriculumSystem:
         done = self.completed_indices(actor_id, school)
         if index in done:
             raise ActionError("Course already completed")
+        # Course VII is a capstone: the other seven courses are prerequisites.
+        # Historic journals can replay early capstone enrollment unchanged.
+        if (index == len(DAYS) - 1 and
+                not getattr(self.world, "_legacy_master_course_rules", False) and
+                not set(range(len(DAYS) - 1)).issubset(done)):
+            raise ActionError("Complete the other seven courses before Master training")
         price = COURSE_FEES[index]
         if actor.gold < price:
             raise ActionError("Insufficient gold for tuition")
@@ -188,7 +194,12 @@ class CurriculumSystem:
                              "stat_bonus": STAT_BONUS[i],
                              "completed": i in completed,
                              "active": bool(active and active.school == key and active.index == i),
-                             "available": i not in completed and not active}
+                             "available": i not in completed and not active and
+                               (i != len(DAYS) - 1 or
+                                set(range(len(DAYS) - 1)).issubset(completed)),
+                             "prerequisites_missing": (
+                                 sorted(set(range(len(DAYS) - 1)) - completed)
+                                 if i == len(DAYS) - 1 else [])}
                             for i, title in enumerate(titles)],
             })
         return {"schools": schools, "active": None if not active else {
