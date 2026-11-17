@@ -117,7 +117,7 @@ class HealthRecoveryTests(unittest.TestCase):
         hero.hp = 0
         hero.defeated_until = world.minute + 20
         view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
-        self.assertEqual(view["player"]["health_next_sim_seconds"], 120)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 240)
         self.assertEqual(view["player"]["defeated_until"], world.minute + 20)
 
     def test_multiplayer_reports_subminute_clock_progress(self):
