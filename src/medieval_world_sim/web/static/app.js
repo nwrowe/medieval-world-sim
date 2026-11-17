@@ -2,6 +2,7 @@ import { createCharacterViews } from "/character-views.mjs";
 import { createCommunityViews } from "/community-views.mjs";
 import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
+import { groupCombatChronicle } from "/chronicle-views.mjs";
 
 /* Oathmere — dependency-free responsive game client.
    Rendering is a read-only projection of server-authoritative world state.
@@ -714,17 +715,28 @@ import { createWorldViews } from "/world-views.mjs";
     "Guild", "Progression", "Other"];
   function chronicleEvents() {
     const query = chronicleQuery.trim().toLowerCase();
-    return (state.events || []).filter(event =>
+    return groupCombatChronicle(state.events || []).filter(event =>
       (chronicleCategory === "all" || event.category === chronicleCategory) &&
-      (!query || [event.text, event.kind, event.category].some(value =>
+      (!query || [event.text, event.kind, event.category,
+        ...(event.actions || []).map(action => action.text)].some(value =>
         String(value || "").toLowerCase().includes(query))));
   }
   function chronicleItems(events) {
-    return events.length ? '<ul class="activity">' +
-      events.map(e => '<li><span><span class="chronicle-tag">' +
+    const rows = groupCombatChronicle(events);
+    return rows.length ? '<ul class="activity">' +
+      rows.map(e => e.kind === "combat_encounter" ?
+        '<li class="activity-encounter"><details><summary>' +
+        '<span><span class="chronicle-tag">Combat</span> ' + esc(e.text) +
+        '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
+        '">' + esc(eventTime(e)) + '</time></summary>' +
+        '<ol class="encounter-rounds">' + e.actions.map(action =>
+          '<li><span>' + esc(action.text) + '</span><time>' +
+          esc(eventTime(action)) + '</time></li>').join("") +
+        '</ol></details></li>' :
+        '<li><span><span class="chronicle-tag">' +
         esc(e.category || "Other") + '</span> ' + esc(e.text) +
         '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
-        '">' + esc(eventTime(e)) + '</time></li>').join("") +
+        '">' + esc(eventTime(e)) + '</time></li>').join("")) .join("") +
       '</ul>' : '<p class="empty">No matching Chronicle events.</p>';
   }
   function activityPanel(showTitle = true) {
@@ -789,12 +801,7 @@ import { createWorldViews } from "/world-views.mjs";
       'placeholder="Trade, combat, equipment…" maxlength="100" value="' +
       esc(chronicleQuery) + '"></div>' +
       '<div id="chronicle-list">' + chronicleItems(chronicleEvents()) + '</div>' +
-      '</section>' +
-      '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
-      'Older actions without saved timestamps are marked earlier. ' +
-      (secureWorldClock ?
-        'The multiplayer simulation follows server time.</p>' :
-        'The simulation advances only when you take time-based actions.</p>');
+      '</section>';
   }
   function characterRow(label, value) {
     return '<div class="character-row"><span>' + esc(label) +
