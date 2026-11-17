@@ -650,7 +650,12 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .university-course strong { display:block;font-size:13px; }
 .university-course small { display:block;color:#677166;font-size:11px;margin-top:4px; }
 .university-course .button { flex:0 0 auto; }
-.university-progress { margin:0 0 15px; }
+.university-progress { display:grid;gap:7px;margin:0 0 15px;padding:12px 15px;
+  border:1px solid #d8cdb6;border-radius:9px;background:#f6f0e2; }
+.university-progress strong { font-size:14px; }
+.university-countdown { font-variant-numeric:tabular-nums;font-size:14px;color:#334e3a; }
+.university-progress progress { width:100%;height:12px;accent-color:#54775a; }
+.university-progress small { color:#596d5c; }
 .vital-stamina .vital-icon svg { display:block;width:14px;height:14px; }
 @media (max-width:1080px) { .university-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:640px) { .university-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
