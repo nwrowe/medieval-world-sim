@@ -970,6 +970,17 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .map-key-city { color: #c19b53; text-shadow: 0 0 1px #372920; font-size: 15px; }
 .map-key-poi { color: #292c2a; text-shadow: 0 0 1px #dcbf87; font-size: 15px; }
 .terrain-atlas .survey-player { filter: drop-shadow(0 0 4px #fff4b2); }
+.map-hotlist { margin:12px 0 18px;padding:10px 14px;background:#f8f4e9;
+  border:1px solid #d9d0bd;border-radius:9px; }
+.map-hotlist>summary { font-size:13px;font-weight:700;cursor:pointer; }
+.map-hotlist>summary:focus-visible { outline:2px solid #52715b;outline-offset:3px; }
+.map-hotlist .small { margin:10px 0 4px; }
+.map-hotlist-row { display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:8px 0;border-bottom:1px solid #e1d8c7; }
+.map-hotlist-row:last-child { border-bottom:0; }
+.map-hotlist-row strong { display:block;font-size:12px; }
+.map-hotlist-row small { color:#637366;font-size:11px; }
+.map-hotlist-row button { flex:0 0 auto; }
 @media(max-width:700px) {
   .terrain-map-scroll { min-height: 300px; max-height: 52vh; }
   .terrain-atlas-legend { font-size: 11px; gap: 5px 12px; }
