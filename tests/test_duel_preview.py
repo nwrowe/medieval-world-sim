@@ -10,6 +10,7 @@ from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.core.commands import COMMAND_SPECS
+from medieval_world_sim.web.projection import world_snapshot
 
 
 class CombatPreviewTests(unittest.TestCase):
@@ -44,6 +45,18 @@ class CombatPreviewTests(unittest.TestCase):
             {"defender_id": "defender", "move": "fists"},
             "first-swing"), outcome)
         self.world.assert_invariants()
+
+    def test_public_duel_report_uses_display_names_not_actor_ids(self):
+        self.world.engage_duel("attacker", "defender", "fists")
+        self.world._flee_success = True
+        self.world.flee_duel("attacker")
+        snap = world_snapshot(self.world, "attacker", "Alden River", {},
+                              {"attacker": "Alden River", "defender": "Bryn Stone"},
+                              {}, True)
+        lines = snap["last_duel"]["log"]
+        self.assertTrue(any("Alden River" in line for line in lines))
+        self.assertFalse(any("attacker" in line or "defender" in line
+                             for line in lines))
 
     def test_invalid_opening_move_and_failed_swing_roll_back_everything(self):
         for move in ("guard", "cast", "flee", ""):
