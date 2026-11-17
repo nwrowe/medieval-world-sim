@@ -1237,6 +1237,10 @@ import { createWorldViews } from "/world-views.mjs";
   });
 
   root.addEventListener("input", event => {
+    if (event.target.id === "guild-name") {
+      event.target.setCustomValidity("");
+      return;
+    }
     if (event.target.id === "chronicle-query") {
       chronicleQuery = event.target.value;
       const list = document.getElementById("chronicle-list");
@@ -1403,21 +1407,25 @@ import { createWorldViews } from "/world-views.mjs";
         action("found_guild", { name }, "Guild founded"); break;
       }
       case "guild-leave":
-        guildLeaveIntent = state.guilds?.my_guild?.id || null;
+        if (state.guilds?.my_guild) {
+          const guild = state.guilds.my_guild;
+          guildLeaveIntent = {id: guild.id, lastMember: Object.keys(guild.members).length === 1};
+        }
         render(); break;
       case "guild-leave-cancel":
         guildLeaveIntent = null;
         render(); break;
       case "guild-leave-confirm": {
-        const id = guildLeaveIntent;
-        if (!id) break;
+        const confirmation = guildLeaveIntent;
+        if (!confirmation) break;
         guildLeaveIntent = null;
         (async () => {
           try {
             const fresh = await request("/api/state");
             state = fresh;
             const guild = fresh.guilds?.my_guild;
-            if (!guild || guild.id !== id) {
+            if (!guild || guild.id !== confirmation.id ||
+                (Object.keys(guild.members).length === 1) !== confirmation.lastMember) {
               notify("Your guild membership changed; review before leaving.", true);
               render();
               return;
