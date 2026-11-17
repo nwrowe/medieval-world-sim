@@ -225,13 +225,20 @@ export function createCityViews(ctx) {
         const blocked = pending || isBusy() || state.player.gold < fee || !course.available;
         const action = course.completed ? chip("Completed") :
           course.active ? chip("In progress") :
+          course.prerequisites_missing && course.prerequisites_missing.length ?
+            chip("Locked") :
           button("Enroll · " + money(fee),
             'data-ui="course-enroll" data-school="' + esc(school.id) +
             '" data-index="' + index + '"' + disabled(blocked), "secondary");
+        const capstoneNote = course.prerequisites_missing &&
+          course.prerequisites_missing.length ?
+          '<small>Complete the other ' + course.prerequisites_missing.length +
+          ' courses to unlock</small>' : '';
         return '<div class="university-course"><div><strong>' +
           esc(course.name) + '</strong><small>' + course.days +
           ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
-          ' · Tuition ' + money(fee) + '</small></div>' + action + '</div>';
+          ' · Tuition ' + money(fee) + '</small>' + capstoneNote + '</div>' +
+          action + '</div>';
       }).join('');
       return '<details class="university-school" data-university="' +
         esc(school.id) + '"' +
