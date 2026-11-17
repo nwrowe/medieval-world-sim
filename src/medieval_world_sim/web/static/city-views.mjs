@@ -57,9 +57,6 @@ export function createCityViews(ctx) {
   }
   function renderMercenaryJobs() {
     return heading("", "Mercenary Jobs", "") +
-      '<section class="story-panel"><h3>Work for hire</h3>' +
-      '<p>Patrol the city, assist the magical guild, deliver church supplies, or take merchant contracts. ' +
-      'Each completed job uses the existing city-funded rewards and cooldown limits.</p></section>' +
       '<div class="stack">' +
       contractBoard("warriors", "Warrior contracts") +
       contractBoard("mageguild", "Mage contracts") +
@@ -100,10 +97,7 @@ export function createCityViews(ctx) {
         '</div>';
     }).join('');
     const last = track.last_result;
-    return '<section class="story-panel"><h3>The Five Cities Circuit</h3>' +
-      '<p>In Oathmere, a rider is judged as much by the patience of their mount as ' +
-      'the courage of their hand. At the city track, novice jockeys race for ' +
-      'coin and honor beneath the pennants of the five roads.</p>' +
+    return '<section class="story-panel"><h3>Riding</h3>' +
       '<p>Riding experience: <strong>' + (track.riding_xp || 0) +
       ' XP</strong> · Entry ' + money(track.entry_fee || 10) +
       ' · ' + (track.race_cost || 15) + ' stamina · ' +
@@ -186,10 +180,10 @@ export function createCityViews(ctx) {
       '</div>').join('');
     return '<div class="stack">' +
       panel('Your merit ledger', '',
-        '<div class="resource-list">' + chip('Available: ' + (info.balance || 0)) +
+        '<div class="resource-list">' + chip('Available to spend: ' + (info.balance || 0)) +
         chip('Lifetime earned: ' + (info.total_earned || 0)) + '</div>') +
       panel('Achievements', 'Complete goals throughout Oathmere.', feats) +
-      panel('Permanent improvements', 'Spend earned merits on carefully bounded advantages.', upgrades) +
+      panel('Permanent improvements', '', upgrades) +
       '</div>';
   }
   function renderCityHall() {
