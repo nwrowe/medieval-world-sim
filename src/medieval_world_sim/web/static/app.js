@@ -736,7 +736,7 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
         '<li><span><span class="chronicle-tag">' +
         esc(e.category || "Other") + '</span> ' + esc(e.text) +
         '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
-        '">' + esc(eventTime(e)) + '</time></li>').join("")) .join("") +
+        '">' + esc(eventTime(e)) + '</time></li>').join("") +
       '</ul>' : '<p class="empty">No matching Chronicle events.</p>';
   }
   function activityPanel(showTitle = true) {
