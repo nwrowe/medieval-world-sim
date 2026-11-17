@@ -143,11 +143,14 @@ export function createCityViews(ctx) {
     } else {
       myGuild = panel('Found your guild',
         'Choose a banner name and pay a one-time 100 gold charter fee.',
-        '<div class="button-group"><input class="field" id="guild-name" maxlength="40" ' +
-        'placeholder="Guild name (3–40 characters)" aria-label="Guild name">' +
+        '<div class="button-group"><input class="field" id="guild-name" minlength="3" maxlength="40" ' +
+        'placeholder="Guild name (3–40 characters)" aria-label="Guild name" ' +
+        'aria-describedby="guild-name-help">' +
         button('Found Guild · ' + money(info.founding_cost || 100),
           'data-ui="guild-found"' + disabled(isBusy() ||
-          state.player.gold < (info.founding_cost || 100)), 'gold') + '</div>');
+          state.player.gold < (info.founding_cost || 100)), 'gold') +
+        '</div><p class="small" id="guild-name-help" role="status">' +
+        'Guild names must contain between 3 and 40 characters.</p>');
     }
     return heading('', 'Guilds', '') +
       '<div class="stack">' + myGuild +
