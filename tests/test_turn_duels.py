@@ -61,7 +61,7 @@ class DuelWebTests(unittest.TestCase):
         self.game.advance(60)
         self.assertIsNone(self.game.world.actors[enemy["id"]].defeated_until)
         self.assertEqual(self.game.world.actors[enemy["id"]].hp,
-                         self.game.world.actors[enemy["id"]].max_hp)
+                         17)  # 12 five-minute ticks, 6% each
 
     def test_losing_hospitalizes_hero_and_transfers_five_percent(self):
         foes = [p["id"] for p in self.game.snapshot()["users"] if p["can_attack"]]
@@ -81,8 +81,7 @@ class DuelWebTests(unittest.TestCase):
             self.do("start_duel", {"defender_id": foes[2]}, "hospital-attack")
         self.assertEqual(GameSession(self.path).snapshot(), self.game.snapshot())
         self.game.advance(60)
-        self.assertEqual(self.game.snapshot()["player"]["hp"],
-                         self.game.snapshot()["player"]["max_hp"])
+        self.assertEqual(self.game.snapshot()["player"]["hp"], 17)
         self.assertIsNone(self.game.snapshot()["player"]["defeated_until"])
 
     def test_magic_in_duel_guard_and_field_healing(self):
