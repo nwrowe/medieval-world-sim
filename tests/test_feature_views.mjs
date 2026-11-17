@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { createCommunityViews } from "../src/medieval_world_sim/web/static/community-views.mjs";
 import { createCityViews } from "../src/medieval_world_sim/web/static/city-views.mjs";
+import { groupCombatChronicle } from "../src/medieval_world_sim/web/static/chronicle-views.mjs";
 import { createCharacterViews } from "../src/medieval_world_sim/web/static/character-views.mjs";
 import { createWorldViews } from "../src/medieval_world_sim/web/static/world-views.mjs";
 
@@ -29,6 +30,30 @@ let state = {
     }
   }
 };
+const encounterRows = groupCombatChronicle([
+  { id: 9, kind:"duel_draw", category:"Combat", minute:11,
+    encounter_id:1, encounter_attacker:"Alden", encounter_defender:"Bryn",
+    encounter_outcome:"Draw", text:"Ended in a draw" },
+  { id: 8, kind:"duel_round", category:"Combat", minute:10,
+    encounter_id:1, encounter_attacker:"Alden", encounter_defender:"Bryn",
+    encounter_outcome:"Draw", text:"Second strike" },
+  { id: 7, kind:"duel_fled", category:"Combat", minute:9,
+    encounter_id:5, encounter_attacker:"Carol", encounter_defender:"Dale",
+    encounter_outcome:"Attacker retreated", text:"Retreated" },
+  { id: 5, kind:"duel_started", category:"Combat", minute:5,
+    encounter_id:5, encounter_attacker:"Carol", encounter_defender:"Dale",
+    encounter_outcome:"Attacker retreated", text:"Started" },
+  { id: 1, kind:"duel_started", category:"Combat", minute:1,
+    encounter_id:1, encounter_attacker:"Alden", encounter_defender:"Bryn",
+    encounter_outcome:"Draw", text:"Started" },
+]);
+assert.equal(encounterRows.length, 2);
+assert.equal(encounterRows[0].id, "encounter-1");
+assert.equal(encounterRows[0].actions.length, 3);
+assert.equal(encounterRows[0].actions[0].id, 1);
+assert.match(encounterRows[0].text, /Alden attacked Bryn.*Draw/);
+assert.equal(encounterRows[1].actions.length, 2);
+assert.match(encounterRows[1].text, /Carol attacked Dale.*retreated/);
 const helpers = {
   esc: value => String(value),
   pretty: value => String(value),
