@@ -214,11 +214,23 @@ export function createCityViews(ctx) {
     const expandedUniversitySchool = ctx.getExpandedUniversitySchool();
     const hall = state.training_hall || { schools: [], active: null };
     const studies = hall.active;
-    const studying = studies ?
-      '<p class="small university-progress">Studying ' +
-      esc(pretty(studies.school)) + ' · Course ' + (studies.index + 1) +
-      ' · ' + Math.max(1, Math.ceil(studies.remaining_minutes / 1440)) +
-      ' simulated days remaining</p>' : '';
+    const studying = studies ? (() => {
+      const school = hall.schools.find(item => item.id === studies.school);
+      const course = school && school.courses[studies.index];
+      const total = (course ? course.days : 1) * 1440;
+      const remaining = Math.max(0, Number(studies.remaining_minutes) || 0);
+      const elapsed = Math.min(total, Math.max(0, total - remaining));
+      const name = course ? course.name : pretty(studies.school);
+      return '<section class="university-progress" aria-label="Current university course">' +
+        '<strong>Studying ' + esc(name) + '</strong>' +
+        '<time class="university-countdown" role="timer" aria-live="off" ' +
+        'data-university-countdown="true" ' + ctx.timerAttrs('', remaining * 60) +
+        '>' + esc(ctx.timerText(remaining * 60)) + ' remaining</time>' +
+        '<progress value="' + elapsed + '" max="' + total +
+        '" aria-label="' + esc(name) + ' course progress"></progress>' +
+        '<small>' + Math.floor(elapsed * 100 / total) + '% complete</small>' +
+        '</section>';
+    })() : '';
     const tiles = hall.schools.map(school => {
       const courses = school.courses.map((course, index) => {
         const fee = Number(course.tuition);
@@ -229,9 +241,10 @@ export function createCityViews(ctx) {
             'data-ui="course-enroll" data-school="' + esc(school.id) +
             '" data-index="' + index + '"' + disabled(blocked), "secondary");
         return '<div class="university-course"><div><strong>' +
-          esc(course.name) + '</strong><small>' + course.days +
-          ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
-          ' · Tuition ' + money(fee) + '</small></div>' + action + '</div>';
+          esc(course.name) + '</strong><small>' +
+          (course.active ? 'In progress' : course.days + ' days') +
+          ' · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
+          '</small></div>' + action + '</div>';
       }).join('');
       return '<details class="university-school" data-university="' +
         esc(school.id) + '"' +
@@ -241,12 +254,13 @@ export function createCityViews(ctx) {
         school.completed + ' of ' + school.total + ' courses completed</small></span>' +
         '<span class="university-expand" aria-hidden="true">⌄</span></summary>' +
         '<div class="university-school-body">' +
-        '<p class="small">Graduation: 1 merit' +
-        (school.capstone_perk ? ' · +' + school.capstone_perk.bonus +
-          ' ' + esc(pretty(school.capstone_perk.stat)) : '') +
-        (school.martial_perk ? ' · +' + school.martial_perk.bonus +
-          ' ' + esc(pretty(school.martial_perk.stat)) : '') +
-        '</p>' +
+        ((school.capstone_perk || school.martial_perk) ?
+          '<p class="small">Graduation bonus' +
+          (school.capstone_perk ? ': +' + school.capstone_perk.bonus +
+            ' ' + esc(pretty(school.capstone_perk.stat)) : '') +
+          (school.martial_perk ? (school.capstone_perk ? ' · +' : ': +') +
+            school.martial_perk.bonus + ' ' +
+            esc(pretty(school.martial_perk.stat)) : '') + '</p>' : '') +
         courses + '</div></details>';
     }).join('');
     return heading("", "University", "") + studying +
