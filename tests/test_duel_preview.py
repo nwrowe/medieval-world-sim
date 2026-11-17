@@ -58,6 +58,45 @@ class CombatPreviewTests(unittest.TestCase):
         self.assertFalse(any("attacker" in line or "defender" in line
                              for line in lines))
 
+    def test_single_and_multi_new_duel_commands_replay_after_restart(self):
+        import tempfile
+        from pathlib import Path
+        from medieval_world_sim.web.session import GameSession
+        from medieval_world_sim.web.multiplayer import MultiplayerGame
+        with tempfile.TemporaryDirectory() as tmp:
+            solo = Path(tmp) / "solo.json"
+            session = GameSession(solo)
+            session.create("Alden River")
+            foe = next(u for u in session.snapshot()["users"] if u["can_attack"])
+            one = session.action("engage_duel",
+                                 {"defender_id": foe["id"], "move": "fists"}, "opening")
+            self.assertEqual(one["outcome"], "ongoing")
+            self.assertEqual(session.records[-1]["ruleset"], 17)
+            self.assertEqual(GameSession(solo).snapshot(), session.snapshot())
+            db = Path(tmp) / "multi.db"
+            world = MultiplayerGame(db, require_invites=False,
+                                    npc_enabled=False, dev_fast_forward=True)
+            try:
+                first = world.register("alden", "correct horse battery staple",
+                                       "Alden River")
+                second = world.register("bryn", "correct horse battery staple",
+                                        "Bryn Stone")
+                world.action(first, "engage_duel",
+                             {"defender_id": second, "move": "fists"}, "open")
+                before = world.snapshot(first)
+                version = world.db.execute(
+                    "SELECT xp_version FROM world_journal WHERE request_id='open'"
+                ).fetchone()[0]
+                self.assertEqual(version, 5)
+            finally:
+                world.close()
+            world = MultiplayerGame(db, require_invites=False,
+                                    npc_enabled=False, dev_fast_forward=True)
+            try:
+                self.assertEqual(world.snapshot(first), before)
+            finally:
+                world.close()
+
     def test_invalid_opening_move_and_failed_swing_roll_back_everything(self):
         for move in ("guard", "cast", "flee", ""):
             with self.assertRaises(ActionError):
