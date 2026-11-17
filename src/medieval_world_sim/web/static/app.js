@@ -34,7 +34,7 @@ import { createWorldViews } from "/world-views.mjs";
   const accountTabs = [
     { id: "character", icon: "♙", title: "Home" },
     { id: "equipment", icon: "⚔", title: "Equipment" },
-    { id: "world", icon: globeIcon, title: "World" },
+    { id: "world", icon: globeIcon, title: "Map" },
     { id: "chronicle", icon: "▤", title: "Chronicle" },
     { id: "people", icon: "⌕", title: "Search" },
   ];
@@ -587,7 +587,7 @@ import { createWorldViews } from "/world-views.mjs";
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
-      timerAttrs("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
+      timerAttrs("Traveling to " + (p.hex_target ? "hex (" + p.hex_target.join(",") + ")" : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
       'aria-label="' + esc("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination))) + '">' +
       '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
       '</strong></button>' : "";
