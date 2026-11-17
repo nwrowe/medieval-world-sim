@@ -214,13 +214,13 @@ def load_world(game: MultiplayerGame) -> None:
             minutes = params.get("minutes")
             if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
                     or server_clock not in (None, 0, 1)
-                    or regen_version not in (1, 2, 3)):
+                    or regen_version not in (1, 2, 3, 4)):
                 raise ValueError("Invalid journal time advancement")
             game.world._health_regen_version = regen_version
             try:
                 game.world.advance(minutes)
             finally:
-                game.world._health_regen_version = 3
+                game.world._health_regen_version = 4
             npc_runtime.replay(game, seq)
         else:
             raise ValueError("Invalid journal kind")
