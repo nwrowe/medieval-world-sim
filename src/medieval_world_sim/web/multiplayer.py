@@ -324,7 +324,7 @@ class MultiplayerGame:
                 row = self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
                     "result_json,recorded_at,server_clock,regen_version) "
-                    "VALUES('advance',?,?,?,?,?,1,3)",
+                    "VALUES('advance',?,?,?,?,?,1,4)",
                     (actor_id, _canonical({"minutes": minutes}),
                      f"__clock__:{old_anchor}", "null", timestamp))
                 npc_runtime.step(self, row.lastrowid)
@@ -440,7 +440,7 @@ class MultiplayerGame:
                 " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
                  encoded_result, recorded_at, flee_success, secure_roll,
-                 3 if kind == "advance" else 1,
+                 4 if kind == "advance" else 1,
                  6 if name == "unlock_magic" else
                  5 if name in ("cast_spell", "duel_turn") else 4))
             if kind == "advance":
