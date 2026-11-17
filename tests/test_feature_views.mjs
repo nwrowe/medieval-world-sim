@@ -95,6 +95,20 @@ state = { ...state, merits: {
   upgrades: [{ id: "roadcraft", name: "Roadcraft", cost: 2,
     description: "Shorter journeys", owned: false }]
 } };
+const guildFounding = city.renderGuilds();
+assert.match(guildFounding, /minlength="3"/);
+assert.match(guildFounding, /Guild names must contain between 3 and 40 characters/);
+state = { ...state, guilds: {
+  ...state.guilds, my_guild: {
+    id: "guild:1", name: "Gray Dawn", role: "leader",
+    members: {"player:alice": "leader"},
+    rating: 1000, wins: 0, losses: 0
+  }
+}};
+assert.match(city.renderGuilds(), /data-ui="guild-leave"/);
+state = { ...state, guilds: {
+  ...state.guilds, my_guild: null
+}};
 const meritPage = city.renderMerits();
 assert.match(meritPage, /Your merit ledger|First Steps/);
 assert.doesNotMatch(meritPage, /<h2>Merits<\/h2>|Honor your milestones|Merits are earned once|\+1 merit/);
