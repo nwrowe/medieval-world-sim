@@ -157,7 +157,7 @@ class TravelSystem:
             if place.y * width + place.x in actor.explored_hexes:
                 names[(place.x, place.y)] = place.name
         return [{"x": x, "y": y, "minutes": costs[(x, y)],
-                 "label": names.get((x, y), f"Hex {x}, {y}")}
+                 "label": names.get((x, y), f"Hex ({x},{y})")}
                 for x, y in sorted(destinations)
                 if (x, y) in costs]
 
