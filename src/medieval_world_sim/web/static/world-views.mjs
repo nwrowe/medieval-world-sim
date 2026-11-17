@@ -186,6 +186,34 @@ export function createWorldViews(ctx) {
       '</div></section></div>';
   }
 
+  function discoveredCityHotlist() {
+    const state = ctx.getState();
+    const atlas = state.world_map;
+    if (!atlas) return "";
+    // Reuse the authoritative route quotes already present in this snapshot:
+    // the Hotlist never initiates an additional server request or route search.
+    const byPosition = new Map((atlas.steps || []).map(step =>
+      [step.x + "," + step.y, step]));
+    const destinations = (atlas.towns || []).map(city => ({
+      city, quote: byPosition.get(city.x + "," + city.y)
+    })).filter(entry => entry.quote && Number.isFinite(entry.quote.minutes))
+      .sort((a, b) => a.quote.minutes - b.quote.minutes ||
+        a.city.name.localeCompare(b.city.name));
+    if (!destinations.length) return "";
+    const busy = isBusy();
+    const choices = destinations.map(({city, quote}) =>
+      '<div class="map-hotlist-row"><span><strong>' + esc(city.name) +
+      '</strong><small>Est. ' + esc(travelTime(quote.minutes)) +
+      '</small></span>' +
+      button("Travel", 'data-ui="explore-hex" data-x="' + city.x +
+        '" data-y="' + city.y + '"' + disabled(busy), "secondary") +
+      '</div>').join("");
+    return '<details class="map-hotlist"><summary>Hotlist · ' +
+      destinations.length + ' discovered destinations</summary>' +
+      '<p class="small">Estimated from your current hex; refreshed with map travel data.</p>' +
+      '<div class="map-hotlist-rows">' + choices + '</div></details>';
+  }
+
   function renderWorld() {
     const state = ctx.getState();
     const pending = ctx.getPending();
@@ -206,6 +234,7 @@ export function createWorldViews(ctx) {
       defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your ' +
         'character has recovered before traveling.</div>' : "";
     return heading("", "Map", "") + worldMap() +
+      discoveredCityHotlist() +
       (inWilderness && !traveling ?
         '<div class="callout"><strong>Wilderness</strong>' +
         'Return to a settlement for commerce, crafting and city services.</div>' : '') +
