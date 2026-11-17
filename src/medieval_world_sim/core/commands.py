@@ -56,6 +56,7 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "unequip": CommandSpec("unequip", ("slot",), _BOTH),
     "attack": CommandSpec("attack", ("defender_id",)),
     "start_duel": CommandSpec("start_duel", ("defender_id",), _BOTH),
+    "engage_duel": CommandSpec("engage_duel", ("defender_id", "move"), _BOTH),
     "pvp_strike": CommandSpec("pvp_strike", ("defender_id",), _MULTI),
     "duel_turn": CommandSpec("duel_turn", ("move", "node_id"), _BOTH),
     "flee_duel": CommandSpec("flee_duel", (), _BOTH),
