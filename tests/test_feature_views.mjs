@@ -51,7 +51,9 @@ const community = createCommunityViews({
 const city = createCityViews({
   ...helpers, getState: () => state, getLatestContract: () => null,
   getExpandedUniversitySchool: () => null, getPending: () => false,
-  getSecureWorldClock: () => true
+  getSecureWorldClock: () => true,
+  timerAttrs: (_label, seconds) => 'data-timer-fixed="' + seconds + '"',
+  timerText: seconds => String(seconds / 60).padStart(2, "0") + ":00"
 });
 for (const name of ["renderPeople", "renderProfile", "renderTrade", "renderDuel"]) {
   assert.equal(typeof community[name], "function");
@@ -85,6 +87,25 @@ for (const name of cityNames) {
   assert.equal(typeof city[name], "function", name);
   assert.ok(city[name]().length > 35, name + " must render meaningful markup");
 }
+state = { ...state, training_hall: { active: {
+  school: "rhetoric", index: 0, remaining_minutes: 4320, ends_at: 5760
+}, schools: [{
+  id: "rhetoric", name: "Rhetoric", stat: "intelligence",
+  completed: 0, total: 8, courses: [
+    { name: "The Spoken Word", days: 4, tuition: 8, stat_bonus: 1,
+      active: true, available: false, completed: false },
+    { name: "Memorable Arguments", days: 6, tuition: 12, stat_bonus: 1,
+      active: false, available: false, completed: false }
+  ]
+}] } };
+const coursePage = city.renderTraining();
+assert.match(coursePage, /data-university-countdown/);
+assert.match(coursePage, /value="1440" max="5760"/);
+assert.match(coursePage, /25% complete/);
+assert.doesNotMatch(coursePage, /Graduation: 1 merit|Tuition 8g|simulated days remaining/);
+assert.match(coursePage, /Enroll · 12g/);
+state = { ...state, training_hall: { active: null, schools: [] } };
+
 state = { ...state, player: { ...state.player, work: {
   ...state.player.work, manual: 57 } } };
 state = { ...state, merits: {
