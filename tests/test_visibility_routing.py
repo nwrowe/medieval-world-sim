@@ -24,8 +24,9 @@ class VisibilityRoutingTests(unittest.TestCase):
         quote, route = world.travel.plan_hex_journey(
             actor, (step["x"], step["y"]))
         self.assertEqual(quote, step["minutes"])
-        self.assertEqual(quote, sum(world.travel.hex_minutes(actor, *p)
-                                    for p in route[1:]))
+        self.assertEqual(quote, sum(
+            world.travel.edge_minutes(actor, a, b)
+            for a, b in zip(route, route[1:])))
         started = world.explore_hex("hero", step["x"], step["y"])
         self.assertEqual(started["minutes"], quote)
         first = world.actors["hero"].travel.route_durations[0]
@@ -36,6 +37,30 @@ class VisibilityRoutingTests(unittest.TestCase):
         world.advance(quote - first)
         self.assertEqual(current_hex(world, world.actors["hero"]), route[-1])
         world.assert_invariants()
+
+    def test_generated_road_edges_are_three_times_faster_and_cache_is_bounded(self):
+        from medieval_world_sim.systems.travel import ROUTE_CACHE_LIMIT
+        world = self.world
+        actor = world.actors["hero"]
+        self.assertTrue(world.travel.road_edges())
+        for start, end in sorted(world.travel.road_edges()):
+            t = world.geography.tile(*end)
+            if t.elevation_m > 0 and t.waterbody not in ("sea", "lake"):
+                old = world.travel.hex_minutes(actor, *end)
+                faster = world.travel.edge_minutes(actor, start, end)
+                self.assertEqual(faster, max(1, (old + 2) // 3))
+                actor.wilderness_hex = start
+                costs, previous = world.travel.terrain_routes(actor, {end})
+                self.assertLessEqual(costs[end], faster)
+                self.assertEqual(previous[end], start)
+                break
+        else:
+            self.fail("No traversable generated road edge")
+        # Repeated full-source searches reuse at most four independent origins.
+        for edge_start, _ in sorted(world.travel.road_edges())[:8]:
+            actor.wilderness_hex = edge_start
+            world.travel.terrain_routes(actor)
+        self.assertLessEqual(len(world.travel._route_cache), ROUTE_CACHE_LIMIT)
 
     def test_discovered_city_and_site_are_reachable_from_far_away(self):
         world = self.world
