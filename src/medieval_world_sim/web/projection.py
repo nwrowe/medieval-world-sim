@@ -17,6 +17,25 @@ from ..systems.cooldowns import MAX_COOLDOWN_MINUTES, FOOD_MINUTES, POTION_MINUT
 from ..systems.track import HORSES, RACE_STAMINA_COST, RACE_ENTRY, RACE_COOLDOWN
 from .chronicle import TRADE_EVENTS, COMBAT_EVENTS, _friendly_event
 
+def _named_duel_log(log: list[str], names: dict[str, str]) -> list[str]:
+    """Project display names, never raw account UUIDs, into combat reports.
+
+    Keep the authoritative journal and duel-state log unchanged for replay.
+    The display-only substitution also fixes reports already saved with
+    opaque IDs before this update.
+    """
+    aliases = sorted(((key, value) for key, value in names.items()
+                      if isinstance(key, str) and key and value and key != value),
+                     key=lambda pair: len(pair[0]), reverse=True)
+    output = []
+    for line in log:
+        shown = line
+        for actor_id, label in aliases:
+            shown = shown.replace(actor_id, label)
+        output.append(shown)
+    return output
+
+
 def activity_projection(w: WorldEngine, actor_id: str, name: str,
                         npc_names: dict[str, str], human_names: dict[str, str],
                         event_times: dict[int, str],
@@ -27,6 +46,7 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
     so live activity never calculates all market quotes, housing or gear prices.
     """
     actor = w.actors[actor_id]
+    public_names = {**npc_names, **human_names, actor_id: name}
     now = w.minute
     is_traveling = actor.destination is not None
     gear_kinds = {}
@@ -84,7 +104,8 @@ def activity_projection(w: WorldEngine, actor_id: str, name: str,
             "opponent_name": npc_names.get(
                 foe.id, human_names.get(foe.id, foe.id)),
             "opponent_hp": foe.hp, "opponent_max_hp": foe.max_hp,
-            "round": duel.round, "log": list(duel.log),
+            "round": duel.round,
+            "log": _named_duel_log(duel.log, public_names),
             "attack_started": duel.first_attack,
             "pending_ward": duel.pending_ward if duel_role == "attacker" else 0,
             "role": duel_role,
@@ -373,7 +394,12 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "users": characters,
         "multiplayer": multiplayer,
         "duel": active_duel,
-        "last_duel": w.state.last_duels.get(actor_id),
+        "last_duel": (
+            {**w.state.last_duels[actor_id],
+             "log": _named_duel_log(
+                 w.state.last_duels[actor_id]["log"],
+                 {**npc_names, **human_names, actor_id: name})}
+            if actor_id in w.state.last_duels else None),
         "combat_stamina_cost": 0,
         "guard_stamina_cost": 2,
         "magic_stamina_cost": 6,
