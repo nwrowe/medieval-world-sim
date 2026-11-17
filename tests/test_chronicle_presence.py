@@ -209,7 +209,7 @@ class ChronicleAuditTests(unittest.TestCase):
         self.assertTrue(all(e["encounter_outcome"] == "Draw" for e in fights))
         self.assertTrue(all(e["encounter_attacker"] == "Alice" for e in fights))
         self.assertTrue(all(e["encounter_defender"] == "Bob" for e in fights))
-        self.assertNotIn("c", str(fights))
+        self.assertFalse(any(e.get("encounter_attacker") == "Carol" for e in fights))
 
     def test_known_event_types_have_stable_categories(self):
         self.assertEqual(event_category("trade_settled"), "Trade")
