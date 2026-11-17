@@ -136,7 +136,8 @@ class EquipmentCombatTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.attack("hero", "bandit")  # can't repeatedly loot defeated body
         w.advance(60)
-        self.assertEqual(w.actors["bandit"].hp, 24)
+        self.assertEqual(w.actors["bandit"].hp, 17)  # 12 ticks at 6% maximum Life
+        self.assertIsNone(w.actors["bandit"].defeated_until)
         w.assert_invariants()
 
     def test_pvp_does_not_require_consent(self):
