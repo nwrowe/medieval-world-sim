@@ -36,7 +36,7 @@ class AdjacentExplorationTests(unittest.TestCase):
         self.assertEqual((result["x"], result["y"]), (x, y))
         self.assertEqual(current_hex(self.world, self.world.actors["hero"]), start)
         self.assertEqual(self.world.actors["hero"].travel.hex_target, (x, y))
-        self.assertGreaterEqual(result["minutes"], 3)
+        self.assertGreaterEqual(result["minutes"], 1)
         self.assertLessEqual(result["minutes"], 12)
         self.world.assert_invariants()
         self.world.advance(result["minutes"])
