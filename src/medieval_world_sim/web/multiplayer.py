@@ -28,7 +28,7 @@ from ..core.commands import MULTIPLAYER_ACTIONS
 from ..core.entities import Actor
 from ..errors import ActionError
 from ..systems.cooldowns import remaining
-from .session import (GameSession, NPC_NAMES, START_CITY, LEGACY_START_CITY, INITIAL_GOLD,
+from .session import (GameSession, NPC_NAMES, START_CITY, INITIAL_GOLD,
                       ADVANCE_LIMIT, UI_ACTIONS, world_snapshot)
 from . import social, accounts, journal, ledger, checkpoint, npc_runtime
 from .accounts import (AuthError, Identity, _digest, _password_hash,
@@ -45,7 +45,7 @@ MAX_CHAT_COMMANDS_PER_DAY = 100
 MAX_GLOBAL_COMMANDS_PER_DAY = 4000
 # Real identities, not a shared access code, are necessary but not sufficient
 # for public hosting. Keep this entire mode loopback-only.
-# Legacy public alias; multiplayer exposure is declared per command.
+# Multiplayer exposure is declared per command.
 MULTI_ACTIONS = MULTIPLAYER_ACTIONS
 
 
@@ -334,8 +334,8 @@ class MultiplayerGame:
                 self.world.advance(minutes)
                 row = self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"
-                    "result_json,recorded_at,server_clock,regen_version) "
-                    "VALUES('advance',?,?,?,?,?,1,4)",
+                    "result_json,recorded_at,server_clock) "
+                    "VALUES('advance',?,?,?,?,?,1)",
                     (actor_id, _canonical({"minutes": minutes}),
                      f"__clock__:{old_anchor}", "null", timestamp))
                 npc_runtime.step(self, row.lastrowid)
@@ -409,19 +409,13 @@ class MultiplayerGame:
             prior_events = len(self.world.events)
             recorded_at = datetime.now(timezone.utc).isoformat()
             flee_success = None
-            secure_roll = 0
             if kind == "action":
-                if name == "pvp_strike":
-                    # Keep historical journal replay compatible, but prevent
-                    # new clients bypassing the shared turn-based duel rules.
-                    raise ActionError("Use start_duel for player combat")
                 if name not in MULTI_ACTIONS:
                     raise ActionError("Unavailable multiplayer action")
                 if name == "flee_duel":
                     flee_success = secrets.randbits(1)
                     self.world._flee_success = bool(flee_success)
                 if name in ("practice_magic", "race_horse"):
-                    secure_roll = 1
                     self.world._private_rng_key = self._rng_key
                 try:
                     outcome = self.world.execute(actor_id, name, params,
@@ -447,15 +441,10 @@ class MultiplayerGame:
             row = self.db.execute(
                 "INSERT INTO world_journal("
                 "kind,actor_id,action,payload,request_id,result_json,recorded_at,"
-                "flee_success,secure_roll,regen_version,xp_version)"
-                " VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                "flee_success)"
+                " VALUES(?,?,?,?,?,?,?,?)",
                 (kind, actor_id, name, payload, request_id,
-                 encoded_result, recorded_at, flee_success, secure_roll,
-                 4 if kind == "advance" else 1,
-                 8 if name == "explore_hex" else
-                 7 if name == "enroll_course_choice" else
-                 6 if name == "unlock_magic" else
-                 5 if name in ("cast_spell", "duel_turn", "engage_duel") else 4))
+                 encoded_result, recorded_at, flee_success))
             if kind == "advance":
                 npc_runtime.step(self, row.lastrowid)
             for event in self.world.events[prior_events:]:
