@@ -54,3 +54,6 @@ class WorldState:
     tavern_last_room: dict[str, int] = field(default_factory=dict)
     tavern_room_until: dict[str, int] = field(default_factory=dict)
     tavern_mead: dict[str, tuple[int, int]] = field(default_factory=dict)
+    active_contracts: dict[str, tuple[str, str, int, int]] = field(default_factory=dict)
+    contract_last_started: dict[str, dict[str, int]] = field(default_factory=dict)
+    contract_escrow_gold: int = 0
