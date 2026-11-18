@@ -195,7 +195,8 @@ class WorldEngine:
 
     @property
     def total_gold(self) -> int:
-        return (self.crown_gold + sum(a.gold for a in self.actors.values())
+        return (self.crown_gold + self.state.contract_escrow_gold
+                + sum(a.gold for a in self.actors.values())
                 + sum(c.gold for c in self.companies.values())
                 + sum(city.household_gold for city in self.cities.values())
                 + sum(t.offer.gold for t in self.state.trades.values()))
@@ -602,6 +603,10 @@ class WorldEngine:
     @atomic_action
     def select_vehicle(self, actor_id: str, vehicle: str | None) -> None:
         return self.housing_system.select_vehicle(actor_id, vehicle)
+
+    @atomic_action
+    def start_city_contract(self, actor_id: str, contract_id: str) -> dict:
+        return self.city_contracts.start(actor_id, contract_id)
 
     @atomic_action
     def complete_city_contract(self, actor_id: str, contract_id: str) -> CityContractResult:

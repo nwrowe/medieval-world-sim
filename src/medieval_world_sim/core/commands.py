@@ -62,7 +62,9 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "propose_trade": CommandSpec("propose_trade", ("recipient_id", "offer", "request"), _MULTI),
     "accept_trade": CommandSpec("accept_trade", ("trade_id", "terms_hash"), _MULTI),
     "close_trade": CommandSpec("close_trade", ("trade_id",), _MULTI),
-    "complete_city_contract": CommandSpec("complete_city_contract", ("contract_id",), _BOTH),
+    # Old instant contracts are retained only for historical action journal replay.
+    "complete_city_contract": CommandSpec("complete_city_contract", ("contract_id",)),
+    "start_city_contract": CommandSpec("start_city_contract", ("contract_id",), _BOTH),
     "buy_starter_gear": CommandSpec("buy_starter_gear", ("kind",), _BOTH),
     "equip": CommandSpec("equip", ("gear_id",), _BOTH),
     "unequip": CommandSpec("unequip", ("slot",), _BOTH),

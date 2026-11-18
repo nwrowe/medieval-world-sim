@@ -146,6 +146,7 @@ EVENT_FIELDS = {
     "gear_stored": ["actor_id", "city", "gear_id"],
     "gear_retrieved": ["actor_id", "city", "gear_id"],
     "goods_retrieved": ["actor_id", "city", "item", "quantity"],
+    "city_contract_started": ["actor_id", "city", "contract_id", "ends_at", "reward"],
     "city_contract_completed": ["actor_id", "city", "contract_id", "gold", "stamina", "mana", "xp", "material"],
     "regional_bought": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],

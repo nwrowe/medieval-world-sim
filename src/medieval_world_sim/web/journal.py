@@ -206,7 +206,7 @@ def load_world(game: MultiplayerGame) -> None:
         elif actor_id not in registered:
             raise ValueError("Journal command before account registration")
         elif kind == "action":
-            if action not in MULTI_ACTIONS:
+            if action not in MULTI_ACTIONS and action != "complete_city_contract":
                 raise ValueError("Forbidden journal command")
             if action == "flee_duel":
                 if flee_success not in (0, 1):

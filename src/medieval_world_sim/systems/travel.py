@@ -260,6 +260,8 @@ class TravelSystem:
         )
         boundaries = set(range((self.world.minute // HOUR + 1) * HOUR, end + 1, HOUR))
         boundaries.update(time for time, _ in arrivals)
+        boundaries.update(record[2] for record in self.world.state.active_contracts.values()
+                          if start_minute < record[2] <= end)
         for moment in sorted(boundaries):
             self.world.minute = moment
             if moment % 1440 == 0:
@@ -271,6 +273,7 @@ class TravelSystem:
                 for city, spec in CITIES.items():
                     for item, rate in spec.deposits.items():
                         self.world.deposits[city][item] = min(DEPOSIT_CAP, self.world.deposits[city][item] + rate)
+            self.world.city_contracts.settle(moment)
             for a in self.world.actors.values():
                 if a.destination is not None:
                     reveal_travel_progress(self.world, a)

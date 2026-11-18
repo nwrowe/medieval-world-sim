@@ -96,7 +96,8 @@ def _decode(value, depth=0):
         # These additive empty defaults let a current-baseline journal and its
         # verified older checkpoint continue without retaining old game rules.
         added = {"wilderness_stock", "site_attempts", "tavern_last_room",
-                 "tavern_room_until", "tavern_mead"} if cls is WorldState else set()
+                 "tavern_room_until", "tavern_mead", "active_contracts",
+                 "contract_last_started", "contract_escrow_gold"} if cls is WorldState else set()
         if cls is Company:
             added = {"product"}
         if present - expected or expected - present - added:

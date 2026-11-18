@@ -230,6 +230,24 @@ def validate_world(world: WorldEngine) -> None:
     for actor_id, minute in world.state.last_race_minute.items():
         if actor_id not in world.actors or type(minute) is not int or not 0 <= minute <= world.minute:
             raise AssertionError("Invalid racing timestamp")
+    from ..content.contracts import CONTRACTS
+    reserved = 0
+    for actor_id, record in world.state.active_contracts.items():
+        if (actor_id not in world.actors or type(record) is not tuple or
+                len(record) != 4 or record[0] not in CONTRACTS or
+                record[1] not in world.cities or
+                type(record[2]) is not int or record[2] <= world.minute or
+                type(record[3]) is not int or
+                record[3] != CONTRACTS[record[0]].reward):
+            raise AssertionError("Invalid active civic assignment")
+        reserved += record[3]
+    if reserved != world.state.contract_escrow_gold:
+        raise AssertionError("Civic contract funds are not fully escrowed")
+    for actor_id, starts in world.state.contract_last_started.items():
+        if (actor_id not in world.actors or type(starts) is not dict or
+                any(key not in CONTRACTS or type(minute) is not int or
+                    minute < 0 or minute > world.minute for key, minute in starts.items())):
+            raise AssertionError("Invalid civic contract cooldown ledger")
     for actor_id, day in world.state.church_healed_day.items():
         if actor_id not in world.actors or type(day) is not int or not 0 <= day <= world.minute // 1440:
             raise AssertionError("Invalid church healing day")
