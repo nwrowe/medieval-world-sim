@@ -213,7 +213,7 @@ class ChronicleAuditTests(unittest.TestCase):
 
     def test_known_event_types_have_stable_categories(self):
         self.assertEqual(event_category("trade_settled"), "Trade")
-        self.assertEqual(event_category("pvp_strike"), "Combat")
+        self.assertEqual(event_category("duel_round"), "Combat")
         self.assertEqual(event_category("arrived"), "Travel")
         self.assertEqual(event_category("course_started"), "University")
         self.assertEqual(event_category("unknown_kind"), "Other")
