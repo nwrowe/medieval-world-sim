@@ -19,15 +19,40 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
     owned = []
     jobs = []
     offers_to_me = []
+    directory = []
+    extra_candidates = set()
     candidate_ids = sorted(
         a.id for a in world.actors.values()
         if a.kind == "human" and a.city == actor.city
         and a.destination is None and a.wilderness_hex is None)
     for company in sorted(world.companies.values(), key=lambda c: c.id):
+        visible_name = company.display_name or company.id
+        applied = actor_id in company.applicants
+        directory.append({
+            "id": company.id, "name": visible_name,
+            "industry": company.industry, "city": company.city,
+            "owner": names.get(company.owner_id, company.owner_id),
+            "hiring": company.hiring, "applied": applied,
+            "employees": len(company.employees),
+            "can_apply": company.hiring and not applied and
+                         actor_id != company.owner_id and
+                         actor_id not in company.employees and
+                         actor_id not in company.job_offers,
+            "sale_price": company.sale_price,
+            "can_buy": bool(company.sale_price) and
+                       company.owner_id != actor_id and not any(
+                           c.owner_id == actor_id for c in world.companies.values()) and
+                       local and actor.city == company.city and
+                       actor.gold >= company.sale_price,
+            "facility_level": company.facility_level,
+            "shifts_completed": company.shifts_completed,
+            "daily_revenue": company.daily_revenue,
+        })
         if company.owner_id == actor_id:
+            extra_candidates.update(company.applicants)
             quality = world.company_quality(company.id)
             owned.append({
-                "id": company.id, "city": company.city,
+                "id": company.id, "name": visible_name, "city": company.city,
                 "industry": company.industry, "gold": company.gold,
                 "product": company.product or next(iter(RECIPES[company.industry].outputs)),
                 "inventory": {k: v for k, v in company.inventory.items() if v > 0},
@@ -51,10 +76,14 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
                 "daily_revenue": company.daily_revenue,
                 "daily_units_sold": company.daily_units_sold,
                 "can_manage": local and actor.city == company.city,
+                "hiring": company.hiring, "sale_price": company.sale_price,
+                "applicants": [{"id": member, "name": names.get(member, member)}
+                               for member in sorted(company.applicants)],
             })
         if actor_id in company.employees:
             jobs.append({
-                "company_id": company.id, "industry": company.industry,
+                "company_id": company.id, "company_name": visible_name,
+                "industry": company.industry,
                 "city": company.city,
                 "wage": asdict(company.employees[actor_id]),
                 "can_shift": local and actor.city == company.city
@@ -63,7 +92,8 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
             })
         if actor_id in company.job_offers:
             offers_to_me.append({
-                "company_id": company.id, "industry": company.industry,
+                "company_id": company.id, "company_name": visible_name,
+                "industry": company.industry,
                 "city": company.city,
                 "wage": asdict(company.job_offers[actor_id]),
                 "can_accept": local and actor.city == company.city,
@@ -75,7 +105,7 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
             if offer.city != actor.city:
                 continue
             company = world.companies.get(offer.seller_id)
-            label = company.id if company else names.get(
+            label = (company.display_name or company.id) if company else names.get(
                 offer.seller_id, offer.seller_id)
             gear = world.gear.get(offer.gear_id) if offer.gear_id else None
             stalls.append({
@@ -100,15 +130,15 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
             } for label, spec in sorted(INDUSTRY_PRODUCTS[key].items())]
         } for key, recipe in sorted(RECIPES.items())],
         "goods": sorted(GOODS),
-        "owned": owned,
+        "owned": owned, "directory": directory,
         "jobs": jobs,
         "job_offers": offers_to_me,
         "candidates": [{"id": ident, "name": names.get(ident, ident)}
-                       for ident in candidate_ids],
+                       for ident in sorted(set(candidate_ids) | extra_candidates)],
         "listings": stalls,
         "market_sources": [
             {"id": actor_id, "name": "My inventory"},
-            *[{"id": c["id"], "name": c["id"] + " (company)"}
+            *[{"id": c["id"], "name": c["name"] + " (company)"}
               for c in owned if c["can_manage"]],
         ] if local else [],
     }
