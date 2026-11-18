@@ -1,6 +1,7 @@
 """The authoritative command registry owns method signatures and web exposure."""
 from realm_fixtures import GOLDMEADOW
 
+import inspect
 import unittest
 from dataclasses import FrozenInstanceError
 
@@ -23,6 +24,25 @@ class CommandRegistryTests(unittest.TestCase):
                 self.assertTrue(callable(getattr(WorldEngine, spec.method, None)))
                 self.assertEqual(len(spec.fields), len(set(spec.fields)))
                 self.assertTrue(spec.web_modes <= {"single", "multi"})
+
+    def test_registered_methods_accept_the_declared_command_fields(self):
+        # WorldEngine.execute passes a trusted principal followed by the fields
+        # in registry order. Detect drift before a player encounters a TypeError.
+        for name, spec in COMMAND_SPECS.items():
+            with self.subTest(command=name):
+                method = getattr(WorldEngine, spec.method)
+                parameters = list(inspect.signature(method).parameters.values())
+                self.assertGreaterEqual(len(parameters), 2)
+                self.assertEqual(parameters[0].name, "self")
+                self.assertEqual(
+                    len(parameters) - 2, len(spec.fields),
+                    f"{name} must accept one principal plus {len(spec.fields)} fields",
+                )
+                self.assertTrue(all(
+                    p.kind in (inspect.Parameter.POSITIONAL_ONLY,
+                               inspect.Parameter.POSITIONAL_OR_KEYWORD)
+                    for p in parameters
+                ), f"{name} cannot use keyword-only or variadic command arguments")
 
     def test_web_policies_are_derived_from_registry(self):
         self.assertEqual(UI_ACTIONS, SINGLE_PLAYER_ACTIONS)

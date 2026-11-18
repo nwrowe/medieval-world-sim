@@ -21,7 +21,7 @@ jobs:
       - name: Check Python source and test lint
         run: |
           ruff check src tests
-          ruff check --select E4,E7,E9,F src/medieval_world_sim/core/commands.py tests/test_command_registry.py
+          ruff check --select E4,E7,E9,F src/medieval_world_sim/core/commands.py tests/test_command_registry.py tests/test_architecture_boundaries.py
           ruff check --select E4,E7,E9,F src/medieval_world_sim/web/accounts.py src/medieval_world_sim/web/social.py src/medieval_world_sim/web/journal.py src/medieval_world_sim/web/ledger.py src/medieval_world_sim/web/checkpoint.py
       - name: Verify browser JavaScript syntax
         run: node --check src/medieval_world_sim/web/static/app.js
