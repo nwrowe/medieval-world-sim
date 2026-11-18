@@ -250,6 +250,30 @@ export function createCommunityViews(ctx) {
     const pending = ctx.getPending();
     const duel = state.duel;
     const p = state.player;
+    const previewId = ctx.getDuelPreviewTarget?.();
+    if (!duel && previewId) {
+      const target = (state.users || []).find(u => u.id === previewId);
+      if (!target || !target.can_attack)
+        return heading("", "Attack unavailable",
+          "The target has moved or is no longer available.") +
+          button("Back", 'data-ui="duel-preview-back"', "secondary");
+      const options = (state.combat_moves || []).filter(option =>
+        ["strike", "fists", "dagger"].includes(option.move));
+      return heading("", "Attack · " + target.name,
+        "Choose an opening attack. No combat begins until your first swing.") +
+        '<div class="combat-vitals">' +
+        panel(state.name, "Your health", progress(p.hp, p.max_hp)) +
+        panel(target.name, "Target health", progress(target.hp, target.max_hp)) +
+        '</div>' +
+        panel("Opening attack", "You can leave this screen without starting combat.",
+          '<div class="combat-actions">' +
+          options.map(option => button(option.move === "strike" ? "Attack" : option.label,
+            'data-ui="duel-engage" data-move="' + option.move + '"' +
+            disabled(pending || !option.available),
+            option.move === "strike" ? "gold" : "secondary")).join('') +
+          button("Back", 'data-ui="duel-preview-back"', "secondary") +
+          '</div>');
+    }
     if (!duel) {
       const result = state.last_duel;
       const title = result ? (
@@ -307,20 +331,20 @@ export function createCommunityViews(ctx) {
           "Your character counterattacks every attacking move without spending stamina.",
           '<p>Your opponent controls the offensive turns. You can watch the battle ' +
           'or flee at any time; you do not need to respond manually.</p>' +
-          button("Flee · 50% chance", 'data-ui="duel-flee" title="Uses one round. A failed escape invites an automatic counterattack."' +
-            disabled(pending), "ghost")) :
+          button("Flee", 'data-ui="duel-flee" title="50% escape chance; a failed attempt invites a counterattack."' +
+            disabled(pending), "secondary")) :
       panel("Choose your move", "Attack stamina is paid once per swing. Defensive counterstrikes cost none.",
         '<div class="combat-actions">' +
         (state.combat_moves || []).map(option =>
-          button(option.label + ' · ' + option.stamina + ' stamina',
+          button(option.move === "strike" ? "Attack" : option.label,
             'data-ui="duel-swing" data-move="' + option.move + '"' +
             disabled(pending || !option.available),
             option.move === "strike" ? "gold" : "secondary")).join('') +
-        button("Guard · " + state.guard_stamina_cost + " stamina",
+        button("Guard",
           'data-ui="duel-guard"' + disabled(pending ||
             p.stamina < state.guard_stamina_cost), "secondary") +
-        button("Flee · 50% chance", 'data-ui="duel-flee" title="Uses one round. A failed escape invites an automatic counterattack."' +
-            disabled(pending), "ghost") +
+        button("Flee", 'data-ui="duel-flee" title="50% escape chance; a failed attempt invites a counterattack."' +
+            disabled(pending), "secondary") +
         '</div><h4>Combat magic</h4>' +
         '<div class="combat-actions">' +
         (casts || '<p class="small">Unlock spells on the Magic page to use them here.</p>') +

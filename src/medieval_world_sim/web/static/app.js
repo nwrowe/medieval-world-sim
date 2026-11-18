@@ -39,10 +39,16 @@ import { createWorldViews } from "/world-views.mjs";
     { id: "people", icon: "⌕", title: "Search" },
   ];
   let state = null;
+  let duelPreviewTarget = null;
   let lineageCatalog = [];
   let tab = "character";
   const pageHistory = [];
+  function combatNavigationLocked() {
+    return Boolean(state && state.duel && state.duel.attack_started);
+  }
   function navigateTo(nextTab) {
+    if (combatNavigationLocked() && nextTab !== "duel") return;
+    if (nextTab !== "duel") duelPreviewTarget = null;
     if (nextTab !== tab) {
       pageHistory.push(tab);
       if (pageHistory.length > 25) pageHistory.shift();
@@ -298,8 +304,9 @@ import { createWorldViews } from "/world-views.mjs";
           defense: state.player.defense - oldStats.defense };
       }
       syncAttunements();
-      if (body && ["start_duel", "duel_turn", "flee_duel"].includes(body.action)) {
+      if (body && ["start_duel", "engage_duel", "duel_turn", "flee_duel"].includes(body.action)) {
         tab = "duel";
+        if (body.action === "engage_duel") duelPreviewTarget = null;
       }
       if (body && body.action === "practice_magic" && result.result) {
         latestPractice = { ...result.result, nodeId: body.params.node_id };
@@ -627,10 +634,12 @@ import { createWorldViews } from "/world-views.mjs";
     return items + meritAlert + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
+    const locked = combatNavigationLocked();
     return '<button type="button" class="nav-button ' + className +
       (tab === entry.id ? ' active' : '') +
-      '" data-tab="' + esc(entry.id) + '" aria-current="' +
-      (tab === entry.id ? 'page' : 'false') + '">' +
+      (locked ? ' combat-nav-locked' : '') +
+      '" data-tab="' + esc(entry.id) + '"' + disabled(locked) +
+      ' aria-current="' + (tab === entry.id ? 'page' : 'false') + '">' +
       '<span class="nav-icon" aria-hidden="true">' + entry.icon + '</span>' +
       '<span>' + esc(entry.title) + '</span></button>';
   }
@@ -674,8 +683,9 @@ import { createWorldViews } from "/world-views.mjs";
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
       (multiMode ? '<div class="account-utility">' +
-        '<button class="profile-shortcut" type="button" data-ui="profile-self" ' +
-        'aria-label="View your character profile" title="Your character">' +
+        '<button class="profile-shortcut" type="button" data-ui="profile-self"' +
+        disabled(combatNavigationLocked()) +
+        ' aria-label="View your character profile" title="Your character">' +
         '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" ' +
         'stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="12" cy="8" r="4"/>' +
@@ -763,6 +773,7 @@ import { createWorldViews } from "/world-views.mjs";
       getState: () => state,
       getPeopleQuery: () => peopleQuery,
       getSearchScope: () => searchScope,
+      getDuelPreviewTarget: () => duelPreviewTarget,
       getMultiMode: () => multiMode,
       getSelectedCharacterId: () => selectedCharacterId,
       getPending: () => pending,
@@ -1047,7 +1058,7 @@ import { createWorldViews } from "/world-views.mjs";
       '" aria-label="Chat">' +
       '<div class="chat-dock-actions"><button type="button" class="chat-game-refresh" ' +
       'data-ui="page-back" title="Back to previous page" aria-label="Back to previous page"' +
-      disabled(!pageHistory.length) + '>‹</button>' +
+      disabled(!pageHistory.length || combatNavigationLocked()) + '>‹</button>' +
       '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
       'aria-expanded="' + chatOpen + '">' +
       '<span aria-hidden="true">✉</span> Chat ' +
@@ -1533,9 +1544,27 @@ import { createWorldViews } from "/world-views.mjs";
       case "trade-close":
         action("close_trade", { trade_id: Number(element.dataset.tradeId) },
           "Trade closed; escrow returned to maker"); break;
-      case "player-attack":
-        action("start_duel", { defender_id: element.dataset.player },
-          "Challenge begun · choose your combat move"); break;
+      case "player-attack": {
+        if (combatNavigationLocked()) break;
+        const target = (state.users || []).find(person =>
+          person.id === element.dataset.player && person.can_attack);
+        if (!target) { notify("The target is no longer available", true); break; }
+        duelPreviewTarget = target.id;
+        navigateTo("duel");
+        render();
+        break;
+      }
+      case "duel-preview-back":
+        duelPreviewTarget = null;
+        navigateTo("people");
+        render(); break;
+      case "duel-engage": {
+        const target = duelPreviewTarget;
+        if (!target || combatNavigationLocked()) break;
+        action("engage_duel", { defender_id: target, move: element.dataset.move },
+          "Attack resolved");
+        break;
+      }
       case "duel-swing":
         action("duel_turn", { move: element.dataset.move, node_id: "" },
           "Attack resolved"); break;

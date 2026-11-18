@@ -284,7 +284,7 @@ class GameSession:
                 ruleset = 11
             if record.get("name") == "practice_magic":
                 ruleset = 16
-            if record.get("name") in ("cast_spell", "duel_turn"):
+            if record.get("name") in ("cast_spell", "duel_turn", "engage_duel"):
                 ruleset = 17
             if record.get("name") == "unlock_magic":
                 ruleset = 18

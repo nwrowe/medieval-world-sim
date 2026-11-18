@@ -264,6 +264,12 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 }
 .side-nav .nav-button:hover { background:#d4dfd1; color:#254433; }
 .side-nav .nav-button.active { background:#25493b; color:#f8dfae; }
+/* Combat cannot be left after a real attack; preview navigation stays active. */
+.side-nav .nav-button:disabled,
+.account-nav .nav-button:disabled,
+.mobile-nav .nav-button:disabled { opacity:.35; color:#85918b; background:#d9dfd9; cursor:not-allowed; pointer-events:none; }
+.account-nav .nav-button:disabled { background:#283b33; color:#86948a; }
+.profile-shortcut:disabled, .chat-game-refresh:disabled { opacity:.35; cursor:not-allowed; }
 .sidebar-foot { margin-top:28px; border-top:1px solid #cdd7cb; color:#819184; font-size:11px; line-height:1.5; padding:15px 12px; }
 .main-column { min-width:0; }
 .page { max-width:1200px; margin:0 auto; padding:27px clamp(17px,3vw,40px) 70px; }

@@ -538,6 +538,18 @@ class WorldEngine:
         return self.duel_system.start(attacker_id, defender_id)
 
     @atomic_action
+    def engage_duel(self, attacker_id: str, defender_id: str, move: str) -> dict:
+        """Start and resolve the first physical swing in one atomic action.
+
+        Opening an attack preview creates no server duel or notification.
+        Retaining start_duel preserves historical recorded commands.
+        """
+        if move not in ("strike", "fists", "dagger"):
+            raise ActionError("Opening move must be a physical attack")
+        self.duel_system.start(attacker_id, defender_id)
+        return self.duel_system.turn(attacker_id, move, "")
+
+    @atomic_action
     def duel_turn(self, attacker_id: str, move: str, node_id: str) -> dict:
         return self.duel_system.turn(attacker_id, move, node_id)
 
