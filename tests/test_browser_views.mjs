@@ -51,6 +51,7 @@ assert.match(views.renderWorld(), /<h2>Map<\/h2>/);
 assert.match(views.renderMarket(), /Market/);
 assert.match(views.renderMagic(), /Magic/);
 assert.match(views.renderHome(), /Property/);
+assert.doesNotMatch(views.renderHome(), /Invest in your future/);
 // Mutable state is read fresh on every render; there must be no stale snapshot.
 state = { ...state, gatherable: { grain: 2 },
   world_map: {
@@ -73,7 +74,7 @@ assert.match(map, /data-ui="explore-hex" data-x="2" data-y="1"/);
 assert.match(map, /survey-site-marker map-destination/);
 assert.match(map, /survey-city-marker map-destination/);
 assert.match(map, /pointer-events="all"/);
-assert.doesNotMatch(map, /Roads and destinations|Gather nearby resources|Time and recovery/i);
+assert.doesNotMatch(map, /Roads and destinations|Gather nearby resources|Time and recovery|Return to a settlement for commerce/i);
 assert.doesNotMatch(map, /Exploration and Awareness|A growing atlas/i);
 assert.doesNotMatch(map, /Click any highlighted land hex|Journeys use the cost/);
 assert.doesNotMatch(map, /grain/);
