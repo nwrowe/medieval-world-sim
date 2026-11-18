@@ -169,10 +169,8 @@ class CivilianEconomyEngineTests(unittest.TestCase):
         for idx, (name, params) in enumerate(bad):
             with self.subTest(name=name, args=idx), self.assertRaises(ActionError):
                 self.run_command(w, "owner", name, params, "bad-" + str(idx))
-        self.found(w, name="second_shop")
-        self.found(w, name="third_shop")
         with self.assertRaises(ActionError):
-            self.found(w, name="fourth_shop")
+            self.found(w, name="second_shop")
         w.assert_invariants()
 
     def test_projection_never_exposes_other_players_company_assets(self):

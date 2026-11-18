@@ -133,9 +133,9 @@ class TavernTests(unittest.TestCase):
         for count in range(6):
             result = w.buy_tavern_mead("guest")
             self.assertEqual(result["remaining"], 5 - count)
-            self.assertEqual(result["stamina_gained"], 6)
+            self.assertEqual(result["stamina_gained"], 4)
         self.assertEqual(actor.hp, 12)
-        self.assertEqual(actor.stamina, 66)
+        self.assertEqual(actor.stamina, 54)
         self.assertEqual(actor.gold, 150 - 18)
         self.assertFalse(w.tavern_system.view("guest")["mead_available"])
         with self.assertRaisesRegex(ActionError, "cut off"):
@@ -257,7 +257,7 @@ class RestartTests(unittest.TestCase):
             path = Path(tmp) / "world.json"
             game = GameSession(path)
             game.create("Inn Traveler")
-            game.action("complete_city_contract",
+            game.action("start_city_contract",
                         {"contract_id": "warrior_patrol"}, "stamina-used")
             game.action("rent_tavern_room", {}, "room")
             game.action("buy_tavern_mead", {}, "drink")
@@ -276,7 +276,7 @@ class RestartTests(unittest.TestCase):
             try:
                 user = game.register("tavernguest", "correct horse battery staple",
                                      "Tavern Guest")
-                game.action(user, "complete_city_contract",
+                game.action(user, "start_city_contract",
                             {"contract_id": "warrior_patrol"}, "work")
                 rented = game.action(user, "rent_tavern_room", {}, "room")
                 self.assertEqual(game.action(user, "rent_tavern_room", {}, "room"),

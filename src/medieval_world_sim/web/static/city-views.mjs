@@ -25,8 +25,9 @@ export function createCityViews(ctx) {
     const p = state.player;
     const offers = (state.contracts || []).filter(contract => contract.venue === venue);
     const items = offers.map(contract => {
-      const can = !isBusy() && contract.cooldown_available &&
-        contract.can_pay && contract.has_material &&
+      const can = !isBusy() && !state.active_contract &&
+        contract.cooldown_available && contract.can_pay &&
+        contract.has_material &&
         p.stamina >= contract.stamina && p.mana >= contract.mana;
       const costs = [contract.stamina ? contract.stamina + ' stamina' : null,
         contract.mana ? contract.mana + ' mana' : null,
@@ -35,29 +36,36 @@ export function createCityViews(ctx) {
         '<p>' + esc(contract.description) + '</p>' +
         '<div class="contract-terms"><span>+' + contract.reward + ' gold</span>' +
         '<span>' + esc(costs.length ? costs.join(' · ') : 'No item cost') + '</span>' +
-        '<span>+' + contract.cooldown_minutes + 'm Job cooldown</span></div>' +
+        '<span>' + esc(dur(contract.duration_minutes)) + ' shift</span>' +
+        '<span>24h repeat cooldown</span></div>' +
         (!contract.can_pay ? '<p class="small">The city cannot currently fund this offer.</p>' :
          !contract.has_material ? '<p class="small">You need ' + esc(pretty(contract.material)) + '.</p>' :
-         !contract.cooldown_available ?
-           '<p class="small">Job cooldown limit: 24h. Pass game time to work again.</p>' : '') +
+         state.active_contract ?
+           '<p class="small">Finish your current assignment first.</p>' :
+         contract.cooldown_remaining ?
+           '<p class="small">Available in ' + esc(dur(contract.cooldown_remaining)) + '.</p>' : '') +
         '</div>' +
-        button("Complete contract", 'data-ui="contract" data-contract="' +
+        button("Start shift", 'data-ui="contract" data-contract="' +
           esc(contract.id) + '"' + disabled(!can), "secondary") + '</div>';
     }).join("");
     let report = "";
-    if (latestContract && offers.some(c => c.id === latestContract.contract_id)) {
-      const scene = contractScenes[latestContract.contract_id] || "You finish your work and receive payment.";
-      report = '<div class="practice-report" role="status"><h3>Contract completed</h3>' +
-        '<p>' + esc(scene) + '</p><div class="practice-rewards"><span>+' +
-        latestContract.reward + ' gold</span><span>+' + latestContract.xp_gained +
-        ' XP</span></div></div>';
+    if (latestContract && state.active_contract &&
+        latestContract.contract_id === state.active_contract.contract_id &&
+        offers.some(c => c.id === latestContract.contract_id)) {
+      report = '<div class="practice-report" role="status"><h3>Job initiated</h3>' +
+        '<p>' + esc(latestContract.title) + ' · Payment and XP awarded at shift completion.</p></div>';
     }
     return report + panel(title, "",
       items || '<p class="empty">No contracts are posted here.</p>');
   }
   function renderMercenaryJobs() {
+    const active = ctx.getState().active_contract;
+    const activePanel = active ? panel("Current assignment", "",
+      '<p><strong>' + esc(active.title) + '</strong> · ' +
+      esc(dur(active.remaining_minutes)) +
+      ' remaining. Wages and XP are awarded on completion.</p>') : "";
     return heading("", "Mercenary Jobs", "") +
-      '<div class="stack">' +
+      '<div class="stack">' + activePanel +
       contractBoard("warriors", "Warrior contracts") +
       contractBoard("mageguild", "Mage contracts") +
       contractBoard("church", "Church contracts") +
@@ -267,9 +275,7 @@ export function createCityViews(ctx) {
     const state = ctx.getState();
     const p = state.player, t = state.tavern || {};
     const remaining = t.room_cooldown_remaining || 0;
-    const status = t.room_boost_remaining > 0 ?
-      '<p class="small">Recovery doubled for ' + esc(dur(t.room_boost_remaining)) +
-      ' more.</p>' : remaining ?
+    const status = remaining ?
       '<p class="small">Another room in ' + esc(dur(remaining)) + '.</p>' : '';
     const cutoff = t.mead_remaining <= 0;
     return heading("", "Wayfarer's Tavern", "") +
@@ -280,12 +286,12 @@ export function createCityViews(ctx) {
         button("Rent room · " + money(t.room_price || 12),
           'data-ui="tavern-room"' +
           disabled(!t.room_available || isBusy()), "secondary")) +
-      panel("Mead", "",
-        '<p>+6 Stamina · −2 Health · ' + money(t.mead_price || 3) + '</p>' +
+      panel("Mug of mead", "",
+        '<p>Enjoy a mug of mead.</p>' +
         (cutoff ? '<p class="small">You are cut off until noon Oathmere time.</p>' :
           '<p class="small">' + t.mead_remaining + ' of ' + t.mead_limit +
           ' drinks remaining until noon.</p>') +
-        button(cutoff ? "Cut off until noon" : "Buy mead",
+        button(cutoff ? "Cut off until noon" : "Buy mead · " + money(t.mead_price || 3),
           'data-ui="tavern-mead"' + disabled(!t.mead_available || isBusy()),
           "secondary")) +
       (!ctx.getSecureWorldClock() ? panel("Pass time", "",

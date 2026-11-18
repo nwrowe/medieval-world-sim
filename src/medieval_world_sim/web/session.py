@@ -204,7 +204,7 @@ class GameSession:
                 if type(record.get("flee_success")) is not bool:
                     raise ValueError("Invalid saved flee roll")
                 self.world._flee_success = record["flee_success"]
-            if set(record) != expected or name not in UI_ACTIONS:
+            if set(record) != expected or name not in (UI_ACTIONS | {"complete_city_contract"}):
                 raise ValueError("Unsupported journal action")
             if name == "investigate_site":
                 rule = record.get("site_reward_rule", 1)

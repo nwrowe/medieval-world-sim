@@ -122,22 +122,29 @@ class SaveCompatibilityTests(unittest.TestCase):
             game.action("gather", {"item": "grain", "quantity": 2}, "gather")
             game.action("store_goods", {"item": "grain", "quantity": 2}, "store")
             self.assertEqual(game.snapshot()["player"]["stored_here"]["grain"], 2)
-            # Gathering has a cooldown; the employment hall respects it.
+            # Civic shifts reserve wages and pay only at the end.
             game.advance(60)
-            game.action("complete_city_contract",
+            initial_gold = game.snapshot()["player"]["gold"]
+            result = game.action("start_city_contract",
                 {"contract_id": "labor_shift"}, "job")
+            self.assertEqual(game.snapshot()["player"]["work"]["shifts"], 0)
+            self.assertEqual(game.snapshot()["player"]["gold"], initial_gold)
+            self.assertEqual(game.snapshot()["active_contract"]["contract_id"], "labor_shift")
+            self.assertEqual(GameSession(path).snapshot(), game.snapshot())
+            count = len(game.records)
+            self.assertEqual(game.action("start_city_contract",
+                {"contract_id": "labor_shift"}, "job"), result)
+            self.assertEqual(len(game.records), count)
+            with self.assertRaises(ActionError):
+                game.action("start_city_contract",
+                    {"contract_id": "warrior_patrol"}, "other-job")
+            game.advance(180)
             self.assertEqual(game.snapshot()["player"]["work"]["shifts"], 1)
-            view = game.snapshot()
-            self.assertEqual(GameSession(path).snapshot(), view)
-            record_count = len(game.records)
-            result = game.action("complete_city_contract",
-                {"contract_id": "labor_shift"}, "job")
-            self.assertEqual(result.reward, 9)
-            self.assertEqual(len(game.records), record_count)
-            # New job cooldowns stack independently up to 24 simulated hours.
-            game.action("complete_city_contract",
-                {"contract_id": "labor_shift"}, "second-job")
-            self.assertEqual(game.snapshot()["player"]["cooldowns"]["job"]["remaining_minutes"], 120)
+            self.assertEqual(game.snapshot()["player"]["gold"], initial_gold + 9)
+            self.assertIsNone(game.snapshot()["active_contract"])
+            with self.assertRaises(ActionError):
+                game.action("start_city_contract",
+                    {"contract_id": "labor_shift"}, "repeat-job")
             self.assertEqual(GameSession(path).snapshot(), game.snapshot())
 
 

@@ -90,6 +90,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   let travelIntent = null;
   let hexIntent = null;
   let guildLeaveIntent = null;
+  let confirmationIntent = null;
+  let companySection = "overview";
+  function requestConfirmation({title, description, button, command, params, success}) {
+    confirmationIntent = {title, description, button, command, params, success};
+    render();
+  }
   let mapZoom = 2.5;
   let forceMapCenter = false;
   let mapPollBusy = false;
@@ -347,7 +353,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         latestPractice = { ...result.result, nodeId: body.params.node_id };
         tab = "magic";
       }
-      if (body && body.action === "complete_city_contract" && result.result) {
+      if (body && body.action === "start_city_contract" && result.result) {
         latestContract = result.result;
       }
       if (body && body.action === "send_chat") chatDraft = "";
@@ -661,7 +667,22 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         " · your character automatically counterattacks. Open to watch or flee.") +
       '" aria-label="Under attack · open combat">' +
       '<span aria-hidden="true">⚔</span><strong>Under attack</strong></button>' : "";
-    return items + meritAlert + trade + travel + university + hospital + defenderAlert;
+    const roomRemaining = state.tavern?.room_boost_remaining || 0;
+    const room = roomRemaining > 0 ?
+      '<button class="cooldown-chip activity-clickable" type="button" ' +
+      'data-activity-key="tavern-room" data-ui="activity-tavern"' +
+      timerAttrs("Room recovery bonus · ", roomRemaining * 60) +
+      ' aria-label="Double recovery active"><span aria-hidden="true">♜</span>' +
+      '<strong data-timer-display>' +
+      fullCountdown(timerSeconds(roomRemaining * 60)) + '</strong></button>' : "";
+    const activeShift = state.active_contract;
+    const shift = activeShift ? '<button class="cooldown-chip activity-clickable" ' +
+      'type="button" data-activity-key="civic-shift" data-ui="activity-mercenary"' +
+      timerAttrs("Mercenary job · ", activeShift.remaining_minutes * 60) +
+      '><span aria-hidden="true">▣</span><strong data-timer-display>' +
+      fullCountdown(timerSeconds(activeShift.remaining_minutes * 60)) +
+      '</strong></button>' : "";
+    return items + room + shift + meritAlert + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     const locked = combatNavigationLocked();
@@ -675,9 +696,14 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   }
   function shell() {
     const p = state.player;
-    const location = state.cities.find(c => c.id === p.city);
-    const place = p.destination ? ("En route to " + pretty(p.destination)) :
-      (location ? placeName(location.name) : pretty(p.city));
+    const location = (state.cities || []).find(c => c.id === p.city);
+    const goalCity = (state.cities || []).find(c => c.id === p.destination);
+    const inWilderness = Boolean(state.world_map?.in_wilderness);
+    const place = p.destination ?
+      (p.hex_target ? "Exploring the wilderness" :
+        "En route to " + (goalCity ? goalCity.name : pretty(p.destination))) :
+      inWilderness ? "Wilderness" :
+      location ? location.name : pretty(p.city);
     const renderers = {
       world: () => renderWorld() + renderWilderness(),
       market: () => renderMarket() + renderStalls(),
@@ -697,7 +723,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     };
     const view = state.duel && state.duel.role !== "defender" ?
       renderDuel : (renderers[tab] || renderWorld);
-    const sidebar = cityLinks.filter(t => !t.onlyCity || t.onlyCity === p.city)
+    const remoteLinks = new Set(["inventory","magic","guilds","merits"]);
+    const sidebar = cityLinks.filter(t =>
+      (!t.onlyCity || t.onlyCity === p.city) &&
+      (!p.destination && !inWilderness || remoteLinks.has(t.id)))
       .map(t => navButton(t)).join('');
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
@@ -943,10 +972,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   const { renderCompanies, renderEmployment, renderStalls } =
     createEconomyViews({
       getState: () => state,
+      getCompanySection: () => companySection,
       esc, pretty, money, button, disabled, isBusy, heading, panel,
     });
   const { handleEconomyClick } = createEconomyActions({
     getRoot: () => root, getState: () => state, action, notify,
+    confirmAction: requestConfirmation,
   });
   function levelUpOverlay() {
     if (!levelCelebration) return "";
@@ -1272,6 +1303,19 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '</aside>';
   }
 
+  function gameConfirmation() {
+    const choice = confirmationIntent;
+    if (!choice) return "";
+    return '<div class="travel-confirm-overlay" role="presentation">' +
+      '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="game-confirm-title" aria-describedby="game-confirm-description">' +
+      '<h2 id="game-confirm-title">' + esc(choice.title) + '</h2>' +
+      '<p id="game-confirm-description">' + esc(choice.description) + '</p>' +
+      '<div class="travel-confirm-actions">' +
+      button("Cancel", 'data-ui="game-confirm-cancel"', "secondary") +
+      button(choice.button, 'data-ui="game-confirm-accept"', "gold") +
+      '</div></section></div>';
+  }
   function guildLeaveConfirmation() {
     const own = state && state.guilds && state.guilds.my_guild;
     if (!guildLeaveIntent || !own) return "";
@@ -1307,7 +1351,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay() +
       (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "") +
-      guildLeaveConfirmation();
+      guildLeaveConfirmation() + gameConfirmation();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
     const map = root.querySelector(".terrain-map-scroll");
@@ -1469,6 +1513,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   });
 
   document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && confirmationIntent) {
+      event.preventDefault();
+      confirmationIntent = null;
+      render();
+      return;
+    }
     if (event.key === "Escape" && (travelIntent || hexIntent)) {
       event.preventDefault();
       travelIntent = null;
@@ -1477,11 +1527,22 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     }
   });
 
+  root.addEventListener("input", event => {
+    if (event.target.id !== "occupation-company-search") return;
+    const term = event.target.value.trim().toLowerCase();
+    for (const row of root.querySelectorAll("[data-company-search]")) {
+      row.hidden = !row.dataset.companySearch.includes(term);
+    }
+  });
   root.addEventListener("click", event => {
     const summary = event.target.closest(".university-school > summary");
     if (summary) {
       const details = summary.parentElement;
-      expandedUniversitySchool = details.open ? null : details.dataset.university;
+      const opening = !details.open;
+      for (const other of root.querySelectorAll(".university-school")) {
+        if (other !== details) other.open = false;
+      }
+      expandedUniversitySchool = opening ? details.dataset.university : null;
       return;
     }
     const element = event.target.closest("button, [data-ui=\"explore-hex\"]");
@@ -1502,6 +1563,21 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const item = element.dataset.item;
     const node = element.dataset.node;
     switch (ui) {
+      case "game-confirm-cancel":
+        confirmationIntent = null; render(); break;
+      case "game-confirm-accept": {
+        const choice = confirmationIntent;
+        confirmationIntent = null;
+        if (choice) action(choice.command, choice.params, choice.success);
+        break;
+      }
+      case "activity-tavern":
+        navigateTo("tavern"); render(); break;
+      case "activity-mercenary":
+        navigateTo("mercenary"); render(); break;
+      case "company-section":
+        companySection = element.dataset.section || "overview";
+        render(); break;
       case "enter-oathmere":
         completeIntroduction();
         tab = "character";
@@ -1663,10 +1739,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       case "tavern-room": {
         const t = state?.tavern;
         if (!t?.room_available) break;
-        if (!window.confirm("Rent a room for " + t.room_price +
-          " gold? Recovery will be doubled for 30 game minutes. " +
-          "You may rent again in 24 game hours.")) break;
-        action("rent_tavern_room", {}, "Room rented; recovery doubled");
+        requestConfirmation({
+          title: "Rent a room?",
+          description: "Pay " + t.room_price + " gold to double Life, Stamina and Mana recovery for 30 game minutes. Available again after 24 game hours.",
+          button: "Rent room", command: "rent_tavern_room",
+          params: {}, success: "Room rented; recovery doubled"
+        });
         break;
       }
       case "tavern-mead":
@@ -1784,19 +1862,24 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         if (!Number.isSafeInteger(quantity) || quantity <= 0) {
           notify("Enter a positive whole quantity", true); return;
         }
-        if (ui === "discard" && !window.confirm(
-          "Permanently discard " + quantity + " " + pretty(item) + "?")) break;
-        action(ui === "discard" ? "discard_goods" :
-          ui === "store" ? "store_goods" : "retrieve_goods",
-          { item, quantity }, ui === "discard" ? "Goods discarded" :
-          ui === "store" ? "Goods stored" : "Goods retrieved");
+        if (ui === "discard") requestConfirmation({
+          title: "Discard goods?",
+          description: "Permanently discard " + quantity + " " + pretty(item) + "? This cannot be undone.",
+          button: "Discard", command: "discard_goods",
+          params: {item, quantity}, success: "Goods discarded"
+        });
+        else action(ui === "store" ? "store_goods" : "retrieve_goods",
+          {item, quantity}, ui === "store" ? "Goods stored" : "Goods retrieved");
         break;
       }
       case "discard-gear": {
         const gearId = Number(element.dataset.gearId);
         if (!Number.isSafeInteger(gearId) || gearId <= 0) break;
-        if (!window.confirm("Permanently discard this equipment?")) break;
-        action("discard_gear", { gear_id: gearId }, "Equipment discarded");
+        requestConfirmation({
+          title: "Discard equipment?", description: "Permanently destroy this piece of equipment? This cannot be undone.",
+          button: "Discard", command: "discard_gear",
+          params: {gear_id: gearId}, success: "Equipment discarded"
+        });
         break;
       }
       case "store-gear":
@@ -1812,8 +1895,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       }
       case "consume":
         action("consume", { item }, pretty(item) + " used"); break;
-      case "contract": action("complete_city_contract",
-        { contract_id: element.dataset.contract }, "Contract completed"); break;
+      case "contract": action("start_city_contract",
+        { contract_id: element.dataset.contract }, "Job initiated"); break;
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
       case "find-people":
         peopleQuery = document.getElementById("people-query").value.trim();

@@ -43,13 +43,21 @@ const ctx = {
   heading:(_,title)=>'<h2>'+title+'</h2>',
   panel:(title,_,body)=>'<section><h3>'+title+'</h3>'+body+'</section>',
 };
+let section = "overview";
+ctx.getCompanySection = () => section;
 const views = createEconomyViews(ctx);
-assert.match(views.renderCompanies(), /river_bakery/);
+assert.match(views.renderCompanies(), /river bakery/);
+assert.doesNotMatch(views.renderCompanies(), /Found a company/);
+section = "stock";
 assert.match(views.renderCompanies(), /company-stock/);
+section = "staff";
 assert.match(views.renderCompanies(), /job-offer/);
+section = "production";
 assert.match(views.renderCompanies(), /company-product/);
 assert.match(views.renderCompanies(), /Produce/);
 assert.match(views.renderCompanies(), /value="meal"/);
+section = "ownership";
+assert.match(views.renderCompanies(), /company-dissolve/);
 assert.match(views.renderEmployment(), /Work shift/);
 assert.match(views.renderEmployment(), /<div class="stack">/);
 assert.match(views.renderStalls(), /Player market/);

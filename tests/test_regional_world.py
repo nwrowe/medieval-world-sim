@@ -87,10 +87,18 @@ class RegionalWorldTests(unittest.TestCase):
         self.assertNotIn("invalid", w.companies)
 
     def test_full_regional_supply_chain_and_item_payroll(self):
-        w = self.build()
+        # Separate owners let this fixture validate two real companies without
+        # bypassing the one-company-per-player restriction.
+        w = RegionalWorld([
+            Actor("owner", "human", gold=500),
+            Actor("partner", "human", gold=500),
+            Actor("miner", "npc", city=IRONVALE, gold=30),
+            Actor("collier", "human", city=EMBERFALL, gold=30),
+            Actor("logger", "npc", city=GREENHOLLOW, gold=30),
+        ])
         starting_gold = w.total_gold
         w.found_company("owner", "steelco", "steelworks", 180)
-        w.found_company("owner", "forgeco", "forge", 180)
+        w.found_company("partner", "forgeco", "forge", 180)
 
         # In-world workers produce materials where deposits actually exist.
         w.gather("miner", "iron_ore", 2)
@@ -110,7 +118,8 @@ class RegionalWorldTests(unittest.TestCase):
         ):
             offer = w.post_offer(seller, seller, resource, quantity, price)
             buyer_company = "forgeco" if resource == "timber" else "steelco"
-            w.accept_offer("owner", buyer_company, offer, quantity)
+            w.accept_offer("partner" if buyer_company == "forgeco" else "owner",
+                           buyer_company, offer, quantity)
 
         # The employee receives gold from the company, not minted wages.
         w.hire("owner", "steelco", "collier", Wage(gold=5))
@@ -122,10 +131,10 @@ class RegionalWorldTests(unittest.TestCase):
             w.shift("collier", "steelco")  # same-hour double shift
 
         steel = w.post_offer("owner", "steelco", "steel", 1, 20)
-        w.accept_offer("owner", "forgeco", steel, 1)
+        w.accept_offer("partner", "forgeco", steel, 1)
 
         # Finished sword is a valid wages-in-kind alternative.
-        w.hire("owner", "forgeco", "logger", Wage(item="sword", quantity=1))
+        w.hire("partner", "forgeco", "logger", Wage(item="sword", quantity=1))
         w.shift("logger", "forgeco")
         self.assertEqual(len(w.actors["logger"].gear_ids), 1)
         gear_id = w.actors["logger"].gear_ids[0]

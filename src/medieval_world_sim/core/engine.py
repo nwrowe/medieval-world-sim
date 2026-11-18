@@ -195,7 +195,8 @@ class WorldEngine:
 
     @property
     def total_gold(self) -> int:
-        return (self.crown_gold + sum(a.gold for a in self.actors.values())
+        return (self.crown_gold + self.state.contract_escrow_gold
+                + sum(a.gold for a in self.actors.values())
                 + sum(c.gold for c in self.companies.values())
                 + sum(city.household_gold for city in self.cities.values())
                 + sum(t.offer.gold for t in self.state.trades.values()))
@@ -431,6 +432,35 @@ class WorldEngine:
         return self.companies_system.found_company(owner_id, company_id, industry, investment)
 
     @atomic_action
+    def found_named_company(self, owner_id: str, name: str, industry: str,
+                            investment: int) -> None:
+        return self.companies_system.found_named_company(owner_id, name, industry, investment)
+
+    @atomic_action
+    def company_set_hiring(self, actor_id: str, company_id: str, hiring: bool) -> None:
+        return self.companies_system.set_hiring(actor_id, company_id, hiring)
+
+    @atomic_action
+    def company_apply(self, actor_id: str, company_id: str) -> None:
+        return self.companies_system.apply(actor_id, company_id)
+
+    @atomic_action
+    def company_withdraw_application(self, actor_id: str, company_id: str) -> None:
+        return self.companies_system.withdraw_application(actor_id, company_id)
+
+    @atomic_action
+    def company_list_for_sale(self, actor_id: str, company_id: str, price: int) -> None:
+        return self.companies_system.list_for_sale(actor_id, company_id, price)
+
+    @atomic_action
+    def company_buy(self, actor_id: str, company_id: str) -> None:
+        return self.companies_system.purchase(actor_id, company_id)
+
+    @atomic_action
+    def company_dissolve(self, actor_id: str, company_id: str) -> None:
+        return self.companies_system.dissolve(actor_id, company_id)
+
+    @atomic_action
     def hire(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
 
@@ -602,6 +632,10 @@ class WorldEngine:
     @atomic_action
     def select_vehicle(self, actor_id: str, vehicle: str | None) -> None:
         return self.housing_system.select_vehicle(actor_id, vehicle)
+
+    @atomic_action
+    def start_city_contract(self, actor_id: str, contract_id: str) -> dict:
+        return self.city_contracts.start(actor_id, contract_id)
 
     @atomic_action
     def complete_city_contract(self, actor_id: str, contract_id: str) -> CityContractResult:

@@ -41,6 +41,12 @@ EVENT_FIELDS = {
         "actor_id", "site_id", "approach", "success", "roll",
         "chance", "item", "quantity", "stamina_spent", "damage"
     ],
+    "company_hiring_changed": ["actor_id", "company_id", "hiring"],
+    "company_applied": ["actor_id", "company_id"],
+    "company_application_withdrawn": ["actor_id", "company_id"],
+    "company_listed": ["actor_id", "company_id", "price"],
+    "company_sold": ["seller_id", "buyer_id", "company_id", "price"],
+    "company_dissolved": ["actor_id", "company_id"],
     "company_founded": [
         "owner_id",
         "company_id",
@@ -146,6 +152,7 @@ EVENT_FIELDS = {
     "gear_stored": ["actor_id", "city", "gear_id"],
     "gear_retrieved": ["actor_id", "city", "gear_id"],
     "goods_retrieved": ["actor_id", "city", "item", "quantity"],
+    "city_contract_started": ["actor_id", "city", "contract_id", "ends_at", "reward"],
     "city_contract_completed": ["actor_id", "city", "contract_id", "gold", "stamina", "mana", "xp", "material"],
     "regional_bought": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],

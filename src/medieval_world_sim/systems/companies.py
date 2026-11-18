@@ -11,9 +11,10 @@ from ..core.transactions import transfer_gold
 from ..core.quality import ALLOWED_PERKS, company_quality, suggested_wage
 
 HOUR = 60
-MAX_OWNED_COMPANIES = 3
+MAX_OWNED_COMPANIES = 1
 MAX_COMPANY_ASSETS_TRANSFER = 10000
 COMPANY_NAME = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
+DISPLAY_NAME = re.compile(r"[A-Za-z][A-Za-z0-9 &'._-]{2,39}\Z")
 
 
 class CompanySystem:
@@ -32,7 +33,7 @@ class CompanySystem:
             raise ActionError("Choose a unique company ID (3–32 letters, digits, _ or -)")
         if sum(company.owner_id == owner_id for company in
                self.world.companies.values()) >= MAX_OWNED_COMPANIES:
-            raise ActionError("Maximum three companies per owner")
+            raise ActionError("One company per owner; sell or dissolve yours first")
         if owner.gold < investment:
             raise ActionError("Insufficient gold to invest")
         company = Company(company_id, owner_id, industry)
@@ -40,6 +41,84 @@ class CompanySystem:
         transfer_gold(self.world, owner, company, investment)
         self.world._emit("company_founded", owner_id, company_id, industry, investment)
         self.world.assert_invariants()
+
+    def found_named_company(self, owner_id: str, name: str,
+                            industry: str, investment: int) -> None:
+        if (type(name) is not str or name != name.strip() or
+                not DISPLAY_NAME.fullmatch(name)):
+            raise ActionError("Company name must be 3–40 characters; spaces are allowed")
+        if any((c.display_name or c.id).casefold() == name.casefold()
+               for c in self.world.companies.values()):
+            raise ActionError("Another company already uses that name")
+        ident = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")[:32]
+        if not COMPANY_NAME.fullmatch(ident):
+            raise ActionError("Choose a longer company name")
+        self.found_company(owner_id, ident, industry, investment)
+        self.world.companies[ident].display_name = name
+
+    def set_hiring(self, owner_id: str, company_id: str, hiring: bool) -> None:
+        _, company = self._owned_local(owner_id, company_id)
+        if type(hiring) is not bool:
+            raise ActionError("Invalid hiring preference")
+        company.hiring = hiring
+        self.world._emit("company_hiring_changed", owner_id, company_id, hiring)
+
+    def apply(self, actor_id: str, company_id: str) -> None:
+        actor = self.world._actor(actor_id)
+        company = self.world.companies.get(company_id) if type(company_id) is str else None
+        if (company is None or not company.hiring or actor.kind != "human" or
+                actor_id == company.owner_id or actor_id in company.employees or
+                actor_id in company.job_offers or actor_id in company.applicants):
+            raise ActionError("No available application for this company")
+        company.applicants.add(actor_id)
+        self.world._emit("company_applied", actor_id, company_id)
+
+    def withdraw_application(self, actor_id: str, company_id: str) -> None:
+        company = self.world.companies.get(company_id) if type(company_id) is str else None
+        if company is None or actor_id not in company.applicants:
+            raise ActionError("No application to withdraw")
+        company.applicants.remove(actor_id)
+        self.world._emit("company_application_withdrawn", actor_id, company_id)
+
+    def list_for_sale(self, owner_id: str, company_id: str, price: int) -> None:
+        _, company = self._owned_local(owner_id, company_id)
+        if type(price) is not int or not 0 <= price <= 1_000_000_000:
+            raise ActionError("Invalid company asking price")
+        company.sale_price = price
+        self.world._emit("company_listed", owner_id, company_id, price)
+
+    def purchase(self, buyer_id: str, company_id: str) -> None:
+        buyer = self.world._actor(buyer_id)
+        company = self.world.companies.get(company_id) if type(company_id) is str else None
+        if company is None or not company.sale_price or company.owner_id == buyer_id:
+            raise ActionError("Company is not for sale to this buyer")
+        if (buyer.kind != "human" or self.world._at_city(buyer) != company.city or
+                any(c.owner_id == buyer_id for c in self.world.companies.values())):
+            raise ActionError("Be in the company's city and own no other company")
+        seller_id, price = company.owner_id, company.sale_price
+        transfer_gold(self.world, buyer, self.world._actor(seller_id), price)
+        company.owner_id = buyer_id
+        company.sale_price = 0
+        self.world._emit("company_sold", seller_id, buyer_id, company_id, price)
+
+    def dissolve(self, owner_id: str, company_id: str) -> None:
+        """Return every asset, including market escrow, before removal."""
+        owner, company = self._owned_local(owner_id, company_id)
+        for offer_id, offer in tuple(self.world.offers.items()):
+            if offer.seller_id != company_id:
+                continue
+            if offer.gear_id is not None:
+                owner.gear_ids.append(offer.gear_id)
+            else:
+                self.world._add(owner, offer.item, offer.quantity)
+            del self.world.offers[offer_id]
+        for item, qty in company.inventory.items():
+            if qty:
+                self.world._add(owner, item, qty)
+        owner.gear_ids.extend(company.gear_ids)
+        transfer_gold(self.world, company, owner, company.gold)
+        del self.world.companies[company_id]
+        self.world._emit("company_dissolved", owner_id, company_id)
 
     def _owned_local(self, actor_id: str, company_id: str):
         """Validate an authenticated owner's physical access to company assets."""
@@ -149,6 +228,7 @@ class CompanySystem:
             raise ActionError("Go to the company's city to accept the job")
         wage = company.job_offers.pop(worker_id)
         company.employees[worker_id] = wage
+        company.applicants.discard(worker_id)
         self.world._emit("hired", company_id, worker_id, wage.gold, wage.item, wage.quantity)
 
     def set_wage(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
