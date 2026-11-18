@@ -8,7 +8,8 @@ export function createCharacterViews(ctx) {
   function renderInventory() {
     const state = ctx.getState();
     const p = state.player;
-    const stash = p.stored_here || {};
+    const atCity = !p.destination && !state.world_map?.in_wilderness;
+    const stash = atCity ? (p.stored_here || {}) : {};
     const carried = Object.entries(p.inventory).filter(([, qty]) => qty > 0).sort();
     const stored = Object.entries(stash).filter(([, qty]) => qty > 0).sort();
     const carryRows = carried.map(([item, qty]) => {
@@ -23,11 +24,13 @@ export function createCharacterViews(ctx) {
       '</strong><p>' + qty + ' carried</p></div>' +
       (consumable ? button("Use", 'data-ui="consume" data-item="' +
         esc(item) + '"' + disabled(!canUse || isBusy()), "s secondary") : '') +
-      '<label class="sr" for="store-' + esc(item) + '">Store quantity</label>' +
+      '<label class="sr" for="store-' + esc(item) + '">Quantity</label>' +
       '<input class="qty" id="store-' + esc(item) +
       '" type="number" min="1" max="' + qty + '" value="1">' +
-      button("Store", 'data-ui="store" data-item="' + esc(item) + '"' +
-        disabled(isBusy()), "s secondary") + '</div>';
+      (atCity ? button("Store", 'data-ui="store" data-item="' + esc(item) + '"' +
+        disabled(isBusy()), "s secondary") : '') +
+      button("Discard", 'data-ui="discard" data-item="' + esc(item) + '"' +
+        disabled(isBusy() || !!p.destination), "s ghost") + '</div>';
     }).join("") ||
       '<p class="empty">No carried goods yet. Visit the market or gather resources.</p>';
     const stashRows = stored.map(([item, qty]) =>
@@ -39,21 +42,11 @@ export function createCharacterViews(ctx) {
       button("Retrieve", 'data-ui="retrieve" data-item="' + esc(item) + '"' +
         disabled(isBusy()), "s secondary") + '</div>').join("") ||
       '<p class="empty">Nothing stored in this city.</p>';
-    const stores = Object.entries(p.storage_cities || {}).filter(([, count]) => count > 0)
-      .map(([city, count]) => characterRow(pretty(city), count + " items")).join("");
-    return heading("", "Inventory", "") +
-      '<div class="two-col"><div class="stack">' +
-      panel("Carried goods", "Choose what to take on the road", carryRows) +
-      panel("City storage", "Available in " + pretty(p.city), stashRows) +
-      '</div><aside class="stack">' +
-      panel("Your stored goods", "Inventory in other settlements",
-        stores || '<p class="small">You have no city-stored goods.</p>') +
-      panel("Equipment & vehicles", "Equipment also uses road cargo capacity",
-        '<p class="small">Owned equipment is currently always carried. ' +
-        'The horse and carriage increase your road limit.</p>' +
-        button("Equipment", 'data-tab="equipment"', "secondary") + ' ' +
-        button("Property", 'data-tab="home"', "ghost")) +
-      '</aside></div>';
+    return heading("", "Inventory", "") + '<div class="stack">' +
+      panel("Carried goods", "", carryRows) +
+      panel("Stored Goods", atCity ? "Available in " + pretty(p.city) : "",
+        atCity ? stashRows : '<p class="empty">Storage is unavailable outside a city.</p>') +
+      '</div>';
   }
 
   function homeMagicPanel(state) {
@@ -194,6 +187,8 @@ export function createCharacterViews(ctx) {
           gear.id + '"' + disabled(inUse || isBusy()), "s secondary") +
         button("Store", 'data-ui="store-gear" data-gear-id="' +
           gear.id + '"' + disabled(inUse || isBusy()), "s ghost") +
+        button("Discard", 'data-ui="discard-gear" data-gear-id="' +
+          gear.id + '"' + disabled(inUse || isBusy() || !!p.destination), "s ghost") +
         '</div></div>';
     }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
     const storedGear = (state.stored_gear_here || []).map(gear =>
@@ -225,8 +220,6 @@ export function createCharacterViews(ctx) {
       '</strong><small class="armory-spec">' + esc(pretty(item.slot)) +
       ' · Attack +' + item.attack + ' · Defense +' + item.defense +
       ' · Durability ' + item.durability + ' · Quality ' + item.quality +
-      ' · Swing ' + (item.kind === "dagger" ? "2" : item.kind === "sword" ? "5" :
-        item.kind === "axe" ? "7" : item.kind === "bow" ? "4" : "—") + ' stamina' +
       '</small></span>' +
       button("Buy · " + money(item.price),
         'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +

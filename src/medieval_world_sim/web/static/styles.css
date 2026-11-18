@@ -1101,6 +1101,8 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 }
 :root[data-theme="dark"] .university-school>summary strong,
 :root[data-theme="dark"] .character-row strong,
+:root[data-theme="dark"] .stash-row strong,
+:root[data-theme="dark"] .inventory-row strong,
 :root[data-theme="dark"] .spell-description h4,
 :root[data-theme="dark"] .home-spell-description strong,
 :root[data-theme="dark"] .route-map strong,
