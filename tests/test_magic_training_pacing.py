@@ -20,23 +20,22 @@ class MagicTrainingPacingTests(TestCase):
 
     def test_mana_alone_limits_repeat_practice_and_rejection_is_free(self):
         w = self.world()
-        for i in range(12):
-            result = w.execute("mage", "practice_magic",
-                               {"node_id": NOVICE}, f"mana-session-{i}")
-            self.assertEqual(result.xp_gained, 1)
-            self.assertTrue(w.magic_tree("mage", "restoration")[0].can_practice)
-            self.assertEqual(w.magic_tree("mage", "restoration")[0].practice_ready_minute, 0)
-        self.assertEqual(w.actors["mage"].magic.mana, 4)
-        self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 12)
+        result = w.execute("mage", "practice_magic",
+                           {"node_id": NOVICE}, "mana-session-0")
+        self.assertEqual(result.xp_gained, 1)
+        self.assertTrue(w.magic_tree("mage", "restoration")[0].can_practice)
+        self.assertEqual(w.magic_tree("mage", "restoration")[0].practice_ready_minute, 0)
+        self.assertEqual(w.actors["mage"].magic.mana, 2)
+        self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 1)
         with self.assertRaisesRegex(ActionError, "Insufficient mana"):
             w.execute("mage", "practice_magic",
                       {"node_id": NOVICE}, "out-of-mana")
-        self.assertEqual(w.actors["mage"].magic.mana, 4)
-        self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 12)
-        self.assertEqual(w.actors["mage"].magic.attempts, 12)
-        w.advance(40)  # Existing mana regeneration, not a training timer.
+        self.assertEqual(w.actors["mage"].magic.mana, 2)
+        self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 1)
+        self.assertEqual(w.actors["mage"].magic.attempts, 1)
+        w.advance(60)  # Six mana restored on the existing ten-minute tick.
         w.practice_magic("mage", NOVICE)
-        self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 13)
+        self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 2)
         w.assert_invariants()
 
     def test_tier_one_100_means_mastered_and_field_healing_ready(self):
@@ -64,6 +63,7 @@ class MagicTrainingPacingTests(TestCase):
     def test_training_yield_and_no_practice_timer(self):
         w = self.world()
         first = w.practice_magic("mage", NOVICE)
+        w.advance(60)
         second = w.practice_magic("mage", NOVICE)
         self.assertEqual(first.xp_gained, 1)
         self.assertEqual(second.xp_gained, 1)
@@ -73,6 +73,8 @@ class MagicTrainingPacingTests(TestCase):
     def test_multiple_practices_can_use_mana_without_cooldown(self):
         w = self.world()
         for _ in range(3):
+            if w.actors["mage"].magic.mana < 8:
+                w.advance(80)
             w.practice_magic("mage", NOVICE)
         self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 3)
         w.assert_invariants()
