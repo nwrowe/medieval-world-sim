@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from ..equipment import GEAR, effective_attack, effective_defense
 from ..errors import ActionError
+from .magic import grow_mana_capacity
 from ..content.lineages import combat_modifiers
 from ..core.transactions import transfer_gold
 
@@ -146,6 +147,7 @@ class CombatSystem:
             actor.defense += 1
             actor.max_hp += 4
             actor.hp += 4
+            grow_mana_capacity(actor)
             levels += 1
             self.world._emit("level_up", actor.id, actor.level, actor.max_hp)
         return levels

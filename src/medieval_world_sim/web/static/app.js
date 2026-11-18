@@ -319,8 +319,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       const oldStats = state && state.started ? {
         hp: state.player.max_hp,
         strength: state.player.strength,
-        defense: state.player.defense
-      } : { hp: 0, strength: 0, defense: 0 };
+        defense: state.player.defense,
+        mana: state.player.max_mana
+      } : { hp: 0, strength: 0, defense: 0, mana: 0 };
       // A live event may arrive after a command commits but before its HTTP
       // response. Never overwrite a newer pushed state with an older result.
       state = (multiMode && state && result.state &&
@@ -331,7 +332,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         levelCelebration = { from: oldLevel, to: state.player.level,
           hp: state.player.max_hp - oldStats.hp,
           strength: state.player.strength - oldStats.strength,
-          defense: state.player.defense - oldStats.defense };
+          defense: state.player.defense - oldStats.defense,
+          mana: state.player.max_mana - oldStats.mana };
       }
       syncAttunements();
       // Action responses already carry full map and University projections.
@@ -956,7 +958,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       (levelCelebration.to - levelCelebration.from) + ' level</span>' +
       '<span>+' + levelCelebration.hp + ' Health Capacity</span>' +
       '<span>+' + levelCelebration.strength + ' Strength</span>' +
-      '<span>+' + levelCelebration.defense + ' Defense</span></div>' +
+      '<span>+' + levelCelebration.defense + ' Defense</span>' +
+      (levelCelebration.mana > 0 ? '<span>+' + levelCelebration.mana +
+        ' Mana Capacity</span>' : '') + '</div>' +
       button("Continue", 'data-ui="dismiss-level"', "gold") +
       '</div></div>';
   }

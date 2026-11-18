@@ -148,7 +148,13 @@ def create_schema(game: MultiplayerGame) -> None:
 
 
 def load_world(game: MultiplayerGame) -> None:
-    game.world = game._seed_world()
+    # Older join records lack start_mana; replay their original initial
+    # capacity, including NPCs, without changing new registrations.
+    join_payloads = game.db.execute(
+        "SELECT payload FROM world_journal WHERE kind='join'").fetchall()
+    old_mana = any("start_mana" not in json.loads(row[0])
+                   for row in join_payloads)
+    game.world = game._seed_world(old_mana=old_mana)
     game.names = {}
     game.event_times = {}
     # A checkpoint restores the owned world and account projection; replay
@@ -174,7 +180,8 @@ def load_world(game: MultiplayerGame) -> None:
             city = params.get("city")
             if city != START_CITY:
                 raise ValueError("Invalid registered starting city")
-            game._join_actor(actor_id, city, params.get("lineage"))
+            game._join_actor(actor_id, city, params.get("lineage"),
+                             params.get("start_mana", 100))
             game.names[actor_id] = account[0]
             registered.add(actor_id)
         elif actor_id not in registered:
