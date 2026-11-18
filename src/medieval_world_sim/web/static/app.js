@@ -90,6 +90,8 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
   let chronicleQuery = "";
   let chronicleVisibleCount = 50;
   const chronicleOpenEncounters = new Set();
+  let renderedChronicleEvents = null;
+  let renderedChronicleFilterKey = "";
   let chatOpen = false;
   let chatChannelKey = "global";
   let chatDraft = "";
@@ -781,6 +783,26 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       (shown < matches.length ? button("Show 50 more",
         'data-ui="chronicle-more"', "secondary") : '');
   }
+  function rememberChronicleExpansion(container) {
+    for (const details of container.querySelectorAll("details[data-encounter-id]")) {
+      const key = details.dataset.encounterId;
+      if (details.open) chronicleOpenEncounters.add(key);
+      else chronicleOpenEncounters.delete(key);
+    }
+  }
+  function chronicleFilterKey() {
+    return chronicleCategory + "\u0000" + chronicleQuery + "\u0000" +
+      chronicleVisibleCount;
+  }
+  function refreshChronicleList() {
+    const list = document.getElementById("chronicle-list");
+    if (!list || (renderedChronicleEvents === state.events &&
+                  renderedChronicleFilterKey === chronicleFilterKey())) return;
+    rememberChronicleExpansion(list);
+    list.innerHTML = chronicleResults();
+    renderedChronicleEvents = state.events;
+    renderedChronicleFilterKey = chronicleFilterKey();
+  }
   function activityPanel(showTitle = true) {
     const body = chronicleItems((state.events || []).slice(0, 12));
     return showTitle ? panel("Chronicle", "", body) :
@@ -831,6 +853,8 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       characterRow,
     });
   function renderChronicle() {
+    renderedChronicleEvents = state.events;
+    renderedChronicleFilterKey = chronicleFilterKey();
     const options = ['<option value="all">All categories</option>'].concat(
       chronicleCategories.map(category => '<option value="' + esc(category) + '"' +
         (chronicleCategory === category ? " selected" : "") + '>' +
@@ -1048,11 +1072,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       const content = document.getElementById("main-content");
       if (content) content.innerHTML = renderProfile();
     } else if (tab === "chronicle") {
-      const list = document.getElementById("chronicle-list");
-      if (list) {
-        const next = chronicleResults();
-        if (list.innerHTML !== next) list.innerHTML = next;
-      }
+      refreshChronicleList();
     }
     if (tab === "trade") {
       const current = document.getElementById("trade-offers-list");
@@ -1169,6 +1189,8 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
   }
   let lastMapHex = null;
   function render() {
+    // Preserve native <details> expansion before a full shell replacement.
+    rememberChronicleExpansion(root);
     const previous = root.querySelector(".terrain-map-scroll");
     const oldScroll = previous ? [previous.scrollLeft, previous.scrollTop] : null;
     if (authNeeded) root.innerHTML = authPage();
@@ -1319,11 +1341,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
     if (event.target.id === "chronicle-query") {
       chronicleQuery = event.target.value;
       chronicleVisibleCount = 50;
-      const list = document.getElementById("chronicle-list");
-      if (list) {
-        const next = chronicleResults();
-        if (list.innerHTML !== next) list.innerHTML = next;
-      }
+      refreshChronicleList();
       return;
     }
     if (event.target.id === "chat-text") {
@@ -1337,11 +1355,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
     if (event.target.id === "chronicle-category") {
       chronicleCategory = event.target.value;
       chronicleVisibleCount = 50;
-      const list = document.getElementById("chronicle-list");
-      if (list) {
-        const next = chronicleResults();
-        if (list.innerHTML !== next) list.innerHTML = next;
-      }
+      refreshChronicleList();
       return;
     }
     const path = event.target.getAttribute("data-attune");
@@ -1407,8 +1421,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
         })(); break;
       case "chronicle-more": {
         chronicleVisibleCount += 50;
-        const list = document.getElementById("chronicle-list");
-        if (list) list.innerHTML = chronicleResults();
+        refreshChronicleList();
         break;
       }
       case "page-back":
