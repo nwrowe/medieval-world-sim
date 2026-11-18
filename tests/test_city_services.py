@@ -111,7 +111,11 @@ class SaveCompatibilityTests(unittest.TestCase):
             path = Path(folder) / "save.json"
             game = GameSession(path)
             game.create("Cale Rowan")
-            # Start at the current capital; test the current-format save.
+            # Travel to a grain-producing settlement under the current rules.
+            game.action("travel", {"destination": GOLDMEADOW}, "travel-to-source")
+            while game.world.actors["hero"].destination is not None:
+                remaining = game.world.actors["hero"].arrival_minute - game.world.minute
+                game.advance(min(1440, remaining))
             game.action("gather", {"item": "grain", "quantity": 2}, "gather")
             game.action("store_goods", {"item": "grain", "quantity": 2}, "store")
             self.assertEqual(game.snapshot()["player"]["stored_here"]["grain"], 2)
