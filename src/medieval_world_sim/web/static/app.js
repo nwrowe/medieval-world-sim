@@ -3,6 +3,7 @@ import { createCommunityViews } from "/community-views.mjs";
 import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
 import { groupCombatChronicle } from "/chronicle-views.mjs";
+import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
 
 /* Oathmere — dependency-free responsive game client.
    Rendering is a read-only projection of server-authoritative world state.
@@ -968,9 +969,7 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
         const nextCourse = update.course_active;
         // The stream omits completed/available flags for every school.
         // Re-read authoritative enrollment options when a course completes.
-        if (priorCourse && (!nextCourse ||
-            priorCourse.school !== nextCourse.school ||
-            priorCourse.index !== nextCourse.index))
+        if (activeCourseEnded(priorCourse, nextCourse))
           universityNeedsRefresh = true;
         state.training_hall.active = nextCourse;
       }
@@ -985,7 +984,7 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       if (update.player_status) {
         const wasTraveling = Boolean(state.player.destination);
         Object.assign(state.player, update.player_status);
-        if (wasTraveling && !state.player.destination)
+        if (travelJustArrived(wasTraveling, state.player.destination))
           mapTravelSettlePending = true;
       }
       if (chatOpen) markChannelRead(chatChannelKey);
