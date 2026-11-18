@@ -611,10 +611,6 @@ class WorldEngine:
         return self.guild_system.leave(actor_id)
 
     @atomic_action
-    def enroll_course(self, actor_id: str, school: str) -> dict:
-        return self.curriculum_system.start(actor_id, school)
-
-    @atomic_action
     def send_chat(self, principal_id: str, kind: str, target: str, message: str) -> dict:
         return self.chat_system.send(principal_id, kind, target, message)
 

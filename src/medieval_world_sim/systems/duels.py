@@ -4,7 +4,7 @@ import secrets
 from ..core.entities import DuelState
 from ..core.transactions import transfer_gold
 from ..errors import ActionError
-from .combat import ATTACK_STAMINA_COST, DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
+from .combat import DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
 
 MAGIC_STAMINA_COST = 6
 MAX_PVP_ROUNDS = 10
@@ -26,11 +26,7 @@ class DuelSystem:
                defender_id in (d.attacker_id, d.defender_id)
                for d in w.state.duels.values()):
             raise ActionError("A participant is already in combat")
-        legacy = getattr(w, "_legacy_duel_rules", False)
-        if legacy and attacker.stamina < ATTACK_STAMINA_COST:
-            raise ActionError("Not enough stamina to initiate combat")
-        entrance_cost = ATTACK_STAMINA_COST if legacy else 0
-        attacker.stamina -= entrance_cost
+        entrance_cost = 0  # Only an actual combat move spends stamina.
         ward = attacker.magic.ward_charge
         attacker.magic.ward_charge = 0
         w.state.last_duels.pop(attacker_id, None)
@@ -75,9 +71,7 @@ class DuelSystem:
         duel = w.state.duels.get(attacker_id)
         if duel is None:
             raise ActionError("No active duel")
-        legacy = getattr(w, "_legacy_duel_rules", False)
-        valid_moves = ("strike", "guard", "cast") if legacy else (
-            "strike", "fists", "dagger", "guard", "cast")
+        valid_moves = ("strike", "fists", "dagger", "guard", "cast")
         if move not in valid_moves or not isinstance(node_id, str):
             raise ActionError("Unknown combat move")
         if move != "cast" and node_id:
@@ -88,31 +82,17 @@ class DuelSystem:
         protection = 0
         stamina_spent = 0
         if move in ("strike", "fists", "dagger"):
-            if legacy:
-                damage = w.combat._strike(attacker, defender)
-                description = f"You strike for {damage} damage"
-            else:
-                label, slot, stamina_spent = w.combat.melee_option(attacker, move)
-                if getattr(w, "_legacy_guard_rules", False):
-                    # Ruleset 7 recorded the original fists/dagger costs.
-                    if move == "fists" or (move == "strike" and slot is None):
-                        stamina_spent = 1
-                    elif move == "dagger":
-                        stamina_spent = 2
-                    elif move == "strike" and slot == "weapon":
-                        kind = w.gear[attacker.equipped["weapon"]].kind
-                        stamina_spent = {"sword": 5, "axe": 7, "bow": 4}.get(kind, 5)
-                if attacker.stamina < stamina_spent:
-                    raise ActionError(f"Not enough stamina for {label.lower()} attack")
-                attacker.stamina -= stamina_spent
-                damage = w.combat._strike(attacker, defender, slot or "unarmed")
-                description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
+            label, slot, stamina_spent = w.combat.melee_option(attacker, move)
+            if attacker.stamina < stamina_spent:
+                raise ActionError(f"Not enough stamina for {label.lower()} attack")
+            attacker.stamina -= stamina_spent
+            damage = w.combat._strike(attacker, defender, slot or "unarmed")
+            description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
         elif move == "guard":
-            if not getattr(w, "_legacy_guard_rules", False):
-                if attacker.stamina < GUARD_STAMINA:
-                    raise ActionError("Not enough stamina to guard")
-                attacker.stamina -= GUARD_STAMINA
-                stamina_spent = GUARD_STAMINA
+            if attacker.stamina < GUARD_STAMINA:
+                raise ActionError("Not enough stamina to guard")
+            attacker.stamina -= GUARD_STAMINA
+            stamina_spent = GUARD_STAMINA
             damage = 0
             protection = 6
             description = f"You brace for the next attack ({stamina_spent} stamina)"
@@ -120,14 +100,13 @@ class DuelSystem:
             # Enchantment and divination create a physical strike too.
             # Charge the same main-weapon cost, in addition to their mana.
             node = w.spell_system._ready(attacker, node_id)
-            if not getattr(w, "_legacy_guard_rules", False):
-                stamina_spent = MAGIC_STAMINA_COST
-                if node.school in ("enchantment", "divination"):
-                    _, _, swing_cost = w.combat.melee_option(attacker, "strike")
-                    stamina_spent += swing_cost
-                if attacker.stamina < stamina_spent:
-                    raise ActionError("Not enough stamina to cast this combat spell")
-                attacker.stamina -= stamina_spent
+            stamina_spent = MAGIC_STAMINA_COST
+            if node.school in ("enchantment", "divination"):
+                _, _, swing_cost = w.combat.melee_option(attacker, "strike")
+                stamina_spent += swing_cost
+            if attacker.stamina < stamina_spent:
+                raise ActionError("Not enough stamina to cast this combat spell")
+            attacker.stamina -= stamina_spent
             damage, protection, description = w.spell_system.combat_cast(attacker, defender, node_id)
             if stamina_spent:
                 description += f" ({stamina_spent} stamina)"
@@ -153,8 +132,7 @@ class DuelSystem:
             return self._finish(duel, attacker, defender, "won")
         if attacker.hp == 0:
             return self._finish(duel, defender, attacker, "lost")
-        # Historical NPC duels are intentionally unchanged. PvP duels have a
-        # fixed upper bound so neither party can be held indefinitely.
+        # Bound PvP duel duration so neither party is held indefinitely.
         if defender.kind == "human" and duel.round >= MAX_PVP_ROUNDS:
             duel.log.append("The tenth round ends in a draw. Both fighters withdraw.")
             w._emit("duel_draw", duel.attacker_id, duel.defender_id, duel.round)
@@ -166,9 +144,7 @@ class DuelSystem:
     def flee(self, actor_id: str) -> dict:
         """One escape attempt consumes a round; failed attempts invite a hit.
 
-        New attempts use a server-supplied cryptographic coin flip, captured
-        in the command journal for exact replay. Older journal entries keep
-        the historical guaranteed-escape rule.
+        A cryptographic coin flip is captured for deterministic journal replay.
         """
         w = self.world
         duel = w.state.duels.get(actor_id)
@@ -183,14 +159,6 @@ class DuelSystem:
         defender = w.actors[duel.defender_id]
         fleeing = attacker if attacker_fleeing else defender
         pursuer = defender if attacker_fleeing else attacker
-        if getattr(w, "_legacy_flee_rules", False):
-            if attacker_fleeing:
-                w._emit("duel_fled", actor_id, duel.defender_id)
-                return self._finish(duel, attacker, defender, "fled")
-            w._emit("duel_defender_fled", duel.attacker_id, duel.defender_id)
-            self._finish(duel, attacker, defender, "opponent_fled")
-            return dict(w.state.last_duels[actor_id])
-
         roll = getattr(w, "_flee_success", None)
         if roll is None:
             roll = bool(secrets.randbits(1))

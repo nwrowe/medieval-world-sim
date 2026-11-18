@@ -70,7 +70,6 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "set_guild_role": CommandSpec("set_guild_role", ("member_id", "role"), _BOTH),
     "leave_guild": CommandSpec("leave_guild", (), _BOTH),
     "claim_merit": CommandSpec("claim_merit", ("achievement",), _BOTH),
-    "enroll_course": CommandSpec("enroll_course", ("school",), _SINGLE),
     "enroll_course_choice": CommandSpec("enroll_course_choice", ("school", "index"), _BOTH),
     "buy_merit_upgrade": CommandSpec("buy_merit_upgrade", ("perk",), _BOTH),
     "send_chat": CommandSpec("send_chat", ("kind", "target", "message"), _BOTH),

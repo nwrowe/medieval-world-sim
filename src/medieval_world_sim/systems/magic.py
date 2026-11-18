@@ -12,7 +12,7 @@ import hmac
 from ..content.magic_tree import (
     NODES, ROOT_ID, SCHOOLS, MAX_ACTIVE_SPECIALIZATIONS,
     ATTUNEMENT_COOLDOWN_MINUTES, INSIGHT_XP_INTERVAL,
-    PRACTICE_XP_CEILING, PRACTICE_COOLDOWN_MINUTES, branch_for,
+    PRACTICE_XP_CEILING, branch_for,
 )
 from ..errors import ActionError
 from ..content.lineages import magic_experience_bonus
@@ -66,9 +66,7 @@ class MagicSystem:
 
     def _eligible(self, actor, node) -> bool:
         state = actor.magic
-        # Old journal entries retain the earlier raw-XP unlock thresholds.
-        legacy = getattr(self.world, "_legacy_magic_unlock_rules", False)
-        required_xp = (node.xp_required if legacy or node.tier <= 1 else
+        required_xp = (node.xp_required if node.tier <= 1 else
                        PRACTICE_XP_CEILING[node.tier - 1])
         return (node.id != ROOT_ID and node.id not in state.unlocked
                 and state.school_xp.get(node.school, 0) >= required_xp
@@ -163,19 +161,8 @@ class MagicSystem:
         state = actor.magic
         if node.tier == 0 or not self._active(actor, node):
             raise ActionError("Magic node is not unlocked or active")
-        # Save-journal v1 actions need their historical rule set when replayed.
-        # New commands always follow the current mastered-tier restriction.
-        legacy = getattr(self.world, "_legacy_magic_rules", False)
-        legacy_training = getattr(self.world, "_legacy_magic_training_rules", False)
-        if not legacy and self._mastered(actor, node):
+        if self._mastered(actor, node):
             raise ActionError("This school tier is mastered; practice a higher tier")
-        # Cooldowns exist only when replaying v15 / xp_version 3 commands.
-        # Current practice is limited exclusively by mana and tier mastery.
-        historic_cooldown = getattr(
-            self.world, "_legacy_magic_practice_cooldown", False)
-        if historic_cooldown and self.world.minute < state.next_practice_minute.get(node.school, 0):
-            remaining = state.next_practice_minute[node.school] - self.world.minute
-            raise ActionError(f"Magic training recovers in {remaining} simulated minutes")
         if state.mana < node.mana_cost:
             raise ActionError("Insufficient mana")
         # Hash-based roll has NO external RNG state to leak or desynchronize.
@@ -186,23 +173,13 @@ class MagicSystem:
                   if private_key is not None else sha256(payload.encode()).digest())
         roll = (int.from_bytes(digest[:8], "big") % 100) + 1
         skill = state.school_xp.get(node.school, 0)
-        chance = (max(5, min(95, 70 - node.difficulty + min(20, skill // 10)))
-                  if legacy else
-                  max(90, min(98, 95 - node.difficulty // 12 + min(3, skill // 150))))
+        chance = max(90, min(98, 95 - node.difficulty // 12 + min(3, skill // 150)))
         success = roll <= chance
         state.attempts += 1
         state.mana -= node.mana_cost
-        if historic_cooldown:
-            state.next_practice_minute[node.school] = (
-                self.world.minute + PRACTICE_COOLDOWN_MINUTES)
-        # Old journals retain their historic training yield. New training
-        # produces one base school XP per deliberate practice session;
-        # unsuccessful attempts still teach from mistakes, as before.
-        # Housing and lineage bonuses apply to actually earned XP only.
+        # One base school XP, with housing and lineage bonuses up to mastery.
         ceiling = PRACTICE_XP_CEILING[node.tier]
-        base_xp = ((3 * node.tier + 3 if success else 1)
-                   if legacy_training else 1)
-        awarded = min(base_xp, max(0, ceiling - skill))
+        awarded = min(1, max(0, ceiling - skill))
         if awarded:
             awarded = min(self.world.housing_system.training_xp(
                 actor, awarded, f"magic:{node.school}") + magic_experience_bonus(actor),
@@ -212,13 +189,8 @@ class MagicSystem:
         gained = earned_total - state.insight_earned
         state.insight_earned = earned_total
         state.insight += gained
-        # Every genuinely earned point of school XP can also advance the
-        # character, without mislabeling it as combat XP. Half-rate limits
-        # the level-speed advantage of repeatable, low-risk spell practice.
-        # Pre-change journals replay under their original rules.
-        level_gain = (max(1, awarded // 2) if awarded > 0
-                      and not getattr(self.world, "_legacy_magic_leveling_rules", False)
-                      else 0)
+        # At most half-rate character XP from low-risk school training.
+        level_gain = max(1, awarded // 2) if awarded > 0 else 0
         levels = self.world.combat._award_level_xp(actor, level_gain)
         self.world._emit("magic_practiced", actor.id, node.id, node.school,
                          success, roll, chance, node.mana_cost,
@@ -244,11 +216,6 @@ class MagicSystem:
                 or any(s not in SCHOOLS or type(xp) is not int or xp < 0
                        for s, xp in state.school_xp.items())):
             raise AssertionError("Invalid magic-school experience")
-        if (type(state.next_practice_minute) is not dict
-                or any(school not in SCHOOLS or type(ready) is not int
-                       or ready < 0 or ready > minute + PRACTICE_COOLDOWN_MINUTES
-                       for school, ready in state.next_practice_minute.items())):
-            raise AssertionError("Invalid magic practice schedule")
         if not isinstance(state.unlocked, set) or ROOT_ID not in state.unlocked:
             raise AssertionError("Arcane Fundamentals must remain unlocked")
         if any(node not in NODES for node in state.unlocked):

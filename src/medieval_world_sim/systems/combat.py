@@ -113,15 +113,12 @@ class CombatSystem:
 
     def _wear(self, owner, gear_id: int) -> None:
         item = self.world.gear[gear_id]
-        if getattr(self.world, "_legacy_equipment_wear", False):
-            item.durability -= 1
-        else:
-            count = self.world.state.gear_wear.get(gear_id, 0) + 1
-            if count < WEAR_INTERVAL:
-                self.world.state.gear_wear[gear_id] = count
-                return
-            self.world.state.gear_wear.pop(gear_id, None)
-            item.durability -= 1
+        count = self.world.state.gear_wear.get(gear_id, 0) + 1
+        if count < WEAR_INTERVAL:
+            self.world.state.gear_wear[gear_id] = count
+            return
+        self.world.state.gear_wear.pop(gear_id, None)
+        item.durability -= 1
         if item.durability == 0:
             self.world.state.gear_wear.pop(gear_id, None)
             owner.gear_ids.remove(gear_id)
