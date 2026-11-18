@@ -174,6 +174,8 @@ export function createWorldViews(ctx) {
       '<h2 id="travel-confirm-title">Travel to ' + esc(title) + '?</h2>' +
       '<p id="travel-confirm-description">Estimated journey: <strong>' +
       esc(travelTime(city.minutes)) + '</strong>. You cannot trade, gather, or train while traveling.</p>' +
+      '<p class="small">Optional wilderness encounters are bypassed automatically ' +
+      'on city-to-city journeys. Explore hexes manually to investigate sites.</p>' +
       '<p class="small">Road cargo: ' + p.cargo + ' / ' + p.cargo_limit +
       (blocked ? ' · Travel is currently unavailable.' : '') + '</p>' +
       '<div class="travel-confirm-actions">' +

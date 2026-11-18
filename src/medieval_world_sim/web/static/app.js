@@ -2,6 +2,7 @@ import { createCharacterViews } from "/character-views.mjs";
 import { createCommunityViews } from "/community-views.mjs";
 import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
+import { createWildernessViews } from "/wilderness-views.mjs";
 import { createEconomyViews } from "/economy-views.mjs";
 import { createEconomyActions } from "/economy-actions.mjs";
 import { groupCombatChronicle } from "/chronicle-views.mjs";
@@ -686,7 +687,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const place = p.destination ? ("En route to " + pretty(p.destination)) :
       (location ? placeName(location.name) : pretty(p.city));
     const renderers = {
-      world: renderWorld, market: () => renderMarket() + renderStalls(),
+      world: () => renderWorld() + renderWilderness(),
+      market: () => renderMarket() + renderStalls(),
       magic: renderMagic, home: renderHome,
       companies: renderCompanies, job: renderEmployment,
       inventory: renderInventory, training: renderTraining,
@@ -941,6 +943,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       esc, pretty, money, dur, button, disabled, isBusy, heading, panel,
       characterRow, chip,
     });
+  const { renderWilderness, handleWildernessClick } = createWildernessViews({
+    getState: () => state, action, render, isBusy,
+    esc, pretty, button, disabled, panel,
+  });
   // Economy page rendering and action dispatch own no networking or mutable
   // server state. The main coordinator only supplies its established callbacks.
   const { renderCompanies, renderEmployment, renderStalls } =
@@ -1498,7 +1504,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       render();
       return;
     }
-    if (handleEconomyClick(element)) return;
+    if (handleEconomyClick(element) || handleWildernessClick(element)) return;
     const ui = element.dataset.ui;
     const item = element.dataset.item;
     const node = element.dataset.node;
@@ -1903,7 +1909,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
           const previous = content.querySelector(".terrain-map-scroll");
           const left = previous ? previous.scrollLeft : 0;
           const top = previous ? previous.scrollTop : 0;
-          content.innerHTML = renderWorld();
+          content.innerHTML = renderWorld() + renderWilderness();
           const updated = content.querySelector(".terrain-map-scroll");
           if (updated) {
             const hex = latest.world_map.position.join(",");
