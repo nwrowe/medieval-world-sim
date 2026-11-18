@@ -186,6 +186,31 @@ class ChronicleAuditTests(unittest.TestCase):
                 response.close()
                 conn.close()
 
+    def test_duel_encounter_projection_groups_by_start_event_not_time(self):
+        from medieval_world_sim.core.engine import WorldEngine
+        from medieval_world_sim.core.entities import Actor
+        from medieval_world_sim.web.projection import activity_projection
+        world = WorldEngine([
+            Actor("a", "human"), Actor("b", "human"),
+            Actor("c", "human"), Actor("d", "human")
+        ])
+        world._emit("duel_started", "a", "b", 0)
+        start_a = world.events[-1].event_id
+        world._emit("duel_started", "c", "d", 0)
+        world._emit("duel_round", "a", "b", 1, "fists", 2, 1)
+        world._emit("duel_flee_attempt", "a", "b", "b", 2, False)
+        world._emit("duel_draw", "a", "b", 10)
+        events, _, _ = activity_projection(
+            world, "a", "Alice", {}, {"a":"Alice", "b":"Bob"},
+            {}, True)
+        fights = [e for e in events if e["kind"].startswith("duel_")]
+        self.assertEqual(len(fights), 4)
+        self.assertEqual({e["encounter_id"] for e in fights}, {start_a})
+        self.assertTrue(all(e["encounter_outcome"] == "Draw" for e in fights))
+        self.assertTrue(all(e["encounter_attacker"] == "Alice" for e in fights))
+        self.assertTrue(all(e["encounter_defender"] == "Bob" for e in fights))
+        self.assertFalse(any(e.get("encounter_attacker") == "Carol" for e in fights))
+
     def test_known_event_types_have_stable_categories(self):
         self.assertEqual(event_category("trade_settled"), "Trade")
         self.assertEqual(event_category("pvp_strike"), "Combat")
