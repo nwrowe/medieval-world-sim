@@ -35,13 +35,13 @@ export function createEconomyActions(ctx) {
       const actorId = ctx.getState().actor_id || "hero";
       switch (name) {
         case "company-found": {
-          const slug = root.querySelector("#economy-new-id")?.value.trim();
+          const name = root.querySelector("#economy-new-id")?.value.trim();
           const form = root.querySelector("#economy-new-id")?.closest(".economy-controls");
-          if (!/^[a-z][a-z0-9_-]{2,31}$/.test(slug || "")) {
-            throw Error("Use 3–32 lowercase letters, numbers, _ or - for the company ID");
+          if (!/^[A-Za-z][A-Za-z0-9 &'._-]{2,39}$/.test(name || "")) {
+            throw Error("Use 3–40 characters for a company name; spaces are allowed");
           }
-          fire("found_company", {
-            company_id: slug, industry: value(form, "industry"),
+          fire("found_named_company", {
+            name, industry: value(form, "industry"),
             investment: whole(form, "investment", 1),
           }, "Company founded");
           break;
@@ -51,6 +51,58 @@ export function createEconomyActions(ctx) {
             company_id: companyId, product: value(company, "product"),
           }, "Company production updated");
           break;
+        case "company-hiring": {
+          const business = (ctx.getState().economy?.owned || [])
+            .find(c => c.id === companyId);
+          if (!business) throw Error("Not your company");
+          fire("company_set_hiring", {
+            company_id: companyId, hiring: !business.hiring
+          }, "Hiring availability updated");
+          break;
+        }
+        case "company-apply":
+        case "company-withdraw-application":
+          fire(name === "company-apply" ? "company_apply" :
+            "company_withdraw_application", {
+            company_id: companyId
+          }, name === "company-apply" ? "Application submitted" :
+            "Application withdrawn");
+          break;
+        case "company-list-for-sale":
+          fire("company_list_for_sale", {
+            company_id: companyId, price: whole(company, "sale-price", 1)
+          }, "Company listed for sale");
+          break;
+        case "company-cancel-sale":
+          fire("company_list_for_sale", {
+            company_id: companyId, price: 0
+          }, "Company listing canceled");
+          break;
+        case "company-buy": {
+          const listing = (ctx.getState().economy?.directory || [])
+            .find(c => c.id === companyId);
+          if (!listing || !listing.can_buy) throw Error("Company purchase unavailable");
+          ctx.confirmAction({
+            title: "Buy " + listing.name + "?",
+            description: "Pay " + listing.sale_price +
+              " gold to acquire this company, including its assets and employment agreements.",
+            button: "Buy company", command: "company_buy",
+            params: {company_id:companyId}, success: "Company purchased"
+          });
+          break;
+        }
+        case "company-dissolve": {
+          const companyName = (ctx.getState().economy?.owned || [])
+            .find(c => c.id === companyId)?.name || companyId;
+          ctx.confirmAction({
+            title: "Dissolve " + companyName + "?",
+            description: "Close the company and release its employees. " +
+              "All treasury gold, goods, equipment and market listings will be returned to you. This cannot be undone.",
+            button: "Dissolve company", command: "company_dissolve",
+            params: {company_id:companyId}, success: "Company dissolved"
+          });
+          break;
+        }
         case "company-fund":
         case "company-withdraw":
           fire(name === "company-fund" ? "company_deposit_gold" :

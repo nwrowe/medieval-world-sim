@@ -972,10 +972,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   const { renderCompanies, renderEmployment, renderStalls } =
     createEconomyViews({
       getState: () => state,
+      getCompanySection: () => companySection,
       esc, pretty, money, button, disabled, isBusy, heading, panel,
     });
   const { handleEconomyClick } = createEconomyActions({
     getRoot: () => root, getState: () => state, action, notify,
+    confirmAction: requestConfirmation,
   });
   function levelUpOverlay() {
     if (!levelCelebration) return "";
@@ -1525,6 +1527,13 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     }
   });
 
+  root.addEventListener("input", event => {
+    if (event.target.id !== "occupation-company-search") return;
+    const term = event.target.value.trim().toLowerCase();
+    for (const row of root.querySelectorAll("[data-company-search]")) {
+      row.hidden = !row.dataset.companySearch.includes(term);
+    }
+  });
   root.addEventListener("click", event => {
     const summary = event.target.closest(".university-school > summary");
     if (summary) {
