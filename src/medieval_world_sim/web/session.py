@@ -181,7 +181,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 20) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 21) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -202,6 +202,9 @@ class GameSession:
             self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
             self.world._legacy_curriculum_rules = (record.get("ruleset", 1) <= 8
                                                     and record["name"] == "enroll_course")
+            self.world._legacy_master_course_rules = (
+                record["name"] == "enroll_course_choice" and
+                record.get("ruleset", 1) < 20)
             self.world._legacy_flee_rules = (
                 record["name"] == "flee_duel" and record.get("ruleset", 1) < 11
             )
@@ -223,6 +226,7 @@ class GameSession:
             finally:
                 self.world._legacy_equipment_wear = False
                 self.world._legacy_curriculum_rules = False
+                self.world._legacy_master_course_rules = False
                 self.world._legacy_flee_rules = False
                 self.world._flee_success = None
                 self.world._legacy_guard_rules = False
@@ -278,7 +282,7 @@ class GameSession:
             if record.get("name") == "enroll_course":
                 ruleset = 8
             if record.get("name") == "enroll_course_choice":
-                ruleset = 9
+                ruleset = 20
             if record.get("name") in {"send_chat", "create_chat_room"}:
                 ruleset = 10
             if record.get("name") == "flee_duel":

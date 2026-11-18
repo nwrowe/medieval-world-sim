@@ -75,17 +75,54 @@ class CurriculumWebTests(unittest.TestCase):
         gold = before["player"]["gold"]
         crown = self.session.world.crown_gold
         first = self.action("enroll_course_choice",
-                            {"school": "weapons", "index": 7}, "advanced-weapons")
-        self.assertEqual(first["index"], 7)
-        self.assertEqual(first["tuition"], 50)
-        self.assertEqual(self.session.snapshot()["player"]["gold"], gold - 50)
-        self.assertEqual(self.session.world.crown_gold, crown + 50)
+                            {"school": "weapons", "index": 6}, "advanced-weapons")
+        self.assertEqual(first["index"], 6)
+        self.assertEqual(first["tuition"], 40)
+        self.assertEqual(self.session.snapshot()["player"]["gold"], gold - 40)
+        self.assertEqual(self.session.world.crown_gold, crown + 40)
         self.assertEqual(self.action("enroll_course_choice",
-                         {"school": "weapons", "index": 7}, "advanced-weapons"), first)
+                         {"school": "weapons", "index": 6}, "advanced-weapons"), first)
         with self.assertRaises(ActionError):
             self.action("enroll_course_choice",
                         {"school": "rhetoric", "index": 0}, "double-book")
         self.assertEqual(GameSession(self.path).snapshot(), self.session.snapshot())
+
+    def test_master_capstones_require_every_other_course_in_all_ten_tracks(self):
+        from medieval_world_sim.systems.curriculum import CURRENT_SCHOOLS
+        for school in CURRENT_SCHOOLS:
+            with self.subTest(school=school):
+                world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=500)])
+                before_gold = world.actors["scholar"].gold
+                view = next(s for s in world.curriculum_system.view("scholar")["schools"]
+                            if s["id"] == school)
+                self.assertFalse(view["courses"][7]["available"])
+                self.assertEqual(len(view["courses"][7]["prerequisites_missing"]), 7)
+                with self.assertRaisesRegex(ActionError, "other seven courses"):
+                    world.enroll_course_choice("scholar", school, 7)
+                self.assertEqual(world.actors["scholar"].gold, before_gold)
+                for i in (6, 2, 5, 0, 4, 1, 3):
+                    world.enroll_course_choice("scholar", school, i)
+                    world.advance(DAYS[i] * 1440)
+                view = next(s for s in world.curriculum_system.view("scholar")["schools"]
+                            if s["id"] == school)
+                self.assertTrue(view["courses"][7]["available"])
+                world.enroll_course_choice("scholar", school, 7)
+                world.advance(DAYS[7] * 1440)
+                self.assertIn("school:" + school, world.state.merit_claims["scholar"])
+                self.assertEqual(world.state.merit_balance["scholar"], 1)
+                world.assert_invariants()
+
+    def test_old_out_of_order_capstone_journal_still_replays(self):
+        document = json.loads(self.path.read_text())
+        document["records"].append({
+            "kind": "action", "name": "enroll_course_choice",
+            "params": {"school": "physical", "index": 7},
+            "id": "historic-master", "ruleset": 9,
+        })
+        self.path.write_text(json.dumps(document))
+        restored = GameSession(self.path)
+        self.assertEqual(restored.snapshot()["training_hall"]["active"]["index"], 7)
+        self.assertEqual(GameSession(self.path).snapshot(), restored.snapshot())
 
     def test_retired_grammar_replays_old_journal_but_rejects_new_enrollment(self):
         document = json.loads(self.path.read_text())
@@ -111,7 +148,7 @@ class CurriculumWebTests(unittest.TestCase):
         world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=5)])
         crown = world.crown_gold
         with self.assertRaises(ActionError):
-            world.enroll_course_choice("scholar", "weapons", 7)
+            world.enroll_course_choice("scholar", "weapons", 6)
         self.assertEqual(world.actors["scholar"].gold, 5)
         self.assertEqual(world.crown_gold, crown)
         self.assertFalse(world.state.active_courses)
@@ -119,7 +156,7 @@ class CurriculumWebTests(unittest.TestCase):
     def test_out_of_order_graduation_merit_is_exactly_once(self):
         world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=250)])
         starting_gold = world.actors["scholar"].gold
-        for index in (7, 0, 6, 2, 5, 1, 4, 3):
+        for index in (6, 0, 2, 5, 1, 4, 3, 7):
             result = world.enroll_course_choice("scholar", "physical", index)
             self.assertEqual(result["index"], index)
             world.advance(DAYS[index] * 1440)
