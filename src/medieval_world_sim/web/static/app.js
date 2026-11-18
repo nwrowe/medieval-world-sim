@@ -693,6 +693,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       profile: renderProfile,
       trade: renderTrade,
       guilds: renderGuilds, merits: renderMerits,
+      settings: renderSettings,
     };
     const view = state.duel && state.duel.role !== "defender" ?
       renderDuel : (renderers[tab] || renderWorld);
@@ -714,17 +715,17 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<div class="world-time"><span>Oathmere time</span>' +
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
-      (multiMode ? '<div class="account-utility">' +
-        '<button class="profile-shortcut" type="button" data-ui="profile-self"' +
-        disabled(combatNavigationLocked()) +
-        ' aria-label="View your character profile" title="Your character">' +
-        '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" ' +
-        'stroke-linecap="round" stroke-linejoin="round">' +
-        '<circle cx="12" cy="8" r="4"/>' +
-        '<path d="M4 21v-2a8 8 0 0 1 16 0v2"/></svg>' +
-        '</button>' +
-        '<button class="logout-link" type="button" data-ui="account-logout">' +
-        'Sign out</button></div>' : '') +
+      '<div class="account-utility">' +
+      '<button class="settings-shortcut' + (tab === "settings" ? " active" : "") +
+      '" type="button" data-ui="settings-open"' +
+      disabled(combatNavigationLocked()) +
+      ' aria-label="Open Settings" title="Settings" aria-current="' +
+      (tab === "settings" ? "page" : "false") + '">' +
+      '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+      'stroke-width="2" stroke-linecap="round">' +
+      '<path d="M4 6h16M4 12h16M4 18h16"/></svg></button>' +
+      (multiMode ? '<button class="logout-link" type="button" data-ui="account-logout">' +
+        'Sign out</button>' : '') + '</div>' +
       '</div></div></header>' +
       '<div class="workspace">' +
       '<aside class="sidebar" aria-label="Locations and services">' +
@@ -865,6 +866,41 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       esc, pretty, clock, money, button, disabled, isBusy, heading, panel,
       characterRow,
     });
+  function renderSettings() {
+    const appearance = ["system", "light", "dark"].map(value =>
+      button(value === "system" ? "System" : value === "light" ? "Light" : "Dark",
+        'type="button" data-ui="settings-theme" data-value="' + value +
+        '" aria-pressed="' + (themePreference === value) + '"',
+        themePreference === value ? "secondary settings-choice active" :
+          "secondary settings-choice")).join("");
+    const accountNote = multiMode ?
+      "Your password and account data remain in the local Oathmere server." :
+      "This world is using the local single-player preview.";
+    const clockMode = state.dev_travel_seconds ?
+      "Accelerated testing · one world minute per real second" :
+      "Normal world clock";
+    return heading("", "Settings", "") +
+      '<div class="settings-grid">' +
+      panel("Appearance", "Saved locally in this browser",
+        '<p class="small">Choose your display theme. System follows your device preference.</p>' +
+        '<div class="settings-choices" role="group" aria-label="Color theme">' +
+        appearance + '</div>') +
+      panel("Email & notifications", "Not yet connected",
+        '<p class="small">Planned: verified email address, notification categories, ' +
+        'delivery preferences and opt-out controls. No email is currently sent ' +
+        'or collected by these settings.</p>' +
+        '<span class="settings-future">Future configuration</span>') +
+      panel("Account & security", "Local development",
+        '<p class="small">' + esc(accountNote) + '</p>' +
+        '<p class="small">Future: change password, manage signed-in sessions ' +
+        'and review account security. Sign out remains available above.</p>') +
+      panel("World & gameplay", "Current session",
+        '<div class="settings-info"><span>World clock</span><strong>' +
+        esc(clockMode) + '</strong></div>' +
+        '<p class="small">Future: accessibility, sound and game notifications. ' +
+        'Changing world simulation settings requires server-side controls.</p>') +
+      '</div>';
+  }
   function renderChronicle() {
     renderedChronicleEvents = state.events;
     renderedChronicleFilterKey = chronicleFilterKey();
@@ -1032,10 +1068,50 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     // EventSource reconnects automatically and sends the session cookie.
     // This stream intentionally has no client-controlled actor identifier.
   }
+  function refreshActivityStrip(strip) {
+    // Preserve unchanged chip nodes across every SSE update. Replacing
+    // innerHTML even with identical markup dismisses hovered CSS tooltips.
+    const fragment = document.createElement("div");
+    fragment.innerHTML = activityIcons();
+    const desired = Array.from(fragment.children);
+    const wanted = new Set(desired.map(node => node.dataset.activityKey));
+    for (const old of Array.from(strip.children)) {
+      if (!wanted.has(old.dataset.activityKey)) old.remove();
+    }
+    const existing = new Map(Array.from(strip.children).map(node =>
+      [node.dataset.activityKey, node]));
+    desired.forEach((fresh, index) => {
+      const key = fresh.dataset.activityKey;
+      let old = existing.get(key);
+      if (!old || old.tagName !== fresh.tagName) {
+        if (old) old.remove();
+        strip.insertBefore(fresh, strip.children[index] || null);
+        existing.set(key, fresh);
+        return;
+      }
+      if (strip.children[index] !== old)
+        strip.insertBefore(old, strip.children[index] || null);
+      for (const attr of Array.from(old.attributes)) {
+        if (!fresh.hasAttribute(attr.name)) old.removeAttribute(attr.name);
+      }
+      for (const attr of Array.from(fresh.attributes)) {
+        if (old.getAttribute(attr.name) !== attr.value)
+          old.setAttribute(attr.name, attr.value);
+      }
+      const oldIcon = old.querySelector("span");
+      const freshIcon = fresh.querySelector("span");
+      if (oldIcon && freshIcon && oldIcon.innerHTML !== freshIcon.innerHTML)
+        oldIcon.innerHTML = freshIcon.innerHTML;
+      const readout = old.querySelector("strong");
+      const nextReadout = fresh.querySelector("strong");
+      if (readout && nextReadout && readout.textContent !== nextReadout.textContent)
+        readout.textContent = nextReadout.textContent;
+    });
+  }
   function refreshLiveSurfaces() {
     if (!state || !state.started) return;
     const strip = document.querySelector(".activity-strip");
-    if (strip) strip.innerHTML = activityIcons();
+    if (strip) refreshActivityStrip(strip);
     // Pushed clock ticks also change the health, stamina and mana values.
     const p = state.player;
     for (const [kind, label, value, maximum, next] of [
@@ -1415,6 +1491,20 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         tab = "character";
         render();
         break;
+      case "settings-open":
+        navigateTo("settings");
+        render();
+        break;
+      case "settings-theme": {
+        const value = element.dataset.value;
+        if (!["system", "light", "dark"].includes(value)) break;
+        themePreference = value;
+        try { localStorage.setItem(THEME_KEY, value); }
+        catch { /* A blocked preference store must not prevent theme use. */ }
+        applyTheme();
+        render();
+        break;
+      }
       case "account-logout":
         (async () => {
           try {
