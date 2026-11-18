@@ -415,7 +415,7 @@ class MultiplayerGame:
                 if name == "flee_duel":
                     flee_success = secrets.randbits(1)
                     self.world._flee_success = bool(flee_success)
-                if name in ("practice_magic", "race_horse"):
+                if name in ("practice_magic", "race_horse", "investigate_site"):
                     self.world._private_rng_key = self._rng_key
                 try:
                     outcome = self.world.execute(actor_id, name, params,

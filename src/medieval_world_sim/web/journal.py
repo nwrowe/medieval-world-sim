@@ -189,7 +189,7 @@ def load_world(game: MultiplayerGame) -> None:
             elif flee_success is not None:
                 raise ValueError("Unexpected saved flee roll")
             game.world._private_rng_key = (
-                game._rng_key if action in ("practice_magic", "race_horse") else None)
+                game._rng_key if action in ("practice_magic", "race_horse", "investigate_site") else None)
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))

@@ -233,6 +233,36 @@ def validate_world(world: WorldEngine) -> None:
     for actor_id, day in world.state.church_healed_day.items():
         if actor_id not in world.actors or type(day) is not int or not 0 <= day <= world.minute // 1440:
             raise AssertionError("Invalid church healing day")
+    # Bounded material stock derived from immutable tile potentials; only
+    # legitimately explored sites may have a character decision on record.
+    from ..systems.wilderness import SITE_APPROACHES, supply_cap
+    for key, record in world.state.wilderness_stock.items():
+        if (type(key) is not tuple or len(key) != 2
+                or type(key[0]) is not int or type(key[1]) is not str
+                or not 0 <= key[0] < len(world.geography.tiles)
+                or type(record) is not tuple or len(record) != 2
+                or any(type(v) is not int for v in record)):
+            raise AssertionError("Invalid wilderness stock entry")
+        tile = world.geography.tiles[key[0]]
+        potential = tile.resources.get(key[1], 0)
+        if (potential <= 0 or not 0 <= record[0] <= supply_cap(potential)
+                or not 0 <= record[1] <= world.minute // 1440):
+            raise AssertionError("Invalid wilderness stock balance")
+    site_ids = {site.id for site in world.geography.sites}
+    for actor_id, attempts in world.state.site_attempts.items():
+        if actor_id not in world.actors or type(attempts) is not dict:
+            raise AssertionError("Invalid wilderness actor record")
+        if not set(attempts).issubset(site_ids):
+            raise AssertionError("Unknown investigated site")
+        for result in attempts.values():
+            if (type(result) is not tuple or len(result) != 5
+                    or result[0] not in SITE_APPROACHES
+                    or type(result[1]) is not bool
+                    or type(result[2]) is not str
+                    or type(result[3]) is not int or result[3] < 0
+                    or type(result[4]) is not int or result[4] < 0
+                    or (result[3] > 0 and result[2] not in GOODS)):
+                raise AssertionError("Invalid site resolution record")
     for company in world.companies.values():
         if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
             raise AssertionError("Invalid company quality state")

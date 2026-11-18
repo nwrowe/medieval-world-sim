@@ -35,6 +35,7 @@ ASSETS = {
     "/activity-state.mjs": ("activity-state.mjs", "application/javascript; charset=utf-8"),
     "/economy-views.mjs": ("economy-views.mjs", "application/javascript; charset=utf-8"),
     "/economy-actions.mjs": ("economy-actions.mjs", "application/javascript; charset=utf-8"),
+    "/wilderness-views.mjs": ("wilderness-views.mjs", "application/javascript; charset=utf-8"),
     "/world-views.mjs": ("world-views.mjs", "application/javascript; charset=utf-8"),
     "/community-views.mjs": ("community-views.mjs", "application/javascript; charset=utf-8"),
     "/city-views.mjs": ("city-views.mjs", "application/javascript; charset=utf-8"),

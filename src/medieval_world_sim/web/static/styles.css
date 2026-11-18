@@ -1168,3 +1168,21 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .economy-four { grid-template-columns:1fr; }
   .economy-listing { align-items:flex-start; flex-direction:column; }
 }
+
+/* Grounded wilderness interactions, placed directly below the existing atlas. */
+.wilderness-row { display:flex; gap:12px; align-items:center; justify-content:space-between;
+  padding:10px 0; border-top:1px solid var(--line); }
+.wilderness-row strong { display:block; }
+.wilderness-row p { margin:3px 0 0; }
+.wilderness-buttons { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.wilderness-buttons .button { font-size:12px; }
+.wilderness-sites-title { margin:18px 0 6px; }
+.wilderness-site { margin:10px 0; padding:16px; border:1px solid var(--line);
+  border-radius:12px; background:var(--surface,transparent); }
+.wilderness-site h4 { margin:4px 0 6px; font-size:17px; }
+.wilderness-site p { margin:5px 0 12px; }
+.wilderness-resolution { padding:10px 12px; border:1px solid var(--line);
+  border-radius:9px; }
+@media (max-width:620px) {
+  .wilderness-row { align-items:flex-start; flex-direction:column; }
+}

@@ -39,6 +39,8 @@ jobs:
           node --check src/medieval_world_sim/web/static/economy-views.mjs
           node --check src/medieval_world_sim/web/static/economy-actions.mjs
           node tests/test_economy_views.mjs
+          node --check src/medieval_world_sim/web/static/wilderness-views.mjs
+          node tests/test_wilderness_views.mjs
       - name: Measure road-aware route quote latency
         env:
           PYTHONPATH: src
