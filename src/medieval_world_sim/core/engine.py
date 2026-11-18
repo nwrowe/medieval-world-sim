@@ -203,12 +203,16 @@ class WorldEngine:
         ))
 
     def _actor(self, actor_id: str) -> Actor:
+        if type(actor_id) is not str or not actor_id or len(actor_id) > 128:
+            raise ActionError("Invalid actor")
         try:
             return self.actors[actor_id]
         except KeyError:
             raise ActionError(f"Unknown actor: {actor_id}") from None
 
     def _account(self, account_id: str) -> Actor | Company:
+        if type(account_id) is not str or not account_id or len(account_id) > 128:
+            raise ActionError("Invalid account")
         if account_id in self.actors:
             return self.actors[account_id]
         if account_id in self.companies:

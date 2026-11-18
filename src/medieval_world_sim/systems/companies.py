@@ -24,7 +24,7 @@ class CompanySystem:
         if self.world._at_city(owner) != CAPITAL:
             raise ActionError("Founding a company requires being in the capital")
         self.world._positive(investment, "investment")
-        if (industry not in RECIPES or not isinstance(company_id, str)
+        if (type(industry) is not str or industry not in RECIPES or not isinstance(company_id, str)
                 or not COMPANY_NAME.fullmatch(company_id)
                 or company_id in self.world.companies
                 or company_id in self.world.actors):
@@ -43,6 +43,8 @@ class CompanySystem:
     def _owned_local(self, actor_id: str, company_id: str):
         """Validate an authenticated owner's physical access to company assets."""
         actor = self.world._actor(actor_id)
+        if type(company_id) is not str:
+            raise ActionError("Invalid company ID")
         company = self.world.companies.get(company_id)
         if company is None or company.owner_id != actor_id:
             raise ActionError("Company is not owned by this character")
@@ -70,7 +72,7 @@ class CompanySystem:
                       item: str, quantity: int) -> None:
         actor, company = self._owned_local(actor_id, company_id)
         self.world._positive(quantity, "quantity")
-        if quantity > MAX_COMPANY_ASSETS_TRANSFER or item not in GOODS:
+        if quantity > MAX_COMPANY_ASSETS_TRANSFER or type(item) is not str or item not in GOODS:
             raise ActionError("Invalid goods transfer")
         if actor.inventory.get(item, 0) < quantity:
             raise ActionError("Not enough personal inventory")
@@ -82,7 +84,7 @@ class CompanySystem:
                        item: str, quantity: int) -> None:
         actor, company = self._owned_local(actor_id, company_id)
         self.world._positive(quantity, "quantity")
-        if quantity > MAX_COMPANY_ASSETS_TRANSFER or item not in GOODS:
+        if quantity > MAX_COMPANY_ASSETS_TRANSFER or type(item) is not str or item not in GOODS:
             raise ActionError("Invalid goods transfer")
         if company.inventory.get(item, 0) < quantity:
             raise ActionError("Not enough company inventory")
@@ -115,12 +117,16 @@ class CompanySystem:
         worker = self.world._actor(worker_id)
         if worker.kind != "human":
             raise ActionError("Employment offers require a player character")
+        if type(item) is not str:
+            raise ActionError("Invalid wage item")
         wage = Wage(gold, item or None, quantity)
         self.propose_job(owner_id, company_id, worker_id, wage)
 
     def change_job_wage(self, owner_id: str, company_id: str, worker_id: str,
                         gold: int, item: str, quantity: int) -> None:
         self._owned_local(owner_id, company_id)
+        if type(item) is not str:
+            raise ActionError("Invalid wage item")
         wage = Wage(gold, item or None, quantity)
         self.set_wage(owner_id, company_id, worker_id, wage)
 
@@ -167,7 +173,9 @@ class CompanySystem:
         company = self.world.companies.get(company_id)
         if company is None or company.owner_id != owner_id:
             raise ActionError("Only the owner may set perks")
-        if (not isinstance(perks, (list, tuple)) or len(set(perks)) != len(perks)
+        if (not isinstance(perks, (list, tuple))
+                or any(type(p) is not str for p in perks)
+                or len(set(perks)) != len(perks)
                 or not set(perks).issubset(ALLOWED_PERKS)):
             raise ActionError("Unknown or duplicate perk")
         company.perks = tuple(sorted(perks))
@@ -191,7 +199,9 @@ class CompanySystem:
         self.world._nonnegative(wage.quantity, "wage item quantity")
         if wage.gold > 1000000000 or wage.quantity > 10000:
             raise ActionError("Wage is too large")
-        if wage.item is not None and wage.item not in GOODS and wage.item not in GEAR:
+        if (wage.item is not None and
+                (type(wage.item) is not str or
+                 wage.item not in GOODS and wage.item not in GEAR)):
             raise ActionError("Unknown wage item")
         if bool(wage.item) != bool(wage.quantity) or (wage.gold == 0 and wage.quantity == 0):
             raise ActionError("Choose gold, goods, or both as a positive wage")

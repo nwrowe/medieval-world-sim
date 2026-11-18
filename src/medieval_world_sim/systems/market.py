@@ -27,7 +27,7 @@ class MarketSystem:
         self.world._positive(quantity, "quantity")
         self._validate_listing(seller_id, quantity, unit_price)
         self.world._nonnegative(unit_price, "unit_price")
-        if item not in GOODS or seller.inventory.get(item, 0) < quantity:
+        if type(item) is not str or item not in GOODS or seller.inventory.get(item, 0) < quantity:
             raise ActionError("Seller lacks offered resources")
         seller.inventory[item] -= quantity
         offer_id = self.world.next_offer_id
@@ -63,6 +63,8 @@ class MarketSystem:
     def accept_offer(self, initiator_id: str, buyer_id: str, offer_id: int, quantity: int) -> None:
         buyer = self.world._account(buyer_id)
         self.world._authorize(initiator_id, buyer)
+        if type(offer_id) is not int:
+            raise ActionError("Invalid market listing")
         offer = self.world.offers.get(offer_id)
         if offer is None:
             raise ActionError("Unknown or exhausted offer")
@@ -90,6 +92,8 @@ class MarketSystem:
         self.world.assert_invariants()
 
     def cancel_offer(self, initiator_id: str, offer_id: int) -> None:
+        if type(offer_id) is not int:
+            raise ActionError("Invalid market listing")
         offer = self.world.offers.get(offer_id)
         if offer is None:
             raise ActionError("Unknown offer")
