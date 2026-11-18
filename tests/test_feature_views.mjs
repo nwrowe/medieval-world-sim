@@ -219,7 +219,7 @@ assert.match(character.renderInventory(), /data-ui="discard"/);
 state = {...state,world_map:{in_wilderness:true}};
 assert.match(character.renderInventory(), /Storage is unavailable outside a city/);
 assert.doesNotMatch(character.renderInventory(), /data-ui="store" data-item/);
-state = {...state,world_map:{in_wilderness:false}};
+state = {...state}; delete state.world_map;
 const world = createWorldViews({
   ...helpers, getState: () => state, getPending: () => false,
   getSecureWorldClock: () => true,
