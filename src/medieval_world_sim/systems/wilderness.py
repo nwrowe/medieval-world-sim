@@ -129,6 +129,11 @@ class WildernessSystem:
         label, cost, _, _, _, reward = SITE_APPROACHES[approach]
         if actor.stamina < cost:
             raise ActionError("Not enough stamina to investigate")
+        old = getattr(self.world, "_replay_legacy_site_reward", False)
+        cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
+        capacity = self.world.housing_system.travel_cargo_limit(actor)
+        if not old and cargo >= capacity:
+            raise ActionError("Carrying capacity reached; discard items before investigating")
         # Server-only key in multiplayer prevents client prediction. The same
         # stored key and committed action replay yield exactly the same roll.
         payload = f"wilderness|{self.world.seed}|{actor_id}|{site_id}|{approach}".encode()
@@ -148,7 +153,7 @@ class WildernessSystem:
             not success and approach == "delve") else 0
         actor.stamina -= cost
         actor.hp -= damage
-        if quantity:
+        if quantity and not old:
             # Discovery rewards cannot strand players above travel capacity.
             room = max(0, self.world.housing_system.travel_cargo_limit(actor) -
                        sum(actor.inventory.values()) - len(actor.gear_ids))
@@ -192,7 +197,9 @@ class WildernessSystem:
                      "chance": self._chance(actor, site, key),
                      "reward_estimate": reward,
                      "available": (prior is None and actor.stamina >= cost
-                                   and actor.hp > 0 and actor.defeated_until is None)}
+                                   and actor.hp > 0 and actor.defeated_until is None
+                                   and sum(actor.inventory.values()) + len(actor.gear_ids) <
+                                   self.world.housing_system.travel_cargo_limit(actor))}
                     for key, (name, cost, _, _, _, reward) in SITE_APPROACHES.items()
                 ],
             })
