@@ -22,11 +22,11 @@ class ClockJournalBudgetTests(TestCase):
             try:
                 # The original lifetime cap would count join + automatic
                 # advance, then fail before the browser could load again.
-                with patch("medieval_world_sim.web.multiplayer.MAX_JOURNAL", 2):
-                    with patch("medieval_world_sim.web.multiplayer.time.time",
-                               return_value=start + 3):
-                        self.assertEqual(game.snapshot(actor)["minute"], 3)
-                        self.assertEqual(game.snapshot(actor)["minute"], 3)
+                with patch("medieval_world_sim.web.multiplayer.MAX_JOURNAL", 2), \
+                     patch("medieval_world_sim.web.multiplayer.time.time",
+                           return_value=start + 3):
+                    self.assertEqual(game.snapshot(actor)["minute"], 3)
+                    self.assertEqual(game.snapshot(actor)["minute"], 3)
                     self.assertEqual(game.db.execute(
                         "SELECT COUNT(*) FROM world_journal").fetchone()[0], 2)
                     self.assertEqual(game.db.execute(
