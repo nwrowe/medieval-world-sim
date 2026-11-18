@@ -16,6 +16,7 @@ from ..equipment import GEAR, suggested_value, effective_attack, effective_defen
 from ..systems.cooldowns import MAX_COOLDOWN_MINUTES, FOOD_MINUTES, POTION_MINUTES, remaining
 from ..systems.track import HORSES, RACE_STAMINA_COST, RACE_ENTRY, RACE_COOLDOWN
 from .chronicle import TRADE_EVENTS, COMBAT_EVENTS, _friendly_event
+from .economy_projection import economy_projection
 
 def _named_duel_log(log: list[str], names: dict[str, str]) -> list[str]:
     """Project display names, never raw account UUIDs, into combat reports.
@@ -459,6 +460,8 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "gatherable": (dict(w.cities[actor.city].deposits)
                        if actor.wilderness_hex is None else {}),
         "quotes": quote_list,
+        "economy": economy_projection(
+            w, actor_id, {**npc_names, **human_names, actor_id: name}),
         "housing": housing_data,
         "homes": [
             {"id": kind, **asdict(HOMES[kind])} for kind in HOME_ORDER
