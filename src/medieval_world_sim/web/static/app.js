@@ -1568,10 +1568,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
             render();
           } catch (error) { notify(error.message, true); }
         })(); break;
-      case "profile-self":
       case "profile-open":
-        selectedCharacterId = ui === "profile-self" ?
-          (state.actor_id || "hero") : element.dataset.character;
+        selectedCharacterId = element.dataset.character;
         navigateTo("profile");
         render();
         window.scrollTo({ top: 0, behavior: "smooth" });
