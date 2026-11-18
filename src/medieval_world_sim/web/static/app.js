@@ -176,6 +176,9 @@ import { createWorldViews } from "/world-views.mjs";
         (Number(item.dataset.timerEnd) - Date.now()) / 1000 :
         Number(item.dataset.timerFixed);
       item.dataset.hoverText = item.dataset.timerLabel + fullCountdown(seconds);
+      if (item.hasAttribute("data-university-countdown")) {
+        item.textContent = fullCountdown(seconds) + " remaining";
+      }
     }
   }
   function simDuration(minutes) {
@@ -816,6 +819,7 @@ import { createWorldViews } from "/world-views.mjs";
       getExpandedUniversitySchool: () => expandedUniversitySchool,
       getPending: () => pending,
       getSecureWorldClock: () => secureWorldClock,
+      timerAttrs, timerText: seconds => fullCountdown(timerSeconds(seconds)),
       esc, pretty, money, dur, button, disabled, isBusy, heading, panel,
       characterRow, chip,
     });
