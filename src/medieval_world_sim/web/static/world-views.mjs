@@ -479,6 +479,9 @@ export function createWorldViews(ctx) {
     const atHome = h.city && h.city === p.city && !isBusy();
     const ownedIdx = h.tier ? state.homes.findIndex(x => x.id === h.tier) : -1;
     const homes = state.homes.map((home, i) => {
+      // Permanent housing begins at Cottage. The short-term room rental is
+      // managed at the Tavern; retain legacy Room ownership for old saves.
+      if (home.id === "room") return "";
       const cost = ownedIdx < 0 ? home.price :
         i > ownedIdx ? home.price - state.homes[ownedIdx].price : 0;
       const can = !isBusy() && (ownedIdx < 0 || (i > ownedIdx && atHome)) && p.gold >= cost;
