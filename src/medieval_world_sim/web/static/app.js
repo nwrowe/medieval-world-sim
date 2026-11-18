@@ -2,6 +2,8 @@ import { createCharacterViews } from "/character-views.mjs";
 import { createCommunityViews } from "/community-views.mjs";
 import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
+import { createEconomyViews } from "/economy-views.mjs";
+import { createEconomyActions } from "/economy-actions.mjs";
 import { groupCombatChronicle } from "/chronicle-views.mjs";
 import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
 import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
@@ -25,6 +27,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     { id: "guilds", icon: "⚑", title: "Guilds" },
     { id: "merits", icon: "✶", title: "Merits" },
     { id: "market", icon: "⚖", title: "Market" },
+    { id: "companies", icon: "⚒", title: "Companies", onlyCity: "crownreach" },
     { id: "job", icon: "▣", title: "Occupation" },
     { id: "mercenary", icon: "⚔", title: "Mercenary Jobs" },
     { id: "church", icon: "✝", title: "Church" },
@@ -683,8 +686,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const place = p.destination ? ("En route to " + pretty(p.destination)) :
       (location ? placeName(location.name) : pretty(p.city));
     const renderers = {
-      world: renderWorld, market: renderMarket,
-      magic: renderMagic, home: renderHome, job: renderJob,
+      world: renderWorld, market: () => renderMarket() + renderStalls(),
+      magic: renderMagic, home: renderHome,
+      companies: renderCompanies, job: renderEmployment,
       inventory: renderInventory, training: renderTraining,
       character: renderCharacter, equipment: renderEquipment,
       chronicle: renderChronicle, mercenary: renderMercenaryJobs,
@@ -937,6 +941,16 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       esc, pretty, money, dur, button, disabled, isBusy, heading, panel,
       characterRow, chip,
     });
+  // Economy page rendering and action dispatch own no networking or mutable
+  // server state. The main coordinator only supplies its established callbacks.
+  const { renderCompanies, renderEmployment, renderStalls } =
+    createEconomyViews({
+      getState: () => state,
+      esc, pretty, money, button, disabled, isBusy, heading, panel,
+    });
+  const { handleEconomyClick } = createEconomyActions({
+    getRoot: () => root, getState: () => state, action, notify,
+  });
   function levelUpOverlay() {
     if (!levelCelebration) return "";
     return '<div class="level-overlay" role="dialog" aria-modal="true" ' +
@@ -1484,6 +1498,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       render();
       return;
     }
+    if (handleEconomyClick(element)) return;
     const ui = element.dataset.ui;
     const item = element.dataset.item;
     const node = element.dataset.node;

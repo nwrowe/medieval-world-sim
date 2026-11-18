@@ -203,12 +203,16 @@ class WorldEngine:
         ))
 
     def _actor(self, actor_id: str) -> Actor:
+        if type(actor_id) is not str or not actor_id or len(actor_id) > 128:
+            raise ActionError("Invalid actor")
         try:
             return self.actors[actor_id]
         except KeyError:
             raise ActionError(f"Unknown actor: {actor_id}") from None
 
     def _account(self, account_id: str) -> Actor | Company:
+        if type(account_id) is not str or not account_id or len(account_id) > 128:
+            raise ActionError("Invalid account")
         if account_id in self.actors:
             return self.actors[account_id]
         if account_id in self.companies:
@@ -380,6 +384,42 @@ class WorldEngine:
     @atomic_action
     def hire(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
+
+    @atomic_action
+    def company_deposit_gold(self, actor_id: str, company_id: str, amount: int) -> None:
+        return self.companies_system.deposit_gold(actor_id, company_id, amount)
+
+    @atomic_action
+    def company_withdraw_gold(self, actor_id: str, company_id: str, amount: int) -> None:
+        return self.companies_system.withdraw_gold(actor_id, company_id, amount)
+
+    @atomic_action
+    def company_deposit_goods(self, actor_id: str, company_id: str, item: str, quantity: int) -> None:
+        return self.companies_system.deposit_goods(actor_id, company_id, item, quantity)
+
+    @atomic_action
+    def company_withdraw_goods(self, actor_id: str, company_id: str, item: str, quantity: int) -> None:
+        return self.companies_system.withdraw_goods(actor_id, company_id, item, quantity)
+
+    @atomic_action
+    def company_deposit_gear(self, actor_id: str, company_id: str, gear_id: int) -> None:
+        return self.companies_system.deposit_gear(actor_id, company_id, gear_id)
+
+    @atomic_action
+    def company_withdraw_gear(self, actor_id: str, company_id: str, gear_id: int) -> None:
+        return self.companies_system.withdraw_gear(actor_id, company_id, gear_id)
+
+    @atomic_action
+    def offer_job(self, actor_id: str, company_id: str, worker_id: str,
+                  gold: int, item: str, quantity: int) -> None:
+        return self.companies_system.offer_job(actor_id, company_id, worker_id,
+                                               gold, item, quantity)
+
+    @atomic_action
+    def change_job_wage(self, actor_id: str, company_id: str, worker_id: str,
+                        gold: int, item: str, quantity: int) -> None:
+        return self.companies_system.change_job_wage(actor_id, company_id, worker_id,
+                                                     gold, item, quantity)
 
     @atomic_action
     def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:

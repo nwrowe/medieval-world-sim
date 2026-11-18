@@ -52,7 +52,11 @@ class CommandRegistryTests(unittest.TestCase):
         for name in ("propose_trade", "accept_trade", "close_trade"):
             self.assertIn(name, MULTIPLAYER_ACTIONS)
             self.assertNotIn(name, SINGLE_PLAYER_ACTIONS)
-        for name in ("found_company", "attack", "hire"):
+        for name in ("found_company", "offer_job", "shift", "post_offer",
+                     "accept_offer", "company_deposit_gold", "company_withdraw_goods"):
+            self.assertIn(name, SINGLE_PLAYER_ACTIONS)
+            self.assertIn(name, MULTIPLAYER_ACTIONS)
+        for name in ("attack", "hire", "propose_job", "set_wage"):
             self.assertNotIn(name, SINGLE_PLAYER_ACTIONS)
             self.assertNotIn(name, MULTIPLAYER_ACTIONS)
 

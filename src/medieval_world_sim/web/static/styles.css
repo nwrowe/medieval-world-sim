@@ -1138,3 +1138,33 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 :root[data-theme="dark"] .chat-preview-notice {background:#334536;color:#e1e3d5;border-color:#536350;}
 :root[data-theme="dark"] .chat-compose,.chat-channels {border-color:#536350;}
 :root[data-theme="dark"] .pill {background:#2d493a;border-color:#5c7261;color:#f0e5c8;}
+
+
+/* Civilian economy: compact business controls, independent of page coordinator. */
+.economy-company { margin-top:16px; }
+.economy-company h4 { margin:18px 0 8px; }
+.economy-controls { display:grid; gap:10px; align-items:end; margin:12px 0; }
+.economy-four { grid-template-columns:repeat(4,minmax(0,1fr)); }
+.economy-controls label,.economy-buyer,.economy-quantity {
+  display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--muted);
+  min-width:0; }
+.economy-controls label:has(input[type="checkbox"]) {
+  flex-direction:row; align-items:center; gap:6px; padding:10px 0; }
+.economy-controls .button { min-width:0; min-height:38px; }
+.economy-controls .field,.economy-quantity .field { width:100%; min-width:0; }
+.economy-metrics { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 16px; }
+.economy-staff,.economy-job,.economy-listing {
+  border-top:1px solid var(--line); padding:12px 0; }
+.economy-listing { display:flex; gap:12px; justify-content:space-between; align-items:center; }
+.economy-listing p { margin:5px 0 0; }
+.economy-actions { display:flex; align-items:end; gap:8px; flex-wrap:wrap; }
+.economy-quantity { max-width:90px; }
+.economy-buyer { display:block; margin:12px 0; max-width:300px; }
+@media (max-width:850px) {
+  .economy-four { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .economy-metrics { grid-template-columns:1fr; }
+}
+@media (max-width:450px) {
+  .economy-four { grid-template-columns:1fr; }
+  .economy-listing { align-items:flex-start; flex-direction:column; }
+}
