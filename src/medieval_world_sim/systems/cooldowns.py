@@ -8,7 +8,7 @@ from ..errors import ActionError
 
 MAX_COOLDOWN_MINUTES = 24 * 60
 FOOD_MINUTES = {"bread": 30, "meal": 60}
-POTION_MINUTES = {"healing_potion": 120}
+POTION_MINUTES = {"healing_potion": 120, "mana_tonic": 120}
 
 
 def remaining(actor, channel: str, minute: int) -> int:

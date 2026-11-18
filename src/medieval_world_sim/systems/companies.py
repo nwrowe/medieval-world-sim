@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from ..catalog import CAPITAL, RECIPES, GOODS
+from ..content.industry import INDUSTRY_PRODUCTS, company_recipe
 from ..equipment import GEAR, crafted_quality
 from ..core.entities import Company, Wage
 from ..errors import ActionError
@@ -228,6 +229,14 @@ class CompanySystem:
         company.employees[worker.id] = wage
         self.world._emit("hired", company_id, worker_id, wage.gold, wage.item, wage.quantity)
 
+    def set_product(self, owner_id: str, company_id: str, product: str) -> None:
+        """Choose one of the company's real recipes; stock and assets remain."""
+        _, company = self._owned_local(owner_id, company_id)
+        if type(product) is not str or product not in INDUSTRY_PRODUCTS[company.industry]:
+            raise ActionError("Product is not made by this company")
+        company.product = product
+        self.world._emit("company_product_selected", owner_id, company_id, product)
+
     def shift(self, worker_id: str, company_id: str) -> None:
         worker = self.world._actor(worker_id)
         company = self.world.companies.get(company_id)
@@ -235,7 +244,7 @@ class CompanySystem:
             raise ActionError("Worker not employed at company")
         if self.world._at_city(worker) != company.city or self.world.minute < worker.ready_minute:
             raise ActionError("Worker unavailable at company")
-        recipe = RECIPES[company.industry]
+        recipe = company_recipe(company)
         wage = company.employees[worker_id]
         for item, amount in recipe.inputs.items():
             if company.inventory.get(item, 0) < amount:

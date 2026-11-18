@@ -50,6 +50,7 @@ from .commands import COMMAND_SPECS
 from .exploration import reveal
 
 from ..content.lineages import LINEAGES, select_lineage
+from ..systems.tavern import TavernSystem
 
 
 class WorldEngine:
@@ -100,6 +101,7 @@ class WorldEngine:
         self.travel = TravelSystem(self)
         self.resources = ResourceSystem(self)
         self.wilderness = WildernessSystem(self)
+        self.tavern_system = TavernSystem(self)
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
         self.trades_system = TradeSystem(self)
@@ -340,6 +342,14 @@ class WorldEngine:
         return self.wilderness.investigate(actor_id, site_id, approach)
 
     @atomic_action
+    def rent_tavern_room(self, actor_id: str) -> dict:
+        return self.tavern_system.rent_room(actor_id)
+
+    @atomic_action
+    def buy_tavern_mead(self, actor_id: str) -> dict:
+        return self.tavern_system.buy_mead(actor_id)
+
+    @atomic_action
     def store_goods(self, actor_id: str, item: str, quantity: int) -> None:
         actor = self._actor(actor_id)
         city = self._at_city(actor)
@@ -350,6 +360,35 @@ class WorldEngine:
         stash = actor.storage.setdefault(city, {})
         stash[item] = stash.get(item, 0) + quantity
         self._emit("goods_stored", actor_id, city, item, quantity)
+
+    @atomic_action
+    def discard_goods(self, actor_id: str, item: str, quantity: int) -> None:
+        """Permanently discard carried goods; works outside settlements."""
+        actor = self._actor(actor_id)
+        if actor.destination is not None:
+            raise ActionError("Finish traveling before discarding goods")
+        self._positive(quantity, "quantity")
+        if type(item) is not str or item not in GOODS or actor.inventory.get(item, 0) < quantity:
+            raise ActionError("Cannot discard goods you do not carry")
+        actor.inventory[item] -= quantity
+        self._emit("goods_discarded", actor_id, item, quantity)
+
+    @atomic_action
+    def discard_gear(self, actor_id: str, gear_id: int) -> None:
+        actor = self._actor(actor_id)
+        if actor.destination is not None:
+            raise ActionError("Finish traveling before discarding equipment")
+        if type(gear_id) is not int or gear_id not in actor.gear_ids:
+            raise ActionError("Only owned carried equipment can be discarded")
+        # Discarding must also rescue a character whose entire pack consists
+        # of equipped items and who cannot visit a city's equipment service.
+        for slot, equipped_id in tuple(actor.equipped.items()):
+            if equipped_id == gear_id:
+                del actor.equipped[slot]
+        actor.gear_ids.remove(gear_id)
+        kind = self.gear.pop(gear_id).kind
+        self.state.gear_wear.pop(gear_id, None)
+        self._emit("gear_discarded", actor_id, gear_id, kind)
 
     @atomic_action
     def retrieve_goods(self, actor_id: str, item: str, quantity: int) -> None:
@@ -394,6 +433,10 @@ class WorldEngine:
     @atomic_action
     def hire(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
+
+    @atomic_action
+    def company_set_product(self, actor_id: str, company_id: str, product: str) -> None:
+        return self.companies_system.set_product(actor_id, company_id, product)
 
     @atomic_action
     def company_deposit_gold(self, actor_id: str, company_id: str, amount: int) -> None:

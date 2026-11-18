@@ -47,6 +47,7 @@ EVENT_FIELDS = {
         "industry",
         "investment"
     ],
+    "company_product_selected": ["actor_id", "company_id", "product"],
     "company_funded": ["actor_id", "company_id", "gold"],
     "company_withdrawn": ["actor_id", "company_id", "gold"],
     "company_stocked": ["actor_id", "company_id", "item", "quantity"],
@@ -138,6 +139,10 @@ EVENT_FIELDS = {
         "mana_spent", "xp_gained", "school_xp", "insight_gained"
     ],
     "goods_stored": ["actor_id", "city", "item", "quantity"],
+    "tavern_room_rented": ["actor_id", "gold", "boost_until"],
+    "tavern_mead_bought": ["actor_id", "gold", "stamina", "health"],
+    "goods_discarded": ["actor_id", "item", "quantity"],
+    "gear_discarded": ["actor_id", "gear_id", "item"],
     "gear_stored": ["actor_id", "city", "gear_id"],
     "gear_retrieved": ["actor_id", "city", "gear_id"],
     "goods_retrieved": ["actor_id", "city", "item", "quantity"],
@@ -146,6 +151,7 @@ EVENT_FIELDS = {
     "regional_sold": ["actor_id", "city", "item", "quantity", "unit_price", "total"],
     "city_sale": ["city_id", "company_id", "item", "price", "quality_stars", "day"],
     "consumed": ["actor_id", "item", "health_restored", "stamina_restored", "hunger_relieved"],
+    "mana_restored": ["actor_id", "item", "mana"],
     "pvp_strike": ["attacker_id", "defender_id", "damage", "retaliation",
                    "stamina_spent", "gold_looted"],
     "duel_started": ["attacker_id", "defender_id", "stamina_spent"],

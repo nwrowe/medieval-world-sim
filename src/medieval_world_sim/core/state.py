@@ -51,3 +51,6 @@ class WorldState:
     wilderness_stock: dict[tuple[int, str], tuple[int, int]] = field(default_factory=dict)
     # One immutable decision per site per actor; no refresh/retry rerolls.
     site_attempts: dict[str, dict[str, tuple[str, bool, str, int, int]]] = field(default_factory=dict)
+    tavern_last_room: dict[str, int] = field(default_factory=dict)
+    tavern_room_until: dict[str, int] = field(default_factory=dict)
+    tavern_mead: dict[str, tuple[int, int]] = field(default_factory=dict)

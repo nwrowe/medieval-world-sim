@@ -25,7 +25,8 @@ export function createWildernessViews(ctx) {
         button("Gather · " + gatherCost(area) + " stamina",
           'type="button" data-wilderness="gather" data-item="' + esc(r.item) +
           '" data-quantity="1"' +
-          disabled(!enough || area.stamina < gatherCost(area)), "secondary") + '</div></div>';
+          disabled(!enough || area.stamina < gatherCost(area) ||
+            area.cargo >= area.cargo_limit), "secondary") + '</div></div>';
     }).join("");
     const siteCards = (area.sites || []).map(site => {
       const prior = site.resolved;

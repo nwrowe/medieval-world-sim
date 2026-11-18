@@ -1660,6 +1660,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
         action("church_heal", {}, "The church restores your health"); break;
+      case "tavern-room": {
+        const t = state?.tavern;
+        if (!t?.room_available) break;
+        if (!window.confirm("Rent a room for " + t.room_price +
+          " gold? Recovery will be doubled for 30 game minutes. " +
+          "You may rent again in 24 game hours.")) break;
+        action("rent_tavern_room", {}, "Room rented; recovery doubled");
+        break;
+      }
+      case "tavern-mead":
+        if (!state?.tavern?.mead_available) break;
+        action("buy_tavern_mead", {}, "Mead purchased"); break;
       case "activity-trade":
         tab = "trade"; render(); break;
       case "activity-duel":
@@ -1764,15 +1776,27 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         break;
       }
       case "store":
-      case "retrieve": {
-        const id = (ui === "store" ? "store-" : "retrieve-") + item;
+      case "retrieve":
+      case "discard": {
+        const id = (ui === "retrieve" ? "retrieve-" : "store-") + item;
         const input = document.getElementById(id);
         const quantity = Number(input && input.value);
         if (!Number.isSafeInteger(quantity) || quantity <= 0) {
           notify("Enter a positive whole quantity", true); return;
         }
-        action(ui === "store" ? "store_goods" : "retrieve_goods",
-          { item, quantity }, ui === "store" ? "Goods stored" : "Goods retrieved");
+        if (ui === "discard" && !window.confirm(
+          "Permanently discard " + quantity + " " + pretty(item) + "?")) break;
+        action(ui === "discard" ? "discard_goods" :
+          ui === "store" ? "store_goods" : "retrieve_goods",
+          { item, quantity }, ui === "discard" ? "Goods discarded" :
+          ui === "store" ? "Goods stored" : "Goods retrieved");
+        break;
+      }
+      case "discard-gear": {
+        const gearId = Number(element.dataset.gearId);
+        if (!Number.isSafeInteger(gearId) || gearId <= 0) break;
+        if (!window.confirm("Permanently discard this equipment?")) break;
+        action("discard_gear", { gear_id: gearId }, "Equipment discarded");
         break;
       }
       case "store-gear":

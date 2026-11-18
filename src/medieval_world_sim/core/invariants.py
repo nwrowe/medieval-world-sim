@@ -263,7 +263,25 @@ def validate_world(world: WorldEngine) -> None:
                     or type(result[4]) is not int or result[4] < 0
                     or (result[3] > 0 and result[2] not in GOODS)):
                 raise AssertionError("Invalid site resolution record")
+    for actor_id, minute in world.state.tavern_last_room.items():
+        if (actor_id not in world.actors or type(minute) is not int or
+                not 0 <= minute <= world.minute or
+                world.state.tavern_room_until.get(actor_id) != minute + 30):
+            raise AssertionError("Invalid tavern room record")
+    if set(world.state.tavern_room_until) != set(world.state.tavern_last_room):
+        raise AssertionError("Invalid tavern boost records")
+    from ..systems.tavern import MEAD_DAILY_LIMIT, mead_day
+    for actor_id, record in world.state.tavern_mead.items():
+        if (actor_id not in world.actors or type(record) is not tuple or len(record) != 2 or
+                type(record[0]) is not int or type(record[1]) is not int or
+                not 0 <= record[1] <= MEAD_DAILY_LIMIT or
+                record[0] > mead_day(world.minute)):
+            raise AssertionError("Invalid tavern drink tally")
+    from ..content.industry import INDUSTRY_PRODUCTS
     for company in world.companies.values():
+        if (type(company.product) is not str or
+                company.product and company.product not in INDUSTRY_PRODUCTS[company.industry]):
+            raise AssertionError("Invalid company product selection")
         if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
             raise AssertionError("Invalid company quality state")
     for city in world.cities.values():

@@ -448,6 +448,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             and actor.hp < actor.max_hp and
             w.state.church_healed_day.get(actor_id) != now // 1440),
             "used_today": w.state.church_healed_day.get(actor_id) == now // 1440},
+        "tavern": w.tavern_system.view(actor_id),
         "track": {"horses": [
             {"id": breed, "name": spec["name"], "price": spec["price"],
              "speed": spec["speed"], "stamina": spec["stamina"],

@@ -7,7 +7,7 @@ const world = {
   wilderness:{
     x:4,y:5,biome:"forest",geology:"metamorphic",
     elevation_m:410,river:false,stamina:17,
-    gather_cost:{"1":5},
+    gather_cost:{"1":5},cargo:10,cargo_limit:12,
     resources:[{item:"timber",potential:90,available:5},
       {item:"herbs",potential:75,available:0}],
     sites:[{id:"site-007",name:"Forgotten Shrine",kind:"forest_shrine",
@@ -38,6 +38,9 @@ assert.match(views.renderWilderness(),/Local potential: 90/);
 assert.match(views.renderWilderness(),/Gather · 5 stamina/);
 assert.doesNotMatch(views.renderWilderness(),/Gather 2|These resources come from|stamina available|No special site on this hex/);
 assert.match(views.renderWilderness(),/Forgotten Shrine/);
+world.wilderness.cargo = 12;
+assert.match(views.renderWilderness(),/data-wilderness="gather"[^>]*disabled/);
+world.wilderness.cargo = 10;
 assert.match(views.renderWilderness(),/Go around · free/);
 assert.match(views.renderWilderness(),/Survey from safety/);
 assert.match(views.renderWilderness(),/data-wilderness="investigate"/);

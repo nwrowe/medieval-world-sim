@@ -6,6 +6,7 @@ item (including escrow) and moves gold from the city's seeded household ledger.
 from hashlib import sha256
 
 from ..catalog import RECIPES
+from ..content.industry import INDUSTRY_PRODUCTS, GOODS
 from ..core.quality import company_quality
 from ..core.transactions import transfer_gold
 
@@ -14,6 +15,10 @@ RETAIL_PRICES = {
     "bread": 5, "meal": 9, "healing_potion": 18,
     "sword": 58, "axe": 55, "bow": 54, "shield": 49,
     "leather_armor": 51, "plate_armor": 90, "pickaxe": 26,
+    "dagger": 34, "iron_helm": 40, "iron_boots": 34,
+    "iron_greaves": 36, "iron_gauntlets": 33, "leather_cap": 25,
+    "leather_boots": 24, "leather_greaves": 27, "leather_gloves": 24,
+    "mana_tonic": 20, "mead": 8, "stone_blocks": 10,
 }
 
 
@@ -45,7 +50,10 @@ class CityDemandSystem:
                 if company.city != city_id:
                     continue
                 quality = company_quality(self.world, company)
-                produced = RECIPES[company.industry].outputs
+                # Businesses can sell any product their industry is equipped to
+                # make, including equipment produced on a prior selection.
+                produced = {kind for recipe in INDUSTRY_PRODUCTS[company.industry].values()
+                            for kind in recipe.outputs}
                 for kind in sorted(produced):
                     if kind not in RETAIL_PRICES or budget <= 0:
                         continue  # households do not buy industrial intermediates
@@ -59,7 +67,7 @@ class CityDemandSystem:
                         gear_id = (self.world.offers[inventory_id].gear_id
                                    if source == "offer" else inventory_id)
                         gear = (self.world.gear[gear_id] if gear_id is not None
-                                and kind not in ("bread", "meal", "healing_potion") else None)
+                                and kind not in GOODS else None)
                         price = ask if ask is not None else retail_price(
                             kind, quality.stars, gear.quality if gear else None)
                         fair = retail_price(kind, quality.stars, gear.quality if gear else None)
@@ -74,7 +82,7 @@ class CityDemandSystem:
                                          price, quality.stars, day)
 
     def _available(self, company, kind: str) -> tuple[str, int | None, int | None] | None:
-        if kind in ("bread", "meal", "healing_potion"):
+        if kind in GOODS:
             if company.inventory.get(kind, 0) > 0:
                 return ("inventory", None, None)
         else:

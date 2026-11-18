@@ -46,6 +46,11 @@ export function createEconomyActions(ctx) {
           }, "Company founded");
           break;
         }
+        case "company-product":
+          fire("company_set_product", {
+            company_id: companyId, product: value(company, "product"),
+          }, "Company production updated");
+          break;
         case "company-fund":
         case "company-withdraw":
           fire(name === "company-fund" ? "company_deposit_gold" :

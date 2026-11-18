@@ -8,10 +8,12 @@ const state = {
     work: { manual: 12, intelligence: 14, endurance: 10, shifts: 2 } },
   gear: [{id: 7, kind: "sword", quality: 77}],
   economy: {
-    industries: [{id:"bakery",inputs:{grain:2},outputs:{bread:3}}],
+    industries: [{id:"bakery",inputs:{grain:2},outputs:{bread:3},
+      products:[{id:"bread",inputs:{grain:2},outputs:{bread:3}},
+        {id:"meal",inputs:{bread:1,meat:1,vegetables:1},outputs:{meal:2}}]}],
     goods: ["bread", "grain"],
     owned: [{
-      id:"river_bakery",city:"crownreach",industry:"bakery",gold:120,
+      id:"river_bakery",city:"crownreach",industry:"bakery",product:"bread",gold:120,
       inventory:{bread:3},equipment:[],employees:[],job_offers:[],
       facility_level:1,shifts_completed:1,perks:[],
       quality:{effectiveness:45,stars:3},daily_revenue:10,daily_units_sold:2,
@@ -45,6 +47,9 @@ const views = createEconomyViews(ctx);
 assert.match(views.renderCompanies(), /river_bakery/);
 assert.match(views.renderCompanies(), /company-stock/);
 assert.match(views.renderCompanies(), /job-offer/);
+assert.match(views.renderCompanies(), /company-product/);
+assert.match(views.renderCompanies(), /Produce/);
+assert.match(views.renderCompanies(), /value="meal"/);
 assert.match(views.renderEmployment(), /Work shift/);
 assert.match(views.renderEmployment(), /<div class="stack">/);
 assert.match(views.renderStalls(), /Player market/);
@@ -67,5 +72,16 @@ assert.equal(actions.handleEconomyClick(target("job-shift","river_bakery")),true
 assert.deepEqual(sent.pop(),{name:"shift",params:{company_id:"river_bakery"}});
 assert.equal(actions.handleEconomyClick(target("job-accept","river_bakery")),true);
 assert.deepEqual(sent.pop(),{name:"accept_job",params:{company_id:"river_bakery"}});
+const companyNode={
+  dataset:{econCompany:"river_bakery"},
+  querySelector:()=>({value:"meal"})
+};
+assert.equal(actions.handleEconomyClick({
+  dataset:{econ:"company-product",company:"river_bakery"},
+  closest:()=>companyNode
+}),true);
+assert.deepEqual(sent.pop(),{
+  name:"company_set_product",params:{company_id:"river_bakery",product:"meal"}
+});
 assert.equal(actions.handleEconomyClick(target("unhandled","river_bakery")),false);
 console.log("Economy views and delegated action handling passed");

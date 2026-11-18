@@ -95,7 +95,10 @@ def _decode(value, depth=0):
         present = set(value["values"])
         # These additive empty defaults let a current-baseline journal and its
         # verified older checkpoint continue without retaining old game rules.
-        added = {"wilderness_stock", "site_attempts"} if cls is WorldState else set()
+        added = {"wilderness_stock", "site_attempts", "tavern_last_room",
+                 "tavern_room_until", "tavern_mead"} if cls is WorldState else set()
+        if cls is Company:
+            added = {"product"}
         if present - expected or expected - present - added:
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)

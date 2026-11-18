@@ -264,25 +264,37 @@ export function createCityViews(ctx) {
       '<div class="university-grid">' + tiles + '</div>';
   }
   function renderTavern() {
-    const secureWorldClock = ctx.getSecureWorldClock();
-    const pending = ctx.getPending();
-    return heading("A place to rest", "Wayfarer's Tavern",
-      secureWorldClock ? "Take shelter and listen to rumors." :
-        "Take shelter, listen to rumors, or advance the simulation.") +
-      '<section class="story-panel"><div class="section-kicker">The common room</div>' +
-      '<h3>A seat by the hearth</h3><p>The innkeeper nods toward an empty bench. ' +
-      'Around you, travelers discuss the roads and the promise of work in distant cities.</p>' +
-      (secureWorldClock ?
-        '<p class="small">Your character recuperates as real server time passes. ' +
-        'Resting here does not accelerate shared time.</p>' :
-        '<p class="small">Resting advances simulated world time and restores resources. ' +
-        'The clock in the header continues to show real Eastern time.</p>' +
-        '<div class="button-group">' +
-        button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
-        button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
-        '</div>') + '</section>';
+    const state = ctx.getState();
+    const p = state.player, t = state.tavern || {};
+    const remaining = t.room_cooldown_remaining || 0;
+    const status = t.room_boost_remaining > 0 ?
+      '<p class="small">Recovery doubled for ' + esc(dur(t.room_boost_remaining)) +
+      ' more.</p>' : remaining ?
+      '<p class="small">Another room in ' + esc(dur(remaining)) + '.</p>' : '';
+    const cutoff = t.mead_remaining <= 0;
+    return heading("", "Wayfarer's Tavern", "") +
+      '<div class="stack">' +
+      panel("Rent a room", "",
+        '<p>Double Health, Stamina and Mana recovery for 30 minutes.</p>' +
+        status +
+        button("Rent room · " + money(t.room_price || 12),
+          'data-ui="tavern-room"' +
+          disabled(!t.room_available || isBusy()), "secondary")) +
+      panel("Mead", "",
+        '<p>+6 Stamina · −2 Health · ' + money(t.mead_price || 3) + '</p>' +
+        (cutoff ? '<p class="small">You are cut off until noon Oathmere time.</p>' :
+          '<p class="small">' + t.mead_remaining + ' of ' + t.mead_limit +
+          ' drinks remaining until noon.</p>') +
+        button(cutoff ? "Cut off until noon" : "Buy mead",
+          'data-ui="tavern-mead"' + disabled(!t.mead_available || isBusy()),
+          "secondary")) +
+      (!ctx.getSecureWorldClock() ? panel("Pass time", "",
+        button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' +
+          disabled(ctx.getPending()), "secondary") +
+        button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' +
+          disabled(ctx.getPending()), "ghost")) : '') +
+      '</div>';
   }
-
 
   return { renderMercenaryJobs, renderChurch, renderTrack,
     renderGuilds, renderMerits, renderCityHall, renderJob, renderTraining, renderTavern };

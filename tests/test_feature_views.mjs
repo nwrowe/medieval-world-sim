@@ -168,6 +168,16 @@ assert.match(meritPage, /Your merit ledger|First Steps/);
 assert.doesNotMatch(meritPage, /<h2>Merits<\/h2>|Honor your milestones|Merits are earned once|\+1 merit/);
 assert.match(city.renderJob(), /Manual:57/);
 assert.match(city.renderJob(), /Occupation/);
+state = {...state,tavern:{
+  room_price:12,room_available:true,room_cooldown_remaining:0,
+  room_boost_remaining:0,mead_price:3,mead_available:true,
+  mead_limit:6,mead_remaining:6
+}};
+assert.match(city.renderTavern(), /Rent room · 12g|Rent room · 12/);
+assert.match(city.renderTavern(), /Buy mead/);
+state = {...state,tavern:{...state.tavern,mead_available:false,mead_remaining:0}};
+assert.match(city.renderTavern(), /Cut off until noon/);
+state = {...state,tavern:{...state.tavern,mead_available:true,mead_remaining:6}};
 assert.doesNotMatch(city.renderJob(), /Available Work|Complete contract/);
 state = { ...state, contracts: ["warriors", "mageguild", "job"].map((venue, i) => ({
   id: "test" + i, title: "Contract " + venue, description: "Help the city",
@@ -198,11 +208,18 @@ for (const name of ["renderInventory", "renderCharacter", "renderEquipment", "re
   assert.ok(character[name]().length > 35, name + " must render meaningful markup");
 }
 assert.match(character.renderInventory(), /Inventory/);
+assert.match(character.renderInventory(), /Stored Goods/);
+assert.doesNotMatch(character.renderInventory(), /Equipment & vehicles|Your stored goods/);
 assert.doesNotMatch(character.renderInventory(), /Carrying .*Road limit|Crownreach offers unlimited goods storage/);
 assert.match(character.renderEquipment(), /Equipped Gear/);
 assert.match(character.renderEquipment(), /equipment-storage-panel/);
 state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };
 assert.match(character.renderInventory(), /3 carried/);
+assert.match(character.renderInventory(), /data-ui="discard"/);
+state = {...state,world_map:{in_wilderness:true}};
+assert.match(character.renderInventory(), /Storage is unavailable outside a city/);
+assert.doesNotMatch(character.renderInventory(), /data-ui="store" data-item/);
+state = {...state}; delete state.world_map;
 const world = createWorldViews({
   ...helpers, getState: () => state, getPending: () => false,
   getSecureWorldClock: () => true,

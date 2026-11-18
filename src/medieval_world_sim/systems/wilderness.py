@@ -79,6 +79,9 @@ class WildernessSystem:
         available = self._available(tile, item)
         if available < quantity:
             raise ActionError("This deposit is exhausted; let it recover")
+        if not legacy and (sum(actor.inventory.values()) + len(actor.gear_ids)
+                           + quantity > self.world.housing_system.travel_cargo_limit(actor)):
+            raise ActionError("Carrying capacity reached; discard items before gathering")
         # Only committed successful commands consume stamina and stock.
         actor.stamina -= cost
         key = (y * self.world.geography.width + x, item)
@@ -126,6 +129,11 @@ class WildernessSystem:
         label, cost, _, _, _, reward = SITE_APPROACHES[approach]
         if actor.stamina < cost:
             raise ActionError("Not enough stamina to investigate")
+        old = getattr(self.world, "_replay_legacy_site_reward", False)
+        cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
+        capacity = self.world.housing_system.travel_cargo_limit(actor)
+        if not old and cargo >= capacity:
+            raise ActionError("Carrying capacity reached; discard items before investigating")
         # Server-only key in multiplayer prevents client prediction. The same
         # stored key and committed action replay yield exactly the same roll.
         payload = f"wilderness|{self.world.seed}|{actor_id}|{site_id}|{approach}".encode()
@@ -145,6 +153,11 @@ class WildernessSystem:
             not success and approach == "delve") else 0
         actor.stamina -= cost
         actor.hp -= damage
+        if quantity and not old:
+            # Discovery rewards cannot strand players above travel capacity.
+            room = max(0, self.world.housing_system.travel_cargo_limit(actor) -
+                       sum(actor.inventory.values()) - len(actor.gear_ids))
+            quantity = min(quantity, room)
         if quantity:
             self.world._add(actor, item, quantity)
         result = (approach, success, item, quantity, damage)
@@ -184,7 +197,9 @@ class WildernessSystem:
                      "chance": self._chance(actor, site, key),
                      "reward_estimate": reward,
                      "available": (prior is None and actor.stamina >= cost
-                                   and actor.hp > 0 and actor.defeated_until is None)}
+                                   and actor.hp > 0 and actor.defeated_until is None
+                                   and sum(actor.inventory.values()) + len(actor.gear_ids) <
+                                   self.world.housing_system.travel_cargo_limit(actor))}
                     for key, (name, cost, _, _, _, reward) in SITE_APPROACHES.items()
                 ],
             })
@@ -192,4 +207,6 @@ class WildernessSystem:
                 "geology": tile.geology, "elevation_m": tile.elevation_m,
                 "river": tile.river, "stamina": actor.stamina,
                 "gather_cost": {"1": 5},
+                "cargo": sum(actor.inventory.values()) + len(actor.gear_ids),
+                "cargo_limit": self.world.housing_system.travel_cargo_limit(actor),
                 "resources": stocks, "sites": sites}
