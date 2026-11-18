@@ -1660,6 +1660,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
         action("church_heal", {}, "The church restores your health"); break;
+      case "tavern-room": {
+        const t = state?.tavern;
+        if (!t?.room_available) break;
+        if (!window.confirm("Rent a room for " + t.room_price +
+          " gold? Recovery will be doubled for 30 game minutes. " +
+          "You may rent again in 24 game hours.")) break;
+        action("rent_tavern_room", {}, "Room rented; recovery doubled");
+        break;
+      }
+      case "tavern-mead":
+        if (!state?.tavern?.mead_available) break;
+        action("buy_tavern_mead", {}, "Mead purchased"); break;
       case "activity-trade":
         tab = "trade"; render(); break;
       case "activity-duel":
