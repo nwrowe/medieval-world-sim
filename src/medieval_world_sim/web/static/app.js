@@ -71,6 +71,7 @@ import { createWorldViews } from "/world-views.mjs";
   let introActor = null;
   let travelIntent = null;
   let hexIntent = null;
+  let guildLeaveIntent = null;
   let mapZoom = 2.5;
   let forceMapCenter = false;
   let mapPollBusy = false;
@@ -1092,6 +1093,25 @@ import { createWorldViews } from "/world-views.mjs";
       '</aside>';
   }
 
+  function guildLeaveConfirmation() {
+    const own = state && state.guilds && state.guilds.my_guild;
+    if (!guildLeaveIntent || !own) return "";
+    const lastMember = Object.keys(own.members).length === 1;
+    return '<div class="travel-confirm-overlay" role="presentation">' +
+      '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="guild-leave-title" aria-describedby="guild-leave-description">' +
+      '<h2 id="guild-leave-title">' +
+      (lastMember ? 'Dissolve ' + esc(own.name) + '?' : 'Leave ' + esc(own.name) + '?') +
+      '</h2><p id="guild-leave-description">' +
+      (lastMember ? 'You are the last member. Leaving will permanently dissolve ' +
+        'the guild and all its accumulated progress. Are you sure?' :
+        'Are you sure you want to leave this guild?') +
+      '</p><div class="travel-confirm-actions">' +
+      button("Cancel", 'data-ui="guild-leave-cancel"', "secondary") +
+      button(lastMember ? "Dissolve guild" : "Leave guild",
+        'data-ui="guild-leave-confirm"', "gold") +
+      '</div></section></div>';
+  }
   let lastMapHex = null;
   function render() {
     const previous = root.querySelector(".terrain-map-scroll");
@@ -1105,7 +1125,8 @@ import { createWorldViews } from "/world-views.mjs";
       root.innerHTML = introductionPage();
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay() +
-      (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "");
+      (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "") +
+      guildLeaveConfirmation();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
     const map = root.querySelector(".terrain-map-scroll");
@@ -1223,6 +1244,10 @@ import { createWorldViews } from "/world-views.mjs";
   });
 
   root.addEventListener("input", event => {
+    if (event.target.id === "guild-name") {
+      event.target.setCustomValidity("");
+      return;
+    }
     if (event.target.id === "chronicle-query") {
       chronicleQuery = event.target.value;
       const list = document.getElementById("chronicle-list");
@@ -1377,12 +1402,46 @@ import { createWorldViews } from "/world-views.mjs";
       case "guild-found": {
         const input = document.getElementById("guild-name");
         const name = input && input.value.trim();
-        if (!name || name.length < 3) {
-          notify('Enter a guild name of at least 3 characters', true); break;
+        if (!name || name.length < 3 || name.length > 40) {
+          if (input) {
+            input.setCustomValidity("Guild name must contain 3–40 characters.");
+            input.reportValidity();
+          }
+          notify("Guild name must contain 3–40 characters.", true);
+          break;
         }
+        input.setCustomValidity("");
         action("found_guild", { name }, "Guild founded"); break;
       }
-      case "guild-leave": action("leave_guild", {}, "Left your guild"); break;
+      case "guild-leave":
+        if (state.guilds?.my_guild) {
+          const guild = state.guilds.my_guild;
+          guildLeaveIntent = {id: guild.id, lastMember: Object.keys(guild.members).length === 1};
+        }
+        render(); break;
+      case "guild-leave-cancel":
+        guildLeaveIntent = null;
+        render(); break;
+      case "guild-leave-confirm": {
+        const confirmation = guildLeaveIntent;
+        if (!confirmation) break;
+        guildLeaveIntent = null;
+        (async () => {
+          try {
+            const fresh = await request("/api/state");
+            state = fresh;
+            const guild = fresh.guilds?.my_guild;
+            if (!guild || guild.id !== confirmation.id ||
+                (Object.keys(guild.members).length === 1) !== confirmation.lastMember) {
+              notify("Your guild membership changed; review before leaving.", true);
+              render();
+              return;
+            }
+            await action("leave_guild", {}, "Left your guild");
+          } catch (error) { notify(error.message, true); render(); }
+        })();
+        break;
+      }
       case "merit-claim":
         action("claim_merit", { achievement: element.dataset.achievement }, "Merit earned"); break;
       case "merit-buy":
