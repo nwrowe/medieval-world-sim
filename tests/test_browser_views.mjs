@@ -3,6 +3,9 @@
  */
 import assert from "node:assert/strict";
 import { createWorldViews } from "../src/medieval_world_sim/web/static/world-views.mjs";
+import { travelJustArrived, activeCourseEnded } from
+  "../src/medieval_world_sim/web/static/live-transitions.mjs";
+import { readFileSync } from "node:fs";
 
 let school = "restoration";
 let state = {
@@ -72,5 +75,36 @@ assert.match(map, /survey-city-marker map-destination/);
 assert.match(map, /pointer-events="all"/);
 assert.doesNotMatch(map, /Roads and destinations|Gather nearby resources|Time and recovery/i);
 assert.doesNotMatch(map, /Exploration and Awareness|A growing atlas/i);
+assert.doesNotMatch(map, /Click any highlighted land hex|Journeys use the cost/);
 assert.doesNotMatch(map, /grain/);
+// The final travel push transitions destination to null. The browser must
+// make exactly one final private-map fetch rather than stopping at the prior hex.
+assert.equal(travelJustArrived("crownreach", null), true);
+assert.equal(travelJustArrived(null, null), false);
+assert.equal(travelJustArrived("crownreach", "crownreach"), false);
+assert.equal(activeCourseEnded({school:"rhetoric",index:0}, null), true);
+assert.equal(activeCourseEnded({school:"rhetoric",index:0},
+  {school:"rhetoric",index:0,remaining_minutes:5}), false);
+assert.equal(activeCourseEnded(null, null), false);
+assert.equal(activeCourseEnded({school:"rhetoric",index:0},
+  {school:"rhetoric",index:1}), true);
+const appSource = readFileSync(
+  new URL("../src/medieval_world_sim/web/static/app.js", import.meta.url), "utf8");
+const indexSource = readFileSync(
+  new URL("../src/medieval_world_sim/web/static/index.html", import.meta.url), "utf8");
+const stylesSource = readFileSync(
+  new URL("../src/medieval_world_sim/web/static/styles.css", import.meta.url), "utf8");
+assert.match(appSource, /mapTravelSettlePending = true/);
+assert.match(appSource, /!state\.player\.destination && !mapTravelSettlePending/);
+assert.match(appSource, /universityNeedsRefresh = true/);
+assert.match(appSource, /refreshFinishedUniversityCourse\(\)/);
+assert.match(appSource, /data-encounter-id/);
+assert.match(appSource, /chronicleOpenEncounters\.has/);
+assert.match(appSource, /chronicleVisibleCount = 50/);
+assert.match(appSource, /chronicle-more/);
+assert.match(indexSource, /<title>Oathmere<\/title>/);
+assert.doesNotMatch(indexSource, /The Five Cities/);
+assert.match(stylesSource, /\.profile-magic-panel \{ margin-top:18px/);
+assert.match(stylesSource, /\.chat-dock \{[^\n]+width:210px/);
+assert.match(stylesSource, /\.chat-game-refresh:first-child/);
 console.log("Browser page module smoke tests passed");
