@@ -267,9 +267,7 @@ export function createCityViews(ctx) {
     const state = ctx.getState();
     const p = state.player, t = state.tavern || {};
     const remaining = t.room_cooldown_remaining || 0;
-    const status = t.room_boost_remaining > 0 ?
-      '<p class="small">Recovery doubled for ' + esc(dur(t.room_boost_remaining)) +
-      ' more.</p>' : remaining ?
+    const status = remaining ?
       '<p class="small">Another room in ' + esc(dur(remaining)) + '.</p>' : '';
     const cutoff = t.mead_remaining <= 0;
     return heading("", "Wayfarer's Tavern", "") +
@@ -280,12 +278,12 @@ export function createCityViews(ctx) {
         button("Rent room · " + money(t.room_price || 12),
           'data-ui="tavern-room"' +
           disabled(!t.room_available || isBusy()), "secondary")) +
-      panel("Mead", "",
-        '<p>+6 Stamina · −2 Health · ' + money(t.mead_price || 3) + '</p>' +
+      panel("Mug of mead", "",
+        '<p>Enjoy a mug of mead.</p>' +
         (cutoff ? '<p class="small">You are cut off until noon Oathmere time.</p>' :
           '<p class="small">' + t.mead_remaining + ' of ' + t.mead_limit +
           ' drinks remaining until noon.</p>') +
-        button(cutoff ? "Cut off until noon" : "Buy mead",
+        button(cutoff ? "Cut off until noon" : "Buy mead · " + money(t.mead_price || 3),
           'data-ui="tavern-mead"' + disabled(!t.mead_available || isBusy()),
           "secondary")) +
       (!ctx.getSecureWorldClock() ? panel("Pass time", "",

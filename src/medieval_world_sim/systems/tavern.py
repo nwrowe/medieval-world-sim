@@ -3,7 +3,7 @@ from ..errors import ActionError
 from ..core.transactions import transfer_gold
 
 ROOM_PRICE, ROOM_COOLDOWN, ROOM_DURATION = 12, 1440, 30
-MEAD_PRICE, MEAD_STAMINA, MEAD_DAMAGE, MEAD_DAILY_LIMIT = 3, 6, 2, 6
+MEAD_PRICE, MEAD_STAMINA, MEAD_DAMAGE, MEAD_DAILY_LIMIT = 3, 4, 2, 6
 
 
 def mead_day(minute):
@@ -35,8 +35,7 @@ class TavernSystem:
                 "mead_price": MEAD_PRICE, "mead_remaining": MEAD_DAILY_LIMIT - used,
                 "mead_limit": MEAD_DAILY_LIMIT,
                 "mead_available": (local and actor.gold >= MEAD_PRICE and
-                                   used < MEAD_DAILY_LIMIT and actor.hp > MEAD_DAMAGE
-                                   and actor.stamina < actor.max_stamina)}
+                                   used < MEAD_DAILY_LIMIT and actor.hp > MEAD_DAMAGE)}
 
     def rent_room(self, actor_id):
         actor = self.world._actor(actor_id)
@@ -60,8 +59,8 @@ class TavernSystem:
             used = 0
         if used >= MEAD_DAILY_LIMIT:
             raise ActionError("You're cut off until noon Oathmere time")
-        if actor.hp <= MEAD_DAMAGE or actor.stamina >= actor.max_stamina:
-            raise ActionError("Not healthy enough to drink, or stamina is full")
+        if actor.hp <= MEAD_DAMAGE:
+            raise ActionError("Not healthy enough to drink mead")
         transfer_gold(self.world, actor, None, MEAD_PRICE)
         gained = min(MEAD_STAMINA, actor.max_stamina - actor.stamina)
         actor.stamina += gained

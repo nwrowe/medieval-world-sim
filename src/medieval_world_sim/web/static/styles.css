@@ -1144,6 +1144,15 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 :root[data-theme="dark"] .pill {background:#2d493a;border-color:#5c7261;color:#f0e5c8;}
 
 
+/* Dark-mode market cards use their own light surface unless overridden. */
+:root[data-theme="dark"] .market-card {
+  background:var(--paper); border-color:var(--line); color:var(--ink);
+}
+:root[data-theme="dark"] .market-card h3,
+:root[data-theme="dark"] .market-card .inventory-pill { color:#e5ede3; }
+:root[data-theme="dark"] .market-card .prices div { background:#1b3025; }
+:root[data-theme="dark"] .market-card .prices strong { color:#add5b9; }
+:root[data-theme="dark"] .market-card .prices .sell strong { color:#eac58c; }
 /* Civilian economy: compact business controls, independent of page coordinator. */
 .economy-company { margin-top:16px; }
 .economy-company h4 { margin:18px 0 8px; }
