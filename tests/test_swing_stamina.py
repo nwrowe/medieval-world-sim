@@ -113,20 +113,14 @@ class WeaponStaminaTests(unittest.TestCase):
         # provides a measurable defense improvement.
         self.assertGreater(opening_damage(False), opening_damage(True))
 
-    def test_historical_ruleset_four_still_charges_twenty_on_replay(self):
+    def test_current_free_duel_start_survives_replay(self):
         foe = self.foe()
-        data = json.loads(self.path.read_text())
-        data["records"].append({
-            "kind": "action", "name": "start_duel",
-            "params": {"defender_id": foe}, "id": "historic-start", "ruleset": 4
-        })
-        self.path.write_text(json.dumps(data))
+        result = self.action("start_duel", {"defender_id": foe}, "start")
+        self.assertEqual(result["stamina_spent"], 0)
         recovered = GameSession(self.path)
-        self.assertEqual(recovered.snapshot()["player"]["stamina"], 80)
+        self.assertEqual(recovered.snapshot()["player"]["stamina"], 100)
         self.assertIsNotNone(recovered.snapshot()["duel"])
-        recovered.action("flee_duel", {}, "modern-flee")
-        self.assertEqual(GameSession(self.path).snapshot(), recovered.snapshot())
-
+        self.assertEqual(recovered.snapshot(), self.game.snapshot())
 
 if __name__ == "__main__":
     unittest.main()

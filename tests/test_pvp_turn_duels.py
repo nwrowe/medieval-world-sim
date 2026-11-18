@@ -2,7 +2,7 @@
 
 Human defenders react server-side, without needing an online request or an
 offensive turn. This module explicitly checks outcome limits, permissions,
-replay, old one-swing journal compatibility, and conserved gold.
+replay, obsolete-command rejection, and conserved gold.
 """
 from realm_fixtures import GOLDMEADOW
 
@@ -209,24 +209,19 @@ class MultiplayerDuelTests(unittest.TestCase):
         self.assertIsNone(self.game.snapshot(self.bob)["duel"])
         self.game.world.assert_invariants()
 
-    def test_historical_one_swing_pvp_journal_remains_replayable(self):
-        # The production endpoint refuses new one-swing commands, but journals
-        # committed by older versions must still reconstruct exactly.
+    def test_obsolete_one_swing_command_cannot_replay(self):
         payload = json.dumps({"defender_id": self.bob}, sort_keys=True,
                              separators=(",", ":"))
-        # This fixture represents a pre-ledger release's database. Modern
-        # databases reject journal edits that bypass durable atomic writes.
-        self.game.db.execute(
-            "DELETE FROM world_meta WHERE name='durable_ledger_initialized'")
         self.game.db.execute(
             "INSERT INTO world_journal(kind, actor_id, action, payload, request_id, "
             "result_json, recorded_at) VALUES('action', ?, 'pvp_strike', ?, ?, ?, NULL)",
-            (self.alice, payload, "legacy-swing", "{}"))
+            (self.alice, payload, "obsolete-swing", "{}"))
         self.game.close()
-        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
-        self.assertLess(self.game.snapshot(self.bob)["player"]["hp"], 24)
-        self.assertIsNone(self.game.snapshot(self.alice)["duel"])
-        self.game.world.assert_invariants()
+        with self.assertRaisesRegex(ValueError, "Forbidden journal command"):
+            MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
+        self.game = MultiplayerGame(
+            self.path.with_name("fresh.sqlite3"), require_invites=False,
+            dev_fast_forward=True)
 
     def test_unattended_player_duel_does_not_freeze_shared_world_time(self):
         self.begin()
