@@ -195,6 +195,8 @@ class GameSession:
         elif record.get("kind") == "action":
             expected = {"kind", "name", "params", "id", "recorded_at"}
             name = record.get("name")
+            if name == "wilderness_gather" and "gather_rule" in record:
+                expected.add("gather_rule")
             if name == "flee_duel":
                 expected.add("flee_success")
                 if type(record.get("flee_success")) is not bool:
@@ -202,9 +204,15 @@ class GameSession:
                 self.world._flee_success = record["flee_success"]
             if set(record) != expected or name not in UI_ACTIONS:
                 raise ValueError("Unsupported journal action")
+            if name == "wilderness_gather":
+                rule = record.get("gather_rule", 1)
+                if type(rule) is not int or rule not in (1, 2):
+                    raise ValueError("Invalid wilderness gather policy")
+                self.world._replay_legacy_wilderness = rule == 1
             try:
                 self.world.execute(PLAYER_ID, name, record["params"], record["id"])
             finally:
+                self.world._replay_legacy_wilderness = False
                 self.world._flee_success = None
         else:
             raise ValueError("Unknown journal record")
@@ -234,6 +242,8 @@ class GameSession:
             stored_record = {**record, "recorded_at": datetime.now(timezone.utc).isoformat()}
             if record.get("name") == "flee_duel":
                 stored_record["flee_success"] = bool(self.world._flee_success)
+            if record.get("name") == "wilderness_gather":
+                stored_record["gather_rule"] = 2
             self.records.append(stored_record)
             try:
                 self._save()

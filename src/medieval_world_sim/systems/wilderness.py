@@ -66,9 +66,14 @@ class WildernessSystem:
     def gather(self, actor_id: str, item: str, quantity: int) -> dict:
         actor, x, y, tile = self._here(actor_id)
         self.world._positive(quantity, "quantity")
-        if type(item) is not str or quantity != MAX_HARVEST or item not in tile.resources:
+        legacy = getattr(self.world, "_replay_legacy_wilderness", False)
+        if (type(item) is not str or
+                quantity not in ((1, 2) if legacy else (MAX_HARVEST,)) or
+                item not in tile.resources):
             raise ActionError("Cannot harvest that resource at this location")
-        cost = 5
+        # Previous committed playtest gathers used 3/5 stamina for 1/2 units.
+        # Only trusted save/journal replay may invoke those historical costs.
+        cost = (1 + 2 * quantity) if legacy else 5
         if actor.stamina < cost:
             raise ActionError("Not enough stamina to gather")
         available = self._available(tile, item)
