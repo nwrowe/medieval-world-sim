@@ -28,6 +28,7 @@ class CargoSafetyTests(unittest.TestCase):
         with self.assertRaisesRegex(ActionError, "Carrying capacity"):
             w.execute("walker", "wilderness_gather",
                       {"item": item, "quantity": 1}, "overflow")
+        a = w.actors["walker"]  # Failed atomic commands restore a state snapshot.
         self.assertEqual(a.stamina, old_stamina)
         self.assertEqual(w.state.wilderness_stock, old_stock)
         self.assertEqual(w.wilderness.view("walker")["cargo"], 12)
@@ -49,6 +50,7 @@ class CargoSafetyTests(unittest.TestCase):
             w.explore_hex("walker", site.x, site.y + 1)
         with self.assertRaises(ActionError):
             w.discard_goods("walker", "herbs", 100)
+        a = w.actors["walker"]
         w.execute("walker", "discard_goods",
                   {"item": "herbs", "quantity": 3}, "drop-3")
         self.assertEqual(a.inventory["herbs"], 11)
@@ -56,6 +58,7 @@ class CargoSafetyTests(unittest.TestCase):
         w.equip("walker", gear.id)
         with self.assertRaises(ActionError):
             w.discard_gear("walker", gear.id)
+        a = w.actors["walker"]
         w.unequip("walker", "weapon")
         w.discard_gear("walker", gear.id)
         self.assertNotIn(gear.id, w.gear)
@@ -68,9 +71,10 @@ class CargoSafetyTests(unittest.TestCase):
         stage_site(w, "walker", site)
         a = w.actors["walker"]
         a.inventory["herbs"] = 12
-        result = w.execute("walker", "investigate_site",
-                  {"site_id": site.id, "approach": "delve"}, "no-overfill")
-        self.assertEqual(result["quantity"], 0)
+        with self.assertRaisesRegex(ActionError, "Carrying capacity"):
+            w.execute("walker", "investigate_site",
+                      {"site_id": site.id, "approach": "delve"}, "no-overfill")
+        a = w.actors["walker"]
         self.assertEqual(sum(a.inventory.values()) + len(a.gear_ids), 12)
         w.assert_invariants()
 
@@ -90,6 +94,7 @@ class TavernTests(unittest.TestCase):
         self.assertEqual(a.tavern_system.view("guest")["room_cooldown_remaining"], 1440)
         with self.assertRaises(ActionError):
             a.rent_tavern_room("guest")
+        guest = a.actors["guest"]
         a.advance(30)
         b.advance(30)
         self.assertEqual(guest.stamina - 50, 2 * (control.stamina - 50))
@@ -139,6 +144,7 @@ class TavernTests(unittest.TestCase):
         with self.assertRaisesRegex(ActionError, "cut off"):
             w.buy_tavern_mead("guest")
         w.advance(720)
+        actor = w.actors["guest"]
         actor.stamina = 60
         self.assertEqual(w.tavern_system.view("guest")["mead_remaining"], 6)
         self.assertEqual(w.buy_tavern_mead("guest")["remaining"], 5)
@@ -153,6 +159,7 @@ class TavernTests(unittest.TestCase):
         before = (actor.gold, actor.stamina, actor.hp)
         with self.assertRaises(ActionError):
             w.buy_tavern_mead("guest")
+        actor = w.actors["guest"]
         self.assertEqual((actor.gold, actor.stamina, actor.hp), before)
         site = suitable_site(w)
         stage_site(w, "guest", site)
@@ -203,6 +210,7 @@ class MultipleProductTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.execute("owner", "company_set_product",
                       {"company_id": c.id, "product": "healing_potion"}, "invalid")
+        c = w.companies["ironworks"]  # Rejections restore deep-copied state.
         self.assertEqual(c.product, "")
         c.inventory.update({"steel": 2, "leather": 2})
         w.execute("owner", "company_set_product",
