@@ -382,6 +382,42 @@ class WorldEngine:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
 
     @atomic_action
+    def company_deposit_gold(self, actor_id: str, company_id: str, amount: int) -> None:
+        return self.companies_system.deposit_gold(actor_id, company_id, amount)
+
+    @atomic_action
+    def company_withdraw_gold(self, actor_id: str, company_id: str, amount: int) -> None:
+        return self.companies_system.withdraw_gold(actor_id, company_id, amount)
+
+    @atomic_action
+    def company_deposit_goods(self, actor_id: str, company_id: str, item: str, quantity: int) -> None:
+        return self.companies_system.deposit_goods(actor_id, company_id, item, quantity)
+
+    @atomic_action
+    def company_withdraw_goods(self, actor_id: str, company_id: str, item: str, quantity: int) -> None:
+        return self.companies_system.withdraw_goods(actor_id, company_id, item, quantity)
+
+    @atomic_action
+    def company_deposit_gear(self, actor_id: str, company_id: str, gear_id: int) -> None:
+        return self.companies_system.deposit_gear(actor_id, company_id, gear_id)
+
+    @atomic_action
+    def company_withdraw_gear(self, actor_id: str, company_id: str, gear_id: int) -> None:
+        return self.companies_system.withdraw_gear(actor_id, company_id, gear_id)
+
+    @atomic_action
+    def offer_job(self, actor_id: str, company_id: str, worker_id: str,
+                  gold: int, item: str, quantity: int) -> None:
+        return self.companies_system.offer_job(actor_id, company_id, worker_id,
+                                               gold, item, quantity)
+
+    @atomic_action
+    def change_job_wage(self, actor_id: str, company_id: str, worker_id: str,
+                        gold: int, item: str, quantity: int) -> None:
+        return self.companies_system.change_job_wage(actor_id, company_id, worker_id,
+                                                     gold, item, quantity)
+
+    @atomic_action
     def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         return self.companies_system.propose_job(owner_id, company_id, worker_id, wage)
 

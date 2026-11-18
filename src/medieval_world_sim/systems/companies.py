@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from ..catalog import CAPITAL, RECIPES, GOODS
 from ..equipment import GEAR, crafted_quality
 from ..core.entities import Company, Wage
@@ -8,6 +10,9 @@ from ..core.transactions import transfer_gold
 from ..core.quality import ALLOWED_PERKS, company_quality, suggested_wage
 
 HOUR = 60
+MAX_OWNED_COMPANIES = 3
+MAX_COMPANY_ASSETS_TRANSFER = 10000
+COMPANY_NAME = re.compile(r"[a-z][a-z0-9_-]{2,31}\Z")
 
 
 class CompanySystem:
@@ -19,8 +24,14 @@ class CompanySystem:
         if self.world._at_city(owner) != CAPITAL:
             raise ActionError("Founding a company requires being in the capital")
         self.world._positive(investment, "investment")
-        if industry not in RECIPES or not company_id or company_id in self.world.companies or company_id in self.world.actors:
-            raise ActionError("Invalid company type or ID")
+        if (industry not in RECIPES or not isinstance(company_id, str)
+                or not COMPANY_NAME.fullmatch(company_id)
+                or company_id in self.world.companies
+                or company_id in self.world.actors):
+            raise ActionError("Choose a unique company ID (3–32 letters, digits, _ or -)")
+        if sum(company.owner_id == owner_id for company in
+               self.world.companies.values()) >= MAX_OWNED_COMPANIES:
+            raise ActionError("Maximum three companies per owner")
         if owner.gold < investment:
             raise ActionError("Insufficient gold to invest")
         company = Company(company_id, owner_id, industry)
@@ -28,6 +39,90 @@ class CompanySystem:
         transfer_gold(self.world, owner, company, investment)
         self.world._emit("company_founded", owner_id, company_id, industry, investment)
         self.world.assert_invariants()
+
+    def _owned_local(self, actor_id: str, company_id: str):
+        """Validate an authenticated owner's physical access to company assets."""
+        actor = self.world._actor(actor_id)
+        company = self.world.companies.get(company_id)
+        if company is None or company.owner_id != actor_id:
+            raise ActionError("Company is not owned by this character")
+        if self.world._at_city(actor) != company.city:
+            raise ActionError("Travel to the company's city to manage it")
+        return actor, company
+
+    def deposit_gold(self, actor_id: str, company_id: str, amount: int) -> None:
+        actor, company = self._owned_local(actor_id, company_id)
+        self.world._positive(amount, "gold amount")
+        if actor.gold < amount:
+            raise ActionError("Not enough personal gold")
+        transfer_gold(self.world, actor, company, amount)
+        self.world._emit("company_funded", actor_id, company_id, amount)
+
+    def withdraw_gold(self, actor_id: str, company_id: str, amount: int) -> None:
+        actor, company = self._owned_local(actor_id, company_id)
+        self.world._positive(amount, "gold amount")
+        if company.gold < amount:
+            raise ActionError("Company cannot cover withdrawal")
+        transfer_gold(self.world, company, actor, amount)
+        self.world._emit("company_withdrawn", actor_id, company_id, amount)
+
+    def deposit_goods(self, actor_id: str, company_id: str,
+                      item: str, quantity: int) -> None:
+        actor, company = self._owned_local(actor_id, company_id)
+        self.world._positive(quantity, "quantity")
+        if quantity > MAX_COMPANY_ASSETS_TRANSFER or item not in GOODS:
+            raise ActionError("Invalid goods transfer")
+        if actor.inventory.get(item, 0) < quantity:
+            raise ActionError("Not enough personal inventory")
+        actor.inventory[item] -= quantity
+        self.world._add(company, item, quantity)
+        self.world._emit("company_stocked", actor_id, company_id, item, quantity)
+
+    def withdraw_goods(self, actor_id: str, company_id: str,
+                       item: str, quantity: int) -> None:
+        actor, company = self._owned_local(actor_id, company_id)
+        self.world._positive(quantity, "quantity")
+        if quantity > MAX_COMPANY_ASSETS_TRANSFER or item not in GOODS:
+            raise ActionError("Invalid goods transfer")
+        if company.inventory.get(item, 0) < quantity:
+            raise ActionError("Not enough company inventory")
+        company.inventory[item] -= quantity
+        self.world._add(actor, item, quantity)
+        self.world._emit("company_unstocked", actor_id, company_id, item, quantity)
+
+    def deposit_gear(self, actor_id: str, company_id: str, gear_id: int) -> None:
+        actor, company = self._owned_local(actor_id, company_id)
+        if type(gear_id) is not int or gear_id not in actor.gear_ids:
+            raise ActionError("Equipment is not in your inventory")
+        actor.gear_ids.remove(gear_id)
+        for slot, owned in list(actor.equipped.items()):
+            if owned == gear_id:
+                del actor.equipped[slot]
+        company.gear_ids.append(gear_id)
+        self.world._emit("company_gear_stocked", actor_id, company_id, gear_id)
+
+    def withdraw_gear(self, actor_id: str, company_id: str, gear_id: int) -> None:
+        actor, company = self._owned_local(actor_id, company_id)
+        if type(gear_id) is not int or gear_id not in company.gear_ids:
+            raise ActionError("Equipment is not owned by the company")
+        company.gear_ids.remove(gear_id)
+        actor.gear_ids.append(gear_id)
+        self.world._emit("company_gear_withdrawn", actor_id, company_id, gear_id)
+
+    def offer_job(self, owner_id: str, company_id: str, worker_id: str,
+                  gold: int, item: str, quantity: int) -> None:
+        self._owned_local(owner_id, company_id)
+        worker = self.world._actor(worker_id)
+        if worker.kind != "human":
+            raise ActionError("Employment offers require a player character")
+        wage = Wage(gold, item or None, quantity)
+        self.propose_job(owner_id, company_id, worker_id, wage)
+
+    def change_job_wage(self, owner_id: str, company_id: str, worker_id: str,
+                        gold: int, item: str, quantity: int) -> None:
+        self._owned_local(owner_id, company_id)
+        wage = Wage(gold, item or None, quantity)
+        self.set_wage(owner_id, company_id, worker_id, wage)
 
     def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         company = self.world.companies.get(company_id)
@@ -39,10 +134,12 @@ class CompanySystem:
         self.world._emit("job_offered", company_id, worker_id, wage.gold, wage.item, wage.quantity)
 
     def accept_job(self, worker_id: str, company_id: str) -> None:
-        self.world._actor(worker_id)
+        worker = self.world._actor(worker_id)
         company = self.world.companies.get(company_id)
         if company is None or worker_id not in company.job_offers:
             raise ActionError("No pending employment offer")
+        if self.world._at_city(worker) != company.city:
+            raise ActionError("Go to the company's city to accept the job")
         wage = company.job_offers.pop(worker_id)
         company.employees[worker_id] = wage
         self.world._emit("hired", company_id, worker_id, wage.gold, wage.item, wage.quantity)
@@ -66,6 +163,7 @@ class CompanySystem:
         self.world._emit("worker_left", company_id, worker_id)
 
     def set_perks(self, owner_id: str, company_id: str, perks: tuple[str, ...]) -> None:
+        self._owned_local(owner_id, company_id)
         company = self.world.companies.get(company_id)
         if company is None or company.owner_id != owner_id:
             raise ActionError("Only the owner may set perks")
@@ -76,6 +174,7 @@ class CompanySystem:
         self.world._emit("perks_changed", company_id, company.perks)
 
     def upgrade_facility(self, owner_id: str, company_id: str) -> int:
+        self._owned_local(owner_id, company_id)
         company = self.world.companies.get(company_id)
         if company is None or company.owner_id != owner_id:
             raise ActionError("Only the owner may upgrade facilities")
@@ -90,6 +189,8 @@ class CompanySystem:
     def _validate_wage(self, wage: Wage) -> None:
         self.world._nonnegative(wage.gold, "wage gold")
         self.world._nonnegative(wage.quantity, "wage item quantity")
+        if wage.gold > 1000000000 or wage.quantity > 10000:
+            raise ActionError("Wage is too large")
         if wage.item is not None and wage.item not in GOODS and wage.item not in GEAR:
             raise ActionError("Unknown wage item")
         if bool(wage.item) != bool(wage.quantity) or (wage.gold == 0 and wage.quantity == 0):

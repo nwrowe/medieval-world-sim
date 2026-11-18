@@ -11,11 +11,21 @@ class MarketSystem:
     def __init__(self, world):
         self.world = world
 
+    def _validate_listing(self, seller_id: str, quantity: int, price: int) -> None:
+        self.world._positive(price, "unit_price")
+        if quantity > 10000 or price > 1000000000:
+            raise ActionError("Listing amount exceeds the allowed limit")
+        if sum(o.seller_id == seller_id for o in self.world.offers.values()) >= 50:
+            raise ActionError("Too many open listings for this seller")
+
     def post_offer(self, initiator_id: str, seller_id: str, item: str, quantity: int, unit_price: int) -> int:
         seller = self.world._account(seller_id)
         self.world._authorize(initiator_id, seller)
         city = self.world._at_city(seller)
+        if self.world._at_city(self.world._actor(initiator_id)) != city:
+            raise ActionError("Trade in the seller's city")
         self.world._positive(quantity, "quantity")
+        self._validate_listing(seller_id, quantity, unit_price)
         self.world._nonnegative(unit_price, "unit_price")
         if item not in GOODS or seller.inventory.get(item, 0) < quantity:
             raise ActionError("Seller lacks offered resources")
@@ -32,7 +42,9 @@ class MarketSystem:
         seller = self.world._account(seller_id)
         self.world._authorize(initiator_id, seller)
         city = self.world._at_city(seller)
-        self.world._nonnegative(unit_price, "unit_price")
+        if self.world._at_city(self.world._actor(initiator_id)) != city:
+            raise ActionError("Trade in the seller's city")
+        self._validate_listing(seller_id, 1, unit_price)
         if gear_id not in seller.gear_ids:
             raise ActionError("Seller does not own this equipment")
         seller.gear_ids.remove(gear_id)
@@ -55,6 +67,8 @@ class MarketSystem:
         if offer is None:
             raise ActionError("Unknown or exhausted offer")
         self.world._positive(quantity, "quantity")
+        if self.world._at_city(self.world._actor(initiator_id)) != offer.city:
+            raise ActionError("Visit the market in person")
         if buyer_id == offer.seller_id or self.world._at_city(buyer) != offer.city:
             raise ActionError("Cannot accept your own offer or trade remotely")
         if (quantity > offer.quantity or (offer.gear_id is not None and quantity != 1)
@@ -81,7 +95,8 @@ class MarketSystem:
             raise ActionError("Unknown offer")
         seller = self.world._account(offer.seller_id)
         self.world._authorize(initiator_id, seller)
-        if self.world._at_city(seller) != offer.city:
+        if (self.world._at_city(self.world._actor(initiator_id)) != offer.city
+                or self.world._at_city(seller) != offer.city):
             raise ActionError("Return to listing city to withdraw escrowed goods")
         if not self.world._space_for(seller, offer.item, offer.quantity):
             raise ActionError("Not enough space to reclaim goods")
