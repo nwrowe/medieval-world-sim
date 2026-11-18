@@ -23,18 +23,17 @@ from ..core.commands import SINGLE_PLAYER_ACTIONS
 from ..core.entities import Actor
 from ..errors import ActionError
 
-# Keep historical imports working for tests and downstream demo callers.
+# Presentation helpers remain available at their established import locations.
 from .chronicle import event_category, _friendly_event, TRADE_EVENTS, COMBAT_EVENTS
 from .projection import world_snapshot
 
-SAVE_VERSION = 2
+SAVE_VERSION = 3
 PLAYER_ID = "hero"
 INITIAL_GOLD = 240
 START_CITY = CAPITAL
-LEGACY_START_CITY = START_CITY
 MAX_RECORDS = 20000
 ADVANCE_LIMIT = 1440
-# Legacy public alias; policy is registered once beside engine commands.
+# Browser permissions are defined in the central command registry.
 UI_ACTIONS = SINGLE_PLAYER_ACTIONS
 
 # Stable, seed-based test characters. They are NPCs, not authenticated users.
@@ -148,13 +147,11 @@ class GameSession:
             if len(data["records"]) > MAX_RECORDS:
                 raise ValueError("Save journal exceeds prototype limits")
             self.seed = data["seed"]
-            # Saves predating the Crownreach starting-city rule must continue
-            # replaying from their original Goldmeadow spawn.
-            self.start_city = data.get("start_city", LEGACY_START_CITY)
-            if self.start_city not in CITIES:
-                raise ValueError("Unknown initial city")
+            self.start_city = data.get("start_city")
+            if self.start_city != START_CITY:
+                raise ValueError("Unknown baseline starting city")
             self.lineage = data.get("lineage")
-            if self.lineage is not None and self.lineage not in LINEAGES:
+            if self.lineage not in LINEAGES:
                 raise ValueError("Unknown lineage in save")
             self.name = data["name"]
             self.world = self._new_world()
@@ -167,85 +164,40 @@ class GameSession:
             raise SaveError(f"Cannot open saved world at {self.save_path}: {exc}") from exc
 
     def _replay(self, record: dict) -> None:
-        if not isinstance(record, dict):
+        """Replay the current save format, refusing obsolete rule metadata."""
+        if type(record) is not dict:
             raise ValueError("Invalid journal record")
         recorded_at = record.get("recorded_at")
-        if recorded_at is not None:
-            if not isinstance(recorded_at, str) or len(recorded_at) > 40:
-                raise ValueError("Invalid event timestamp")
-            try:
-                timestamp = datetime.fromisoformat(recorded_at)
-                if timestamp.tzinfo is None:
-                    raise ValueError("Missing timestamp timezone")
-            except ValueError as exc:
-                raise ValueError("Invalid event timestamp") from exc
+        if type(recorded_at) is not str or len(recorded_at) > 40:
+            raise ValueError("Invalid event timestamp")
+        try:
+            timestamp = datetime.fromisoformat(recorded_at)
+            if timestamp.tzinfo is None:
+                raise ValueError("Missing timestamp timezone")
+        except ValueError as exc:
+            raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
-        valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 22) or type(record.get("ruleset", 1)) is not int:
-            raise ValueError("Unknown action ruleset")
-        if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
-            self.world._legacy_health_regen = record.get("ruleset", 1) < 5
-            self.world._health_regen_version = (
-                1 if record.get("ruleset", 1) < 12 else
-                2 if record.get("ruleset", 1) == 12 else
-                3 if record.get("ruleset", 1) < 19 else 4)
-            self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
-            try:
-                self._advance_world(record["minutes"])
-            finally:
-                self.world._legacy_health_regen = False
-                self.world._health_regen_version = 4
-                self.world._legacy_equipment_wear = False
-        elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
-            if record["name"] not in UI_ACTIONS:
-                raise ValueError("Unsupported action in journal")
-            self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
-            self.world._legacy_curriculum_rules = (record.get("ruleset", 1) <= 8
-                                                    and record["name"] == "enroll_course")
-            self.world._legacy_master_course_rules = (
-                record["name"] == "enroll_course_choice" and
-                record.get("ruleset", 1) < 20)
-            self.world._legacy_terrain_routing = (
-                record["name"] == "explore_hex" and record.get("ruleset", 1) < 21)
-            self.world._legacy_flee_rules = (
-                record["name"] == "flee_duel" and record.get("ruleset", 1) < 11
-            )
-            if record["name"] == "flee_duel" and not self.world._legacy_flee_rules:
+        if record.get("kind") == "advance" and set(record) == {
+                "kind", "minutes", "recorded_at"}:
+            self._advance_world(record["minutes"])
+        elif record.get("kind") == "action":
+            expected = {"kind", "name", "params", "id", "recorded_at"}
+            name = record.get("name")
+            if name == "flee_duel":
+                expected.add("flee_success")
                 if type(record.get("flee_success")) is not bool:
-                    raise ValueError("Missing or invalid saved flee roll")
+                    raise ValueError("Invalid saved flee roll")
                 self.world._flee_success = record["flee_success"]
-            self.world._legacy_guard_rules = record.get("ruleset", 1) < 8
-            self.world._legacy_duel_rules = record.get("ruleset", 1) < 7
-            self.world._legacy_magic_rules = record.get("ruleset", 1) == 1
-            self.world._legacy_magic_leveling_rules = record.get("ruleset", 1) < 14
-            self.world._legacy_magic_training_rules = record.get("ruleset", 1) < 15
-            self.world._legacy_magic_practice_cooldown = record.get("ruleset", 1) == 15
-            self.world._legacy_spell_mastery_rules = record.get("ruleset", 1) < 17
-            self.world._legacy_magic_unlock_rules = record.get("ruleset", 1) < 18
-            self.world._legacy_cooldown_rules = record.get("ruleset", 1) < 3
+            if set(record) != expected or name not in UI_ACTIONS:
+                raise ValueError("Unsupported journal action")
             try:
-                self.world.execute(PLAYER_ID, record["name"], record["params"], record["id"])
+                self.world.execute(PLAYER_ID, name, record["params"], record["id"])
             finally:
-                self.world._legacy_equipment_wear = False
-                self.world._legacy_curriculum_rules = False
-                self.world._legacy_master_course_rules = False
-                self.world._legacy_terrain_routing = False
-                self.world._legacy_flee_rules = False
                 self.world._flee_success = None
-                self.world._legacy_guard_rules = False
-                self.world._legacy_duel_rules = False
-                self.world._legacy_magic_rules = False
-                self.world._legacy_magic_leveling_rules = False
-                self.world._legacy_magic_training_rules = False
-                self.world._legacy_magic_practice_cooldown = False
-                self.world._legacy_spell_mastery_rules = False
-                self.world._legacy_magic_unlock_rules = False
-                self.world._legacy_cooldown_rules = False
         else:
             raise ValueError("Unknown journal record")
-        if recorded_at is not None:
-            for event in self.world.events[before:]:
-                self.event_times[event.event_id] = recorded_at
+        for event in self.world.events[before:]:
+            self.event_times[event.event_id] = recorded_at
 
     def _record(self, record: dict) -> object:
         if self.world is None:
@@ -267,39 +219,7 @@ class GameSession:
                     # Store this exact roll in the journal before clearing it.
                     if record.get("name") != "flee_duel":
                         self.world._flee_success = None
-            # Retain ruleset 3 for established actions; old journal assertions and
-            # replay semantics must not shift when the new combat commands arrive.
-            ruleset = (5 if record["kind"] == "advance" or
-                       record.get("name") in {"church_heal", "buy_racehorse", "race_horse"}
-                       else 4 if record.get("name") in
-                       {"start_duel", "duel_turn", "flee_duel", "cast_spell"} else 3)
-            if record.get("name") in {
-                "found_guild", "invite_guild", "join_guild", "set_guild_role",
-                "leave_guild", "claim_merit", "buy_merit_upgrade"
-            }:
-                ruleset = 6
-            if record["kind"] == "advance":
-                ruleset = 19
-            if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
-                ruleset = 8
-            if record.get("name") == "enroll_course":
-                ruleset = 8
-            if record.get("name") == "enroll_course_choice":
-                ruleset = 20
-            if record.get("name") in {"send_chat", "create_chat_room"}:
-                ruleset = 10
-            if record.get("name") == "flee_duel":
-                ruleset = 11
-            if record.get("name") == "practice_magic":
-                ruleset = 16
-            if record.get("name") in ("cast_spell", "duel_turn", "engage_duel"):
-                ruleset = 17
-            if record.get("name") == "unlock_magic":
-                ruleset = 18
-            if record.get("name") == "explore_hex":
-                ruleset = 21
-            stored_record = {**record, "ruleset": ruleset,
-                             "recorded_at": datetime.now(timezone.utc).isoformat()}
+            stored_record = {**record, "recorded_at": datetime.now(timezone.utc).isoformat()}
             if record.get("name") == "flee_duel":
                 stored_record["flee_success"] = bool(self.world._flee_success)
             self.records.append(stored_record)
@@ -330,10 +250,6 @@ class GameSession:
             # Duplicate request IDs replay their original outcome, never charge twice.
             if request_id in self.world.state.command_receipts:
                 return self.world.execute(PLAYER_ID, name, params, request_id)
-            # Historical records may still replay this command, but new web
-            # requests must use the tuition-charging course-choice action.
-            if name == "enroll_course":
-                raise ActionError("Use the University's paid course enrollment")
             return self._record({
                 "kind": "action", "name": name, "params": params, "id": request_id,
             })
