@@ -96,33 +96,10 @@ export function createCharacterViews(ctx) {
       characterRow(pretty(key), xp + " XP")).join('');
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
-    const places = {
-      crownreach: ["The Royal Capital", "Stone towers rise above crowded markets and the clamor of the royal forge.",
-        "Every road begins here. Beyond the gates, much of the realm remains uncharted."],
-      ironvale: ["The Iron Hills", "The ring of hammers echoes across the mountain roads.",
-        "Ore and skilled hands sustain the workshops of the realm."],
-      emberfall: ["The Ashen Crossing", "Dark stone and coal fires mark the road through the southern highlands.",
-        "Caravans bring fuel and stories from the far roads."],
-      greenhollow: ["The Elderwood Frontier", "Deep woodland shelters herb-gatherers, hunters and ancient pathways.",
-        "The forest rewards observant travelers."],
-      goldmeadow: ["The Southern Granary", "Fields and wind-worn barns stretch toward the southern horizon.",
-        "Grain and livestock feed the cities beyond."],
-    };
-    const scene = places[p.city] || ["The Five Cities", "A place to begin.", "The world awaits."];
-    const explored = (p.discovered_cities || []).length;
     const lineage = (state.lineage_options || []).find(x => x.id === p.lineage);
-    return '<div class="profile-hero home-hero"><div class="home-hero-content">' +
-      '<small>' + esc(scene[0]) + ' · ' + esc(lineage ? lineage.name : "Traveler") + '</small>' +
-      '<h3>' + esc(state.name) + '</h3>' +
-      '<p class="home-scene">' + esc(scene[1]) + '</p>' +
-      '<p class="home-scene-note">' + esc(scene[2]) + '</p>' +
-      '<div class="home-hero-foot"><span>✦ ' + explored + ' of ' +
-      (state.cities || []).length + ' cities charted</span>' +
-      '<span>Level ' + p.level + ' · ' + esc(scene[0]) + '</span></div></div>' +
-      '<div class="home-hero-crest" aria-hidden="true">✦</div></div>' +
-      '<div class="mb-20">' + homeMagicPanel(state) + '</div>' +
-      '<div class="profile-grid">' +
+    return '<div class="profile-grid">' +
       panel("Character State", "",
+        characterRow("Name", state.name) +
         characterRow("Level", p.level) +
         characterRow("Lineage", lineage ? lineage.name : "Unchosen") +
         characterRow("Experience toward next level", p.level_xp + " / " + xpNext) +
@@ -152,7 +129,7 @@ export function createCharacterViews(ctx) {
         characterRow("Residence", homeName) +
         characterRow("Insight", p.insight) +
         (study || '<p class="small">No magical studies yet.</p>')) +
-      '</div>';
+      '</div><div class="mt-20">' + homeMagicPanel(state) + '</div>';
   }
   function equipmentMannequin(owned, equipped) {
     const kind = slot => {
