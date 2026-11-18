@@ -181,7 +181,7 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 21) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 22) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
@@ -205,6 +205,8 @@ class GameSession:
             self.world._legacy_master_course_rules = (
                 record["name"] == "enroll_course_choice" and
                 record.get("ruleset", 1) < 20)
+            self.world._legacy_terrain_routing = (
+                record["name"] == "explore_hex" and record.get("ruleset", 1) < 21)
             self.world._legacy_flee_rules = (
                 record["name"] == "flee_duel" and record.get("ruleset", 1) < 11
             )
@@ -227,6 +229,7 @@ class GameSession:
                 self.world._legacy_equipment_wear = False
                 self.world._legacy_curriculum_rules = False
                 self.world._legacy_master_course_rules = False
+                self.world._legacy_terrain_routing = False
                 self.world._legacy_flee_rules = False
                 self.world._flee_success = None
                 self.world._legacy_guard_rules = False
@@ -293,6 +296,8 @@ class GameSession:
                 ruleset = 17
             if record.get("name") == "unlock_magic":
                 ruleset = 18
+            if record.get("name") == "explore_hex":
+                ruleset = 21
             stored_record = {**record, "ruleset": ruleset,
                              "recorded_at": datetime.now(timezone.utc).isoformat()}
             if record.get("name") == "flee_duel":

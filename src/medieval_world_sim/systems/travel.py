@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import heapq
+from collections import OrderedDict
 from ..catalog import CITIES
 from ..combat import STAMINA_REGEN_MINUTES
 from ..content.magic_tree import MANA_REGEN_MINUTES
@@ -14,11 +15,42 @@ CURRENT_HEALTH_REGEN_MINUTES = 5  # Version 4: six percent every five minutes.
 LEGACY_HEALTH_REGEN_MINUTES = 10
 DEPOSIT_CAP = 24
 TRAVEL_CARGO_LIMIT = 12  # Stricter than the 20-unit in-city inventory limit.
+ROAD_SPEED_FACTOR = 3  # Generated road edges are approximately threefold faster.
+ROUTE_CACHE_LIMIT = 4  # Bounded full-source trees, never exposes fog.
 
 
 class TravelSystem:
     def __init__(self, world):
         self.world = world
+        self._road_world = None
+        self._road_edges = frozenset()
+        self._route_cache = OrderedDict()
+
+    @staticmethod
+    def _edge(a, b):
+        return (a, b) if a < b else (b, a)
+
+    def road_edges(self):
+        """Only valid neighboring edges from the generated road network."""
+        geography = self.world.geography
+        if self._road_world is not geography:
+            edges = set()
+            for road in geography.roads:
+                for a, b in zip(road.path, road.path[1:]):
+                    if hex_distance(a, b) == 1:
+                        edges.add(self._edge(a, b))
+            self._road_edges = frozenset(edges)
+            self._road_world = geography
+            self._route_cache.clear()
+        return self._road_edges
+
+    def edge_minutes(self, actor, source, destination):
+        """Directed hex cost; genuine road edges receive a speed advantage."""
+        base = self.hex_minutes(actor, *destination)
+        if (not getattr(self.world, "_legacy_terrain_routing", False) and
+                self._edge(source, destination) in self.road_edges()):
+            return max(1, (base + ROAD_SPEED_FACTOR - 1) // ROAD_SPEED_FACTOR)
+        return base
 
     def travel_route(self, origin: str, destination: str):
         """Shortest route on geographically generated inter-town road edges.
@@ -94,10 +126,20 @@ class TravelSystem:
         """
         start = current_hex(self.world, actor)
         width, height = self.world.geography.width, self.world.geography.height
+        # Share a one-source shortest-path tree for distant multi-goal quotes.
+        legacy = getattr(self.world, "_legacy_terrain_routing", False)
+        full = (not legacy and (goals is None or
+                (len(goals) >= 5 and any(hex_distance(start, g) > 8
+                                          for g in goals))))
+        if full:
+            self.road_edges()  # Invalidate when geography is replaced.
+            if start in self._route_cache:
+                self._route_cache.move_to_end(start)
+                return self._route_cache[start]
         costs = {start: 0}
         previous = {}
         queue = [(0, start)]
-        remaining = set(goals) if goals is not None else None
+        remaining = None if full else set(goals) if goals is not None else None
         while queue:
             cost, point = heapq.heappop(queue)
             if cost != costs[point]:
@@ -111,11 +153,15 @@ class TravelSystem:
                 if tile.elevation_m <= 0 or tile.waterbody in ("sea", "lake"):
                     continue
                 target = (nx, ny)
-                total = cost + self.hex_minutes(actor, nx, ny)
+                total = cost + self.edge_minutes(actor, point, target)
                 if total < costs.get(target, float("inf")):
                     costs[target] = total
                     previous[target] = point
                     heapq.heappush(queue, (total, target))
+        if full:
+            self._route_cache[start] = (costs, previous)
+            while len(self._route_cache) > ROUTE_CACHE_LIMIT:
+                self._route_cache.popitem(last=False)
         return costs, previous
 
     def selectable_hexes(self, actor):
