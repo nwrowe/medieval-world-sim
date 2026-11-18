@@ -277,7 +277,11 @@ def validate_world(world: WorldEngine) -> None:
                 not 0 <= record[1] <= MEAD_DAILY_LIMIT or
                 record[0] > mead_day(world.minute)):
             raise AssertionError("Invalid tavern drink tally")
+    from ..content.industry import INDUSTRY_PRODUCTS
     for company in world.companies.values():
+        if (type(company.product) is not str or
+                company.product and company.product not in INDUSTRY_PRODUCTS[company.industry]):
+            raise AssertionError("Invalid company product selection")
         if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
             raise AssertionError("Invalid company quality state")
     for city in world.cities.values():

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from ..content.industry import RECIPES, GOODS
+from ..content.industry import RECIPES, GOODS, INDUSTRY_PRODUCTS
 from ..equipment import GEAR
 
 
@@ -29,6 +29,7 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
             owned.append({
                 "id": company.id, "city": company.city,
                 "industry": company.industry, "gold": company.gold,
+                "product": company.product or next(iter(RECIPES[company.industry].outputs)),
                 "inventory": {k: v for k, v in company.inventory.items() if v > 0},
                 "equipment": [{
                     "id": gid, "kind": world.gear[gid].kind,
@@ -94,6 +95,9 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
         "industries": [{
             "id": key, "inputs": dict(recipe.inputs),
             "outputs": dict(recipe.outputs),
+            "products": [{
+                "id": label, "inputs": dict(spec.inputs), "outputs": dict(spec.outputs)
+            } for label, spec in sorted(INDUSTRY_PRODUCTS[key].items())]
         } for key, recipe in sorted(RECIPES.items())],
         "goods": sorted(GOODS),
         "owned": owned,

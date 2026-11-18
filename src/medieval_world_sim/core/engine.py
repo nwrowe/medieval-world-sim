@@ -431,6 +431,10 @@ class WorldEngine:
         return self.companies_system.hire(owner_id, company_id, worker_id, wage)
 
     @atomic_action
+    def company_set_product(self, actor_id: str, company_id: str, product: str) -> None:
+        return self.companies_system.set_product(actor_id, company_id, product)
+
+    @atomic_action
     def company_deposit_gold(self, actor_id: str, company_id: str, amount: int) -> None:
         return self.companies_system.deposit_gold(actor_id, company_id, amount)
 

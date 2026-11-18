@@ -255,6 +255,7 @@ class Company:
     job_offers: dict[str, Wage] = field(default_factory=dict)
     daily_units_sold: int = 0
     daily_revenue: int = 0
+    product: str = ""  # Empty means original recipe, preserving legacy shifts.
 
 
 @dataclass

@@ -45,6 +45,7 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "buy_vehicle": CommandSpec("buy_vehicle", ("vehicle",), _BOTH),
     "select_vehicle": CommandSpec("select_vehicle", ("vehicle",), _BOTH),
     "found_company": CommandSpec("found_company", ("company_id", "industry", "investment"), _BOTH),
+    "company_set_product": CommandSpec("company_set_product", ("company_id", "product"), _BOTH),
     "company_deposit_gold": CommandSpec("company_deposit_gold", ("company_id", "amount"), _BOTH),
     "company_withdraw_gold": CommandSpec("company_withdraw_gold", ("company_id", "amount"), _BOTH),
     "company_deposit_goods": CommandSpec("company_deposit_goods", ("company_id", "item", "quantity"), _BOTH),

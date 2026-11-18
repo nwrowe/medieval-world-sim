@@ -47,6 +47,7 @@ EVENT_FIELDS = {
         "industry",
         "investment"
     ],
+    "company_product_selected": ["actor_id", "company_id", "product"],
     "company_funded": ["actor_id", "company_id", "gold"],
     "company_withdrawn": ["actor_id", "company_id", "gold"],
     "company_stocked": ["actor_id", "company_id", "item", "quantity"],
