@@ -86,7 +86,7 @@ for (const name of ["renderPeople", "renderProfile", "renderTrade", "renderDuel"
 }
 assert.match(community.renderPeople(), /Bob/);
 assert.match(community.renderPeople(), />Attack<\/button>/);
-assert.doesNotMatch(community.renderPeople(), /Attack · no entry cost/);
+assert.doesNotMatch(community.renderPeople(), /Attack · no entry cost|Both players and NPCs use/);
 const profile = community.renderProfile();
 assert.match(profile, /Bob/);
 assert.doesNotMatch(profile, /Back to Search|personal finances are private|<h2>Bob<\/h2>/);
@@ -198,6 +198,7 @@ for (const name of ["renderInventory", "renderCharacter", "renderEquipment", "re
   assert.ok(character[name]().length > 35, name + " must render meaningful markup");
 }
 assert.match(character.renderInventory(), /Inventory/);
+assert.doesNotMatch(character.renderInventory(), /Carrying .*Road limit|Crownreach offers unlimited goods storage/);
 assert.match(character.renderEquipment(), /Equipped Gear/);
 assert.match(character.renderEquipment(), /equipment-storage-panel/);
 state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };

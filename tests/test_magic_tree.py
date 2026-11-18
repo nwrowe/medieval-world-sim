@@ -11,6 +11,7 @@ from medieval_world_sim.content.magic_tree import (
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
+from medieval_world_sim.systems.magic import grow_mana_capacity, earned_mana_capacity
 
 
 def world(seed=42):
@@ -21,6 +22,8 @@ def grant_school_xp_for_fixture(w, school, xp):
     """Only tests directly seed XP; no public command permits this."""
     magic = w.actors["mage"].magic
     magic.school_xp[school] = xp
+    grow_mana_capacity(w.actors["mage"])
+    magic.mana = magic.max_mana  # Tests skip training time when directly seeding XP.
     magic.insight_earned = sum(magic.school_xp.values()) // 50
     magic.insight = magic.insight_earned - sum(
         NODES[node_id].insight_cost for node_id in magic.unlocked)
@@ -52,7 +55,7 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         self.assertFalse(initial.castable)  # Not learned for casting yet.
         with self.assertRaisesRegex(ActionError, "100/100"):
             w.cast_spell("mage", "warding.minor_shield")
-        self.assertEqual(w.actors["mage"].magic.mana, 100)
+        self.assertEqual(w.actors["mage"].magic.mana, 10)
         grant_school_xp_for_fixture(w, "warding", 50)
         self.assertFalse(w.magic_tree("mage", "warding")[1].eligible)
         with self.assertRaisesRegex(ActionError, "100/100"):
@@ -95,7 +98,8 @@ class MagicTreeArchitectureTests(unittest.TestCase):
 
     def test_fresh_actor_can_unlock_a_novice_from_each_school(self):
         w = world()
-        self.assertEqual(w.actors["mage"].magic.mana, 100)
+        self.assertEqual(w.actors["mage"].magic.mana, 10)
+        self.assertEqual(w.actors["mage"].magic.max_mana, earned_mana_capacity(w.actors["mage"]))
         self.assertEqual(w.actors["mage"].magic.unlocked, {ROOT_ID})
         for school in SCHOOLS:
             node = school_nodes(school)[0]
@@ -122,7 +126,7 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         self.assertEqual(before, (a.actors["mage"].magic.mana,
                                   a.actors["mage"].magic.attempts))
         self.assertEqual(result.mana_spent, 8)
-        self.assertEqual(a.actors["mage"].magic.mana, 92)
+        self.assertEqual(a.actors["mage"].magic.mana, 2)
         self.assertEqual(result.roll in range(1, 101), True)
         with self.assertRaises(ActionError):
             a.execute("mage", "practice_magic", {"node_id": "restoration.soothe_wounds"},
@@ -138,7 +142,7 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         b.advance(7)
         b.advance(20)
         self.assertEqual(a.actors["mage"].magic.mana, b.actors["mage"].magic.mana)
-        self.assertEqual(a.actors["mage"].magic.mana, 94)
+        self.assertEqual(a.actors["mage"].magic.mana, 4)
         self.assertEqual(MANA_REGEN_MINUTES, 10)
         a.assert_invariants()
         b.assert_invariants()
@@ -213,7 +217,7 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         w.actors["mage"].hp = 0
         with self.assertRaises(ActionError):
             w.practice_magic("mage", "elemental.kindle_flame")
-        self.assertEqual(w.actors["mage"].magic.mana, 100)
+        self.assertEqual(w.actors["mage"].magic.mana, 10)
         w.assert_invariants()
 
     def test_tree_statuses_are_immutable_and_no_hidden_income(self):

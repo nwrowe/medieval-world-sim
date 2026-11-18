@@ -21,6 +21,7 @@ from ..catalog import CAPITAL, CITIES, GEOGRAPHY_FINGERPRINT
 from ..core.engine import WorldEngine
 from ..core.commands import SINGLE_PLAYER_ACTIONS
 from ..core.entities import Actor
+from ..content.magic_tree import MAX_MANA, STARTING_MANA
 from ..errors import ActionError
 
 # Presentation helpers remain available at their established import locations.
@@ -63,6 +64,7 @@ class GameSession:
         self.seed = 42
         self.start_city = START_CITY
         self.lineage: str | None = None
+        self.start_mana = STARTING_MANA
         self.npc_names: dict[str, str] = {}
         self.records: list[dict] = []
         self.event_times: dict[int, str] = {}
@@ -87,7 +89,13 @@ class GameSession:
                 npc_id = f"npc:{city}:{idx}"
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
                 self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
-        return WorldEngine(actors, seed=self.seed)
+        world = WorldEngine(actors, seed=self.seed)
+        if self.start_mana == MAX_MANA:
+            # Preserve the original mana baseline when replaying old saves.
+            for actor in world.actors.values():
+                actor.magic.max_mana = MAX_MANA
+                actor.magic.mana = MAX_MANA
+        return world
 
     def create(self, name: str, lineage: str = "human") -> None:
         with self._lock:
@@ -104,6 +112,7 @@ class GameSession:
             self.lineage = lineage
             self.seed = secrets.randbelow(2**31)
             self.start_city = START_CITY
+            self.start_mana = STARTING_MANA
             self.world = self._new_world()
             try:
                 self._save()
@@ -116,7 +125,7 @@ class GameSession:
             "version": SAVE_VERSION, "name": self.name, "seed": self.seed,
             "realm_fingerprint": GEOGRAPHY_FINGERPRINT,
             "start_city": self.start_city, "lineage": self.lineage,
-            "records": self.records,
+            "start_mana": self.start_mana, "records": self.records,
         }
 
     def _save(self) -> None:
@@ -151,6 +160,9 @@ class GameSession:
             if self.start_city != START_CITY:
                 raise ValueError("Unknown baseline starting city")
             self.lineage = data.get("lineage")
+            self.start_mana = data.get("start_mana", MAX_MANA)
+            if type(self.start_mana) is not int or self.start_mana not in (STARTING_MANA, MAX_MANA):
+                raise ValueError("Invalid starting mana baseline")
             if self.lineage not in LINEAGES:
                 raise ValueError("Unknown lineage in save")
             self.name = data["name"]
@@ -183,6 +195,8 @@ class GameSession:
         elif record.get("kind") == "action":
             expected = {"kind", "name", "params", "id", "recorded_at"}
             name = record.get("name")
+            if name == "wilderness_gather" and "gather_rule" in record:
+                expected.add("gather_rule")
             if name == "flee_duel":
                 expected.add("flee_success")
                 if type(record.get("flee_success")) is not bool:
@@ -190,9 +204,15 @@ class GameSession:
                 self.world._flee_success = record["flee_success"]
             if set(record) != expected or name not in UI_ACTIONS:
                 raise ValueError("Unsupported journal action")
+            if name == "wilderness_gather":
+                rule = record.get("gather_rule", 1)
+                if type(rule) is not int or rule not in (1, 2):
+                    raise ValueError("Invalid wilderness gather policy")
+                self.world._replay_legacy_wilderness = rule == 1
             try:
                 self.world.execute(PLAYER_ID, name, record["params"], record["id"])
             finally:
+                self.world._replay_legacy_wilderness = False
                 self.world._flee_success = None
         else:
             raise ValueError("Unknown journal record")
@@ -222,6 +242,8 @@ class GameSession:
             stored_record = {**record, "recorded_at": datetime.now(timezone.utc).isoformat()}
             if record.get("name") == "flee_duel":
                 stored_record["flee_success"] = bool(self.world._flee_success)
+            if record.get("name") == "wilderness_gather":
+                stored_record["gather_rule"] = 2
             self.records.append(stored_record)
             try:
                 self._save()

@@ -46,6 +46,7 @@ assert.match(views.renderCompanies(), /river_bakery/);
 assert.match(views.renderCompanies(), /company-stock/);
 assert.match(views.renderCompanies(), /job-offer/);
 assert.match(views.renderEmployment(), /Work shift/);
+assert.match(views.renderEmployment(), /<div class="stack">/);
 assert.match(views.renderStalls(), /Player market/);
 assert.match(views.renderStalls(), /Other player/);
 assert.match(views.renderStalls(), /listing-buy/);

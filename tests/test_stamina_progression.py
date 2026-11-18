@@ -43,6 +43,7 @@ class StaminaProgressionTests(unittest.TestCase):
         self.assertEqual(player.max_hp, 24 + 4 * (player.level - 1))
         self.assertEqual(player.strength, player.level)
         self.assertEqual(player.defense, player.level)
+        self.assertEqual(player.magic.max_mana, 10 + 2 * (player.level - 1))
         self.assertLess(player.level_xp, xp_to_next_level(player.level))
         self.assertEqual(w.total_gold, w.initial_gold)
 

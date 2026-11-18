@@ -36,6 +36,9 @@ class CityContractTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.complete_city_contract("hero", "church_supplies")  # shift cooldown
         w.advance(60)
+        # The 12-mana mage guild contract requires at least level two now.
+        w.combat._award_level_xp(w.actors["hero"], 10)
+        self.assertEqual(w.actors["hero"].magic.max_mana, 12)
         before_int = w.actors["hero"].work.intelligence
         mage = w.complete_city_contract("hero", "mage_copywork")
         self.assertEqual(mage.mana_spent, 12)

@@ -31,6 +31,8 @@ class NPCIntelligenceRoundTwoTests(unittest.TestCase):
             world, "mage", include_progression=True).magic_practice])
         actor = world.actors["mage"]
         actor.magic.school_xp["restoration"] = 80
+        from medieval_world_sim.systems.magic import grow_mana_capacity
+        grow_mana_capacity(actor)
         actor.magic.insight_earned = 1
         actor.magic.insight = 1
         mastered = next(n for n in world.magic_tree("mage")

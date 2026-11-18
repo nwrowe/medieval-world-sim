@@ -149,7 +149,7 @@ export function createEconomyViews(ctx) {
         'data-company="' + esc(offer.company_id) + '"' +
         disabled(!offer.can_accept)) + '</div></div>').join("");
     const w = ctx.getState().player.work;
-    return heading("", "Occupation", "") +
+    return heading("", "Occupation", "") + '<div class="stack">' +
       panel("Work stats", "",
         line("Manual", w.manual) +
         line("Intelligence", w.intelligence) +
@@ -158,7 +158,7 @@ export function createEconomyViews(ctx) {
       panel("Employment offers", "Offers from player-owned companies.",
         offers || '<p class="small">No pending offers.</p>') +
       panel("My jobs", "Working a shift consumes real company materials and pays its agreed wage.",
-        jobs || '<p class="small">No active company employment.</p>');
+        jobs || '<p class="small">No active company employment.</p>') + '</div>';
   }
 
   function renderStalls() {

@@ -120,6 +120,17 @@ def create_schema(game: MultiplayerGame) -> None:
         game.db.execute(
             "INSERT INTO world_meta(name,value) VALUES('travel_clock_mode', ?)",
             (speed,))
+    # Existing journal rows were committed under the previous gathering
+    # price. Record the last old sequence once, at schema initialization.
+    # Fresh databases use zero; all subsequently appended actions use rule 2.
+    old_seq = game.db.execute(
+        "SELECT COALESCE(MAX(seq),0) FROM world_journal").fetchone()[0]
+    game.db.execute(
+        "INSERT OR IGNORE INTO world_meta(name,value) VALUES('gather_rule_legacy_end',?)",
+        (str(old_seq).encode(),))
+    game._legacy_gather_end = int(game.db.execute(
+        "SELECT value FROM world_meta WHERE name='gather_rule_legacy_end'"
+    ).fetchone()[0])
     # RNG secrets are never returned to clients or committed to source.
     game.db.execute(
         "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
@@ -148,7 +159,13 @@ def create_schema(game: MultiplayerGame) -> None:
 
 
 def load_world(game: MultiplayerGame) -> None:
-    game.world = game._seed_world()
+    # Older join records lack start_mana; replay their original initial
+    # capacity, including NPCs, without changing new registrations.
+    join_payloads = game.db.execute(
+        "SELECT payload FROM world_journal WHERE kind='join'").fetchall()
+    old_mana = any("start_mana" not in json.loads(row[0])
+                   for row in join_payloads)
+    game.world = game._seed_world(old_mana=old_mana)
     game.names = {}
     game.event_times = {}
     # A checkpoint restores the owned world and account projection; replay
@@ -174,7 +191,8 @@ def load_world(game: MultiplayerGame) -> None:
             city = params.get("city")
             if city != START_CITY:
                 raise ValueError("Invalid registered starting city")
-            game._join_actor(actor_id, city, params.get("lineage"))
+            game._join_actor(actor_id, city, params.get("lineage"),
+                             params.get("start_mana", 100))
             game.names[actor_id] = account[0]
             registered.add(actor_id)
         elif actor_id not in registered:
@@ -190,10 +208,13 @@ def load_world(game: MultiplayerGame) -> None:
                 raise ValueError("Unexpected saved flee roll")
             game.world._private_rng_key = (
                 game._rng_key if action in ("practice_magic", "race_horse", "investigate_site") else None)
+            game.world._replay_legacy_wilderness = (
+                action == "wilderness_gather" and seq <= game._legacy_gather_end)
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))
             finally:
+                game.world._replay_legacy_wilderness = False
                 game.world._flee_success = None
                 game.world._private_rng_key = None
         elif kind == "advance":

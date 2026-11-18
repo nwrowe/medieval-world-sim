@@ -993,9 +993,9 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   line-height: 1.6;
   color: #eddfbd;
 }
-.terrain-atlas-legend span:nth-child(1) { color: #a6d5a0; }
-.terrain-atlas-legend span:nth-child(2) { color: #b8b4a0; }
-.terrain-atlas-legend span:nth-child(3) { color: #bcc1c0; }
+.terrain-atlas-legend > span:nth-child(1) { color: #a6d5a0; }
+.terrain-atlas-legend > span:nth-child(2) { color: #b8b4a0; }
+.terrain-atlas-legend > span:nth-child(3) { color: #bcc1c0; }
 .terrain-atlas .survey-towns text { pointer-events: none; }
 .terrain-atlas .survey-towns .map-destination,
 .terrain-atlas .survey-sites .map-destination { cursor: pointer; pointer-events: all; }
@@ -1004,7 +1004,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .terrain-atlas .survey-sites .map-destination:hover path,
 .terrain-atlas .survey-sites .map-destination:focus path { stroke: #fff1a6; stroke-width: 2.4; }
 .map-key-city { color: #c19b53; text-shadow: 0 0 1px #372920; font-size: 15px; }
-.map-key-poi { color: #292c2a; text-shadow: 0 0 1px #dcbf87; font-size: 15px; }
+.map-key-poi { color: #292c2a; text-shadow: -1px -1px #e7cf9d, 1px -1px #e7cf9d, -1px 1px #e7cf9d, 1px 1px #e7cf9d; font-size: 15px; }
 .terrain-atlas .survey-player { filter: drop-shadow(0 0 4px #fff4b2); }
 .map-hotlist { margin:12px 0 18px;padding:10px 14px;background:#f8f4e9;
   border:1px solid #d9d0bd;border-radius:9px; }
@@ -1040,6 +1040,8 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .terrain-atlas .survey-player { pointer-events: none; }
 .terrain-atlas .hex-step-target { stroke: #f8e7a3; stroke-width: 2.1; }
 .terrain-atlas .hex-step-target:focus { outline: none; stroke: #ffffff; stroke-width: 3; }
+.terrain-atlas .survey-sites .map-destination:focus,
+.terrain-atlas .survey-towns .map-destination:focus { outline: none; }
 
 /* Settings: browser-only appearance preference and future configuration space. */
 .settings-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start;}

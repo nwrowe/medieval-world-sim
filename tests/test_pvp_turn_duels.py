@@ -171,6 +171,8 @@ class MultiplayerDuelTests(unittest.TestCase):
         # Seed mastered magic for this duel-mechanics test.
         magic = self.game.world.actors[self.alice].magic
         magic.school_xp["warding"] = 80
+        from medieval_world_sim.systems.magic import grow_mana_capacity
+        grow_mana_capacity(self.game.world.actors[self.alice])
         magic.insight_earned = 1
         magic.insight = 1
         self.begin()

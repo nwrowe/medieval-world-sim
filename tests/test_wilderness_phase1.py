@@ -96,13 +96,13 @@ class WildernessEngineTests(unittest.TestCase):
         self.assertGreaterEqual(cap, 2)
         initial = w.actors["scout"].stamina
         result = w.execute("scout", "wilderness_gather",
-                           {"item": item, "quantity": 2}, "gather-1")
-        self.assertEqual(result["quantity"], 2)
+                           {"item": item, "quantity": 1}, "gather-1")
+        self.assertEqual(result["quantity"], 1)
         self.assertEqual(w.actors["scout"].stamina, initial - 5)
         self.assertEqual(w.wilderness.view("rival")["resources"][
             next(i for i, r in enumerate(w.wilderness.view("rival")["resources"])
-                 if r["item"] == item)]["available"], cap - 2)
-        for i in range(cap - 2):
+                 if r["item"] == item)]["available"], cap - 1)
+        for i in range(cap - 1):
             w.execute("rival", "wilderness_gather",
                       {"item": item, "quantity": 1}, f"gather-rival-{i}")
         with self.assertRaisesRegex(ActionError, "exhausted"):
@@ -156,6 +156,7 @@ class WildernessEngineTests(unittest.TestCase):
             ("wilderness_gather", {"item": 123, "quantity": 1}),
             ("wilderness_gather", {"item": "herbs", "quantity": True}),
             ("wilderness_gather", {"item": "herbs", "quantity": 100}),
+            ("wilderness_gather", {"item": "herbs", "quantity": 2}),
         ]
         for i, (action, params) in enumerate(bad):
             with self.subTest(i=i), self.assertRaises(ActionError):
@@ -217,6 +218,81 @@ class WildernessPersistenceTests(unittest.TestCase):
             self.assertEqual(restored.world.state.wilderness_stock,
                              game.world.state.wilderness_stock)
             self.assertEqual(restored.snapshot()["wilderness"], view["wilderness"])
+
+    def test_old_singleplayer_gathers_replay_at_their_original_cost(self):
+        import json
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "historical.json"
+            game = GameSession(path)
+            game.create("Old Gatherer")
+            site = suitable_site(game.world)
+            walk_to_site(
+                lambda a, p, req: game.action(a, p, req),
+                lambda mins, req: game.advance(mins),
+                game.world, PLAYER_ID, site)
+            item = max(game.world.geography.tile(site.x, site.y).resources,
+                       key=game.world.geography.tile(site.x, site.y).resources.get)
+            mana_before = game.world.actors[PLAYER_ID].magic.mana
+            stamina_before = game.world.actors[PLAYER_ID].stamina
+            game.world._replay_legacy_wilderness = True
+            try:
+                game.action("wilderness_gather", {"item": item, "quantity": 1}, "old-one")
+            finally:
+                game.world._replay_legacy_wilderness = False
+            self.assertEqual(game.world.actors[PLAYER_ID].stamina, stamina_before - 3)
+            saved = json.loads(path.read_text())
+            for row in saved["records"]:
+                if row.get("name") == "wilderness_gather":
+                    row.pop("gather_rule")
+            path.write_text(json.dumps(saved))
+            restored = GameSession(path)
+            self.assertEqual(restored.world.actors[PLAYER_ID].stamina,
+                             game.world.actors[PLAYER_ID].stamina)
+            self.assertEqual(restored.world.actors[PLAYER_ID].magic.mana,
+                             mana_before)
+            restored.world.assert_invariants()
+
+    def test_old_multiplayer_two_item_gather_replays_without_live_exploit(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "historical.sqlite3"
+            game = MultiplayerGame(path, require_invites=False,
+                                   dev_fast_forward=True, npc_enabled=False)
+            try:
+                alice = game.register("oldharvest", "correct horse battery staple",
+                                      "Old Harvest")
+                site = suitable_site(game.world)
+                walk_to_site(
+                    lambda a, p, req: game.action(alice, a, p, req),
+                    lambda mins, req: game.advance(alice, mins, req),
+                    game.world, alice, site)
+                item = max(game.world.geography.tile(site.x, site.y).resources,
+                           key=game.world.geography.tile(site.x, site.y).resources.get)
+                game.world._replay_legacy_wilderness = True
+                try:
+                    old = game.action(alice, "wilderness_gather",
+                                      {"item": item, "quantity": 2}, "historical-two")
+                finally:
+                    game.world._replay_legacy_wilderness = False
+                self.assertEqual(old["quantity"], 2)
+                marker = game.db.execute(
+                    "SELECT MAX(seq) FROM world_journal").fetchone()[0]
+                game.db.execute(
+                    "UPDATE world_meta SET value=? WHERE name='gather_rule_legacy_end'",
+                    (str(marker).encode(),))
+                game.db.execute("DELETE FROM world_checkpoints")
+                expected = game.world.actors[alice].stamina
+                with self.assertRaises(ActionError):
+                    game.action(alice, "wilderness_gather",
+                                {"item": item, "quantity": 2}, "new-two-rejected")
+            finally:
+                game.close()
+            restored = MultiplayerGame(path, require_invites=False,
+                                       dev_fast_forward=True, npc_enabled=False)
+            try:
+                self.assertEqual(restored.world.actors[alice].stamina, expected)
+                restored.world.assert_invariants()
+            finally:
+                restored.close()
 
     def test_multiplayer_protection_and_keyed_restart(self):
         with tempfile.TemporaryDirectory() as tmp:

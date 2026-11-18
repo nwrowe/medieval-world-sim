@@ -12,7 +12,8 @@ import hmac
 from ..content.magic_tree import (
     NODES, ROOT_ID, SCHOOLS, MAX_ACTIVE_SPECIALIZATIONS,
     ATTUNEMENT_COOLDOWN_MINUTES, INSIGHT_XP_INTERVAL,
-    PRACTICE_XP_CEILING, branch_for,
+    PRACTICE_XP_CEILING, MAX_MANA, STARTING_MANA,
+    MANA_PER_LEVEL, MAGIC_XP_PER_MANA, branch_for,
 )
 from ..errors import ActionError
 from ..content.lineages import magic_experience_bonus
@@ -52,6 +53,23 @@ class MagicPracticeResult:
     insight_gained: int
     level_xp_gained: int = 0
     levels_gained: int = 0
+
+
+def earned_mana_capacity(actor) -> int:
+    """Capacity derived from character level and practiced magic experience."""
+    return min(MAX_MANA, STARTING_MANA +
+               MANA_PER_LEVEL * max(0, actor.level - 1) +
+               sum(actor.magic.school_xp.values()) // MAGIC_XP_PER_MANA)
+
+
+def grow_mana_capacity(actor) -> int:
+    """Raise earned capacity, preserving legacy 100-mana playtest characters."""
+    magic = actor.magic
+    new_cap = max(magic.max_mana, earned_mana_capacity(actor))
+    increase = new_cap - magic.max_mana
+    magic.max_mana = new_cap
+    magic.mana = min(new_cap, magic.mana + increase)
+    return increase
 
 
 class MagicSystem:
@@ -185,6 +203,7 @@ class MagicSystem:
                 actor, awarded, f"magic:{node.school}") + magic_experience_bonus(actor),
                 max(0, ceiling - skill))
         state.school_xp[node.school] = skill + awarded
+        grow_mana_capacity(actor)
         earned_total = sum(state.school_xp.values()) // INSIGHT_XP_INTERVAL
         gained = earned_total - state.insight_earned
         state.insight_earned = earned_total
@@ -204,7 +223,8 @@ class MagicSystem:
     def assert_valid(actor, minute: int) -> None:
         """Enforce the same progression invariants for humans and NPCs."""
         state = actor.magic
-        if (type(state.max_mana) is not int or state.max_mana != 100
+        if (type(state.max_mana) is not int
+                or state.max_mana not in (earned_mana_capacity(actor), MAX_MANA)
                 or type(state.mana) is not int or not 0 <= state.mana <= state.max_mana
                 or type(state.attempts) is not int or state.attempts < 0
                 or type(state.insight) is not int or state.insight < 0

@@ -66,10 +66,7 @@ export function createCommunityViews(ctx) {
             button('Armory', 'data-tab="armory"', "secondary") : '') +
           '</div>';
       }).join('');
-    const hint = searchScope === "players" ? (multiMode ?
-      'Both players and NPCs use the same turn-based combat. Defenders ' +
-      'automatically counterattack each move; player duels draw after ten rounds. ' :
-      'These are persistent computer-controlled adventurers, not connected players. ') +
+    const hint = searchScope === "players" ?
       'To attack, be in the same city. Starting a duel costs no stamina; ' +
       'each offensive swing costs stamina. Victory takes 5% ' +
       'of the defeated character’s carried gold.' :

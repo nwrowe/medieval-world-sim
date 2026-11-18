@@ -5,7 +5,7 @@
 export function createWildernessViews(ctx) {
   const { esc, pretty, button, disabled, panel, isBusy } = ctx;
   let bypassedSite = null;
-  const costFor = (w, qty) => Number((w.gather_cost || {})[String(qty)]) || (1 + qty * 2);
+  const gatherCost = area => Number(area.gather_cost?.["1"]) || 5;
 
   function renderWilderness() {
     const state = ctx.getState();
@@ -22,15 +22,10 @@ export function createWildernessViews(ctx) {
         '<p class="small">Local potential: ' + r.potential +
         '/100 · Available: ' + r.available + '</p></div>' +
         '<div class="wilderness-buttons">' +
-        button("Gather 1 · " + costFor(area, 1) + " stamina",
+        button("Gather · " + gatherCost(area) + " stamina",
           'type="button" data-wilderness="gather" data-item="' + esc(r.item) +
           '" data-quantity="1"' +
-          disabled(!enough || area.stamina < costFor(area, 1)), "secondary") +
-        button("Gather 2 · " + costFor(area, 2) + " stamina",
-          'type="button" data-wilderness="gather" data-item="' + esc(r.item) +
-          '" data-quantity="2"' +
-          disabled(!enough || r.available < 2 || area.stamina < costFor(area, 2)),
-          "secondary") + '</div></div>';
+          disabled(!enough || area.stamina < gatherCost(area)), "secondary") + '</div></div>';
     }).join("");
     const siteCards = (area.sites || []).map(site => {
       const prior = site.resolved;
@@ -72,13 +67,10 @@ export function createWildernessViews(ctx) {
     }).join("");
     return panel("Wilderness · " + pretty(area.biome),
       esc(pretty(area.geology)) + ' · ' + area.elevation_m + ' m' +
-      (area.river ? ' · River corridor' : '') + ' · ' +
-      area.stamina + ' stamina available',
-      '<p class="small">These resources come from the actual terrain and geology ' +
-      'under this hex. Gathering uses stamina; stock slowly replenishes each day.</p>' +
-      (resources || '<p class="small">This terrain has no harvestable material.</p>') +
+      (area.river ? ' · River corridor' : ''),
+      resources +
       (siteCards ? '<h3 class="wilderness-sites-title">Places to investigate</h3>' +
-        siteCards : '<p class="small">No special site on this hex. Keep surveying the map.</p>'));
+        siteCards : ''));
   }
 
   function handleWildernessClick(element) {
@@ -96,7 +88,7 @@ export function createWildernessViews(ctx) {
     if (kind === "gather") {
       const quantity = Number(element.dataset.quantity);
       const item = element.dataset.item;
-      if (![1, 2].includes(quantity) ||
+      if (quantity !== 1 ||
           !(state.wilderness.resources || []).some(r => r.item === item)) return true;
       ctx.action("wilderness_gather", {item, quantity}, "Resources harvested");
       return true;

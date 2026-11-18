@@ -39,8 +39,8 @@ class WorkStats:
 @dataclass
 class MagicState:
     # Magical ability and progression are distinct from combat and work stats.
-    mana: int = 100
-    max_mana: int = 100
+    mana: int = 10
+    max_mana: int = 10
     school_xp: dict[str, int] = field(default_factory=dict)
     unlocked: set[str] = field(default_factory=lambda: {"arcane_fundamentals"})
     insight: int = 0
