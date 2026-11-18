@@ -78,6 +78,10 @@ def current_rows(world) -> list[tuple[str, str, str, str, str, int]]:
             add(kind, owner, place, "item", item, count)
 
     add("crown", "crown", "", "gold", "gold", world.crown_gold)
+    # Civic shift wages are reserved from the city's treasury until the shift
+    # finishes; escrow remains an actual gold holding in the durable ledger.
+    add("escrow", "civic-contracts", "", "gold", "gold",
+        world.state.contract_escrow_gold)
     for actor in world.actors.values():
         add("actor", actor.id, "", "gold", "gold", actor.gold)
         bag("actor", actor.id, "", actor.inventory)
