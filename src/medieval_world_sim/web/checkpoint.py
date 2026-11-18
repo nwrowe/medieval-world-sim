@@ -33,7 +33,7 @@ from ..systems.trades import TradeAssets, TradeProposal
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
 
-CHECKPOINT_VERSION = 2
+CHECKPOINT_VERSION = 3
 CHECKPOINT_INTERVAL = 50
 MAX_BYTES = 32 * 1024 * 1024
 MAX_DEPTH = 70
@@ -93,18 +93,7 @@ def _decode(value, depth=0):
             raise ValueError("Unknown checkpoint class")
         expected = {f.name for f in fields(cls)}
         present = set(value["values"])
-        # Only allow explicitly defaultable Actor fields added after the
-        # original schema; all other model/schema drift must still fail.
-        migration_fields = set()
-        magic_migration = {"next_practice_minute"}
-        travel_migration = {"hex_target", "route_durations"}
-        if (present != expected and not (
-                cls is Actor and present <= expected and
-                expected - present <= migration_fields) and not (
-                cls is MagicState and present <= expected and
-                expected - present <= magic_migration) and not (
-                cls is TravelState and present <= expected and
-                expected - present <= travel_migration)):
+        if present != expected:
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)
                       for name, node in value["values"].items()})
@@ -155,7 +144,7 @@ def _journal_digest(game: MultiplayerGame, seq: int) -> str:
     sha = hashlib.sha256()
     for row in game.db.execute(
             "SELECT seq,kind,actor_id,action,payload,request_id,result_json,"
-            "recorded_at,flee_success,secure_roll,server_clock,regen_version "
+            "recorded_at,flee_success,server_clock "
             "FROM world_journal WHERE seq<=? ORDER BY seq", (seq,)):
         sha.update(json.dumps(row, separators=(",", ":"), ensure_ascii=False,
                               allow_nan=False).encode("utf-8"))

@@ -22,7 +22,7 @@ ASSET_FIELDS = ("holder_type", "holder_id", "location", "asset_type",
 
 
 def create_schema(game: MultiplayerGame) -> None:
-    """Create auxiliary durable tables without rewriting legacy journal rows."""
+    """Create the asset ledger, request receipt, and revision tables."""
     game.db.executescript("""
         CREATE TABLE IF NOT EXISTS asset_ledger(
             holder_type TEXT NOT NULL,
@@ -199,14 +199,15 @@ def verify(game: MultiplayerGame) -> None:
 
 
 def initialize_or_verify(game: MultiplayerGame) -> None:
-    """Migrate old journals once; never silently reinitialize a known ledger."""
+    """Initialize a fresh empty realm's ledger, or verify current-format state."""
     marker = game.db.execute(
         "SELECT value FROM world_meta WHERE name='durable_ledger_initialized'").fetchone()
     if marker is not None:
         verify(game)
         return
-    # Older game databases had journal commands only. Reconstruct their
-    # materialized assets and receipts from the fully validated replay.
+    if _journal_head(game):
+        raise ValueError("Missing durable ledger on nonempty realm; start a new database")
+
     game.db.execute("BEGIN IMMEDIATE")
     try:
         persist(game)
