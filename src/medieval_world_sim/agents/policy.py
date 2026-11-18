@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import random
 
-from ..catalog import CAPITAL, CITIES, RECIPES
+from ..catalog import CAPITAL, CITIES, RAW_RESOURCES, RECIPES
 from ..equipment import GEAR
 from .cognition import NPCMemory, Needs
 from ..core.entities import Wage
@@ -27,8 +27,11 @@ BASE_PRICES = {
     "shield": 49, "bow": 54,
 }
 INPUT_PRICE_CEILINGS = {item: max(1, int(base * 1.4)) for item, base in BASE_PRICES.items()}
+# Live NPCs draw their assigned trade resource from the generated city's
+# deposits. That includes stone, vegetables, and meat; using a hardcoded subset
+# crashes the world clock when one of those haulers evaluates a local offer.
 HAULER_BUY_CEILINGS = {item: max(1, int(BASE_PRICES[item] * 0.85))
-                       for item in ("iron_ore", "coal", "timber", "hides", "grain", "herbs")}
+                       for item in RAW_RESOURCES}
 
 
 @dataclass(frozen=True)

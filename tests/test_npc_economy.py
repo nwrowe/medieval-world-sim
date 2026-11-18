@@ -3,9 +3,14 @@ from realm_fixtures import IRONVALE
 
 import unittest
 import random
+from dataclasses import replace
 
-from medieval_world_sim.agents.observation import observe
-from medieval_world_sim.agents.policy import NPCProfile, RuleBasedPolicy
+from medieval_world_sim.catalog import CAPITAL, RAW_RESOURCES
+from medieval_world_sim.agents.observation import OfferView, observe
+from medieval_world_sim.agents.policy import (
+    HAULER_BUY_CEILINGS, NPCProfile, RuleBasedPolicy,
+)
+from medieval_world_sim.systems.regional_trade import RegionalQuote
 from medieval_world_sim.agents.runner import create_simulation
 from medieval_world_sim.errors import ActionError
 
@@ -43,6 +48,39 @@ class NpcSystemTests(unittest.TestCase):
                          [b.gauss(0, 1) for _ in range(20)])
         self.assertEqual(RuleBasedPolicy(random.Random(13)).choose(profile, view),
                          RuleBasedPolicy(random.Random(13)).choose(profile, view))
+
+    def test_hauler_offer_evaluation_handles_every_raw_resource(self):
+        """Live NPCs may be assigned any generated deposit, not just six goods.
+
+        A local stone offer used to raise KeyError inside the server-clock
+        transaction, causing repeated broken browser event streams.
+        """
+        sim = create_simulation(24, seed=9)
+        base = next(p for p in sim.profiles if p.role == "hauler")
+        observed = observe(sim.world, base.id)
+        self.assertEqual(set(HAULER_BUY_CEILINGS), set(RAW_RESOURCES))
+        for resource in RAW_RESOURCES:
+            with self.subTest(resource=resource):
+                profile = replace(base, resource=resource)
+                offer = OfferView(
+                    id=15, seller_id="other-seller", city=base.home,
+                    item=resource, quantity=2, price=1,
+                    gear_id=None, quality=None)
+                capital = RegionalQuote(
+                    city=CAPITAL, item=resource,
+                    player_buy_price=9, player_sell_price=10,
+                    stock=3, buy_capacity=10, sell_capacity=3,
+                    city_gold=1000)
+                view = replace(
+                    observed, city=base.home, destination=None,
+                    inventory=(), gear=(), gold=100,
+                    offers=(offer,), regional_quotes=(),
+                    capital_quotes=(capital,))
+                candidates = RuleBasedPolicy(random.Random(1))._hauler(
+                    profile, view)
+                self.assertEqual(len(candidates), 1)
+                self.assertEqual(candidates[0].action.name, "accept_offer")
+                self.assertEqual(candidates[0].action.params["offer_id"], 15)
 
     def test_realized_economic_activity_and_gold_conservation(self):
         sim = create_simulation(28, seed=42)
