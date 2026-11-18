@@ -36,8 +36,9 @@ from .accounts import (AuthError, Identity, _digest, _password_hash,
                        SESSION_SECONDS, PASSWORD_N, PASSWORD_R, PASSWORD_P,
                        MAX_FAILED_LOGINS, LOGIN_COOLDOWN, MAX_NEW_ACCOUNTS_PER_DAY)
 
-# Deliberately bounded until rate limiting, moderation and deployment hardening
-# have been reviewed in a dedicated public-server milestone.
+# Deliberately bound player-originated commands; automatic trusted clock
+# advances do not consume this budget in a long-running play-test realm.
+# Public-server rate limiting and deployment hardening are separate work.
 MAX_JOURNAL = 20000
 MAX_ACCOUNT_COMMANDS_PER_DAY = 400
 MAX_CHAT_COMMANDS_PER_DAY = 100
@@ -287,7 +288,16 @@ class MultiplayerGame:
         return accounts.logout(self, token)
 
     def _count_journal(self):
-        if self.db.execute("SELECT COUNT(*) FROM world_journal").fetchone()[0] >= MAX_JOURNAL:
+        """Bound player-originated commands, excluding trusted clock advances.
+
+        The seconds-travel play-test clock may commit a journal advance each
+        second. Counting those against a lifetime player-action quota eventually
+        breaks every snapshot, including a browser's initial page load.
+        """
+        count = self.db.execute(
+            "SELECT COUNT(*) FROM world_journal "
+            "WHERE COALESCE(server_clock,0)=0").fetchone()[0]
+        if count >= MAX_JOURNAL:
             raise ActionError("Development command journal is full")
 
     def _existing_command(self, actor_id: str, request_id: str, kind: str,
@@ -319,7 +329,8 @@ class MultiplayerGame:
             prior_events = len(self.world.events)
             timestamp = datetime.now(timezone.utc).isoformat()
             def perform():
-                self._count_journal()
+                # Trusted clock ticks must continue even when the optional
+                # player-command journal quota has been reached.
                 self.world.advance(minutes)
                 row = self.db.execute(
                     "INSERT INTO world_journal(kind,actor_id,payload,request_id,"

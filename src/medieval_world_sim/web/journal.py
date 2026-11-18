@@ -134,6 +134,11 @@ def create_schema(game: MultiplayerGame) -> None:
     game.db.execute(
         "CREATE INDEX IF NOT EXISTS journal_timestamp "
         "ON world_journal(recorded_at)")
+    # A compact partial index avoids scanning thousands of automatic clock
+    # rows whenever checking the lifetime player-command quota.
+    game.db.execute(
+        "CREATE INDEX IF NOT EXISTS journal_player_command_budget "
+        "ON world_journal(seq) WHERE COALESCE(server_clock,0)=0")
     game._rng_key = game.db.execute(
         "SELECT value FROM world_meta WHERE name='rng_key'").fetchone()[0]
     game.db.execute(
