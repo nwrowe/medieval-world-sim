@@ -41,6 +41,12 @@ EVENT_FIELDS = {
         "actor_id", "site_id", "approach", "success", "roll",
         "chance", "item", "quantity", "stamina_spent", "damage"
     ],
+    "company_hiring_changed": ["actor_id", "company_id", "hiring"],
+    "company_applied": ["actor_id", "company_id"],
+    "company_application_withdrawn": ["actor_id", "company_id"],
+    "company_listed": ["actor_id", "company_id", "price"],
+    "company_sold": ["seller_id", "buyer_id", "company_id", "price"],
+    "company_dissolved": ["actor_id", "company_id"],
     "company_founded": [
         "owner_id",
         "company_id",

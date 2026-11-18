@@ -99,7 +99,7 @@ def _decode(value, depth=0):
                  "tavern_room_until", "tavern_mead", "active_contracts",
                  "contract_last_started", "contract_escrow_gold"} if cls is WorldState else set()
         if cls is Company:
-            added = {"product"}
+            added = {"product", "display_name", "sale_price", "hiring", "applicants"}
         if present - expected or expected - present - added:
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)

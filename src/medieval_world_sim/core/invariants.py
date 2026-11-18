@@ -297,6 +297,14 @@ def validate_world(world: WorldEngine) -> None:
             raise AssertionError("Invalid tavern drink tally")
     from ..content.industry import INDUSTRY_PRODUCTS
     for company in world.companies.values():
+        if (type(company.display_name) is not str or
+                type(company.sale_price) is not int or
+                not 0 <= company.sale_price <= 1_000_000_000 or
+                type(company.hiring) is not bool or
+                type(company.applicants) is not set or
+                any(a not in world.actors or world.actors[a].kind != "human"
+                    for a in company.applicants)):
+            raise AssertionError("Invalid company listing or applicants")
         if (type(company.product) is not str or
                 company.product and company.product not in INDUSTRY_PRODUCTS[company.industry]):
             raise AssertionError("Invalid company product selection")
