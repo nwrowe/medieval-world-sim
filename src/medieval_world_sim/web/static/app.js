@@ -47,7 +47,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   let tab = "character";
   const pageHistory = [];
   const THEME_KEY = "oathmere.appearance.theme";
-  let themePreference = "system";
+  // Keep the established light appearance unless the user chooses otherwise.
+  let themePreference = "light";
   try {
     const saved = localStorage.getItem(THEME_KEY);
     if (["system", "light", "dark"].includes(saved)) themePreference = saved;
@@ -190,8 +191,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       secureWorldClock && state ? state.next_world_tick_seconds : null,
       (Date.now() - clockSyncedAt) / 1000);
   }
-  function timerAttrs(label, simSeconds) {
-    const seconds = timerSeconds(simSeconds);
+  function timerAttrs(label, simSeconds, seconds = timerSeconds(simSeconds)) {
     const text = label + fullCountdown(seconds);
     const end = secureWorldClock && state && state.next_world_tick_seconds != null ?
       Date.now() + seconds * 1000 : 0;
@@ -580,7 +580,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
       '" max="' + maximum + '" aria-label="' + esc(label) + '"></progress></div>';
   }
-   function cooldownIcon(name) {
+  function cooldownIcon(name) {
     const config = {
       job: { symbol: "▣", label: "Job" },
       food: { symbol: "♨", label: "Food" },
@@ -591,9 +591,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const max = data ? data.max_minutes : 1440;
     if (remaining <= 0) return "";
     const tip = config.label + " cooldown: ";
-    const time = fullCountdown(timerSeconds(remaining * 60));
+    const seconds = timerSeconds(remaining * 60);
+    const time = fullCountdown(seconds);
     return '<div class="cooldown-chip ' + (remaining >= max ? 'at-cap' : '') +
-      '" data-activity-key="cooldown-' + name + '"' + timerAttrs(tip, remaining * 60) +
+      '" data-activity-key="cooldown-' + name + '"' +
+      timerAttrs(tip, remaining * 60, seconds) +
       ' tabindex="0" aria-label="' + esc(tip + time) +
       '"><span aria-hidden="true">' + config.symbol + '</span><strong data-timer-display>' +
       time + '</strong></div>';
