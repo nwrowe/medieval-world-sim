@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from medieval_world_sim.web.multiplayer import MultiplayerGame
-from medieval_world_sim.web.session import GameSession, event_category
+from medieval_world_sim.web.session import GameSession, SaveError, event_category
 from test_multiplayer_auth import serve
 from test_live_activity import LiveEventTests, next_sse_activity
 
