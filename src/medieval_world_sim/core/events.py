@@ -138,6 +138,8 @@ EVENT_FIELDS = {
         "mana_spent", "xp_gained", "school_xp", "insight_gained"
     ],
     "goods_stored": ["actor_id", "city", "item", "quantity"],
+    "goods_discarded": ["actor_id", "item", "quantity"],
+    "gear_discarded": ["actor_id", "gear_id", "item"],
     "gear_stored": ["actor_id", "city", "gear_id"],
     "gear_retrieved": ["actor_id", "city", "gear_id"],
     "goods_retrieved": ["actor_id", "city", "item", "quantity"],

@@ -352,6 +352,31 @@ class WorldEngine:
         self._emit("goods_stored", actor_id, city, item, quantity)
 
     @atomic_action
+    def discard_goods(self, actor_id: str, item: str, quantity: int) -> None:
+        """Permanently discard carried goods; works outside settlements."""
+        actor = self._actor(actor_id)
+        if actor.destination is not None:
+            raise ActionError("Finish traveling before discarding goods")
+        self._positive(quantity, "quantity")
+        if type(item) is not str or item not in GOODS or actor.inventory.get(item, 0) < quantity:
+            raise ActionError("Cannot discard goods you do not carry")
+        actor.inventory[item] -= quantity
+        self._emit("goods_discarded", actor_id, item, quantity)
+
+    @atomic_action
+    def discard_gear(self, actor_id: str, gear_id: int) -> None:
+        actor = self._actor(actor_id)
+        if actor.destination is not None:
+            raise ActionError("Finish traveling before discarding equipment")
+        if (type(gear_id) is not int or gear_id not in actor.gear_ids
+                or gear_id in actor.equipped.values()):
+            raise ActionError("Only carried, unequipped gear may be discarded")
+        actor.gear_ids.remove(gear_id)
+        kind = self.gear.pop(gear_id).kind
+        self.state.gear_wear.pop(gear_id, None)
+        self._emit("gear_discarded", actor_id, gear_id, kind)
+
+    @atomic_action
     def retrieve_goods(self, actor_id: str, item: str, quantity: int) -> None:
         actor = self._actor(actor_id)
         city = self._at_city(actor)

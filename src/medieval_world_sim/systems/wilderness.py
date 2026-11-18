@@ -79,6 +79,9 @@ class WildernessSystem:
         available = self._available(tile, item)
         if available < quantity:
             raise ActionError("This deposit is exhausted; let it recover")
+        if not legacy and (sum(actor.inventory.values()) + len(actor.gear_ids)
+                           + quantity > self.world.housing_system.travel_cargo_limit(actor)):
+            raise ActionError("Carrying capacity reached; discard items before gathering")
         # Only committed successful commands consume stamina and stock.
         actor.stamina -= cost
         key = (y * self.world.geography.width + x, item)
@@ -146,6 +149,11 @@ class WildernessSystem:
         actor.stamina -= cost
         actor.hp -= damage
         if quantity:
+            # Discovery rewards cannot strand players above travel capacity.
+            room = max(0, self.world.housing_system.travel_cargo_limit(actor) -
+                       sum(actor.inventory.values()) - len(actor.gear_ids))
+            quantity = min(quantity, room)
+        if quantity:
             self.world._add(actor, item, quantity)
         result = (approach, success, item, quantity, damage)
         self.world.state.site_attempts.setdefault(actor_id, {})[site_id] = result
@@ -192,4 +200,6 @@ class WildernessSystem:
                 "geology": tile.geology, "elevation_m": tile.elevation_m,
                 "river": tile.river, "stamina": actor.stamina,
                 "gather_cost": {"1": 5},
+                "cargo": sum(actor.inventory.values()) + len(actor.gear_ids),
+                "cargo_limit": self.world.housing_system.travel_cargo_limit(actor),
                 "resources": stocks, "sites": sites}

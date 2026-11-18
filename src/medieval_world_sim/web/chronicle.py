@@ -24,7 +24,8 @@ HEALTH_EVENTS = {"recovered", "consumed", "church_healed"}
 RACING_EVENTS = {"horse_purchased", "horse_raced"}
 PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
 ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",
-                  "goods_stored", "goods_retrieved", "city_contract_completed",
+                  "goods_stored", "goods_retrieved", "goods_discarded",
+                   "gear_discarded", "city_contract_completed",
                   "offer_posted", "offer_filled", "offer_canceled", "city_sale",
                   "company_founded", "company_funded", "company_withdrawn",
                   "company_stocked", "company_unstocked",
@@ -119,6 +120,8 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "equipped": f"Equipped {str(gear_kind or info.get('slot', 'gear')).replace('_', ' ')}",
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
         "goods_stored": f"Stored {info.get('quantity')} {str(info.get('item')).replace('_',' ')} in {info.get('city')}",
+        "goods_discarded": f"Discarded {info.get('quantity')} {str(info.get('item')).replace('_',' ')}",
+        "gear_discarded": f"Discarded {str(info.get('item')).replace('_',' ')} #{info.get('gear_id')}",
         "goods_retrieved": f"Retrieved {info.get('quantity')} {str(info.get('item')).replace('_',' ')} from {info.get('city')}",
         "guild_founded": f"Founded the guild {info.get('name')}",
         "guild_invited": f"Guild invitation sent to {info.get('candidate_id')}",
