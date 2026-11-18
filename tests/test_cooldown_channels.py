@@ -10,7 +10,7 @@ from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.catalog import CAPITAL
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
-from medieval_world_sim.web.session import GameSession
+from medieval_world_sim.web.session import GameSession, SaveError
 
 
 class CooldownTests(unittest.TestCase):
@@ -78,7 +78,7 @@ class CooldownTests(unittest.TestCase):
         self.assertEqual(w.actors["hero"].cooldowns.potion - w.minute, 1440)
         w.assert_invariants()
 
-    def test_legacy_job_replay_retains_old_ready_time_without_new_queue(self):
+    def test_old_job_ruleset_is_rejected(self):
         with tempfile.TemporaryDirectory() as folder:
             save = Path(folder) / "save.json"
             game = GameSession(save)
@@ -90,15 +90,8 @@ class CooldownTests(unittest.TestCase):
                 "id": "old-job", "ruleset": 2,
             }]
             save.write_text(json.dumps(document), encoding="utf-8")
-            replayed = GameSession(save)
-            self.assertEqual(replayed.snapshot()["player"]["ready_minute"], 60)
-            self.assertEqual(replayed.snapshot()["player"]["cooldowns"]["job"]["remaining_minutes"], 0)
-            # New actions use the distinct job queue and can stack independently.
-            replayed.action("complete_city_contract",
-                            {"contract_id": "labor_shift"}, "new-job")
-            self.assertEqual(replayed.records[-1]["ruleset"], 3)
-            self.assertEqual(GameSession(save).snapshot(), replayed.snapshot())
-
+            with self.assertRaises(SaveError):
+                GameSession(save)
 
 if __name__ == "__main__":
     unittest.main()

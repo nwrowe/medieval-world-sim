@@ -41,19 +41,14 @@ class MagicCharacterProgressionTests(TestCase):
         self.assertEqual(world.initial_gold, world.total_gold)
         world.assert_invariants()
 
-    def test_prechange_magic_commands_preserve_old_leveling_rule(self):
+    def test_current_magic_practice_also_awards_character_xp(self):
         world = WorldEngine([Actor("mage", "human")], seed=42)
         world.unlock_magic("mage", "restoration.soothe_wounds")
-        world._legacy_magic_leveling_rules = True
-        try:
-            old = world.practice_magic("mage", "restoration.soothe_wounds")
-        finally:
-            world._legacy_magic_leveling_rules = False
-        self.assertGreater(old.xp_gained, 0)
-        self.assertEqual(old.level_xp_gained, 0)
-        self.assertEqual(world.actors["mage"].level_xp, 0)
+        outcome = world.practice_magic("mage", "restoration.soothe_wounds")
+        self.assertGreater(outcome.xp_gained, 0)
+        self.assertGreater(outcome.level_xp_gained, 0)
+        self.assertEqual(world.actors["mage"].level_xp, outcome.level_xp_gained)
         world.assert_invariants()
-
 
 class PersistentNPCAutonomyTests(TestCase):
     def setUp(self):
@@ -251,8 +246,8 @@ class PersistentNPCAutonomyTests(TestCase):
         self.restart()
         self.assertEqual(self.game.world.actors[self.player].level_xp, earned)
         self.assertEqual(self.game.db.execute(
-            "SELECT xp_version FROM world_journal WHERE request_id='practice'"
-        ).fetchone()[0], 4)
+            "SELECT COUNT(*) FROM world_journal WHERE request_id='practice'"
+        ).fetchone()[0], 1)
         ledger.verify(self.game)
 
 

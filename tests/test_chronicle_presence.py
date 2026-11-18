@@ -220,24 +220,18 @@ class ChronicleAuditTests(unittest.TestCase):
 
 
 class LegacyStartTests(unittest.TestCase):
-    def test_single_player_new_start_and_old_goldmeadow_save(self):
+    def test_single_player_uses_current_start_and_rejects_missing_location(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "world.json"
             game = GameSession(path)
             game.create("Aldric Thorn")
-            self.assertEqual(game.snapshot()["player"]["city"], "crownreach")
-            self.assertEqual(GameSession(path).snapshot()["player"]["city"],
-                             "crownreach")
+            self.assertEqual(game.snapshot()["player"]["city"], CAPITAL)
+            self.assertEqual(GameSession(path).snapshot(), game.snapshot())
             stored = json.loads(path.read_text(encoding="utf-8"))
-            # No five-city migration: a fresh realm without start_city still
-            # begins in the current capital, not the retired Goldmeadow.
             stored.pop("start_city", None)
             path.write_text(json.dumps(stored), encoding="utf-8")
-            old = GameSession(path)
-            self.assertEqual(old.snapshot()["player"]["city"], CAPITAL)
-            old.action("claim_merit", {"achievement": "first_steps"}, "first-merit")
-            self.assertEqual(GameSession(path).snapshot(), old.snapshot())
-
+            with self.assertRaises(SaveError):
+                GameSession(path)
 
 if __name__ == "__main__":
     unittest.main()

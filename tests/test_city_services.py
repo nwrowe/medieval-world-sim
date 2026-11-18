@@ -9,7 +9,7 @@ from pathlib import Path
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
-from medieval_world_sim.web.session import GameSession
+from medieval_world_sim.web.session import GameSession, SaveError
 
 
 class CityContractTests(unittest.TestCase):
@@ -90,7 +90,7 @@ class CityContractTests(unittest.TestCase):
 
 
 class SaveCompatibilityTests(unittest.TestCase):
-    def test_old_magic_practice_replays_under_old_rule_and_new_actions_use_new_rule(self):
+    def test_obsolete_magic_journal_is_rejected_not_replayed(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "save.json"
             game = GameSession(path)
@@ -103,25 +103,15 @@ class SaveCompatibilityTests(unittest.TestCase):
                  "params": {"node_id": "divination.read_omens"}, "id": "old-practice"},
             ]
             path.write_text(json.dumps(document), encoding="utf-8")
-            old = GameSession(path)
-            old_chance = [e.data["chance"] for e in old.world.events
-                          if e.kind == "magic_practiced"][-1]
-            self.assertLess(old_chance, 90)
-            new = old.action("practice_magic",
-                {"node_id": "divination.read_omens"}, "new-practice")
-            self.assertGreaterEqual(new.chance, 90)
-            self.assertEqual(GameSession(path).snapshot(), old.snapshot())
+            with self.assertRaises(SaveError):
+                GameSession(path)
 
     def test_city_job_and_storage_survive_save_replay(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "save.json"
             game = GameSession(path)
             game.create("Cale Rowan")
-            # Exercise storage in a real resource-producing generated town.
-            old_document = json.loads(path.read_text(encoding="utf-8"))
-            old_document["start_city"] = GOLDMEADOW
-            path.write_text(json.dumps(old_document), encoding="utf-8")
-            game = GameSession(path)
+            # Start at the current capital; test the current-format save.
             game.action("gather", {"item": "grain", "quantity": 2}, "gather")
             game.action("store_goods", {"item": "grain", "quantity": 2}, "store")
             self.assertEqual(game.snapshot()["player"]["stored_here"]["grain"], 2)

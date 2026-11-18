@@ -245,23 +245,15 @@ class WebSessionTests(unittest.TestCase):
         self.assertTrue(all(event["recorded_at"] for event in chronicle))
         self.assertEqual(GameSession(self.save).snapshot()["events"], chronicle)
 
-    def test_old_journal_without_wall_timestamps_remains_readable(self):
+    def test_current_journal_requires_event_timestamps(self):
         self.game.create("Old Chronicle")
-        # A legacy save without start_city replays from its historical city.
-        document = json.loads(self.save.read_text(encoding="utf-8"))
-        document.pop("start_city", None)
-        self.save.write_text(json.dumps(document), encoding="utf-8")
-        self.game = GameSession(self.save)
-        self.game.action("buy_home", {"tier": "room"}, "legacy-home")
+        self.game.action("buy_home", {"tier": "room"}, "current-home")
         document = json.loads(self.save.read_text(encoding="utf-8"))
         for record in document["records"]:
             record.pop("recorded_at", None)
         self.save.write_text(json.dumps(document), encoding="utf-8")
-        old = GameSession(self.save)
-        self.assertEqual(old.snapshot()["events"][0]["recorded_at"], None)
-        old.action("claim_merit", {"achievement": "first_steps"}, "fresh-merit")
-        self.assertIsNotNone(old.snapshot()["events"][0]["recorded_at"])
-        self.assertEqual(GameSession(self.save).snapshot(), old.snapshot())
+        with self.assertRaises(SaveError):
+            GameSession(self.save)
 
     def test_forbidden_actions_and_invalid_time_do_not_modify_save(self):
         self.game.create("Ash Rowan")

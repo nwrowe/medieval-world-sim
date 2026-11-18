@@ -71,7 +71,7 @@ class CombatPreviewTests(unittest.TestCase):
             one = session.action("engage_duel",
                                  {"defender_id": foe["id"], "move": "fists"}, "opening")
             self.assertEqual(one["outcome"], "ongoing")
-            self.assertEqual(session.records[-1]["ruleset"], 17)
+            self.assertNotIn("ruleset", session.records[-1])
             self.assertEqual(GameSession(solo).snapshot(), session.snapshot())
             db = Path(tmp) / "multi.db"
             world = MultiplayerGame(db, require_invites=False,
@@ -84,10 +84,9 @@ class CombatPreviewTests(unittest.TestCase):
                 world.action(first, "engage_duel",
                              {"defender_id": second, "move": "fists"}, "open")
                 before = world.snapshot(first)
-                version = world.db.execute(
-                    "SELECT xp_version FROM world_journal WHERE request_id='open'"
-                ).fetchone()[0]
-                self.assertEqual(version, 5)
+                columns = {row[1] for row in world.db.execute(
+                    "PRAGMA table_info(world_journal)")}
+                self.assertNotIn("xp_version", columns)
             finally:
                 world.close()
             world = MultiplayerGame(db, require_invites=False,
