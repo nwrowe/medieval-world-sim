@@ -129,7 +129,7 @@ export function createCharacterViews(ctx) {
         characterRow("Residence", homeName) +
         characterRow("Insight", p.insight) +
         (study || '<p class="small">No magical studies yet.</p>')) +
-      '</div><div class="mt-20">' + homeMagicPanel(state) + '</div>';
+      '</div><div class="profile-magic-panel">' + homeMagicPanel(state) + '</div>';
   }
   function equipmentMannequin(owned, equipped) {
     const kind = slot => {

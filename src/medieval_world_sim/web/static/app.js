@@ -3,6 +3,7 @@ import { createCommunityViews } from "/community-views.mjs";
 import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
 import { groupCombatChronicle } from "/chronicle-views.mjs";
+import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
 
 /* Oathmere — dependency-free responsive game client.
    Rendering is a read-only projection of server-authoritative world state.
@@ -77,11 +78,20 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
   let forceMapCenter = false;
   let mapPollBusy = false;
   let lastMapPollAt = 0;
+  // Private map tiles are absent from live updates. Fetch one final map when
+  // travel completes, even though the player's destination is now null.
+  let mapTravelSettlePending = false;
+  let universityNeedsRefresh = false;
+  let universityRefreshBusy = false;
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
   let chronicleCategory = "all";
   let chronicleQuery = "";
+  let chronicleVisibleCount = 50;
+  const chronicleOpenEncounters = new Set();
+  let renderedChronicleEvents = null;
+  let renderedChronicleFilterKey = "";
   let chatOpen = false;
   let chatChannelKey = "global";
   let chatDraft = "";
@@ -309,6 +319,9 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
           defense: state.player.defense - oldStats.defense };
       }
       syncAttunements();
+      // Action responses already carry full map and University projections.
+      mapTravelSettlePending = false;
+      universityNeedsRefresh = false;
       if (body && ["start_duel", "engage_duel", "duel_turn", "flee_duel"].includes(body.action)) {
         tab = "duel";
         if (body.action === "engage_duel") duelPreviewTarget = null;
@@ -740,9 +753,15 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
     const rows = groupCombatChronicle(events);
     return rows.length ? '<ul class="activity">' +
       rows.map(e => e.kind === "combat_encounter" ?
-        '<li class="activity-encounter"><details><summary>' +
+        '<li class="activity-encounter"><details data-encounter-id="' +
+        esc(e.id) + '"' + (chronicleOpenEncounters.has(String(e.id)) ? ' open' : '') +
+        '><summary><span class="encounter-title">' +
         '<span><span class="chronicle-tag">Combat</span> ' + esc(e.text) +
-        '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
+        '</span><small class="encounter-disclosure"><span class="encounter-chevron" ' +
+        'aria-hidden="true">▸</span> ' + e.actions.length + ' actions · ' +
+        '<span class="when-closed">Click to expand</span>' +
+        '<span class="when-open">Click to collapse</span></small></span>' +
+        '<time title="Simulation elapsed: ' + esc(clock(e.minute)) +
         '">' + esc(eventTime(e)) + '</time></summary>' +
         '<ol class="encounter-rounds">' + e.actions.map(action =>
           '<li><span>' + esc(action.text) + '</span><time>' +
@@ -753,6 +772,36 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
         '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
         '">' + esc(eventTime(e)) + '</time></li>').join("") +
       '</ul>' : '<p class="empty">No matching Chronicle events.</p>';
+  }
+  function chronicleResults() {
+    const matches = chronicleEvents();
+    const shown = Math.min(chronicleVisibleCount, matches.length);
+    return '<p class="chronicle-count">Showing ' + shown + ' of ' +
+      matches.length + ' matching entries · Search covers the 500 most recent ' +
+      'events in this view</p>' +
+      chronicleItems(matches.slice(0, shown)) +
+      (shown < matches.length ? button("Show 50 more",
+        'data-ui="chronicle-more"', "secondary") : '');
+  }
+  function rememberChronicleExpansion(container) {
+    for (const details of container.querySelectorAll("details[data-encounter-id]")) {
+      const key = details.dataset.encounterId;
+      if (details.open) chronicleOpenEncounters.add(key);
+      else chronicleOpenEncounters.delete(key);
+    }
+  }
+  function chronicleFilterKey() {
+    return chronicleCategory + "\u0000" + chronicleQuery + "\u0000" +
+      chronicleVisibleCount;
+  }
+  function refreshChronicleList() {
+    const list = document.getElementById("chronicle-list");
+    if (!list || (renderedChronicleEvents === state.events &&
+                  renderedChronicleFilterKey === chronicleFilterKey())) return;
+    rememberChronicleExpansion(list);
+    list.innerHTML = chronicleResults();
+    renderedChronicleEvents = state.events;
+    renderedChronicleFilterKey = chronicleFilterKey();
   }
   function activityPanel(showTitle = true) {
     const body = chronicleItems((state.events || []).slice(0, 12));
@@ -804,6 +853,8 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       characterRow,
     });
   function renderChronicle() {
+    renderedChronicleEvents = state.events;
+    renderedChronicleFilterKey = chronicleFilterKey();
     const options = ['<option value="all">All categories</option>'].concat(
       chronicleCategories.map(category => '<option value="' + esc(category) + '"' +
         (chronicleCategory === category ? " selected" : "") + '>' +
@@ -816,7 +867,7 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       '<input id="chronicle-query" class="field" type="search" ' +
       'placeholder="Trade, combat, equipment…" maxlength="100" value="' +
       esc(chronicleQuery) + '"></div>' +
-      '<div id="chronicle-list">' + chronicleItems(chronicleEvents()) + '</div>' +
+      '<div id="chronicle-list">' + chronicleResults() + '</div>' +
       '</section>';
   }
   function characterRow(label, value) {
@@ -938,7 +989,13 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       if ("duel" in update) state.duel = update.duel;
       if ("last_duel" in update) state.last_duel = update.last_duel;
       if ("course_active" in update && state.training_hall) {
-        state.training_hall.active = update.course_active;
+        const priorCourse = state.training_hall.active;
+        const nextCourse = update.course_active;
+        // The stream omits completed/available flags for every school.
+        // Re-read authoritative enrollment options when a course completes.
+        if (activeCourseEnded(priorCourse, nextCourse))
+          universityNeedsRefresh = true;
+        state.training_hall.active = nextCourse;
       }
       if (Array.isArray(update.users)) state.users = update.users;
       if (Array.isArray(update.presence_updates) && Array.isArray(state.users)) {
@@ -949,7 +1006,10 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       }
       if (Array.isArray(update.events)) state.events = update.events;
       if (update.player_status) {
+        const wasTraveling = Boolean(state.player.destination);
         Object.assign(state.player, update.player_status);
+        if (travelJustArrived(wasTraveling, state.player.destination))
+          mapTravelSettlePending = true;
       }
       if (chatOpen) markChannelRead(chatChannelKey);
       refreshLiveSurfaces();
@@ -1012,8 +1072,7 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       const content = document.getElementById("main-content");
       if (content) content.innerHTML = renderProfile();
     } else if (tab === "chronicle") {
-      const list = document.getElementById("chronicle-list");
-      if (list) list.innerHTML = chronicleItems(chronicleEvents());
+      refreshChronicleList();
     }
     if (tab === "trade") {
       const current = document.getElementById("trade-offers-list");
@@ -1130,6 +1189,8 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
   }
   let lastMapHex = null;
   function render() {
+    // Preserve native <details> expansion before a full shell replacement.
+    rememberChronicleExpansion(root);
     const previous = root.querySelector(".terrain-map-scroll");
     const oldScroll = previous ? [previous.scrollLeft, previous.scrollTop] : null;
     if (authNeeded) root.innerHTML = authPage();
@@ -1259,6 +1320,19 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
     }
   });
 
+  // Native details state is independent of server push cadence. Remember
+  // expanded encounters across Chronicle refreshes and full-page renders.
+  root.addEventListener("toggle", event => {
+    const details = event.target;
+    if (!details.matches || !details.matches("details[data-encounter-id]") ||
+        !root.contains(details)) return;
+    const key = details.dataset.encounterId;
+    if (details.open) chronicleOpenEncounters.add(key);
+    else chronicleOpenEncounters.delete(key);
+    if (chronicleOpenEncounters.size > 100)
+      chronicleOpenEncounters.delete(chronicleOpenEncounters.values().next().value);
+  }, true);
+
   root.addEventListener("input", event => {
     if (event.target.id === "guild-name") {
       event.target.setCustomValidity("");
@@ -1266,8 +1340,8 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
     }
     if (event.target.id === "chronicle-query") {
       chronicleQuery = event.target.value;
-      const list = document.getElementById("chronicle-list");
-      if (list) list.innerHTML = chronicleItems(chronicleEvents());
+      chronicleVisibleCount = 50;
+      refreshChronicleList();
       return;
     }
     if (event.target.id === "chat-text") {
@@ -1280,8 +1354,8 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
   root.addEventListener("change", event => {
     if (event.target.id === "chronicle-category") {
       chronicleCategory = event.target.value;
-      const list = document.getElementById("chronicle-list");
-      if (list) list.innerHTML = chronicleItems(chronicleEvents());
+      chronicleVisibleCount = 50;
+      refreshChronicleList();
       return;
     }
     const path = event.target.getAttribute("data-attune");
@@ -1345,6 +1419,11 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
             notify(error.message, true);
           }
         })(); break;
+      case "chronicle-more": {
+        chronicleVisibleCount += 50;
+        refreshChronicleList();
+        break;
+      }
       case "page-back":
         if (pageHistory.length) {
           tab = pageHistory.pop();
@@ -1681,7 +1760,8 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
   async function refreshTravelMap() {
     // Push updates intentionally omit the per-character private map. Fetch
     // only during a visible active journey, not on every background tick.
-    if (!state || !state.started || !state.player.destination ||
+    if (!state || !state.started ||
+        (!state.player.destination && !mapTravelSettlePending) ||
         tab !== "world" || pending || mapPollBusy || offline || authNeeded)
       return;
     const now = Date.now();
@@ -1696,6 +1776,7 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       // never includes private hex discovery, tile data, or trip position.
       if ((latest.activity_revision || 0) >= (state.activity_revision || 0)) {
         state = latest;
+        mapTravelSettlePending = false;
         // Keep the persistent topbar DOM and hovered vital tooltip alive.
         // Only repaint the World panel and its scrollable map.
         refreshLiveSurfaces();
@@ -1732,6 +1813,25 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
       mapPollBusy = false;
     }
   }
+  async function refreshFinishedUniversityCourse() {
+    if (!universityNeedsRefresh || universityRefreshBusy || pending ||
+        !state || !state.started || offline || authNeeded) return;
+    universityRefreshBusy = true;
+    try {
+      const fresh = await request("/api/state");
+      if (!state || pending || !fresh.started) return;
+      if ((fresh.activity_revision || 0) >= (state.activity_revision || 0)) {
+        state = fresh;
+        universityNeedsRefresh = false;
+        if (tab === "training") render();
+        else refreshLiveSurfaces();
+      }
+    } catch (error) {
+      // Keep the refresh flag so a temporary network failure is retried.
+    } finally {
+      universityRefreshBusy = false;
+    }
+  }
   document.addEventListener("keydown", event => {
     const hex = event.target.closest('[data-ui="explore-hex"]');
     if (hex && (event.key === "Enter" || event.key === " ")) {
@@ -1744,5 +1844,6 @@ import { groupCombatChronicle } from "/chronicle-views.mjs";
     updateEasternClock();
     updateHoverTimers();
     refreshTravelMap();
+    refreshFinishedUniversityCourse();
   }, 1000);
 })();

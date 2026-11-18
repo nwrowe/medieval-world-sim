@@ -138,10 +138,7 @@ export function createWorldViews(ctx) {
       '<span>Explored: ' + Number(atlas.explored_percent).toFixed(1) +
       '%</span><span>' + (atlas.in_wilderness ? 'Exploring wilderness' :
         'In a settlement') + '</span></div>' +
-      '<p class="small terrain-map-hint">Click any highlighted land hex within ' +
-      'sight, or a previously discovered city or location anywhere on the map. ' +
-      'Journeys use the cost of each terrain hex crossed. ' +
-      'Return to a town to use markets and other city services.</p></section>';
+      '</section>';
   }
   function renderHexConfirmation() {
     const state = ctx.getState();

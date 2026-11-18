@@ -129,6 +129,14 @@ assert.match(coursePage, /value="1440" max="5760"/);
 assert.match(coursePage, /25% complete/);
 assert.doesNotMatch(coursePage, /Graduation: 1 merit|Tuition 8g|simulated days remaining/);
 assert.match(coursePage, /Enroll · 12g/);
+state.training_hall.schools[0].courses.push({
+  name: "Master of Rhetoric", days: 30, tuition: 50, stat_bonus: 5,
+  available: false, completed: false, active: false,
+  prerequisites_missing: [0,1,2,3,4,5,6]
+});
+const masterPage = city.renderTraining();
+assert.match(masterPage, /data-ui="course-enroll" data-school="rhetoric" data-index="2" disabled/);
+assert.doesNotMatch(masterPage, />Locked<|Complete the other 7 courses to unlock/);
 state = { ...state, training_hall: { active: null, schools: [] } };
 
 state = { ...state, player: { ...state.player, work: {
