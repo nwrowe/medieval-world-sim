@@ -72,6 +72,8 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "flee_duel": CommandSpec("flee_duel", (), _BOTH),
     "cast_spell": CommandSpec("cast_spell", ("node_id",), _BOTH),
     "church_heal": CommandSpec("church_heal", (), _BOTH),
+    "rent_tavern_room": CommandSpec("rent_tavern_room", (), _BOTH),
+    "buy_tavern_mead": CommandSpec("buy_tavern_mead", (), _BOTH),
     "buy_racehorse": CommandSpec("buy_racehorse", ("breed",), _BOTH),
     "race_horse": CommandSpec("race_horse", ("breed",), _BOTH),
     "found_guild": CommandSpec("found_guild", ("name",), _BOTH),

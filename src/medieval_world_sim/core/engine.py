@@ -50,6 +50,7 @@ from .commands import COMMAND_SPECS
 from .exploration import reveal
 
 from ..content.lineages import LINEAGES, select_lineage
+from ..systems.tavern import TavernSystem
 
 
 class WorldEngine:
@@ -100,6 +101,7 @@ class WorldEngine:
         self.travel = TravelSystem(self)
         self.resources = ResourceSystem(self)
         self.wilderness = WildernessSystem(self)
+        self.tavern_system = TavernSystem(self)
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
         self.trades_system = TradeSystem(self)
@@ -338,6 +340,14 @@ class WorldEngine:
     @atomic_action
     def investigate_site(self, actor_id: str, site_id: str, approach: str) -> dict:
         return self.wilderness.investigate(actor_id, site_id, approach)
+
+    @atomic_action
+    def rent_tavern_room(self, actor_id: str) -> dict:
+        return self.tavern_system.rent_room(actor_id)
+
+    @atomic_action
+    def buy_tavern_mead(self, actor_id: str) -> dict:
+        return self.tavern_system.buy_mead(actor_id)
 
     @atomic_action
     def store_goods(self, actor_id: str, item: str, quantity: int) -> None:

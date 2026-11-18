@@ -5,6 +5,7 @@ from collections import OrderedDict
 from ..catalog import CITIES
 from ..combat import STAMINA_REGEN_MINUTES
 from ..content.magic_tree import MANA_REGEN_MINUTES
+from .tavern import bonus_ticks
 from ..errors import ActionError
 from ..core.exploration import reveal_travel_progress, reveal, current_hex, sight_radius
 from ..worldgen.hexgrid import hex_distance, neighbors
@@ -310,12 +311,19 @@ class TravelSystem:
                 reveal_travel_progress(self.world, actor)
         self.world.curriculum_system.settle(end)
         for actor in self.world.actors.values():
-            actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
-            actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)
-            if health_ticks:
+            until = self.world.state.tavern_room_until.get(actor.id, 0)
+            extra_stamina = bonus_ticks(start_minute, end, until, STAMINA_REGEN_MINUTES)
+            extra_mana = bonus_ticks(start_minute, end, until, MANA_REGEN_MINUTES)
+            actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks + extra_stamina)
+            actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks + extra_mana)
+            if health_ticks or bonus_ticks(start_minute, end, until, interval):
                 gain = ((end // interval) * actor.max_hp * 6 // 100 -
                         (start_minute // interval) * actor.max_hp * 6 // 100)
-                actor.hp = min(actor.max_hp, actor.hp + gain)
+                cutoff = min(end, until)
+                extra_health = (cutoff // interval * actor.max_hp * 6 // 100 -
+                                start_minute // interval * actor.max_hp * 6 // 100
+                                if cutoff > start_minute else 0)
+                actor.hp = min(actor.max_hp, actor.hp + gain + extra_health)
             if actor.defeated_until is not None and actor.defeated_until <= end:
                 actor.defeated_until = None
                 self.world._emit("recovered", actor.id)

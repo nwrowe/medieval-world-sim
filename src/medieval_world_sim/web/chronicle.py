@@ -20,7 +20,8 @@ EQUIPMENT_EVENTS = {"gear_created", "gear_broken", "starter_purchase",
 PROPERTY_EVENTS = {"home_purchased", "home_upgraded", "home_facility_built",
                    "vehicle_purchased", "vehicle_selected"}
 MAGIC_EVENTS = {"magic_unlocked", "magic_practiced", "magic_attuned"}
-HEALTH_EVENTS = {"recovered", "consumed", "church_healed"}
+HEALTH_EVENTS = {"recovered", "consumed", "church_healed",
+                 "tavern_room_rented", "tavern_mead_bought"}
 RACING_EVENTS = {"horse_purchased", "horse_raced"}
 PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
 ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",
@@ -120,6 +121,8 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "equipped": f"Equipped {str(gear_kind or info.get('slot', 'gear')).replace('_', ' ')}",
         "unequipped": f"Unequipped {str(equipped_kinds.get(info.get('slot')) or info.get('slot') or 'gear').replace('_', ' ')}",
         "goods_stored": f"Stored {info.get('quantity')} {str(info.get('item')).replace('_',' ')} in {info.get('city')}",
+        "tavern_room_rented": f"Rented room for {info.get('gold')}g",
+        "tavern_mead_bought": f"Bought mead for {info.get('gold')}g",
         "goods_discarded": f"Discarded {info.get('quantity')} {str(info.get('item')).replace('_',' ')}",
         "gear_discarded": f"Discarded {str(info.get('item')).replace('_',' ')} #{info.get('gear_id')}",
         "goods_retrieved": f"Retrieved {info.get('quantity')} {str(info.get('item')).replace('_',' ')} from {info.get('city')}",
