@@ -1,14 +1,18 @@
 # Oathmere Architecture — Local Development Prototype
 
 This document describes the current implementation, not a proposed hosted service.
-Oathmere has a deterministic, five-city game engine and two different persistence
-adapters: local single-player JSON replay and localhost-only multi-account SQLite
-journal replay. Neither is production/public-internet hosting.
+Oathmere has one authoritative game engine backed by a seeded, geography-first
+realm. The default development atlas is seed 7 with 12 generated settlements;
+`content/catalog.py` derives the playable `CITIES` and `ROADS` from that atlas.
+The number of settlements is not an engine constant. The two persistence
+adapters are local single-player JSON replay and localhost-only multi-account
+SQLite journal replay. Neither is production/public-internet hosting.
 
 ## Code ownership
 
 | Area | Owned responsibility |
 | --- | --- |
+| `worldgen/`, `content/`, `content/catalog.py` | Generated terrain/settlements/roads, authored content overlays, and derived playable definitions |
 | `core/entities.py`, `core/state.py` | Actor components and authoritative world state |
 | `core/engine.py`, `core/invariants.py` | Domain facade, actor access control, command execution, and separately owned state validation |
 | `core/commands.py` | Typed command names, exact payload fields, single/multi exposure |
@@ -31,12 +35,24 @@ The authoritative `WorldEngine` composes systems instead of creating parallel
 single/multiplayer gameplay implementations. All human and NPC actors use the
 same core entities and gameplay rules.
 
+## Locations and gameplay access
+
+The generated atlas contains settlements, roads, exploration sites and landmarks.
+Currently, entries in `CITIES` are full settlements with city-service access;
+`_at_city` deliberately blocks those services while traveling or in wilderness.
+Sites and landmarks are not independent service-bearing villages today. A
+future starting hamlet should use explicit location/service capabilities, not
+special-case tutorial rules or a second simulated game world. See
+[gameplay development](GAMEPLAY_DEVELOPMENT.md).
+
 ## Command boundary
 
 `core/commands.py` is the **single registration point** for command names,
 method dispatch, required parameter fields and exposure by web mode. The
 server adapters derive their allowlists from it; adding a command in a
-system is not enough to expose it to a browser.
+system is not enough to expose it to a browser. Some registered engine methods
+are intentionally *not* browser-exposed (including company/employment and
+player market actions). Their presence alone is not evidence of a playable UI.
 
 `WorldEngine.execute(principal_id, action, params, action_id)` verifies
 the complete parameter set and checks idempotency receipts. The principal
@@ -70,7 +86,8 @@ health or ownership.
 ## Extension guidelines
 
 1. Put game rules in the appropriate `systems/` module. Keep `core/engine.py`
-   as a thin facade; avoid second gameplay implementations in the web layer.
+   as a delegating facade; avoid second gameplay implementations in the web layer.
+   `core/`, `systems/`, `content/` and `worldgen/` must not import `web/`.
 2. Register command schema and web exposure together in `core/commands.py`.
    Test both permitted and prohibited modes and retry semantics.
 3. Keep database credentials and identity in transport/auth modules. Never
@@ -79,11 +96,16 @@ health or ownership.
 4. When altering replayable mechanics, add a ruleset/journal version and
    tests for loading older saves.
 5. Prefer typed, focused components. Keep browser rendering in the relevant
-   `*-views.mjs` module and keep network calls, action handlers and mutable UI
-   state in `app.js`. Avoid deeper inheritance, large generic service layers,
-   and copying authoritative state into long-lived UI caches.
+   `*-views.mjs` module. `app.js` currently coordinates networking, live state,
+   actions and navigation; extract cohesive handlers/state as each feature is
+   developed rather than expanding that file indefinitely. Avoid deeper
+   inheritance, large generic service layers, and copying authoritative state
+   into long-lived UI caches.
 6. Extend the lint rules in `pyproject.toml` incrementally as legacy code
    is cleaned; new modules should conform from their first commit.
+7. Use the [gameplay development checklist](GAMEPLAY_DEVELOPMENT.md) to verify
+   UI access, authorized commands, persistence, multiplayer visibility and
+   feedback before calling a mechanic player-ready.
 
 ## Phase 4 performance guidance
 
@@ -102,10 +124,13 @@ node --check src/medieval_world_sim/web/static/app.js
 node --check src/medieval_world_sim/web/static/community-views.mjs
 node --check src/medieval_world_sim/web/static/city-views.mjs
 node --check src/medieval_world_sim/web/static/character-views.mjs
+node --check src/medieval_world_sim/web/static/activity-state.mjs
+node tests/test_activity_state.mjs
 node tests/test_browser_views.mjs
 node tests/test_feature_views.mjs
 ```
 
-The GitHub Actions workflow also runs strict Ruff checks for the new
-multiplayer service modules and deterministic CLI and NPC-economy smoke tests. Tests prove regressions were not detected; they do not establish
+The GitHub Actions workflow also runs strict Ruff checks for the command and
+architecture-boundary tests, selected multiplayer service modules, and
+reproducible CLI and NPC-economy smoke tests. Tests prove regressions were not detected; they do not establish
 production-scale concurrency, correctness or security.

@@ -18,7 +18,7 @@ The NPC system is **hybrid**:
 
 ## Current active prototype
 
-The **five-city world engine** is the active development target, modeling region-specific resources, asynchronous travel, companies, manufacturing, markets, quality equipment, combat, stamina, and progression. Gameplay rules are composed as independent systems using one shared domain world state. The original simple 200-citizen economy remains a reproducible baseline for comparison, not the foundation for future game features.
+The **generated-realm `WorldEngine`** is the active development target. The current default atlas is generated from seed 7 with 12 settlements; the number of settlements is a world-generation setting, not a fixed engine assumption. Gameplay models regional resources, asynchronous travel, companies, manufacturing, markets, quality equipment, combat, stamina, and progression. Gameplay rules are composed as independent systems using one shared domain world state. The original simple 200-citizen economy remains a reproducible baseline for comparison, not the foundation for future game features.
 
 Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. A seeded rules-based autonomous NPC experiment and a localhost multi-account development server are available. See [local setup](docs/MULTIPLAYER_LOCAL_DEVELOPMENT.md). Neither is an internet-ready hosted multiplayer service.
 
@@ -60,10 +60,10 @@ compatibility, limitations and future dungeon/party plans.
 
 Oathmere now has a separate, seeded **world atlas generator** that builds terrain,
 climate, rivers and geology before founding settlements, routing roads and placing
-exploration sites. The v3 generator uses true six-neighbor hex topology,
+exploration sites. The current generator uses true six-neighbor hex topology,
 hex-aligned coastlines, varied mountain uplift, shaded relief and terrain-aware
 river meanders. It exports a clickable HTML tile inspector, static SVG map and versioned JSON manifest;
-it does **not** replace the active five-city map or mutate existing saves.
+the generated atlas now supplies the active playable realm. Existing save compatibility is maintained through explicit geography and journal checks.
 
 ```bash
 python -m medieval_world_sim.worldgen --seed 7 --output generated-world
@@ -116,9 +116,9 @@ This is an exploratory, initially private project. We should validate the core p
 
 No license is granted by this repository until one is explicitly selected.
 
-## Experimental five-city economy (new)
+## Historical five-city economy (retained)
 
-A separate [five-city regional domain model](docs/FIVE_CITY_ECONOMY.md) now explores travel, finite resource deposits, local escrowed markets, NPC/human workers, company ownership, and company-funded wages. It powers the primary five-city demonstration; the original one-town economy remains a separate legacy experiment.
+A separate [five-city regional domain model](docs/FIVE_CITY_ECONOMY.md) now explores travel, finite resource deposits, local escrowed markets, NPC/human workers, company ownership, and company-funded wages. It remains a regional demonstration; the active browser realm derives its settlements and roads from the generated atlas. The original one-town economy is a separate legacy experiment.
 
 Run the regional tests with:
 
@@ -141,15 +141,15 @@ The original one-town simulator remains a separate baseline; these features exte
 
 ## Code organization
 
-The **five-city WorldEngine** in `core/engine.py` is the primary model, using composed actor vitals/progression/travel components and mutable city state. Gameplay rules live in `systems/` (travel, resource extraction, companies, markets, combat), which operate on the authoritative world state. `regional_world.py` remains a compatibility import for existing scripts. The original toy economy is preserved in `experiments/legacy_economy.py`, with `simulation.py` as a compatibility module.
+The **generated-realm `WorldEngine`** in `core/engine.py` is the primary model, using composed actor vitals/progression/travel components and mutable city state. Gameplay rules live in `systems/` (travel, resource extraction, companies, markets, combat), which operate on the authoritative world state. `regional_world.py` remains a compatibility import for existing scripts. The original toy economy is preserved in `experiments/legacy_economy.py`, with `simulation.py` as a compatibility module.
 
 ```bash
-python -m medieval_world_sim             # five-city resource/manufacturing demonstration
+python -m medieval_world_sim             # regional resource/manufacturing demonstration
 python -m medieval_world_sim --scenario combat
 python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
 ```
 
-See [Architecture](docs/ARCHITECTURE.md) for module boundaries and the in-memory transaction trade-offs.
+See [Architecture](docs/ARCHITECTURE.md) for module boundaries and transaction trade-offs, and [Gameplay development](docs/GAMEPLAY_DEVELOPMENT.md) for the end-to-end feature checklist.
 
 ## Autonomous NPC playtesting (opt-in)
 
