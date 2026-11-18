@@ -41,6 +41,13 @@ export function createEconomyViews(ctx) {
     const cards = owned.map(company => {
       const cid = esc(company.id);
       const recipe = industries.find(x => x.id === company.industry) || {};
+      const products = recipe.products || [];
+      const current = products.find(p => p.id === company.product) || products[0] || {};
+      const productOptions = products.map(p =>
+        '<option value="' + esc(p.id) + '"' +
+        (p.id === company.product ? ' selected' : '') + '>' +
+        esc(pretty(p.id)) + ' · ' + esc(tags(p.inputs)) +
+        ' → ' + esc(tags(p.outputs)) + '</option>').join("");
       const staff = company.employees.map(worker =>
         '<div class="economy-staff" data-econ-staff="' + esc(worker.id) + '">' +
         '<div><strong>' + esc(worker.name) + '</strong> · ' +
@@ -73,8 +80,12 @@ export function createEconomyViews(ctx) {
         line("Completed shifts", company.shifts_completed) +
         line("Daily sales", company.daily_units_sold + " units · " +
           money(company.daily_revenue)) + '</div>' +
-        '<p class="small">Recipe: ' + esc(tags(recipe.inputs)) + ' → ' +
-        esc(tags(recipe.outputs)) + '</p>' +
+        '<p class="small">Recipe: ' + esc(tags(current.inputs)) + ' → ' +
+        esc(tags(current.outputs)) + '</p>' +
+        '<div class="economy-controls economy-four">' +
+        '<label>Produce' + choose("product", productOptions) + '</label>' +
+        doButton("company-product", "Select product",
+          disabled(!canManage || products.length < 2)) + '</div>' +
         '<p class="small">Company stock: ' + tags(company.inventory) + '</p>' +
         '<div class="economy-controls economy-four">' +
         '<label>Gold amount' + input("gold-amount", 10, 1) + '</label>' +

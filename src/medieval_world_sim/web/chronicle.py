@@ -21,7 +21,7 @@ PROPERTY_EVENTS = {"home_purchased", "home_upgraded", "home_facility_built",
                    "vehicle_purchased", "vehicle_selected"}
 MAGIC_EVENTS = {"magic_unlocked", "magic_practiced", "magic_attuned"}
 HEALTH_EVENTS = {"recovered", "consumed", "church_healed",
-                 "tavern_room_rented", "tavern_mead_bought"}
+                 "tavern_room_rented", "tavern_mead_bought", "mana_restored"}
 RACING_EVENTS = {"horse_purchased", "horse_raced"}
 PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
 ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",

@@ -19,6 +19,7 @@ export function createCharacterViews(ctx) {
         track.remaining_minutes + consumable.cooldown_minutes <= track.max_minutes &&
         (consumable.channel === "food" ?
           (p.hp < p.max_hp || p.stamina < p.max_stamina || p.hunger > 0) :
+          consumable.item === "mana_tonic" ? p.mana < p.max_mana :
           p.hp < p.max_hp);
       return '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
       '</strong><p>' + qty + ' carried</p></div>' +

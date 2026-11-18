@@ -10,12 +10,14 @@ class Consumable:
     health: int = 0
     stamina: int = 0
     hunger: int = 0
+    mana: int = 0
 
 
 CONSUMABLE_EFFECTS = {
     "bread": Consumable(health=1, stamina=10, hunger=1),
     "meal": Consumable(health=2, stamina=20, hunger=2),
     "healing_potion": Consumable(health=8),
+    "mana_tonic": Consumable(mana=10),
 }
 
 
@@ -33,7 +35,8 @@ class ConsumableSystem:
         effect = CONSUMABLE_EFFECTS[item]
         if not (effect.health > 0 and actor.hp < actor.max_hp
                 or effect.stamina > 0 and actor.stamina < actor.max_stamina
-                or effect.hunger > 0 and actor.vitals.hunger > 0):
+                or effect.hunger > 0 and actor.vitals.hunger > 0
+                or effect.mana > 0 and actor.magic.mana < actor.magic.max_mana):
             raise ActionError("No recovery or nourishment needed")
         channel = "food" if item in FOOD_MINUTES else "potion"
         duration = (FOOD_MINUTES.get(item) if channel == "food"
@@ -44,9 +47,14 @@ class ConsumableSystem:
         actor.hp = min(actor.max_hp, actor.hp + effect.health)
         actor.stamina = min(actor.max_stamina, actor.stamina + effect.stamina)
         actor.vitals.hunger = max(0, actor.vitals.hunger - effect.hunger)
+        before_mana = actor.magic.mana
+        actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + effect.mana)
         actor.inventory[item] -= 1
         stack(actor, channel, duration, self.world.minute)
         gains = (actor.hp - before[0], actor.stamina - before[1],
                  before[2] - actor.vitals.hunger)
         self.world._emit("consumed", actor.id, item, *gains)
+        if actor.magic.mana > before_mana:
+            self.world._emit("mana_restored", actor.id, item,
+                             actor.magic.mana - before_mana)
         return gains
