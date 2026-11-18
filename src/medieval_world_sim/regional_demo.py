@@ -20,6 +20,7 @@ def resource_town(resource: str) -> str:
 def run() -> RegionalWorld:
     world = RegionalWorld([
         Actor("player", "human", gold=500),
+        Actor("partner", "human", gold=500),
         Actor("ore_miner", "npc", city=resource_town("iron_ore"), gold=30),
         Actor("coal_miner", "npc", city=resource_town("coal"), gold=30),
         Actor("woodcutter", "npc", city=resource_town("timber"), gold=30),
@@ -27,7 +28,7 @@ def run() -> RegionalWorld:
     ])
     starting_gold = world.total_gold
     world.found_company("player", "royal_steelworks", "steelworks", investment=180)
-    world.found_company("player", "royal_forge", "forge", investment=180)
+    world.found_company("partner", "royal_forge", "forge", investment=180)
 
     for actor, resource, count in (
         ("ore_miner", "iron_ore", 2),
@@ -49,13 +50,14 @@ def run() -> RegionalWorld:
         ("woodcutter", "timber", 1, 4, "royal_forge"),
     ):
         offer = world.post_offer(actor, actor, resource, count, price)
-        world.accept_offer("player", buyer, offer, count)
+        world.accept_offer("partner" if buyer == "royal_forge" else "player",
+                           buyer, offer, count)
 
     world.hire("player", "royal_steelworks", "coal_miner", Wage(gold=5))
     world.shift("coal_miner", "royal_steelworks")
     steel_offer = world.post_offer("player", "royal_steelworks", "steel", 1, 20)
-    world.accept_offer("player", "royal_forge", steel_offer, 1)
-    world.hire("player", "royal_forge", "woodcutter", Wage(item="sword", quantity=1))
+    world.accept_offer("partner", "royal_forge", steel_offer, 1)
+    world.hire("partner", "royal_forge", "woodcutter", Wage(item="sword", quantity=1))
     world.shift("woodcutter", "royal_forge")
 
     # Capital can also trade grain, although a food-consumption loop is not ready.
