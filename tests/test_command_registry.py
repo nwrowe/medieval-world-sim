@@ -17,7 +17,7 @@ from medieval_world_sim.web.session import UI_ACTIONS
 
 class CommandRegistryTests(unittest.TestCase):
     def test_all_registry_targets_exist_and_fields_are_unambiguous(self):
-        self.assertGreaterEqual(len(COMMAND_SPECS), 58)
+        self.assertGreaterEqual(len(COMMAND_SPECS), 57)
         self.assertIn("explore_hex", COMMAND_SPECS)
         for name, spec in COMMAND_SPECS.items():
             with self.subTest(command=name):
@@ -47,9 +47,9 @@ class CommandRegistryTests(unittest.TestCase):
     def test_web_policies_are_derived_from_registry(self):
         self.assertEqual(UI_ACTIONS, SINGLE_PLAYER_ACTIONS)
         self.assertEqual(MULTI_ACTIONS, MULTIPLAYER_ACTIONS)
-        self.assertIn("enroll_course", SINGLE_PLAYER_ACTIONS)  # historic replay
-        self.assertNotIn("enroll_course", MULTIPLAYER_ACTIONS)
-        for name in ("propose_trade", "accept_trade", "close_trade", "pvp_strike"):
+        for name in ("enroll_course", "pvp_strike"):
+            self.assertNotIn(name, COMMAND_SPECS)
+        for name in ("propose_trade", "accept_trade", "close_trade"):
             self.assertIn(name, MULTIPLAYER_ACTIONS)
             self.assertNotIn(name, SINGLE_PLAYER_ACTIONS)
         for name in ("found_company", "attack", "hire"):

@@ -42,20 +42,21 @@ class LifeRegenTests(unittest.TestCase):
         self.assertEqual(actor.hp, actor.max_hp)
         world.assert_invariants()
 
-    def test_legacy_version_three_still_uses_ten_percent_per_three_minutes(self):
+    def test_one_current_health_rule_applies_after_recovery(self):
         world = WorldEngine([Actor("hero", "human")])
-        world.actors["hero"].hp = 3
-        world._health_regen_version = 3
-        world.advance(3)
-        self.assertEqual(world.actors["hero"].hp, 6)
+        hero = world.actors["hero"]
+        hero.hp = 3
+        world.advance(5)
+        self.assertGreater(hero.hp, 3)
+        world.assert_invariants()
 
-    def test_new_single_player_and_multiplayer_journal_versions(self):
+    def test_current_single_player_and_multiplayer_replay(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "solo.json"
             session = GameSession(path)
             session.create("Elda Raven")
             session.advance(5)
-            self.assertEqual(session.records[-1]["ruleset"], 19)
+            self.assertNotIn("ruleset", session.records[-1])
             self.assertEqual(GameSession(path).world.minute, session.world.minute)
             db = Path(tmp) / "multi.db"
             game = MultiplayerGame(db, require_invites=False,
@@ -65,10 +66,10 @@ class LifeRegenTests(unittest.TestCase):
                     "hero", "correct horse battery staple", "Hero River")
                 principal = game.identity(token).actor_id
                 game.advance(principal, 5, "health-v4")
-                version = game.db.execute(
-                    "SELECT regen_version FROM world_journal WHERE kind='advance' "
-                    "ORDER BY seq DESC LIMIT 1").fetchone()
-                self.assertEqual(version[0], 4)
+                columns = {row[1] for row in game.db.execute(
+                    "PRAGMA table_info(world_journal)")}
+                self.assertNotIn("regen_version", columns)
+                self.assertNotIn("xp_version", columns)
             finally:
                 game.close()
             restarted = MultiplayerGame(db, require_invites=False,

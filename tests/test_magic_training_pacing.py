@@ -1,11 +1,9 @@
-"""Authoritative, paced magic practice and journal-compatible mastery tests."""
+"""Authoritative, paced magic practice and strict checkpoint schema tests."""
 from unittest import TestCase
 
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
-from medieval_world_sim.content.magic_tree import (
-    PRACTICE_COOLDOWN_MINUTES, PRACTICE_XP_CEILING,
-)
+from medieval_world_sim.content.magic_tree import PRACTICE_XP_CEILING
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.checkpoint import _decode, _encode
 
@@ -63,39 +61,26 @@ class MagicTrainingPacingTests(TestCase):
         self.assertEqual(w.actors["mage"].combat_xp, 0)
         w.assert_invariants()
 
-    def test_legacy_training_yield_replays_without_new_cooldown(self):
+    def test_training_yield_and_no_practice_timer(self):
         w = self.world()
-        w._legacy_magic_training_rules = True
-        try:
-            first = w.practice_magic("mage", NOVICE)
-            second = w.practice_magic("mage", NOVICE)
-        finally:
-            w._legacy_magic_training_rules = False
-        self.assertIn(first.xp_gained, (1, 6))
-        self.assertIn(second.xp_gained, (1, 6))
-        self.assertNotIn("restoration", w.actors["mage"].magic.next_practice_minute)
+        first = w.practice_magic("mage", NOVICE)
+        second = w.practice_magic("mage", NOVICE)
+        self.assertEqual(first.xp_gained, 1)
+        self.assertEqual(second.xp_gained, 1)
+        self.assertFalse(hasattr(w.actors["mage"].magic, "next_practice_minute"))
         w.assert_invariants()
 
-    def test_v15_saved_actions_keep_historical_cooldown_on_replay(self):
+    def test_multiple_practices_can_use_mana_without_cooldown(self):
         w = self.world()
-        w._legacy_magic_practice_cooldown = True
-        try:
+        for _ in range(3):
             w.practice_magic("mage", NOVICE)
-            with self.assertRaisesRegex(ActionError, "120 simulated minutes"):
-                w.practice_magic("mage", NOVICE)
-            w.advance(PRACTICE_COOLDOWN_MINUTES)
-            w.practice_magic("mage", NOVICE)
-        finally:
-            w._legacy_magic_practice_cooldown = False
-        # Switching to current rules ignores any old outstanding timer.
-        w.practice_magic("mage", NOVICE)
         self.assertEqual(w.actors["mage"].magic.school_xp["restoration"], 3)
         w.assert_invariants()
 
-    def test_old_magic_checkpoints_default_the_new_schedule(self):
+    def test_checkpoint_rejects_missing_magic_model_fields(self):
         w = self.world()
-        old = _encode(w.actors["mage"].magic)
-        old["values"].pop("next_practice_minute")
-        restored = _decode(old)
-        self.assertEqual(restored.next_practice_minute, {})
-        self.assertEqual(restored.school_xp, w.actors["mage"].magic.school_xp)
+        damaged = _encode(w.actors["mage"].magic)
+        damaged["values"].pop("school_xp")
+        with self.assertRaisesRegex(ValueError, "schema has changed"):
+            _decode(damaged)
+
