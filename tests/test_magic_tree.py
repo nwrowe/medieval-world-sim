@@ -23,6 +23,7 @@ def grant_school_xp_for_fixture(w, school, xp):
     magic = w.actors["mage"].magic
     magic.school_xp[school] = xp
     grow_mana_capacity(w.actors["mage"])
+    magic.mana = magic.max_mana  # Tests skip training time when directly seeding XP.
     magic.insight_earned = sum(magic.school_xp.values()) // 50
     magic.insight = magic.insight_earned - sum(
         NODES[node_id].insight_cost for node_id in magic.unlocked)
