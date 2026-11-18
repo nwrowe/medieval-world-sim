@@ -26,6 +26,7 @@ DEPOSIT_CAP = 24
 
 from ..systems.travel import TravelSystem
 from ..systems.resources import ResourceSystem
+from ..systems.wilderness import WildernessSystem
 from ..systems.companies import CompanySystem
 from ..systems.market import MarketSystem
 from ..systems.combat import CombatSystem, CombatOutcome
@@ -98,6 +99,7 @@ class WorldEngine:
         self._action_lock = RLock()
         self.travel = TravelSystem(self)
         self.resources = ResourceSystem(self)
+        self.wilderness = WildernessSystem(self)
         self.companies_system = CompanySystem(self)
         self.market = MarketSystem(self)
         self.trades_system = TradeSystem(self)
@@ -328,6 +330,14 @@ class WorldEngine:
     @atomic_action
     def gather(self, actor_id: str, item: str, quantity: int = 1) -> None:
         return self.resources.gather(actor_id, item, quantity)
+
+    @atomic_action
+    def wilderness_gather(self, actor_id: str, item: str, quantity: int) -> dict:
+        return self.wilderness.gather(actor_id, item, quantity)
+
+    @atomic_action
+    def investigate_site(self, actor_id: str, site_id: str, approach: str) -> dict:
+        return self.wilderness.investigate(actor_id, site_id, approach)
 
     @atomic_action
     def store_goods(self, actor_id: str, item: str, quantity: int) -> None:

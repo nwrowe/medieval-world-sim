@@ -26,6 +26,8 @@ COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({
     "travel": CommandSpec("start_travel", ("destination",), _BOTH),
     "explore_hex": CommandSpec("explore_hex", ("x", "y"), _BOTH),
     "gather": CommandSpec("gather", ("item", "quantity"), _BOTH),
+    "wilderness_gather": CommandSpec("wilderness_gather", ("item", "quantity"), _BOTH),
+    "investigate_site": CommandSpec("investigate_site", ("site_id", "approach"), _BOTH),
     "store_goods": CommandSpec("store_goods", ("item", "quantity"), _BOTH),
     "retrieve_goods": CommandSpec("retrieve_goods", ("item", "quantity"), _BOTH),
     "store_gear": CommandSpec("store_gear", ("gear_id",), _BOTH),

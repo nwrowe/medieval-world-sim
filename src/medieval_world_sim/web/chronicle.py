@@ -11,7 +11,8 @@ COMBAT_EVENTS = {"duel_started", "duel_round",
 UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
                      "school_graduated", "school_capstone_perk", "school_martial_perk"}
 TRAVEL_EVENTS = {"travel_started", "arrived", "hex_explored",
-                 "hex_journey_started", "hex_arrived"}
+                 "hex_journey_started", "hex_arrived",
+                 "wilderness_gathered", "site_investigated"}
 GUILD_EVENTS = {"guild_founded", "guild_invited", "guild_joined",
                 "guild_role_changed", "guild_left"}
 EQUIPMENT_EVENTS = {"gear_created", "gear_broken", "starter_purchase",

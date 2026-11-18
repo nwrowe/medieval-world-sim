@@ -93,7 +93,10 @@ def _decode(value, depth=0):
             raise ValueError("Unknown checkpoint class")
         expected = {f.name for f in fields(cls)}
         present = set(value["values"])
-        if present != expected:
+        # These additive empty defaults let a current-baseline journal and its
+        # verified older checkpoint continue without retaining old game rules.
+        added = {"wilderness_stock", "site_attempts"} if cls is WorldState else set()
+        if present - expected or expected - present - added:
             raise ValueError("Checkpoint class schema has changed")
         return cls(**{name: _decode(node, depth + 1)
                       for name, node in value["values"].items()})

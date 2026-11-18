@@ -33,6 +33,14 @@ EVENT_FIELDS = {
         "item",
         "quantity"
     ],
+    "wilderness_gathered": [
+        "actor_id", "x", "y", "item", "quantity",
+        "stamina_spent", "remaining"
+    ],
+    "site_investigated": [
+        "actor_id", "site_id", "approach", "success", "roll",
+        "chance", "item", "quantity", "stamina_spent", "damage"
+    ],
     "company_founded": [
         "owner_id",
         "company_id",

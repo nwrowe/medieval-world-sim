@@ -47,3 +47,7 @@ class WorldState:
     next_chat_room_id: int = 1
     trades: dict[int, TradeProposal] = field(default_factory=dict)
     next_trade_id: int = 1
+    # Per-hex replenishing physical stock; (tile index, good) -> (remaining, day).
+    wilderness_stock: dict[tuple[int, str], tuple[int, int]] = field(default_factory=dict)
+    # One immutable decision per site per actor; no refresh/retry rerolls.
+    site_attempts: dict[str, dict[str, tuple[str, bool, str, int, int]]] = field(default_factory=dict)
