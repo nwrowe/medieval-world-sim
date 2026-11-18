@@ -5,7 +5,7 @@ Pure presentation: no account mutation, storage access or replay state.
 from __future__ import annotations
 
 TRADE_EVENTS = {"trade_proposed", "trade_settled", "trade_closed"}
-COMBAT_EVENTS = {"pvp_strike", "duel_started", "duel_round",
+COMBAT_EVENTS = {"duel_started", "duel_round",
                  "duel_finished", "duel_fled", "duel_defender_fled",
                  "duel_draw", "duel_flee_attempt", "combat", "spell_cast"}
 UNIVERSITY_EVENTS = {"course_started", "course_tuition_paid", "course_completed",
@@ -132,10 +132,6 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
         "horse_purchased": f"Purchased {info.get('breed')} racehorse for {info.get('gold')} gold",
         "horse_raced": f"Raced {info.get('breed')}: place {info.get('placing')}, earned {info.get('xp')} riding XP and {info.get('prize')} gold",
-        "pvp_strike": (f"Skirmish against {who(info.get('defender_id'))}: "
-                       f"{info.get('damage')} damage, "
-                       f"{info.get('retaliation')} retaliated, "
-                       f"{info.get('gold_looted')}g looted"),
         "duel_started": f"Challenge begun against {who(info.get('defender_id'))}",
         "duel_round": (
             f"Combat round {info.get('round')}: {info.get('move')} "

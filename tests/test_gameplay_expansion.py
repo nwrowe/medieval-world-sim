@@ -116,15 +116,15 @@ class GameplayExpansionTests(unittest.TestCase):
         self.assertEqual(hero.hp, hero.max_hp)
         world.assert_invariants()
 
-    def test_legacy_advance_does_not_rewrite_prior_health(self):
+    def test_recovery_uses_current_five_minute_boundary(self):
         world = WorldEngine([Actor("hero", "human", city=GOLDMEADOW)])
         hero = world.actors["hero"]
         hero.hp = 15
-        world._legacy_health_regen = True
-        world.advance(60)
-        world._legacy_health_regen = False
+        world.advance(4)
         self.assertEqual(hero.hp, 15)
-
+        world.advance(1)
+        self.assertGreater(hero.hp, 15)
+        world.assert_invariants()
 
 if __name__ == "__main__":
     unittest.main()

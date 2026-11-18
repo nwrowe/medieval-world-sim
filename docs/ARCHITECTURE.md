@@ -64,8 +64,9 @@ health or ownership.
 ## Persistence and security
 
 - **Single player:** `GameSession` serializes a bounded action journal to
-  JSON, writes it atomically, and replays with explicit historical ruleset
-  versions. It is not a multi-user security boundary.
+  JSON, writes it atomically, and replays current-format commands only.
+  Earlier development saves are refused rather than migrated. It is not a
+  multi-user security boundary.
 - **Local multi-account:** `MultiplayerGame` retains the serialized SQLite/world
   transaction boundary and trusted clock. `accounts.py` owns authentication
   and invitations. `journal.py` owns historical commands and replay; `ledger.py`
@@ -93,8 +94,10 @@ health or ownership.
 3. Keep database credentials and identity in transport/auth modules. Never
    serialize private player inventory, finances, or internal keys to
    another player's projection.
-4. When altering replayable mechanics, add a ruleset/journal version and
-   tests for loading older saves.
+4. Current-format persistence must remain restart-safe and deterministic.
+   Development saves from earlier revisions are intentionally unsupported:
+   make breaking changes explicit, bump the format marker as appropriate, and
+   test that older data fails without being modified or silently upgraded.
 5. Prefer typed, focused components. Keep browser rendering in the relevant
    `*-views.mjs` module. `app.js` currently coordinates networking, live state,
    actions and navigation; extract cohesive handlers/state as each feature is

@@ -1,4 +1,4 @@
-"""Single owned mutable state aggregate for the five-city game engine."""
+"""Single owned mutable state aggregate for the generated realm engine."""
 from dataclasses import dataclass, field
 
 from .entities import Actor, Company, Offer, WorldEvent, DuelState
@@ -39,9 +39,7 @@ class WorldState:
     merit_balance: dict[str, int] = field(default_factory=dict)
     merit_upgrades: dict[str, set[str]] = field(default_factory=dict)
     active_courses: dict[str, CourseEnrollment] = field(default_factory=dict)
-    completed_courses: dict[str, dict[str, int]] = field(default_factory=dict)
     chosen_courses: dict[str, dict[str, set[int]]] = field(default_factory=dict)
-    free_course_enrollments: set[str] = field(default_factory=set)
     gear_wear: dict[int, int] = field(default_factory=dict)
     chat_messages: list[ChatMessage] = field(default_factory=list)
     next_chat_id: int = 1

@@ -28,20 +28,13 @@ class HealthRecoveryTests(unittest.TestCase):
         world.advance(75)
         self.assertEqual(hero.hp, hero.max_hp)
 
-    def test_legacy_health_journal_rule_and_hospitalization(self):
+    def test_current_health_rule_does_not_depend_on_history(self):
         world = WorldEngine([Actor("hero", "human")])
         hero = world.actors["hero"]
         hero.hp = 2
-        world._health_regen_version = 1
-        world.advance(10)
-        self.assertEqual(hero.hp, 3)  # historic +1 / 10 minutes
-        world._health_regen_version = 2
-        hero.hp = 0
-        hero.defeated_until = world.minute + 7
-        world.advance(3)
-        self.assertEqual(hero.hp, 0)  # previous frozen hospital recovery
-        world.advance(4)
-        self.assertEqual(hero.hp, hero.max_hp)
+        world.advance(5)
+        self.assertGreater(hero.hp, 2)
+        world.assert_invariants()
 
     def test_hospital_hp_ticking_and_release_are_independent(self):
         from medieval_world_sim.errors import ActionError
@@ -80,24 +73,24 @@ class HealthRecoveryTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             world._at_city(hero)
 
-    def test_single_player_records_new_recovery_ruleset(self):
+    def test_single_player_records_current_recovery(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "game.json"
             game = GameSession(path)
             game.create("Local Hero")
             game.advance(3)
-            self.assertEqual(game.records[-1]["ruleset"], 19)
+            self.assertNotIn("ruleset", game.records[-1])
             self.assertEqual(GameSession(path).snapshot(), game.snapshot())
 
-    def test_multiplayer_journal_versions_new_advances(self):
+    def test_multiplayer_journal_replays_current_advances(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "multi.sqlite3"
             game = MultiplayerGame(path, require_invites=False, dev_fast_forward=True)
             actor = game.register("alice", "correct horse battery staple", "Alice River")
             game.advance(actor, 3, "three-minutes")
             self.assertEqual(game.db.execute(
-                "SELECT regen_version FROM world_journal WHERE request_id=?",
-                ("three-minutes",)).fetchone()[0], 4)
+                "SELECT payload FROM world_journal WHERE request_id=?",
+                ("three-minutes",)).fetchone()[0], '{"minutes":3}')
             game.close()
             game = MultiplayerGame(path, require_invites=False, dev_fast_forward=True)
             self.assertEqual(game.snapshot(actor)["minute"], 3)

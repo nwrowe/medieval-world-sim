@@ -136,18 +136,16 @@ class DurableLedgerTests(TestCase):
         ).fetchone()[0], 1)
         ledger.verify(self.game)
 
-    def test_legacy_database_gets_a_one_time_reconciliation(self):
+    def test_missing_durable_ledger_rejects_nonempty_database(self):
         alice = self.create_player("Alice")
-        self.game.advance(alice, 1, "before-migration")
-        # Simulate a DB created by the old journal-only release.
+        self.game.advance(alice, 1, "before-reset")
         self.game.db.execute(
             "DELETE FROM world_meta WHERE name='durable_ledger_initialized'")
-        self.game.db.execute("DELETE FROM ledger_head")
-        self.game.db.execute("DELETE FROM durable_receipts")
-        self.game.db.execute("DELETE FROM asset_ledger")
         self.game.close()
-        self.game = MultiplayerGame(self.path, require_invites=False,
-                                    dev_fast_forward=True)
-        ledger.verify(self.game)
-        self.assertEqual(self.game.world.minute, 1)
-        self.assertEqual(self.journal_count(), 2)
+        with self.assertRaisesRegex(ValueError, "Missing durable ledger"):
+            MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
+        # Keep teardown ownership of a valid, fresh game instance.
+        self.game = MultiplayerGame(
+            self.path.with_name("fresh.sqlite3"), require_invites=False,
+            dev_fast_forward=True)
+

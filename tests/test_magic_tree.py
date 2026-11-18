@@ -77,30 +77,20 @@ class MagicTreeArchitectureTests(unittest.TestCase):
         self.assertTrue(w.magic_tree("mage", "warding")[0].castable)
         w.assert_invariants()
 
-    def test_legacy_unlock_policy_preserves_early_tier_journal_actions(self):
+    def test_unlock_cannot_bypass_mastered_tier(self):
         w = world()
         w.unlock_magic("mage", "restoration.soothe_wounds")
         grant_school_xp_for_fixture(w, "restoration", 50)
         with self.assertRaisesRegex(ActionError, "100/100"):
             w.unlock_magic("mage", "restoration.field_healing")
-        w._legacy_magic_unlock_rules = True
-        try:
-            w.unlock_magic("mage", "restoration.field_healing")
-        finally:
-            w._legacy_magic_unlock_rules = False
-        self.assertIn("restoration.field_healing", w.actors["mage"].magic.unlocked)
-        self.assertFalse(w.magic_tree("mage", "restoration")[0].mastered)
+        self.assertNotIn("restoration.field_healing", w.actors["mage"].magic.unlocked)
         w.assert_invariants()
 
-    def test_legacy_cast_policy_remains_replayable(self):
+    def test_cast_cannot_bypass_tier_mastery(self):
         w = world()
         w.unlock_magic("mage", "warding.minor_shield")
-        w._legacy_spell_mastery_rules = True
-        try:
-            cast = w.cast_spell("mage", "warding.minor_shield")
-            self.assertEqual(cast["amount"], 5)
-        finally:
-            w._legacy_spell_mastery_rules = False
+        with self.assertRaisesRegex(ActionError, "100/100"):
+            w.cast_spell("mage", "warding.minor_shield")
         w.assert_invariants()
 
     def test_fresh_actor_can_unlock_a_novice_from_each_school(self):

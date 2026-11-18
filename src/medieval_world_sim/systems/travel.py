@@ -10,9 +10,7 @@ from ..core.exploration import reveal_travel_progress, reveal, current_hex, sigh
 from ..worldgen.hexgrid import hex_distance, neighbors
 
 HOUR = 60
-HEALTH_REGEN_MINUTES = 3  # Historical version 2/3 cadence.
-CURRENT_HEALTH_REGEN_MINUTES = 5  # Version 4: six percent every five minutes.
-LEGACY_HEALTH_REGEN_MINUTES = 10
+HEALTH_REGEN_MINUTES = 5  # Cumulative six percent of max health per five minutes.
 DEPOSIT_CAP = 24
 TRAVEL_CARGO_LIMIT = 12  # Stricter than the 20-unit in-city inventory limit.
 ROAD_SPEED_FACTOR = 3  # Generated road edges are approximately threefold faster.
@@ -47,8 +45,7 @@ class TravelSystem:
     def edge_minutes(self, actor, source, destination):
         """Directed hex cost; genuine road edges receive a speed advantage."""
         base = self.hex_minutes(actor, *destination)
-        if (not getattr(self.world, "_legacy_terrain_routing", False) and
-                self._edge(source, destination) in self.road_edges()):
+        if self._edge(source, destination) in self.road_edges():
             return max(1, (base + ROAD_SPEED_FACTOR - 1) // ROAD_SPEED_FACTOR)
         return base
 
@@ -127,10 +124,9 @@ class TravelSystem:
         start = current_hex(self.world, actor)
         width, height = self.world.geography.width, self.world.geography.height
         # Share a one-source shortest-path tree for distant multi-goal quotes.
-        legacy = getattr(self.world, "_legacy_terrain_routing", False)
-        full = (not legacy and (goals is None or
+        full = (goals is None or
                 (len(goals) >= 5 and any(hex_distance(start, g) > 8
-                                          for g in goals))))
+                                        for g in goals)))
         if full:
             self.road_edges()  # Invalidate when geography is replaced.
             if start in self._route_cache:
@@ -305,16 +301,9 @@ class TravelSystem:
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
         mana_ticks = end // MANA_REGEN_MINUTES - start_minute // MANA_REGEN_MINUTES
-        # Recorded rules remain replayable: v1 +1/10min; v2 +10%/3min
-        # outside hospital; v3 +10%/3min also during hospital; v4
-        # cumulative 6% of max Life per 5min (including hospital).
-        version = getattr(self.world, "_health_regen_version", 4)
-        legacy = version == 1
-        interval = (LEGACY_HEALTH_REGEN_MINUTES if legacy else
-                    CURRENT_HEALTH_REGEN_MINUTES if version >= 4 else
-                    HEALTH_REGEN_MINUTES)
-        health_ticks = (end // interval - start_minute // interval
-                        if not getattr(self.world, "_legacy_health_regen", False) else 0)
+        # Health recovers even during hospitalization; the lock has its own timer.
+        interval = HEALTH_REGEN_MINUTES
+        health_ticks = end // interval - start_minute // interval
         self.world.minute = end
         for actor in self.world.actors.values():
             if actor.destination is not None:
@@ -323,22 +312,11 @@ class TravelSystem:
         for actor in self.world.actors.values():
             actor.stamina = min(actor.max_stamina, actor.stamina + regen_ticks)
             actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)
-            # HP recovery and the hospital lock are distinct in version 3:
-            # HP can recover to full while the player remains hospitalized.
-            if health_ticks and (version >= 3 or
-                                 (actor.defeated_until is None and actor.hp > 0)):
-                if version >= 4:
-                    # Cumulative 6% per tick, including fractional-HP credit,
-                    # without adding mutable actor state or replay drift.
-                    gain = ((end // interval) * actor.max_hp * 6 // 100 -
-                            (start_minute // interval) * actor.max_hp * 6 // 100)
-                else:
-                    gain_per_tick = 1 if legacy else (actor.max_hp + 9) // 10
-                    gain = health_ticks * gain_per_tick
+            if health_ticks:
+                gain = ((end // interval) * actor.max_hp * 6 // 100 -
+                        (start_minute // interval) * actor.max_hp * 6 // 100)
                 actor.hp = min(actor.max_hp, actor.hp + gain)
             if actor.defeated_until is not None and actor.defeated_until <= end:
-                if version < 3:
-                    actor.hp = actor.max_hp
                 actor.defeated_until = None
                 self.world._emit("recovered", actor.id)
         self.world.assert_invariants()

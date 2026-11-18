@@ -11,7 +11,7 @@ from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.content.lineages import LINEAGES, active_trait, combat_modifiers
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.checkpoint import _encode, _decode
-from medieval_world_sim.web.session import GameSession
+from medieval_world_sim.web.session import GameSession, SaveError
 
 
 class LineageExplorationTests(unittest.TestCase):
@@ -76,20 +76,16 @@ class LineageExplorationTests(unittest.TestCase):
                              arrived["player"]["discovered_cities"])
             self.assertEqual(restored["player"]["lineage"], "elf")
 
-    def test_existing_save_can_choose_once_without_losing_journal(self):
+    def test_obsolete_save_missing_lineage_is_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "legacy.json"
             game = GameSession(path)
             game.create("Eli Stone")
             data = json.loads(path.read_text())
-            data.pop("lineage")  # Prior save format
+            data.pop("lineage")
             path.write_text(json.dumps(data))
-            legacy = GameSession(path)
-            self.assertFalse(legacy.snapshot()["player"]["lineage_selected"])
-            legacy.action("choose_lineage", {"lineage": "human"}, "choice")
-            again = GameSession(path)
-            self.assertTrue(again.snapshot()["player"]["lineage_selected"])
-            self.assertEqual(again.world.actors["hero"].work.manual, 11)
+            with self.assertRaises(SaveError):
+                GameSession(path)
 
     def test_old_checkpoints_accept_only_safe_actor_defaults(self):
         tree = _encode(Actor("hero", "human", city="crownreach"))

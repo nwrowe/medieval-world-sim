@@ -8,7 +8,7 @@ from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.systems.curriculum import DAYS, SCHOOLS
-from medieval_world_sim.web.session import GameSession
+from medieval_world_sim.web.session import GameSession, SaveError
 
 
 class CurriculumWebTests(unittest.TestCase):
@@ -47,11 +47,11 @@ class CurriculumWebTests(unittest.TestCase):
     def test_graduation_auto_awards_merit_once_and_capstone(self):
         # Use the domain engine directly for 110 days of simulated coursework:
         # the web adapter intentionally limits each advance to one day.
-        world = WorldEngine([Actor("scholar", "human", city="crownreach")])
+        world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=1000)])
         before_manual = world.actors["scholar"].work.manual
         before_intelligence = world.actors["scholar"].work.intelligence
-        for days in DAYS:
-            world.enroll_course("scholar", "commerce")
+        for index, days in enumerate(DAYS):
+            world.enroll_course_choice("scholar", "commerce", index)
             world.advance(days * 1440)
         view = world.curriculum_system.view("scholar")
         self.assertEqual(next(s for s in view["schools"] if s["id"] == "commerce")["completed"], 8)
@@ -61,7 +61,7 @@ class CurriculumWebTests(unittest.TestCase):
                          before_manual + sum((1, 1, 1, 2, 2, 2, 3, 4)))
         self.assertEqual(world.actors["scholar"].work.intelligence, before_intelligence + 2)
         with self.assertRaises(ActionError):
-            world.enroll_course("scholar", "commerce")
+            world.enroll_course_choice("scholar", "commerce", 0)
         with self.assertRaises(ActionError):
             world.claim_merit("scholar", "school:commerce")
         world.assert_invariants()
@@ -112,37 +112,26 @@ class CurriculumWebTests(unittest.TestCase):
                 self.assertEqual(world.state.merit_balance["scholar"], 1)
                 world.assert_invariants()
 
-    def test_old_out_of_order_capstone_journal_still_replays(self):
+    def test_old_ruleset_record_is_rejected_instead_of_migrated(self):
         document = json.loads(self.path.read_text())
         document["records"].append({
             "kind": "action", "name": "enroll_course_choice",
             "params": {"school": "physical", "index": 7},
-            "id": "historic-master", "ruleset": 9,
+            "id": "obsolete-master", "ruleset": 9,
+            "recorded_at": "2026-11-18T12:00:00+00:00",
         })
         self.path.write_text(json.dumps(document))
-        restored = GameSession(self.path)
-        self.assertEqual(restored.snapshot()["training_hall"]["active"]["index"], 7)
-        self.assertEqual(GameSession(self.path).snapshot(), restored.snapshot())
+        with self.assertRaises(SaveError):
+            GameSession(self.path)
 
-    def test_retired_grammar_replays_old_journal_but_rejects_new_enrollment(self):
-        document = json.loads(self.path.read_text())
-        document["records"].append({
-            "kind": "action", "name": "enroll_course",
-            "params": {"school": "grammar"}, "id": "historic-grammar",
-            "ruleset": 8,
-        })
-        self.path.write_text(json.dumps(document))
-        restored = GameSession(self.path)
-        self.assertEqual(restored.snapshot()["training_hall"]["active"]["school"], "grammar")
-        self.assertNotIn("grammar", {s["id"] for s in
-                         restored.snapshot()["training_hall"]["schools"]})
-        restored.advance(1440)
-        self.assertEqual(GameSession(self.path).snapshot(), restored.snapshot())
+    def test_removed_school_and_free_enrollment_are_unavailable(self):
         world = WorldEngine([Actor("modern", "human", city="crownreach")])
         with self.assertRaises(ActionError):
-            world.enroll_course("modern", "grammar")
+            world.enroll_course_choice("modern", "grammar", 0)
         with self.assertRaises(ActionError):
-            restored.action("enroll_course", {"school": "rhetoric"}, "new-free-class")
+            self.session.action("enroll_course", {"school": "rhetoric"}, "free")
+        self.assertNotIn("grammar", SCHOOLS)
+        self.assertNotIn("geometry", SCHOOLS)
 
     def test_tuition_rejected_atomically_when_not_affordable(self):
         world = WorldEngine([Actor("scholar", "human", city="crownreach", gold=5)])

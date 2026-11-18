@@ -1,14 +1,10 @@
-"""Ten active universities, eight freely selectable courses each, with legacy replay."""
+"""Ten university schools, with eight freely selectable paid courses each."""
 from dataclasses import dataclass
 from ..errors import ActionError
 from ..core.transactions import transfer_gold
 
 DAYS = (4, 6, 8, 10, 13, 17, 22, 30)
 SCHOOLS = {
-    "grammar": ("Grammar", "Trivium", "intelligence", (
-        "Letters and Script", "Parts of Speech", "Reading Manuscripts",
-        "Syntax and Form", "Classical Commentary", "Poetic Composition",
-        "Scholarly Translation", "Master of Grammar")),
     "rhetoric": ("Rhetoric", "Trivium", "intelligence", (
         "The Spoken Word", "Memorable Arguments", "Letters of Persuasion",
         "Public Oratory", "Petitions and Appeals", "Debate and Rebuttal",
@@ -21,10 +17,6 @@ SCHOOLS = {
         "Counting and Numerals", "The Abacus", "Weights and Measures",
         "Proportions", "Interest and Exchange", "Merchant Accounts",
         "Advanced Calculation", "Master of Arithmetic")),
-    "geometry": ("Geometry", "Quadrivium", "manual", (
-        "Lines and Angles", "Surveying Fields", "Shapes and Solids",
-        "Masons' Measures", "Architectural Plans", "Water and Land",
-        "Fortification Design", "Master of Geometry")),
     "astronomy": ("Astronomy", "Quadrivium", "intelligence", (
         "The Night Sky", "The Calendar", "Moon and Tide",
         "Celestial Movements", "The Astrolabe", "Navigation by Stars",
@@ -53,18 +45,13 @@ SCHOOLS = {
         "Master of Arms")),
 }
 
-# Two former schools remain addressable to replay existing save journals;
-# they are retired from new enrollment and no longer displayed.
-RETIRED_SCHOOLS = frozenset({"grammar", "geometry"})
-CURRENT_SCHOOLS = {key: spec for key, spec in SCHOOLS.items()
-                   if key not in RETIRED_SCHOOLS}
+CURRENT_SCHOOLS = SCHOOLS
 COURSE_FEES = (8, 12, 16, 20, 25, 30, 40, 50)
 MARTIAL_CAPSTONES = {"physical": ("max_hp", 5), "weapons": ("strength", 1)}
 # The fifth course in each school is an introduction to applied scholarship.
 # These are small cumulative skill improvements; no consumable resource is minted.
 STAT_BONUS = (1, 1, 1, 2, 2, 2, 3, 4)
 CAPSTONE_PERKS = {
-    "geometry": ("endurance", 2),
     "music": ("endurance", 2),
     "astronomy": ("manual", 2),
     "commerce": ("intelligence", 2),
@@ -83,23 +70,6 @@ class CurriculumSystem:
     def __init__(self, world):
         self.world = world
 
-    def start(self, actor_id: str, school: str) -> dict:
-        actor = self.world._actor(actor_id)
-        self.world._at_city(actor)
-        if school not in SCHOOLS or (
-                school in RETIRED_SCHOOLS and not getattr(
-                    self.world, "_legacy_curriculum_rules", False)):
-            raise ActionError("Unknown school")
-        if actor_id in self.world.state.active_courses:
-            raise ActionError("Finish your current course first")
-        count = self.world.state.completed_courses.get(actor_id, {}).get(school, 0)
-        if count >= len(DAYS):
-            raise ActionError("School already completed")
-        ends_at = self.world.minute + DAYS[count] * 1440
-        self.world.state.active_courses[actor_id] = CourseEnrollment(school, count, ends_at)
-        self.world._emit("course_started", actor_id, school, count, ends_at)
-        return {"school": school, "index": count, "ends_at": ends_at}
-
     def choose(self, actor_id: str, school: str, index: int) -> dict:
         """Enroll in any unfinished course; capstone requires seven prior courses."""
         actor = self.world._actor(actor_id)
@@ -113,10 +83,8 @@ class CurriculumSystem:
         done = self.completed_indices(actor_id, school)
         if index in done:
             raise ActionError("Course already completed")
-        # Course VIII is a capstone: the other seven courses are prerequisites.
-        # Historic journals can replay early capstone enrollment unchanged.
+        # Course VIII requires completing the other seven first.
         if (index == len(DAYS) - 1 and
-                not getattr(self.world, "_legacy_master_course_rules", False) and
                 not set(range(len(DAYS) - 1)).issubset(done)):
             raise ActionError("Complete the other seven courses before Master training")
         price = COURSE_FEES[index]
@@ -125,15 +93,12 @@ class CurriculumSystem:
         transfer_gold(self.world, actor, None, price)
         ends_at = self.world.minute + DAYS[index] * 1440
         self.world.state.active_courses[actor_id] = CourseEnrollment(school, index, ends_at)
-        self.world.state.free_course_enrollments.add(actor_id)
         self.world._emit("course_started", actor_id, school, index, ends_at)
         self.world._emit("course_tuition_paid", actor_id, school, index, price)
         return {"school": school, "index": index, "ends_at": ends_at, "tuition": price}
 
     def completed_indices(self, actor_id: str, school: str) -> set[int]:
-        legacy_count = self.world.state.completed_courses.get(actor_id, {}).get(school, 0)
-        return set(range(legacy_count)) | self.world.state.chosen_courses.get(
-            actor_id, {}).get(school, set())
+        return self.world.state.chosen_courses.get(actor_id, {}).get(school, set())
 
     def settle(self, now: int) -> None:
         for actor_id, enrollment in list(self.world.state.active_courses.items()):
@@ -141,17 +106,10 @@ class CurriculumSystem:
                 continue
             actor = self.world.actors[actor_id]
             school = enrollment.school
-            modern = actor_id in self.world.state.free_course_enrollments
-            if modern:
-                if enrollment.index in self.completed_indices(actor_id, school):
-                    raise AssertionError("Duplicate completed university course")
-                self.world.state.chosen_courses.setdefault(actor_id, {}).setdefault(
-                    school, set()).add(enrollment.index)
-                self.world.state.free_course_enrollments.remove(actor_id)
-            else:
-                if self.world.state.completed_courses.get(actor_id, {}).get(school, 0) != enrollment.index:
-                    raise AssertionError("Out-of-order legacy curriculum completion")
-                self.world.state.completed_courses.setdefault(actor_id, {})[school] = enrollment.index + 1
+            if enrollment.index in self.completed_indices(actor_id, school):
+                raise AssertionError("Duplicate completed university course")
+            self.world.state.chosen_courses.setdefault(actor_id, {}).setdefault(
+                school, set()).add(enrollment.index)
             stat = SCHOOLS[school][2]
             bonus = STAT_BONUS[enrollment.index]
             setattr(actor.work, stat, getattr(actor.work, stat) + bonus)

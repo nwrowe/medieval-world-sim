@@ -31,8 +31,9 @@ the `web/` package. CI checks this static dependency boundary.
    is **not** a player-accessible feature. Do not enable a previously internal
    command without explicit authorization/abuse tests.
 4. **Persistence and replay:** Test save/load and checkpoint restart, including
-   interrupted or repeated requests. For changes to previously recorded
-   mechanics, preserve old rules with explicit historical versioning.
+   interrupted or repeated requests. If an authoritative mechanic changes,
+   create a fresh development baseline rather than retaining old gameplay
+   execution paths; reject outdated saves instead of silently reinterpreting them.
 5. **Server projection:** Expose only actor-authorized information. Never send
    private inventories, undiscovered map details, credentials or escrow terms
    to unrelated players. Confirm that the snapshot and live update agree.

@@ -303,7 +303,6 @@ def step(game: MultiplayerGame, journal_seq: int) -> int:
             batch.append({
                 "id": npc_id, "name": proposal.name,
                 "params": proposal.params, "engine_id": engine_id,
-                "secure_roll": proposal.name == "practice_magic",
             })
         actor = game.world.actors[npc_id]
         after = observe(game.world, npc_id)
@@ -343,7 +342,7 @@ def replay(game: MultiplayerGame, journal_seq: int) -> None:
         raise ValueError("Invalid NPC journal batch size")
     for action in items:
         if (type(action) is not dict or set(action) !=
-                {"id", "name", "params", "engine_id", "secure_roll"}):
+                {"id", "name", "params", "engine_id"}):
             raise ValueError("Invalid NPC journal action")
         npc_id, name = action["id"], action["name"]
         if (type(npc_id) is not str or npc_id not in game.world.actors
@@ -352,14 +351,14 @@ def replay(game: MultiplayerGame, journal_seq: int) -> None:
                 or type(action["params"]) is not dict
                 or type(action["engine_id"]) is not str
                 or action["engine_id"] != f"npc-live:{journal_seq}:{npc_id}"
-                or type(action["secure_roll"]) is not bool
-                or action["secure_roll"] != (name == "practice_magic")):
+                ):
             raise ValueError("Forged or invalid NPC journal action")
         if name == "attack":
             target = game.world.actors.get(action["params"].get("defender_id"))
             if target is None or target.kind != "npc":
                 raise ValueError("NPC journal cannot target a human account")
-        game.world._private_rng_key = game._rng_key if action["secure_roll"] else None
+        game.world._private_rng_key = (
+            game._rng_key if name == "practice_magic" else None)
         try:
             game.world.execute(npc_id, name, action["params"], action["engine_id"])
         finally:

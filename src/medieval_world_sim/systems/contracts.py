@@ -38,11 +38,7 @@ class CityContractSystem:
         if not isinstance(contract_id, str) or contract_id not in CONTRACTS:
             raise ActionError("Unknown civic contract")
         contract = CONTRACTS[contract_id]
-        legacy = getattr(self.world, "_legacy_cooldown_rules", False)
-        if legacy:
-            if actor.ready_minute > self.world.minute:
-                raise ActionError("Wait for your next available work shift")
-        elif not can_add(actor, "job", contract.cooldown_minutes, self.world.minute):
+        if not can_add(actor, "job", contract.cooldown_minutes, self.world.minute):
             raise ActionError("Job cooldown would exceed 24 hours")
         if actor.stamina < contract.stamina or actor.magic.mana < contract.mana:
             raise ActionError("Not enough stamina or mana for this assignment")
@@ -75,10 +71,7 @@ class CityContractSystem:
                 actor.work.intelligence += 1
             else:
                 actor.work.endurance += 1
-        if legacy:
-            actor.ready_minute = self.world.minute + contract.cooldown_minutes
-        else:
-            stack(actor, "job", contract.cooldown_minutes, self.world.minute)
+        stack(actor, "job", contract.cooldown_minutes, self.world.minute)
         self.world._emit("city_contract_completed", actor_id, city_id,
                          contract_id, contract.reward, contract.stamina,
                          contract.mana, xp, contract.material)

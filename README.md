@@ -50,8 +50,8 @@ New players begin in Crownreach, select Human, Elf, Dwarf or Orc lineage,
 and initially see only their known city through the map's fog of war.
 Lineage provides small, server-calculated work and physical combat bonuses,
 plus a unique passive trait at level 3. Exploring another city reveals it
-permanently on that character's map. Older saves and local multiplayer
-accounts choose a lineage once without losing historical progress.
+permanently on that character's map. The current development baseline requires
+new saves and databases; earlier formats are not migrated.
 
 See [Lineages and Exploration](docs/LINEAGES_AND_EXPLORATION.md) for rules,
 compatibility, limitations and future dungeon/party plans.
@@ -63,7 +63,7 @@ climate, rivers and geology before founding settlements, routing roads and placi
 exploration sites. The current generator uses true six-neighbor hex topology,
 hex-aligned coastlines, varied mountain uplift, shaded relief and terrain-aware
 river meanders. It exports a clickable HTML tile inspector, static SVG map and versioned JSON manifest;
-the generated atlas now supplies the active playable realm. Existing save compatibility is maintained through explicit geography and journal checks.
+the generated atlas now supplies the active playable realm. Outdated development saves are intentionally refused when their format or world fingerprint does not match.
 
 ```bash
 python -m medieval_world_sim.worldgen --seed 7 --output generated-world
@@ -150,6 +150,16 @@ python -m medieval_world_sim --legacy --citizens 200 --days 30 --seed 42 --json
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) for module boundaries and transaction trade-offs, and [Gameplay development](docs/GAMEPLAY_DEVELOPMENT.md) for the end-to-end feature checklist.
+
+### Fresh-start baseline (November 2026)
+
+Development-era saves are deliberately **not** migrated. The current JSON
+save format is version 3 and the SQLite multiplayer journal requires a fresh
+`baseline_revision` marker. Use a **new save path** or **new SQLite database
+path** for a clean playtest. Old files are rejected, not erased: move them to
+a backup directory or keep them separately rather than deleting them
+automatically. Current-format restarts still preserve player progress, receipts,
+item/gold ownership, and deterministic game-clock replay.
 
 ## Autonomous NPC playtesting (opt-in)
 

@@ -99,11 +99,10 @@ class AutonomousSimulation:
                 level_xp=actor.progression.level_xp if playtester else 0,
                 work_xp=sum(actor.work.experience.values()) if playtester else 0,
                 magic_xp=sum(actor.magic.school_xp.values()) if playtester else 0,
-                courses_completed=(sum(
+                courses_completed=sum(
                     len(indices) for indices in
-                    self.world.state.chosen_courses.get(actor.id, {}).values())
-                    + sum(self.world.state.completed_courses.get(
-                        actor.id, {}).values())) if playtester else 0)
+                    self.world.state.chosen_courses.get(actor.id, {}).values()
+                ) if playtester else 0)
             track_route = profile.role in ("playtester", "hauler")
             route_step = (memory.active_route is not None
                           or proposal.name == "regional_buy"

@@ -172,10 +172,9 @@ class ClockAndRandomnessTests(unittest.TestCase):
             game.action(actor, "buy_racehorse", {"breed": "moor_pony"}, "horse")
             race = game.action(actor, "race_horse",
                                {"breed": "moor_pony"}, "race")
-            record = game.db.execute(
-                "SELECT secure_roll FROM world_journal WHERE request_id='race'"
-            ).fetchone()
-            self.assertEqual(record[0], 1)
+            columns = {row[1] for row in game.db.execute(
+                "PRAGMA table_info(world_journal)")}
+            self.assertNotIn("secure_roll", columns)
             seed = f"42:{actor}:moor_pony:0:0".encode()
             expected = [
                 int.from_bytes(hmac.digest(
@@ -193,7 +192,7 @@ class ClockAndRandomnessTests(unittest.TestCase):
                 hmac.digest(game._rng_key, payload, "sha256")[:8], "big") % 100 + 1
             self.assertEqual(magic["roll"], expected_roll)
             self.assertEqual(game.db.execute(
-                "SELECT secure_roll FROM world_journal WHERE request_id='practice'"
+                "SELECT COUNT(*) FROM world_journal WHERE request_id='practice'"
             ).fetchone()[0], 1)
             self.assertNotIn(game._rng_key.hex(),
                              json.dumps(game.snapshot(actor)))
@@ -209,7 +208,7 @@ class ClockAndRandomnessTests(unittest.TestCase):
             game.world.assert_invariants()
             game.close()
 
-    def test_old_unkeyed_action_replays_unchanged(self):
+    def test_damaged_legacy_ledger_is_not_silently_reconstructed(self):
         with tempfile.TemporaryDirectory() as folder:
             db = Path(folder) / "historical.sqlite3"
             game = MultiplayerGame(db, require_invites=False,
@@ -217,35 +216,12 @@ class ClockAndRandomnessTests(unittest.TestCase):
             actor = game.register("alice", PASSWORD, "Alice River")
             game.action(actor, "unlock_magic",
                         {"node_id": "enchantment.etch_rune"}, "unlock")
-            params = {"node_id": "enchantment.etch_rune"}
-            key = "legacy-spell"
-            engine_id = game._engine_id(actor, key)
-            old = game.world.execute(actor, "practice_magic", params, engine_id)
-            legacy_roll = old.roll
-            payload = json.dumps(params, sort_keys=True, separators=(",", ":"))
-            # Emulate a historical journal-only database, before Phase 3
-            # introduced the materialized ledger and immutable receipts.
             game.db.execute(
                 "DELETE FROM world_meta WHERE name='durable_ledger_initialized'")
-            game.db.execute(
-                "INSERT INTO world_journal("
-                "kind,actor_id,action,payload,request_id,result_json,recorded_at"
-                ") VALUES('action',?,?,?,?,?,NULL)",
-                (actor, "practice_magic", payload, key,
-                 json.dumps(asdict(old))))
             game.close()
-            game = MultiplayerGame(db, require_invites=False,
-                                   dev_fast_forward=True)
-            self.assertEqual(game.world.actors[actor].magic.attempts, 1)
-            record = next(e for e in game.world.events
-                          if e.kind == "magic_practiced")
-            self.assertEqual(record.data["roll"], legacy_roll)
-            self.assertIsNone(game.db.execute(
-                "SELECT secure_roll FROM world_journal WHERE request_id=?",
-                (key,)).fetchone()[0])
-            game.world.assert_invariants()
-            game.close()
-
+            with self.assertRaisesRegex(ValueError, "Missing durable ledger"):
+                MultiplayerGame(db, require_invites=False,
+                                dev_fast_forward=True)
 
 class RequestAndJournalExhaustionTests(unittest.TestCase):
     def test_limiter_is_thread_safe_and_bounded(self):

@@ -161,11 +161,6 @@ def validate_world(world: WorldEngine) -> None:
         spent = sum(MERIT_UPGRADES[k]["cost"] for k in bought)
         if issued - spent != world.state.merit_balance.get(actor_id, 0):
             raise AssertionError("Merit conservation mismatch")
-    for actor_id, courses in world.state.completed_courses.items():
-        if actor_id not in world.actors or any(
-                school not in SCHOOLS or type(count) is not int or not 0 <= count <= 8
-                for school, count in courses.items()):
-            raise AssertionError("Invalid completed curriculum")
     for actor_id, courses in world.state.chosen_courses.items():
         if actor_id not in world.actors or any(
                 school not in CURRENT_SCHOOLS or
@@ -173,18 +168,11 @@ def validate_world(world: WorldEngine) -> None:
                 any(type(i) is not int or i < 0 or i >= 8 for i in indices)
                 for school, indices in courses.items()):
             raise AssertionError("Invalid freely chosen courses")
-    if any(actor_id not in world.state.active_courses
-           for actor_id in world.state.free_course_enrollments):
-        raise AssertionError("Orphaned university enrollment")
     for actor_id, course in world.state.active_courses.items():
-        legacy = actor_id not in world.state.free_course_enrollments
-        if (actor_id not in world.actors or course.school not in SCHOOLS
+        if (actor_id not in world.actors or course.school not in CURRENT_SCHOOLS
                 or not 0 <= course.index < 8 or course.ends_at <= world.minute
-                or (legacy and world.state.completed_courses.get(actor_id, {}).get(
-                    course.school, 0) != course.index)
-                or (not legacy and (course.school not in CURRENT_SCHOOLS
-                    or course.index in world.curriculum_system.completed_indices(
-                        actor_id, course.school)))):
+                or course.index in world.curriculum_system.completed_indices(
+                    actor_id, course.school)):
             raise AssertionError("Invalid active curriculum")
     if any(gid not in world.gear or type(count) is not int or not 0 <= count < 12
            for gid, count in world.state.gear_wear.items()):

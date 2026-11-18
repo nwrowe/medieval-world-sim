@@ -531,10 +531,6 @@ class WorldEngine:
         return self.combat.attack(attacker_id, defender_id)
 
     @atomic_action
-    def pvp_strike(self, attacker_id: str, defender_id: str) -> dict:
-        return self.combat.pvp_strike(attacker_id, defender_id)
-
-    @atomic_action
     def start_duel(self, attacker_id: str, defender_id: str) -> dict:
         return self.duel_system.start(attacker_id, defender_id)
 
@@ -609,10 +605,6 @@ class WorldEngine:
     @atomic_action
     def leave_guild(self, actor_id: str) -> None:
         return self.guild_system.leave(actor_id)
-
-    @atomic_action
-    def enroll_course(self, actor_id: str, school: str) -> dict:
-        return self.curriculum_system.start(actor_id, school)
 
     @atomic_action
     def send_chat(self, principal_id: str, kind: str, target: str, message: str) -> dict:

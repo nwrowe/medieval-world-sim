@@ -163,7 +163,7 @@ class LegacyFleeReplay(unittest.TestCase):
             self.assertEqual(failed["outcome"], "ongoing")
             data = json.loads(path.read_text(encoding="utf-8"))
             saved = data["records"][-1]
-            self.assertEqual(saved["ruleset"], 11)
+            self.assertNotIn("ruleset", saved)
             self.assertIs(saved["flee_success"], False)
             replay = GameSession(path)
             self.assertEqual(replay.snapshot(), game.snapshot())

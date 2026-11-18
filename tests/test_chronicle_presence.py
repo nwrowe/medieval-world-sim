@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from medieval_world_sim.web.multiplayer import MultiplayerGame
-from medieval_world_sim.web.session import GameSession, event_category
+from medieval_world_sim.web.session import GameSession, SaveError, event_category
 from test_multiplayer_auth import serve
 from test_live_activity import LiveEventTests, next_sse_activity
 
@@ -213,31 +213,25 @@ class ChronicleAuditTests(unittest.TestCase):
 
     def test_known_event_types_have_stable_categories(self):
         self.assertEqual(event_category("trade_settled"), "Trade")
-        self.assertEqual(event_category("pvp_strike"), "Combat")
+        self.assertEqual(event_category("duel_round"), "Combat")
         self.assertEqual(event_category("arrived"), "Travel")
         self.assertEqual(event_category("course_started"), "University")
         self.assertEqual(event_category("unknown_kind"), "Other")
 
 
 class LegacyStartTests(unittest.TestCase):
-    def test_single_player_new_start_and_old_goldmeadow_save(self):
+    def test_single_player_uses_current_start_and_rejects_missing_location(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "world.json"
             game = GameSession(path)
             game.create("Aldric Thorn")
-            self.assertEqual(game.snapshot()["player"]["city"], "crownreach")
-            self.assertEqual(GameSession(path).snapshot()["player"]["city"],
-                             "crownreach")
+            self.assertEqual(game.snapshot()["player"]["city"], CAPITAL)
+            self.assertEqual(GameSession(path).snapshot(), game.snapshot())
             stored = json.loads(path.read_text(encoding="utf-8"))
-            # No five-city migration: a fresh realm without start_city still
-            # begins in the current capital, not the retired Goldmeadow.
             stored.pop("start_city", None)
             path.write_text(json.dumps(stored), encoding="utf-8")
-            old = GameSession(path)
-            self.assertEqual(old.snapshot()["player"]["city"], CAPITAL)
-            old.action("claim_merit", {"achievement": "first_steps"}, "first-merit")
-            self.assertEqual(GameSession(path).snapshot(), old.snapshot())
-
+            with self.assertRaises(SaveError):
+                GameSession(path)
 
 if __name__ == "__main__":
     unittest.main()
