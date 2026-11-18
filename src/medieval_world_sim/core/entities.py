@@ -256,6 +256,10 @@ class Company:
     daily_units_sold: int = 0
     daily_revenue: int = 0
     product: str = ""  # Empty means original recipe, preserving legacy shifts.
+    display_name: str = ""
+    sale_price: int = 0
+    hiring: bool = False
+    applicants: set[str] = field(default_factory=set)
 
 
 @dataclass
