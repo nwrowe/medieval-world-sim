@@ -55,12 +55,9 @@ class CargoSafetyTests(unittest.TestCase):
                   {"item": "herbs", "quantity": 3}, "drop-3")
         self.assertEqual(a.inventory["herbs"], 11)
         gear = w._mint_gear(a, "sword", 60, "crafted")
-        w.equip("walker", gear.id)
-        with self.assertRaises(ActionError):
-            w.discard_gear("walker", gear.id)
-        a = w.actors["walker"]
-        w.unequip("walker", "weapon")
+        a.equipped["weapon"] = gear.id  # Already equipped before leaving town.
         w.discard_gear("walker", gear.id)
+        self.assertNotIn("weapon", a.equipped)
         self.assertNotIn(gear.id, w.gear)
         self.assertNotIn(gear.id, a.gear_ids)
         w.assert_invariants()

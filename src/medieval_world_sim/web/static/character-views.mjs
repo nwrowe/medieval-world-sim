@@ -189,7 +189,7 @@ export function createCharacterViews(ctx) {
         button("Store", 'data-ui="store-gear" data-gear-id="' +
           gear.id + '"' + disabled(inUse || isBusy()), "s ghost") +
         button("Discard", 'data-ui="discard-gear" data-gear-id="' +
-          gear.id + '"' + disabled(inUse || isBusy() || !!p.destination), "s ghost") +
+          gear.id + '"' + disabled(isBusy() || !!p.destination), "s ghost") +
         '</div></div>';
     }).join('') || '<p class="empty">You own no equipment yet. Starter gear is sold at Crownreach.</p>';
     const storedGear = (state.stored_gear_here || []).map(gear =>

@@ -378,9 +378,13 @@ class WorldEngine:
         actor = self._actor(actor_id)
         if actor.destination is not None:
             raise ActionError("Finish traveling before discarding equipment")
-        if (type(gear_id) is not int or gear_id not in actor.gear_ids
-                or gear_id in actor.equipped.values()):
-            raise ActionError("Only carried, unequipped gear may be discarded")
+        if type(gear_id) is not int or gear_id not in actor.gear_ids:
+            raise ActionError("Only owned carried equipment can be discarded")
+        # Discarding must also rescue a character whose entire pack consists
+        # of equipped items and who cannot visit a city's equipment service.
+        for slot, equipped_id in tuple(actor.equipped.items()):
+            if equipped_id == gear_id:
+                del actor.equipped[slot]
         actor.gear_ids.remove(gear_id)
         kind = self.gear.pop(gear_id).kind
         self.state.gear_wear.pop(gear_id, None)
