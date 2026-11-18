@@ -91,6 +91,10 @@ class DuelWebTests(unittest.TestCase):
         # This duel test seeds graduated skills. Progression itself is tested separately.
         mage = self.game.world.actors["hero"].magic
         mage.school_xp.update({"warding": 80, "restoration": 80})
+        # Veteran spellcaster fixture: this test exercises combat sequencing,
+        # not character progression or mana-pool growth.
+        mage.max_mana = 100
+        mage.mana = 100
         mage.insight_earned = 3
         mage.insight = 3
         ward = self.do("cast_spell", {"node_id": "warding.minor_shield"}, "ward-cast")
@@ -137,6 +141,8 @@ class FieldSpellTests(unittest.TestCase):
         world.unlock_magic("hero", "alchemy.purify_reagents")
         world.unlock_magic("hero", "elemental.kindle_flame")
         actor.magic.school_xp.update({"alchemy": 80, "elemental": 80})
+        actor.magic.max_mana = 100
+        actor.magic.mana = 100
         actor.magic.insight_earned = 3
         actor.magic.insight = 3
         before_gold = world.total_gold
