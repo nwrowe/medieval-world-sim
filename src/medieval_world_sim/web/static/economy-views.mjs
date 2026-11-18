@@ -148,7 +148,13 @@ export function createEconomyViews(ctx) {
       '<div class="economy-actions">' + doButton("job-accept", "Accept offer",
         'data-company="' + esc(offer.company_id) + '"' +
         disabled(!offer.can_accept)) + '</div></div>').join("");
+    const w = ctx.getState().player.work;
     return heading("", "Occupation", "") +
+      panel("Work stats", "",
+        line("Manual", w.manual) +
+        line("Intelligence", w.intelligence) +
+        line("Endurance", w.endurance) +
+        line("Shifts completed", w.shifts)) +
       panel("Employment offers", "Offers from player-owned companies.",
         offers || '<p class="small">No pending offers.</p>') +
       panel("My jobs", "Working a shift consumes real company materials and pays its agreed wage.",
@@ -190,7 +196,7 @@ export function createEconomyViews(ctx) {
       '<div class="economy-actions">' +
       (x.can_cancel ? doButton("listing-cancel", "Cancel", 'data-offer-id="' +
         x.id + '"') :
-      '<label class="sr">Quantity' + input("buy-quantity", 1, 1) + '</label>' +
+      '<label class="economy-quantity">Quantity' + input("buy-quantity", 1, 1) + '</label>' +
       doButton("listing-buy", "Buy", 'data-offer-id="' + x.id + '"')) +
       '</div></div>').join("");
     return panel("Player market", "Local listings are held in escrow; the server settles every purchase.",
