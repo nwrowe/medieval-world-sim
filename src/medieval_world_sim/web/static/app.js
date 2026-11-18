@@ -353,7 +353,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         latestPractice = { ...result.result, nodeId: body.params.node_id };
         tab = "magic";
       }
-      if (body && body.action === "complete_city_contract" && result.result) {
+      if (body && body.action === "start_city_contract" && result.result) {
         latestContract = result.result;
       }
       if (body && body.action === "send_chat") chatDraft = "";
@@ -675,7 +675,14 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       ' aria-label="Double recovery active"><span aria-hidden="true">♜</span>' +
       '<strong data-timer-display>' +
       fullCountdown(timerSeconds(roomRemaining * 60)) + '</strong></button>' : "";
-    return items + room + meritAlert + trade + travel + university + hospital + defenderAlert;
+    const activeShift = state.active_contract;
+    const shift = activeShift ? '<button class="cooldown-chip activity-clickable" ' +
+      'type="button" data-activity-key="civic-shift" data-ui="activity-mercenary"' +
+      timerAttrs("Mercenary job · ", activeShift.remaining_minutes * 60) +
+      '><span aria-hidden="true">▣</span><strong data-timer-display>' +
+      fullCountdown(timerSeconds(activeShift.remaining_minutes * 60)) +
+      '</strong></button>' : "";
+    return items + room + shift + meritAlert + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     const locked = combatNavigationLocked();
@@ -1557,6 +1564,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       }
       case "activity-tavern":
         navigateTo("tavern"); render(); break;
+      case "activity-mercenary":
+        navigateTo("mercenary"); render(); break;
       case "company-section":
         companySection = element.dataset.section || "overview";
         render(); break;
@@ -1877,8 +1886,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       }
       case "consume":
         action("consume", { item }, pretty(item) + " used"); break;
-      case "contract": action("complete_city_contract",
-        { contract_id: element.dataset.contract }, "Contract completed"); break;
+      case "contract": action("start_city_contract",
+        { contract_id: element.dataset.contract }, "Job initiated"); break;
       case "practice": action("practice_magic", { node_id: node }, "Practice completed"); break;
       case "find-people":
         peopleQuery = document.getElementById("people-query").value.trim();

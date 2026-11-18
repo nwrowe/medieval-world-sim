@@ -26,7 +26,7 @@ RACING_EVENTS = {"horse_purchased", "horse_raced"}
 PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
 ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",
                   "goods_stored", "goods_retrieved", "goods_discarded",
-                   "gear_discarded", "city_contract_completed",
+                   "gear_discarded", "city_contract_started", "city_contract_completed",
                   "offer_posted", "offer_filled", "offer_canceled", "city_sale",
                   "company_founded", "company_funded", "company_withdrawn",
                   "company_stocked", "company_unstocked", "company_product_selected",
@@ -159,6 +159,7 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "duel_defender_fled": "Defending player withdrew from combat",
         "duel_draw": f"Combat ended in a draw after {info.get('round')} rounds",
         "spell_cast": f"Cast {info.get('node_id')}: {info.get('message')}",
+        "city_contract_started": f"Started assignment {str(info.get('contract_id')).replace('_',' ')}",
         "city_contract_completed": (
             f"Completed {str(info.get('contract_id', '')).replace('_', ' ')} "
             f"(+{info.get('gold')}g, +{info.get('xp')} XP)"
