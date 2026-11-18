@@ -181,19 +181,20 @@ class GameSession:
                 raise ValueError("Invalid event timestamp") from exc
         before = len(self.world.events)
         valid_keys = set(record) - {"recorded_at", "ruleset", "flee_success"}
-        if record.get("ruleset", 1) not in range(1, 19) or type(record.get("ruleset", 1)) is not int:
+        if record.get("ruleset", 1) not in range(1, 20) or type(record.get("ruleset", 1)) is not int:
             raise ValueError("Unknown action ruleset")
         if record.get("kind") == "advance" and valid_keys == {"kind", "minutes"}:
             self.world._legacy_health_regen = record.get("ruleset", 1) < 5
             self.world._health_regen_version = (
                 1 if record.get("ruleset", 1) < 12 else
-                2 if record.get("ruleset", 1) == 12 else 3)
+                2 if record.get("ruleset", 1) == 12 else
+                3 if record.get("ruleset", 1) < 19 else 4)
             self.world._legacy_equipment_wear = record.get("ruleset", 1) < 8
             try:
                 self._advance_world(record["minutes"])
             finally:
                 self.world._legacy_health_regen = False
-                self.world._health_regen_version = 3
+                self.world._health_regen_version = 4
                 self.world._legacy_equipment_wear = False
         elif record.get("kind") == "action" and valid_keys == {"kind", "name", "params", "id"}:
             if record["name"] not in UI_ACTIONS:
@@ -271,7 +272,7 @@ class GameSession:
             }:
                 ruleset = 6
             if record["kind"] == "advance":
-                ruleset = 13
+                ruleset = 19
             if record.get("name") in {"start_duel", "duel_turn", "flee_duel"}:
                 ruleset = 8
             if record.get("name") == "enroll_course":

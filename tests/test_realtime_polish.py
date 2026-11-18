@@ -13,17 +13,19 @@ from medieval_world_sim.web.session import GameSession
 
 
 class HealthRecoveryTests(unittest.TestCase):
-    def test_ten_percent_of_max_health_every_three_minutes(self):
+    def test_six_percent_of_max_life_every_five_minutes(self):
         world = WorldEngine([Actor("hero", "human")])
         hero = world.actors["hero"]
         hero.hp = 1
         world.advance(2)
         self.assertEqual(hero.hp, 1)
         world.advance(1)
-        self.assertEqual(hero.hp, 4)  # ceil(24 / 10) = 3
-        world.advance(6)
-        self.assertEqual(hero.hp, 10)
-        world.advance(30)
+        self.assertEqual(hero.hp, 1)  # no healing before the fifth minute
+        world.advance(2)
+        self.assertEqual(hero.hp, 2)  # floor(24 * .06) = 1
+        world.advance(5)
+        self.assertEqual(hero.hp, 3)  # fractional percent carries into later ticks
+        world.advance(75)
         self.assertEqual(hero.hp, hero.max_hp)
 
     def test_legacy_health_journal_rule_and_hospitalization(self):
@@ -53,15 +55,15 @@ class HealthRecoveryTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             world._at_city(hero)
         world.advance(1)
-        self.assertEqual(hero.hp, 3)
+        self.assertEqual(hero.hp, 0)
         self.assertEqual(hero.defeated_until, 20)
         with self.assertRaises(ActionError):
             world._at_city(hero)
         world.advance(12)
-        self.assertEqual(hero.hp, 15)
+        self.assertEqual(hero.hp, 4)
         self.assertEqual(hero.defeated_until, 20)
         world.advance(5)
-        self.assertEqual(hero.hp, 18)  # no forced full HP on release
+        self.assertEqual(hero.hp, 5)  # no forced full HP on release
         self.assertIsNone(hero.defeated_until)
         self.assertEqual(world._at_city(hero), hero.city)
 
@@ -72,7 +74,7 @@ class HealthRecoveryTests(unittest.TestCase):
         hero = world.actors["hero"]
         hero.hp = 23
         hero.defeated_until = 20
-        world.advance(3)
+        world.advance(5)
         self.assertEqual(hero.hp, hero.max_hp)
         self.assertEqual(hero.defeated_until, 20)
         with self.assertRaises(ActionError):
@@ -84,7 +86,7 @@ class HealthRecoveryTests(unittest.TestCase):
             game = GameSession(path)
             game.create("Local Hero")
             game.advance(3)
-            self.assertEqual(game.records[-1]["ruleset"], 13)
+            self.assertEqual(game.records[-1]["ruleset"], 19)
             self.assertEqual(GameSession(path).snapshot(), game.snapshot())
 
     def test_multiplayer_journal_versions_new_advances(self):
@@ -95,7 +97,7 @@ class HealthRecoveryTests(unittest.TestCase):
             game.advance(actor, 3, "three-minutes")
             self.assertEqual(game.db.execute(
                 "SELECT regen_version FROM world_journal WHERE request_id=?",
-                ("three-minutes",)).fetchone()[0], 3)
+                ("three-minutes",)).fetchone()[0], 4)
             game.close()
             game = MultiplayerGame(path, require_invites=False, dev_fast_forward=True)
             self.assertEqual(game.snapshot(actor)["minute"], 3)
@@ -108,14 +110,14 @@ class HealthRecoveryTests(unittest.TestCase):
         hero = world.actors["hero"]
         hero.hp = 8
         view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
-        self.assertEqual(view["player"]["health_next_sim_seconds"], 180)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 300)
         world.advance(1)
         view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
-        self.assertEqual(view["player"]["health_next_sim_seconds"], 120)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 240)
         hero.hp = 0
         hero.defeated_until = world.minute + 20
         view = world_snapshot(world, "hero", "Hero", {}, {"hero": "Hero"}, {}, False)
-        self.assertEqual(view["player"]["health_next_sim_seconds"], 120)
+        self.assertEqual(view["player"]["health_next_sim_seconds"], 240)
         self.assertEqual(view["player"]["defeated_until"], world.minute + 20)
 
     def test_multiplayer_reports_subminute_clock_progress(self):

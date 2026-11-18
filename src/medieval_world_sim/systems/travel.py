@@ -9,7 +9,8 @@ from ..core.exploration import reveal_travel_progress, reveal, current_hex, sigh
 from ..worldgen.hexgrid import hex_distance, neighbors
 
 HOUR = 60
-HEALTH_REGEN_MINUTES = 3
+HEALTH_REGEN_MINUTES = 3  # Historical version 2/3 cadence.
+CURRENT_HEALTH_REGEN_MINUTES = 5  # Version 4: six percent every five minutes.
 LEGACY_HEALTH_REGEN_MINUTES = 10
 DEPOSIT_CAP = 24
 TRAVEL_CARGO_LIMIT = 12  # Stricter than the 20-unit in-city inventory limit.
@@ -258,13 +259,14 @@ class TravelSystem:
         # and is independent of whether time is advanced in one or many steps.
         regen_ticks = end // STAMINA_REGEN_MINUTES - start_minute // STAMINA_REGEN_MINUTES
         mana_ticks = end // MANA_REGEN_MINUTES - start_minute // MANA_REGEN_MINUTES
-        # Version 1: +1 HP / 10 min (historical). Version 2: +10% / 3 min,
-        # but frozen HP in hospital and full HP on release. Version 3:
-        # +10% / 3 min even in hospital, with independent release cooldown.
-        # Replay versioning preserves exact prior saved-world outcomes.
-        version = getattr(self.world, "_health_regen_version", 3)
+        # Recorded rules remain replayable: v1 +1/10min; v2 +10%/3min
+        # outside hospital; v3 +10%/3min also during hospital; v4
+        # cumulative 6% of max Life per 5min (including hospital).
+        version = getattr(self.world, "_health_regen_version", 4)
         legacy = version == 1
-        interval = LEGACY_HEALTH_REGEN_MINUTES if legacy else HEALTH_REGEN_MINUTES
+        interval = (LEGACY_HEALTH_REGEN_MINUTES if legacy else
+                    CURRENT_HEALTH_REGEN_MINUTES if version >= 4 else
+                    HEALTH_REGEN_MINUTES)
         health_ticks = (end // interval - start_minute // interval
                         if not getattr(self.world, "_legacy_health_regen", False) else 0)
         self.world.minute = end
@@ -277,10 +279,17 @@ class TravelSystem:
             actor.magic.mana = min(actor.magic.max_mana, actor.magic.mana + mana_ticks)
             # HP recovery and the hospital lock are distinct in version 3:
             # HP can recover to full while the player remains hospitalized.
-            if health_ticks and (version == 3 or
+            if health_ticks and (version >= 3 or
                                  (actor.defeated_until is None and actor.hp > 0)):
-                gain_per_tick = 1 if legacy else (actor.max_hp + 9) // 10
-                actor.hp = min(actor.max_hp, actor.hp + health_ticks * gain_per_tick)
+                if version >= 4:
+                    # Cumulative 6% per tick, including fractional-HP credit,
+                    # without adding mutable actor state or replay drift.
+                    gain = ((end // interval) * actor.max_hp * 6 // 100 -
+                            (start_minute // interval) * actor.max_hp * 6 // 100)
+                else:
+                    gain_per_tick = 1 if legacy else (actor.max_hp + 9) // 10
+                    gain = health_ticks * gain_per_tick
+                actor.hp = min(actor.max_hp, actor.hp + gain)
             if actor.defeated_until is not None and actor.defeated_until <= end:
                 if version < 3:
                     actor.hp = actor.max_hp

@@ -386,7 +386,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "mana_next_sim_seconds": (
                 (10 - now % 10) * 60 if actor.magic.mana < actor.magic.max_mana else None),
             "health_next_sim_seconds": (
-                (3 - now % 3) * 60 if actor.hp < actor.max_hp else None),
+                (5 - now % 5) * 60 if actor.hp < actor.max_hp else None),
 
         },
         "cities": places,
