@@ -65,7 +65,7 @@ export function createEconomyViews(ctx) {
       ].map(([id,name]) =>
         button(name, 'data-ui="company-section" data-section="' + id +
           '" aria-pressed="' + (section === id) + '"' +
-          (section === id ? ' class="active"' : ''), "secondary")).join("");
+          '', "secondary")).join("");
       let content = "";
       if (section === "overview") {
         content = '<div class="economy-metrics">' +

@@ -1185,7 +1185,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 /* Focused business management replaces the old single long form. */
 .company-tabs { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 18px; }
 .company-tabs .button { min-height:38px; font-size:12px; }
-.company-tabs .button.active { background:var(--forest); border-color:var(--forest); color:#fff; }
+.company-tabs .button[aria-pressed="true"] { background:var(--forest); border-color:var(--forest); color:#fff; }
 .company-section { min-height:110px; }
 .company-section .economy-actions { margin:14px 0; }
 #occupation-company-search { display:block; max-width:460px; width:100%; margin:8px 0 16px; }
