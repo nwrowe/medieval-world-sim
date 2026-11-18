@@ -24,6 +24,7 @@ const views = createWorldViews({
   getState: () => state,
   getPending: () => false,
   getSecureWorldClock: () => true,
+  getMapZoom: () => 2.5,
   getSchool: () => school,
   setSchool: value => { school = value; },
   getLatestPractice: () => null,
@@ -43,11 +44,33 @@ for (const name of ["renderWorld", "renderMarket", "renderMagic", "renderHome"])
   assert.equal(typeof views[name], "function", name + " must be exposed");
   assert.ok(views[name]().length > 50, name + " must render");
 }
-assert.match(views.renderWorld(), /World Map/);
+assert.match(views.renderWorld(), /<h2>Map<\/h2>/);
 assert.match(views.renderMarket(), /Market/);
 assert.match(views.renderMagic(), /Magic/);
 assert.match(views.renderHome(), /Property/);
 // Mutable state is read fresh on every render; there must be no stale snapshot.
-state = { ...state, gatherable: { grain: 2 } };
-assert.match(views.renderWorld(), /grain/);
+state = { ...state, gatherable: { grain: 2 },
+  world_map: {
+    width: 3, height: 3, relief: Array(9).fill(1), roads: [],
+    tiles: [{i: 1, biome: "forest", elevation_m: 120, visible: true,
+             sites: [{name: "Old Ruin"}]}],
+    towns: [{id:"riverwatch",name:"Riverwatch",x:2,y:1}],
+    position: [0,0], sight_radius: 2, explored_percent: 3.2,
+    steps: [{x:1,y:0,minutes:4,label:"Old Ruin"},
+            {x:2,y:1,minutes:12,label:"Riverwatch"}],
+  }
+};
+const map = views.renderWorld();
+assert.match(map, /<h2>Map<\/h2>/);
+assert.match(map, /map-key-city/);
+assert.match(map, /map-key-poi/);
+assert.match(map, /Hotlist · 1 discovered destinations/);
+assert.match(map, /Est. 12m/);
+assert.match(map, /data-ui="explore-hex" data-x="2" data-y="1"/);
+assert.match(map, /survey-site-marker map-destination/);
+assert.match(map, /survey-city-marker map-destination/);
+assert.match(map, /pointer-events="all"/);
+assert.doesNotMatch(map, /Roads and destinations|Gather nearby resources|Time and recovery/i);
+assert.doesNotMatch(map, /Exploration and Awareness|A growing atlas/i);
+assert.doesNotMatch(map, /grain/);
 console.log("Browser page module smoke tests passed");

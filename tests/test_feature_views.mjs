@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { createCommunityViews } from "../src/medieval_world_sim/web/static/community-views.mjs";
 import { createCityViews } from "../src/medieval_world_sim/web/static/city-views.mjs";
+import { groupCombatChronicle } from "../src/medieval_world_sim/web/static/chronicle-views.mjs";
 import { createCharacterViews } from "../src/medieval_world_sim/web/static/character-views.mjs";
 import { createWorldViews } from "../src/medieval_world_sim/web/static/world-views.mjs";
 
@@ -29,6 +30,30 @@ let state = {
     }
   }
 };
+const encounterRows = groupCombatChronicle([
+  { id: 9, kind:"duel_draw", category:"Combat", minute:11,
+    encounter_id:1, encounter_attacker:"Alden", encounter_defender:"Bryn",
+    encounter_outcome:"Draw", text:"Ended in a draw" },
+  { id: 8, kind:"duel_round", category:"Combat", minute:10,
+    encounter_id:1, encounter_attacker:"Alden", encounter_defender:"Bryn",
+    encounter_outcome:"Draw", text:"Second strike" },
+  { id: 7, kind:"duel_fled", category:"Combat", minute:9,
+    encounter_id:5, encounter_attacker:"Carol", encounter_defender:"Dale",
+    encounter_outcome:"Attacker retreated", text:"Retreated" },
+  { id: 5, kind:"duel_started", category:"Combat", minute:5,
+    encounter_id:5, encounter_attacker:"Carol", encounter_defender:"Dale",
+    encounter_outcome:"Attacker retreated", text:"Started" },
+  { id: 1, kind:"duel_started", category:"Combat", minute:1,
+    encounter_id:1, encounter_attacker:"Alden", encounter_defender:"Bryn",
+    encounter_outcome:"Draw", text:"Started" },
+]);
+assert.equal(encounterRows.length, 2);
+assert.equal(encounterRows[0].id, "encounter-1");
+assert.equal(encounterRows[0].actions.length, 3);
+assert.equal(encounterRows[0].actions[0].id, 1);
+assert.match(encounterRows[0].text, /Alden attacked Bryn.*Draw/);
+assert.equal(encounterRows[1].actions.length, 2);
+assert.match(encounterRows[1].text, /Carol attacked Dale.*retreated/);
 const helpers = {
   esc: value => String(value),
   pretty: value => String(value),
@@ -51,7 +76,9 @@ const community = createCommunityViews({
 const city = createCityViews({
   ...helpers, getState: () => state, getLatestContract: () => null,
   getExpandedUniversitySchool: () => null, getPending: () => false,
-  getSecureWorldClock: () => true
+  getSecureWorldClock: () => true,
+  timerAttrs: (_label, seconds) => 'data-timer-fixed="' + seconds + '"',
+  timerText: seconds => String(seconds / 60).padStart(2, "0") + ":00"
 });
 for (const name of ["renderPeople", "renderProfile", "renderTrade", "renderDuel"]) {
   assert.equal(typeof community[name], "function");
@@ -85,6 +112,25 @@ for (const name of cityNames) {
   assert.equal(typeof city[name], "function", name);
   assert.ok(city[name]().length > 35, name + " must render meaningful markup");
 }
+state = { ...state, training_hall: { active: {
+  school: "rhetoric", index: 0, remaining_minutes: 4320, ends_at: 5760
+}, schools: [{
+  id: "rhetoric", name: "Rhetoric", stat: "intelligence",
+  completed: 0, total: 8, courses: [
+    { name: "The Spoken Word", days: 4, tuition: 8, stat_bonus: 1,
+      active: true, available: false, completed: false },
+    { name: "Memorable Arguments", days: 6, tuition: 12, stat_bonus: 1,
+      active: false, available: false, completed: false }
+  ]
+}] } };
+const coursePage = city.renderTraining();
+assert.match(coursePage, /data-university-countdown/);
+assert.match(coursePage, /value="1440" max="5760"/);
+assert.match(coursePage, /25% complete/);
+assert.doesNotMatch(coursePage, /Graduation: 1 merit|Tuition 8g|simulated days remaining/);
+assert.match(coursePage, /Enroll · 12g/);
+state = { ...state, training_hall: { active: null, schools: [] } };
+
 state = { ...state, player: { ...state.player, work: {
   ...state.player.work, manual: 57 } } };
 state = { ...state, merits: {
@@ -95,6 +141,20 @@ state = { ...state, merits: {
   upgrades: [{ id: "roadcraft", name: "Roadcraft", cost: 2,
     description: "Shorter journeys", owned: false }]
 } };
+const guildFounding = city.renderGuilds();
+assert.match(guildFounding, /minlength="3"/);
+assert.match(guildFounding, /Guild names must contain between 3 and 40 characters/);
+state = { ...state, guilds: {
+  ...state.guilds, my_guild: {
+    id: "guild:1", name: "Gray Dawn", role: "leader",
+    members: {"player:alice": "leader"},
+    rating: 1000, wins: 0, losses: 0
+  }
+}};
+assert.match(city.renderGuilds(), /data-ui="guild-leave"/);
+state = { ...state, guilds: {
+  ...state.guilds, my_guild: null
+}};
 const meritPage = city.renderMerits();
 assert.match(meritPage, /Your merit ledger|First Steps/);
 assert.doesNotMatch(meritPage, /<h2>Merits<\/h2>|Honor your milestones|Merits are earned once|\+1 merit/);

@@ -306,7 +306,8 @@ class WorldEngine:
         actor.travel.departure_minute = self.minute
         actor.travel.route_hexes = route
         actor.travel.route_durations = tuple(
-            self.travel.hex_minutes(actor, *step) for step in route[1:])
+            self.travel.edge_minutes(actor, a, b)
+            for a, b in zip(route, route[1:]))
         actor.travel.route_revealed_index = 0
         actor.travel.hex_target = (x, y)
         self._emit("hex_journey_started", actor_id, x, y, actor.arrival_minute)
@@ -536,6 +537,18 @@ class WorldEngine:
     @atomic_action
     def start_duel(self, attacker_id: str, defender_id: str) -> dict:
         return self.duel_system.start(attacker_id, defender_id)
+
+    @atomic_action
+    def engage_duel(self, attacker_id: str, defender_id: str, move: str) -> dict:
+        """Start and resolve the first physical swing in one atomic action.
+
+        Opening an attack preview creates no server duel or notification.
+        Retaining start_duel preserves historical recorded commands.
+        """
+        if move not in ("strike", "fists", "dagger"):
+            raise ActionError("Opening move must be a physical attack")
+        self.duel_system.start(attacker_id, defender_id)
+        return self.duel_system.turn(attacker_id, move, "")
 
     @atomic_action
     def duel_turn(self, attacker_id: str, move: str, node_id: str) -> dict:

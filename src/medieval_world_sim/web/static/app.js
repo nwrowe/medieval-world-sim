@@ -2,6 +2,7 @@ import { createCharacterViews } from "/character-views.mjs";
 import { createCommunityViews } from "/community-views.mjs";
 import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
+import { groupCombatChronicle } from "/chronicle-views.mjs";
 
 /* Oathmere — dependency-free responsive game client.
    Rendering is a read-only projection of server-authoritative world state.
@@ -34,15 +35,21 @@ import { createWorldViews } from "/world-views.mjs";
   const accountTabs = [
     { id: "character", icon: "♙", title: "Home" },
     { id: "equipment", icon: "⚔", title: "Equipment" },
-    { id: "world", icon: globeIcon, title: "World" },
+    { id: "world", icon: globeIcon, title: "Map" },
     { id: "chronicle", icon: "▤", title: "Chronicle" },
     { id: "people", icon: "⌕", title: "Search" },
   ];
   let state = null;
+  let duelPreviewTarget = null;
   let lineageCatalog = [];
   let tab = "character";
   const pageHistory = [];
+  function combatNavigationLocked() {
+    return Boolean(state && state.duel && state.duel.attack_started);
+  }
   function navigateTo(nextTab) {
+    if (combatNavigationLocked() && nextTab !== "duel") return;
+    if (nextTab !== "duel") duelPreviewTarget = null;
     if (nextTab !== tab) {
       pageHistory.push(tab);
       if (pageHistory.length > 25) pageHistory.shift();
@@ -65,6 +72,7 @@ import { createWorldViews } from "/world-views.mjs";
   let introActor = null;
   let travelIntent = null;
   let hexIntent = null;
+  let guildLeaveIntent = null;
   let mapZoom = 2.5;
   let forceMapCenter = false;
   let mapPollBusy = false;
@@ -169,6 +177,9 @@ import { createWorldViews } from "/world-views.mjs";
         (Number(item.dataset.timerEnd) - Date.now()) / 1000 :
         Number(item.dataset.timerFixed);
       item.dataset.hoverText = item.dataset.timerLabel + fullCountdown(seconds);
+      if (item.hasAttribute("data-university-countdown")) {
+        item.textContent = fullCountdown(seconds) + " remaining";
+      }
     }
   }
   function simDuration(minutes) {
@@ -298,8 +309,9 @@ import { createWorldViews } from "/world-views.mjs";
           defense: state.player.defense - oldStats.defense };
       }
       syncAttunements();
-      if (body && ["start_duel", "duel_turn", "flee_duel"].includes(body.action)) {
+      if (body && ["start_duel", "engage_duel", "duel_turn", "flee_duel"].includes(body.action)) {
         tab = "duel";
+        if (body.action === "engage_duel") duelPreviewTarget = null;
       }
       if (body && body.action === "practice_magic" && result.result) {
         latestPractice = { ...result.result, nodeId: body.params.node_id };
@@ -413,7 +425,8 @@ import { createWorldViews } from "/world-views.mjs";
       '<form id="accountRegisterForm" class="stack">' +
       '<label for="registerUsername">Username</label>' +
       '<input id="registerUsername" class="field" autocomplete="username" ' +
-      'minlength="3" maxlength="24" required>' +
+      'minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" ' +
+      'title="3–24 letters, numbers or underscores only" required>' +
       '<label for="registerCharacter">Character name</label>' +
       '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
       (inviteRequired ?
@@ -587,7 +600,7 @@ import { createWorldViews } from "/world-views.mjs";
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
       '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
-      timerAttrs("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
+      timerAttrs("Traveling to " + (p.hex_target ? "hex (" + p.hex_target.join(",") + ")" : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
       'aria-label="' + esc("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination))) + '">' +
       '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
       '</strong></button>' : "";
@@ -627,10 +640,12 @@ import { createWorldViews } from "/world-views.mjs";
     return items + meritAlert + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
+    const locked = combatNavigationLocked();
     return '<button type="button" class="nav-button ' + className +
       (tab === entry.id ? ' active' : '') +
-      '" data-tab="' + esc(entry.id) + '" aria-current="' +
-      (tab === entry.id ? 'page' : 'false') + '">' +
+      (locked ? ' combat-nav-locked' : '') +
+      '" data-tab="' + esc(entry.id) + '"' + disabled(locked) +
+      ' aria-current="' + (tab === entry.id ? 'page' : 'false') + '">' +
       '<span class="nav-icon" aria-hidden="true">' + entry.icon + '</span>' +
       '<span>' + esc(entry.title) + '</span></button>';
   }
@@ -674,8 +689,9 @@ import { createWorldViews } from "/world-views.mjs";
       '<strong id="eastern-clock">' + esc(easternNow()) + '</strong></div>' +
       '<nav class="account-nav" aria-label="Character menu">' + topLinks + '</nav>' +
       (multiMode ? '<div class="account-utility">' +
-        '<button class="profile-shortcut" type="button" data-ui="profile-self" ' +
-        'aria-label="View your character profile" title="Your character">' +
+        '<button class="profile-shortcut" type="button" data-ui="profile-self"' +
+        disabled(combatNavigationLocked()) +
+        ' aria-label="View your character profile" title="Your character">' +
         '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke-width="1.8" ' +
         'stroke-linecap="round" stroke-linejoin="round">' +
         '<circle cx="12" cy="8" r="4"/>' +
@@ -714,14 +730,25 @@ import { createWorldViews } from "/world-views.mjs";
     "Guild", "Progression", "Other"];
   function chronicleEvents() {
     const query = chronicleQuery.trim().toLowerCase();
-    return (state.events || []).filter(event =>
+    return groupCombatChronicle(state.events || []).filter(event =>
       (chronicleCategory === "all" || event.category === chronicleCategory) &&
-      (!query || [event.text, event.kind, event.category].some(value =>
+      (!query || [event.text, event.kind, event.category,
+        ...(event.actions || []).map(action => action.text)].some(value =>
         String(value || "").toLowerCase().includes(query))));
   }
   function chronicleItems(events) {
-    return events.length ? '<ul class="activity">' +
-      events.map(e => '<li><span><span class="chronicle-tag">' +
+    const rows = groupCombatChronicle(events);
+    return rows.length ? '<ul class="activity">' +
+      rows.map(e => e.kind === "combat_encounter" ?
+        '<li class="activity-encounter"><details><summary>' +
+        '<span><span class="chronicle-tag">Combat</span> ' + esc(e.text) +
+        '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
+        '">' + esc(eventTime(e)) + '</time></summary>' +
+        '<ol class="encounter-rounds">' + e.actions.map(action =>
+          '<li><span>' + esc(action.text) + '</span><time>' +
+          esc(eventTime(action)) + '</time></li>').join("") +
+        '</ol></details></li>' :
+        '<li><span><span class="chronicle-tag">' +
         esc(e.category || "Other") + '</span> ' + esc(e.text) +
         '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
         '">' + esc(eventTime(e)) + '</time></li>').join("") +
@@ -763,6 +790,7 @@ import { createWorldViews } from "/world-views.mjs";
       getState: () => state,
       getPeopleQuery: () => peopleQuery,
       getSearchScope: () => searchScope,
+      getDuelPreviewTarget: () => duelPreviewTarget,
       getMultiMode: () => multiMode,
       getSelectedCharacterId: () => selectedCharacterId,
       getPending: () => pending,
@@ -789,12 +817,7 @@ import { createWorldViews } from "/world-views.mjs";
       'placeholder="Trade, combat, equipment…" maxlength="100" value="' +
       esc(chronicleQuery) + '"></div>' +
       '<div id="chronicle-list">' + chronicleItems(chronicleEvents()) + '</div>' +
-      '</section>' +
-      '<p class="small mt-13">New actions are recorded in Eastern time (24-hour clock). ' +
-      'Older actions without saved timestamps are marked earlier. ' +
-      (secureWorldClock ?
-        'The multiplayer simulation follows server time.</p>' :
-        'The simulation advances only when you take time-based actions.</p>');
+      '</section>';
   }
   function characterRow(label, value) {
     return '<div class="character-row"><span>' + esc(label) +
@@ -808,6 +831,7 @@ import { createWorldViews } from "/world-views.mjs";
       getExpandedUniversitySchool: () => expandedUniversitySchool,
       getPending: () => pending,
       getSecureWorldClock: () => secureWorldClock,
+      timerAttrs, timerText: seconds => fullCountdown(timerSeconds(seconds)),
       esc, pretty, money, dur, button, disabled, isBusy, heading, panel,
       characterRow, chip,
     });
@@ -1047,7 +1071,7 @@ import { createWorldViews } from "/world-views.mjs";
       '" aria-label="Chat">' +
       '<div class="chat-dock-actions"><button type="button" class="chat-game-refresh" ' +
       'data-ui="page-back" title="Back to previous page" aria-label="Back to previous page"' +
-      disabled(!pageHistory.length) + '>‹</button>' +
+      disabled(!pageHistory.length || combatNavigationLocked()) + '>‹</button>' +
       '<button type="button" class="chat-toggle" data-ui="chat-toggle" ' +
       'aria-expanded="' + chatOpen + '">' +
       '<span aria-hidden="true">✉</span> Chat ' +
@@ -1085,6 +1109,25 @@ import { createWorldViews } from "/world-views.mjs";
       '</aside>';
   }
 
+  function guildLeaveConfirmation() {
+    const own = state && state.guilds && state.guilds.my_guild;
+    if (!guildLeaveIntent || !own) return "";
+    const lastMember = Object.keys(own.members).length === 1;
+    return '<div class="travel-confirm-overlay" role="presentation">' +
+      '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
+      'aria-labelledby="guild-leave-title" aria-describedby="guild-leave-description">' +
+      '<h2 id="guild-leave-title">' +
+      (lastMember ? 'Dissolve ' + esc(own.name) + '?' : 'Leave ' + esc(own.name) + '?') +
+      '</h2><p id="guild-leave-description">' +
+      (lastMember ? 'You are the last member. Leaving will permanently dissolve ' +
+        'the guild and all its accumulated progress. Are you sure?' :
+        'Are you sure you want to leave this guild?') +
+      '</p><div class="travel-confirm-actions">' +
+      button("Cancel", 'data-ui="guild-leave-cancel"', "secondary") +
+      button(lastMember ? "Dissolve guild" : "Leave guild",
+        'data-ui="guild-leave-confirm"', "gold") +
+      '</div></section></div>';
+  }
   let lastMapHex = null;
   function render() {
     const previous = root.querySelector(".terrain-map-scroll");
@@ -1098,7 +1141,8 @@ import { createWorldViews } from "/world-views.mjs";
       root.innerHTML = introductionPage();
     else if (state && state.started) root.innerHTML = shell() +
       chatDock() + levelUpOverlay() +
-      (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "");
+      (tab === "world" ? renderTravelConfirmation() + renderHexConfirmation() : "") +
+      guildLeaveConfirmation();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
     const map = root.querySelector(".terrain-map-scroll");
@@ -1216,6 +1260,10 @@ import { createWorldViews } from "/world-views.mjs";
   });
 
   root.addEventListener("input", event => {
+    if (event.target.id === "guild-name") {
+      event.target.setCustomValidity("");
+      return;
+    }
     if (event.target.id === "chronicle-query") {
       chronicleQuery = event.target.value;
       const list = document.getElementById("chronicle-list");
@@ -1370,12 +1418,46 @@ import { createWorldViews } from "/world-views.mjs";
       case "guild-found": {
         const input = document.getElementById("guild-name");
         const name = input && input.value.trim();
-        if (!name || name.length < 3) {
-          notify('Enter a guild name of at least 3 characters', true); break;
+        if (!name || name.length < 3 || name.length > 40) {
+          if (input) {
+            input.setCustomValidity("Guild name must contain 3–40 characters.");
+            input.reportValidity();
+          }
+          notify("Guild name must contain 3–40 characters.", true);
+          break;
         }
+        input.setCustomValidity("");
         action("found_guild", { name }, "Guild founded"); break;
       }
-      case "guild-leave": action("leave_guild", {}, "Left your guild"); break;
+      case "guild-leave":
+        if (state.guilds?.my_guild) {
+          const guild = state.guilds.my_guild;
+          guildLeaveIntent = {id: guild.id, lastMember: Object.keys(guild.members).length === 1};
+        }
+        render(); break;
+      case "guild-leave-cancel":
+        guildLeaveIntent = null;
+        render(); break;
+      case "guild-leave-confirm": {
+        const confirmation = guildLeaveIntent;
+        if (!confirmation) break;
+        guildLeaveIntent = null;
+        (async () => {
+          try {
+            const fresh = await request("/api/state");
+            state = fresh;
+            const guild = fresh.guilds?.my_guild;
+            if (!guild || guild.id !== confirmation.id ||
+                (Object.keys(guild.members).length === 1) !== confirmation.lastMember) {
+              notify("Your guild membership changed; review before leaving.", true);
+              render();
+              return;
+            }
+            await action("leave_guild", {}, "Left your guild");
+          } catch (error) { notify(error.message, true); render(); }
+        })();
+        break;
+      }
       case "merit-claim":
         action("claim_merit", { achievement: element.dataset.achievement }, "Merit earned"); break;
       case "merit-buy":
@@ -1533,9 +1615,27 @@ import { createWorldViews } from "/world-views.mjs";
       case "trade-close":
         action("close_trade", { trade_id: Number(element.dataset.tradeId) },
           "Trade closed; escrow returned to maker"); break;
-      case "player-attack":
-        action("start_duel", { defender_id: element.dataset.player },
-          "Challenge begun · choose your combat move"); break;
+      case "player-attack": {
+        if (combatNavigationLocked()) break;
+        const target = (state.users || []).find(person =>
+          person.id === element.dataset.player && person.can_attack);
+        if (!target) { notify("The target is no longer available", true); break; }
+        duelPreviewTarget = target.id;
+        navigateTo("duel");
+        render();
+        break;
+      }
+      case "duel-preview-back":
+        duelPreviewTarget = null;
+        navigateTo("people");
+        render(); break;
+      case "duel-engage": {
+        const target = duelPreviewTarget;
+        if (!target || combatNavigationLocked()) break;
+        action("engage_duel", { defender_id: target, move: element.dataset.move },
+          "Attack resolved");
+        break;
+      }
       case "duel-swing":
         action("duel_turn", { move: element.dataset.move, node_id: "" },
           "Attack resolved"); break;

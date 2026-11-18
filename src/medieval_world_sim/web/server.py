@@ -30,6 +30,7 @@ from .live_delta import activity_delta
 ASSETS = {
     "/": ("index.html", "text/html; charset=utf-8"),
     "/app.js": ("app.js", "application/javascript; charset=utf-8"),
+    "/chronicle-views.mjs": ("chronicle-views.mjs", "application/javascript; charset=utf-8"),
     "/world-views.mjs": ("world-views.mjs", "application/javascript; charset=utf-8"),
     "/community-views.mjs": ("community-views.mjs", "application/javascript; charset=utf-8"),
     "/city-views.mjs": ("city-views.mjs", "application/javascript; charset=utf-8"),

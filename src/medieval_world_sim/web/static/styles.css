@@ -102,6 +102,15 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .activity li {display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #e8e5db;padding:10px 0;font-size:12px;line-height:1.4}
 .activity li:last-child {border-bottom:0}
 .activity time {color:#899087;white-space:nowrap;font-size:10px}
+.activity li.activity-encounter { display:block; }
+.activity-encounter details { width:100%; }
+.activity-encounter summary { display:flex;align-items:flex-start;
+  justify-content:space-between;gap:12px;cursor:pointer;list-style:revert; }
+.activity-encounter summary:focus-visible { outline:2px solid #56715a;outline-offset:3px; }
+.activity-encounter summary::marker { color:#45664e; }
+.activity-encounter .encounter-rounds { padding:8px 0 0 23px;margin:0; }
+.activity-encounter .encounter-rounds li { display:flex;gap:12px;align-items:flex-start;
+  padding:6px 0;font-size:11px; }
 .empty {padding:25px 10px;color:var(--muted);font-size:13px;text-align:center}
 .callout {border:1px solid #d4d9c5;background:#eef2e7;border-radius:12px;padding:15px;line-height:1.55;font-size:12px;color:#40574c}
 .callout strong {display:block;font-size:13px;margin-bottom:4px}
@@ -264,6 +273,12 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 }
 .side-nav .nav-button:hover { background:#d4dfd1; color:#254433; }
 .side-nav .nav-button.active { background:#25493b; color:#f8dfae; }
+/* Combat cannot be left after a real attack; preview navigation stays active. */
+.side-nav .nav-button:disabled,
+.account-nav .nav-button:disabled,
+.mobile-nav .nav-button:disabled { opacity:.35; color:#85918b; background:#d9dfd9; cursor:not-allowed; pointer-events:none; }
+.account-nav .nav-button:disabled { background:#283b33; color:#86948a; }
+.profile-shortcut:disabled, .chat-game-refresh:disabled { opacity:.35; cursor:not-allowed; }
 .sidebar-foot { margin-top:28px; border-top:1px solid #cdd7cb; color:#819184; font-size:11px; line-height:1.5; padding:15px 12px; }
 .main-column { min-width:0; }
 .page { max-width:1200px; margin:0 auto; padding:27px clamp(17px,3vw,40px) 70px; }
@@ -650,7 +665,12 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .university-course strong { display:block;font-size:13px; }
 .university-course small { display:block;color:#677166;font-size:11px;margin-top:4px; }
 .university-course .button { flex:0 0 auto; }
-.university-progress { margin:0 0 15px; }
+.university-progress { display:grid;gap:7px;margin:0 0 15px;padding:12px 15px;
+  border:1px solid #d8cdb6;border-radius:9px;background:#f6f0e2; }
+.university-progress strong { font-size:14px; }
+.university-countdown { font-variant-numeric:tabular-nums;font-size:14px;color:#334e3a; }
+.university-progress progress { width:100%;height:12px;accent-color:#54775a; }
+.university-progress small { color:#596d5c; }
 .vital-stamina .vital-icon svg { display:block;width:14px;height:14px; }
 @media (max-width:1080px) { .university-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } }
 @media (max-width:640px) { .university-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
@@ -961,7 +981,26 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .terrain-atlas-legend span:nth-child(2) { color: #b8b4a0; }
 .terrain-atlas-legend span:nth-child(3) { color: #bcc1c0; }
 .terrain-atlas .survey-towns text { pointer-events: none; }
+.terrain-atlas .survey-towns .map-destination,
+.terrain-atlas .survey-sites .map-destination { cursor: pointer; pointer-events: all; }
+.terrain-atlas .survey-towns .map-destination:hover circle,
+.terrain-atlas .survey-towns .map-destination:focus circle { stroke: #fff1a6; stroke-width: 2.6; }
+.terrain-atlas .survey-sites .map-destination:hover path,
+.terrain-atlas .survey-sites .map-destination:focus path { stroke: #fff1a6; stroke-width: 2.4; }
+.map-key-city { color: #c19b53; text-shadow: 0 0 1px #372920; font-size: 15px; }
+.map-key-poi { color: #292c2a; text-shadow: 0 0 1px #dcbf87; font-size: 15px; }
 .terrain-atlas .survey-player { filter: drop-shadow(0 0 4px #fff4b2); }
+.map-hotlist { margin:12px 0 18px;padding:10px 14px;background:#f8f4e9;
+  border:1px solid #d9d0bd;border-radius:9px; }
+.map-hotlist>summary { font-size:13px;font-weight:700;cursor:pointer; }
+.map-hotlist>summary:focus-visible { outline:2px solid #52715b;outline-offset:3px; }
+.map-hotlist .small { margin:10px 0 4px; }
+.map-hotlist-row { display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:8px 0;border-bottom:1px solid #e1d8c7; }
+.map-hotlist-row:last-child { border-bottom:0; }
+.map-hotlist-row strong { display:block;font-size:12px; }
+.map-hotlist-row small { color:#637366;font-size:11px; }
+.map-hotlist-row button { flex:0 0 auto; }
 @media(max-width:700px) {
   .terrain-map-scroll { min-height: 300px; max-height: 52vh; }
   .terrain-atlas-legend { font-size: 11px; gap: 5px 12px; }

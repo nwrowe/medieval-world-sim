@@ -66,7 +66,7 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
     equipped_kinds = equipped_kinds or {}
     human_names = human_names or {}
     def who(account_id):
-        return human_names.get(account_id, account_id)
+        return human_names.get(account_id, "Unknown adventurer")
     gear_kind = gear_kinds.get(info.get("gear_id"))
     readable = {
         "trade_proposed": (
@@ -132,17 +132,17 @@ def _friendly_event(event, *, gear_kinds=None, equipped_kinds=None,
         "church_healed": f"Church healing restored {info.get('health_restored')} HP for {info.get('gold')} gold",
         "horse_purchased": f"Purchased {info.get('breed')} racehorse for {info.get('gold')} gold",
         "horse_raced": f"Raced {info.get('breed')}: place {info.get('placing')}, earned {info.get('xp')} riding XP and {info.get('prize')} gold",
-        "pvp_strike": (f"Skirmish against {info.get('defender_id')}: "
+        "pvp_strike": (f"Skirmish against {who(info.get('defender_id'))}: "
                        f"{info.get('damage')} damage, "
                        f"{info.get('retaliation')} retaliated, "
                        f"{info.get('gold_looted')}g looted"),
-        "duel_started": f"Challenge begun against {info.get('defender_id')}",
+        "duel_started": f"Challenge begun against {who(info.get('defender_id'))}",
         "duel_round": (
             f"Combat round {info.get('round')}: {info.get('move')} "
             f"({info.get('damage')} damage, {info.get('retaliation')} returned)"
         ),
         "duel_finished": (
-            f"{info.get('winner_id')} defeated {info.get('loser_id')} "
+            f"{who(info.get('winner_id'))} defeated {who(info.get('loser_id'))} "
             f"and claimed {info.get('gold')} gold"
         ),
         "duel_flee_attempt": (

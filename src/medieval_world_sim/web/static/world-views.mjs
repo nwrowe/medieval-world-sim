@@ -58,7 +58,7 @@ export function createWorldViews(ctx) {
       const step = canStep && nearbySteps.has(index);
       const attrs = step ? ' data-ui="explore-hex" data-x="' + x +
         '" data-y="' + y + '" tabindex="0" role="button" ' +
-        'aria-label="Travel to hex ' + x + ', ' + y + '"' : '';
+        'aria-label="Travel to hex (' + x + ',' + y + ')"' : '';
       return '<g><polygon class="' + (step ? 'hex-step-target' : '') +
         '" points="' + points(x,y) + '" fill="' + fill + '"' + attrs +
         (faded ? ' opacity=".67"' : "") + ' stroke="#e5ddc9" stroke-opacity=".34"' +
@@ -78,24 +78,29 @@ export function createWorldViews(ctx) {
       const [cx,cy] = hexCenter(x, y);
       const active = canStep && nearbySteps.has(tile.i);
       const attrs = active ? ' data-ui="explore-hex" data-x="' + x +
-        '" data-y="' + y + '" role="button" tabindex="0"' : '';
+        '" data-y="' + y + '" role="button" tabindex="0" aria-label="Travel to ' +
+        esc(tile.sites[0].name) + '"' : ' pointer-events="none"';
       return '<g class="survey-site-marker' + (active ? ' map-destination' : '') +
         '"' + attrs + '><circle cx="' + cx.toFixed(1) + '" cy="' +
-        cy.toFixed(1) + '" r="7" fill="transparent"/>' +
-        '<path d="M' + cx.toFixed(1) + ',' + (cy-3.8).toFixed(1) +
-        ' l3.8,3.8 l-3.8,3.8 l-3.8,-3.8 z" fill="#83607c" ' +
-        'stroke="#e7cf9d" stroke-width="1.1"/><title>' +
+        cy.toFixed(1) + '" r="10" fill="transparent" pointer-events="' +
+        (active ? 'all' : 'none') + '"/>' +
+        '<path d="M' + cx.toFixed(1) + ',' + (cy-4.5).toFixed(1) +
+        ' l4.5,4.5 l-4.5,4.5 l-4.5,-4.5 z" fill="#292c2a" ' +
+        'stroke="#e7cf9d" stroke-width="1.1" pointer-events="' +
+        (active ? 'all' : 'none') + '"/><title>' +
         esc(tile.sites.map(site=>site.name).join(", ")) + '</title></g>';
     }).join("");
     const towns = atlas.towns.map(city=>{
       const [x,y] = hexCenter(city.x, city.y);
       const active = canStep && nearbySteps.has(city.y * atlas.width + city.x);
       const attrs = active ? ' data-ui="explore-hex" data-x="' + city.x +
-        '" data-y="' + city.y + '" role="button" tabindex="0"' : '';
+        '" data-y="' + city.y + '" role="button" tabindex="0" aria-label="Travel to ' +
+        esc(city.name) + '"' : ' pointer-events="none"';
       return '<g class="survey-city-marker' + (active ? ' map-destination' : '') +
         '"' + attrs + '><circle cx="' + x.toFixed(1) +
-        '" cy="' + y.toFixed(1) + '" r="6" fill="#d6b26c" ' +
-        'stroke="#483a2d" stroke-width="1.5"/>' +
+        '" cy="' + y.toFixed(1) + '" r="8.5" fill="#d6b26c" ' +
+        'stroke="#483a2d" stroke-width="1.5" pointer-events="' +
+        (active ? 'all' : 'none') + '"/>' +
         '<text x="' + (x+7).toFixed(1) + '" y="' + (y-6).toFixed(1) +
         '" fill="#2d382d" stroke="#e7debb" stroke-width="2" paint-order="stroke"' +
         ' font-family="Georgia,serif" font-size="11">' +
@@ -127,6 +132,8 @@ export function createWorldViews(ctx) {
       '</div><div class="terrain-map-scroll">' + svg + '</div>' +
       '<div class="terrain-atlas-legend"><span>■ Full color: in sight</span>' +
       '<span>■ Muted color: explored</span><span>■ Gray: uncharted</span>' +
+      '<span><span class="map-key-city" aria-hidden="true">●</span> City</span>' +
+      '<span><span class="map-key-poi" aria-hidden="true">◆</span> Place of interest</span>' +
       '<span>Vision radius: ' + atlas.sight_radius + ' hexes</span>' +
       '<span>Explored: ' + Number(atlas.explored_percent).toFixed(1) +
       '%</span><span>' + (atlas.in_wilderness ? 'Exploring wilderness' :
@@ -146,11 +153,9 @@ export function createWorldViews(ctx) {
     return '<div class="travel-confirm-overlay" role="presentation">' +
       '<section class="travel-confirm-card" role="dialog" aria-modal="true" ' +
       'aria-labelledby="hex-travel-title" aria-describedby="hex-travel-description">' +
-      '<div class="section-kicker">Explore the wilderness</div>' +
       '<h2 id="hex-travel-title">Travel to ' + esc(step.label) + '?</h2>' +
-      '<p id="hex-travel-description">Estimated travel time: <strong>' +
-      esc(travelTime(step.minutes)) + '</strong>. Every hex along the journey ' +
-      'will be explored as you cross it.</p>' +
+      '<p id="hex-travel-description">Travel time: <strong>' +
+      esc(travelTime(step.minutes)) + '</strong></p>' +
       '<div class="travel-confirm-actions">' +
       button("Cancel", 'data-ui="hex-travel-cancel"', "secondary") +
       button("Begin journey", 'data-ui="hex-travel-confirm"', "gold") +
@@ -181,6 +186,34 @@ export function createWorldViews(ctx) {
       '</div></section></div>';
   }
 
+  function discoveredCityHotlist() {
+    const state = ctx.getState();
+    const atlas = state.world_map;
+    if (!atlas) return "";
+    // Reuse the authoritative route quotes already present in this snapshot:
+    // the Hotlist never initiates an additional server request or route search.
+    const byPosition = new Map((atlas.steps || []).map(step =>
+      [step.x + "," + step.y, step]));
+    const destinations = (atlas.towns || []).map(city => ({
+      city, quote: byPosition.get(city.x + "," + city.y)
+    })).filter(entry => entry.quote && Number.isFinite(entry.quote.minutes))
+      .sort((a, b) => a.quote.minutes - b.quote.minutes ||
+        a.city.name.localeCompare(b.city.name));
+    if (!destinations.length) return "";
+    const busy = isBusy();
+    const choices = destinations.map(({city, quote}) =>
+      '<div class="map-hotlist-row"><span><strong>' + esc(city.name) +
+      '</strong><small>Est. ' + esc(travelTime(quote.minutes)) +
+      '</small></span>' +
+      button("Travel", 'data-ui="explore-hex" data-x="' + city.x +
+        '" data-y="' + city.y + '"' + disabled(busy), "secondary") +
+      '</div>').join("");
+    return '<details class="map-hotlist"><summary>Hotlist · ' +
+      destinations.length + ' discovered destinations</summary>' +
+      '<p class="small">Estimated from your current hex; refreshed with map travel data.</p>' +
+      '<div class="map-hotlist-rows">' + choices + '</div></details>';
+  }
+
   function renderWorld() {
     const state = ctx.getState();
     const pending = ctx.getPending();
@@ -188,74 +221,28 @@ export function createWorldViews(ctx) {
     const p = state.player;
     const traveling = Boolean(p.destination);
     const inWilderness = Boolean(state.world_map && state.world_map.in_wilderness);
-
     const defeated = p.hp <= 0 || p.defeated_until != null;
-    const timeToArrival = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
-    const ready = !traveling && !defeated && state.minute >= p.ready_minute;
-    const destinations = state.cities.filter(c => !c.is_current).map(city =>
-      '<div class="mini-card"><div class="mini-card-top">' +
-      '<div><div class="mini-card-title">' + esc(city.name) + '</div>' +
-      '<div class="mini-card-sub">' + esc(travelTime(city.minutes)) +
-      (city.discovered ? ' along the royal roads' : ' into uncharted territory') + '</div></div>' +
-      '<span class="muted">◈</span></div>' +
-      button(city.discovered ? "Travel" : "Explore", 'data-ui="travel" data-target="' + esc(city.id) + '"' +
-        disabled(isBusy() || inWilderness || p.cargo > p.cargo_limit), "full secondary") + '</div>'
-    ).join("");
-    const gathering = Object.entries(state.gatherable).map(([item, available]) => {
-      const quantity = Math.min(2, available);
-      return '<div class="resource-chip"><div><strong>' + esc(pretty(item)) +
-        '</strong><div class="small">' + available + ' nearby</div></div>' +
-        button(quantity > 0 ? "Gather " + quantity : "Unavailable", 'data-ui="gather" data-item="' +
-          esc(item) + '" data-qty="' + quantity + '"' +
-          disabled(!ready || quantity < 1 || pending), "s secondary") + '</div>';
-    }).join("") || '<p class="small">No gatherable natural resources remain here; visit a different region.</p>';
+    const remaining = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
     const journey = traveling ?
       '<section class="journey"><div class="section-kicker">Journey in progress</div>' +
-      '<h3>' + (p.hex_target ? 'Exploring hex ' + p.hex_target.join(", ") :
+      '<h3>' + (p.hex_target ? 'Traveling to (' + p.hex_target.join(",") + ')' :
         'Road to ' + esc(pretty(p.destination))) + '</h3>' +
-      '<p>' + esc(travelTime(timeToArrival)) + ' until arrival. Your purchases and abilities ' +
-      'are paused while traveling.</p>' +
-      (secureWorldClock ?
-        '<p class="small">Arrival is automatic as server time passes.</p>' :
-        button("Complete journey", 'data-ui="advance" data-minutes="' + timeToArrival + '"' +
-          disabled(pending))) + '</section>'
-      : defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your character ' +
-        'has recovered before beginning another activity.</div>' : "";
-    return heading("", "World Map", "A growing atlas of places you have visited. Venture beyond the familiar roads to lift the fog.") +
-      worldMap() +
-      (inWilderness ? '<div class="callout"><strong>Wilderness</strong>' +
-        'Explore adjacent hexes or return to a settlement for trade, crafting ' +
-        'and other town services.</div>' : '') +
+      '<p>' + esc(travelTime(remaining)) + ' until arrival.</p>' +
+      (secureWorldClock ? '<p class="small">Arrival is automatic.</p>' :
+        button("Complete journey", 'data-ui="advance" data-minutes="' +
+          remaining + '"' + disabled(pending))) + '</section>' :
+      defeated ? '<div class="callout"><strong>Recovering</strong>Rest until your ' +
+        'character has recovered before traveling.</div>' : "";
+    return heading("", "Map", "") + worldMap() +
+      discoveredCityHotlist() +
+      (inWilderness && !traveling ?
+        '<div class="callout"><strong>Wilderness</strong>' +
+        'Return to a settlement for commerce, crafting and city services.</div>' : '') +
       (p.cargo > p.cargo_limit ?
-        '<div class="callout"><strong>Travel cargo exceeded</strong>You have ' +
-        p.cargo + ' of ' + p.cargo_limit + ' road cargo units. ' +
-        'Store extra goods in the city inventory before departure; city storage is unlimited.</div>' : '') +
-      '<div class="two-col"><div class="stack">' + journey +
-      panel("Roads and destinations", "Follow connected roads to reveal new settlements and terrain.",
-        '<div class="card-grid">' + destinations + '</div>') +
-      panel("Gather nearby resources", "Collect resources to sell locally or take to another city.",
-        '<div class="resource-list">' + gathering + '</div>' +
-        (!ready && !traveling ? '<p class="small mt-12">Gathering cooldown: ' +
-          Math.max(0, p.ready_minute - state.minute) + ' minutes remaining.</p>' : "")) +
-      panel("Time and recovery",
-        secureWorldClock ? "World time follows the server clock." :
-          "World time advances when you choose to rest or travel.",
-        secureWorldClock ?
-          '<p>Travel, cooldowns, stamina and mana progress automatically with real time.</p>' :
-          '<div class="button-group">' +
-          button("Rest 1 hour", 'data-ui="advance" data-minutes="60"' + disabled(pending), "secondary") +
-          button("Pass 6 hours", 'data-ui="advance" data-minutes="360"' + disabled(pending), "ghost") +
-          button("Next day", 'data-ui="advance" data-minutes="1440"' + disabled(pending), "ghost") +
-          '</div><p class="small mt-12">Stamina and mana recover with simulated time.</p>') +
-      '</div><aside class="stack">' +
-      panel("Exploration and Awareness", "Your discovered map is permanent",
-        '<p class="small">The world shows gray elevation relief beyond your sight. ' +
-        'Travel opens new hexes along the whole route, and your discoveries stay mapped. ' +
-        'Purchase Awareness I and II in Merits to expand your radius from 2 to 3 and 4.</p>' +
-        '<p class="small">You can travel to mapped cities or explore the next uncharted ' +
-        'road exit. Undiscovered ruins and natural resources are not transmitted ' +
-        'to your browser.</p>') +
-      '</aside></div>';
+        '<div class="callout"><strong>Travel cargo exceeded</strong>Carrying ' +
+        p.cargo + ' of ' + p.cargo_limit +
+        ' units; store items in a city before beginning a journey.</div>' : '') +
+      journey;
   }
 
   function sellOnlyGoods() {

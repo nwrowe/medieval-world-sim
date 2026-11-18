@@ -57,9 +57,6 @@ export function createCityViews(ctx) {
   }
   function renderMercenaryJobs() {
     return heading("", "Mercenary Jobs", "") +
-      '<section class="story-panel"><h3>Work for hire</h3>' +
-      '<p>Patrol the city, assist the magical guild, deliver church supplies, or take merchant contracts. ' +
-      'Each completed job uses the existing city-funded rewards and cooldown limits.</p></section>' +
       '<div class="stack">' +
       contractBoard("warriors", "Warrior contracts") +
       contractBoard("mageguild", "Mage contracts") +
@@ -100,10 +97,7 @@ export function createCityViews(ctx) {
         '</div>';
     }).join('');
     const last = track.last_result;
-    return '<section class="story-panel"><h3>The Five Cities Circuit</h3>' +
-      '<p>In Oathmere, a rider is judged as much by the patience of their mount as ' +
-      'the courage of their hand. At the city track, novice jockeys race for ' +
-      'coin and honor beneath the pennants of the five roads.</p>' +
+    return '<section class="story-panel"><h3>Riding</h3>' +
       '<p>Riding experience: <strong>' + (track.riding_xp || 0) +
       ' XP</strong> · Entry ' + money(track.entry_fee || 10) +
       ' · ' + (track.race_cost || 15) + ' stamina · ' +
@@ -143,11 +137,14 @@ export function createCityViews(ctx) {
     } else {
       myGuild = panel('Found your guild',
         'Choose a banner name and pay a one-time 100 gold charter fee.',
-        '<div class="button-group"><input class="field" id="guild-name" maxlength="40" ' +
-        'placeholder="Guild name (3–40 characters)" aria-label="Guild name">' +
+        '<div class="button-group"><input class="field" id="guild-name" minlength="3" maxlength="40" ' +
+        'placeholder="Guild name (3–40 characters)" aria-label="Guild name" ' +
+        'aria-describedby="guild-name-help">' +
         button('Found Guild · ' + money(info.founding_cost || 100),
           'data-ui="guild-found"' + disabled(isBusy() ||
-          state.player.gold < (info.founding_cost || 100)), 'gold') + '</div>');
+          state.player.gold < (info.founding_cost || 100)), 'gold') +
+        '</div><p class="small" id="guild-name-help" role="status">' +
+        'Guild names must contain between 3 and 40 characters.</p>');
     }
     return heading('', 'Guilds', '') +
       '<div class="stack">' + myGuild +
@@ -186,10 +183,10 @@ export function createCityViews(ctx) {
       '</div>').join('');
     return '<div class="stack">' +
       panel('Your merit ledger', '',
-        '<div class="resource-list">' + chip('Available: ' + (info.balance || 0)) +
+        '<div class="resource-list">' + chip('Available to spend: ' + (info.balance || 0)) +
         chip('Lifetime earned: ' + (info.total_earned || 0)) + '</div>') +
       panel('Achievements', 'Complete goals throughout Oathmere.', feats) +
-      panel('Permanent improvements', 'Spend earned merits on carefully bounded advantages.', upgrades) +
+      panel('Permanent improvements', '', upgrades) +
       '</div>';
   }
   function renderCityHall() {
@@ -214,24 +211,43 @@ export function createCityViews(ctx) {
     const expandedUniversitySchool = ctx.getExpandedUniversitySchool();
     const hall = state.training_hall || { schools: [], active: null };
     const studies = hall.active;
-    const studying = studies ?
-      '<p class="small university-progress">Studying ' +
-      esc(pretty(studies.school)) + ' · Course ' + (studies.index + 1) +
-      ' · ' + Math.max(1, Math.ceil(studies.remaining_minutes / 1440)) +
-      ' simulated days remaining</p>' : '';
+    const studying = studies ? (() => {
+      const school = hall.schools.find(item => item.id === studies.school);
+      const course = school && school.courses[studies.index];
+      const total = (course ? course.days : 1) * 1440;
+      const remaining = Math.max(0, Number(studies.remaining_minutes) || 0);
+      const elapsed = Math.min(total, Math.max(0, total - remaining));
+      const name = course ? course.name : pretty(studies.school);
+      return '<section class="university-progress" aria-label="Current university course">' +
+        '<strong>Studying ' + esc(name) + '</strong>' +
+        '<time class="university-countdown" role="timer" aria-live="off" ' +
+        'data-university-countdown="true" ' + ctx.timerAttrs('', remaining * 60) +
+        '>' + esc(ctx.timerText(remaining * 60)) + ' remaining</time>' +
+        '<progress value="' + elapsed + '" max="' + total +
+        '" aria-label="' + esc(name) + ' course progress"></progress>' +
+        '<small>' + Math.floor(elapsed * 100 / total) + '% complete</small>' +
+        '</section>';
+    })() : '';
     const tiles = hall.schools.map(school => {
       const courses = school.courses.map((course, index) => {
         const fee = Number(course.tuition);
         const blocked = pending || isBusy() || state.player.gold < fee || !course.available;
         const action = course.completed ? chip("Completed") :
           course.active ? chip("In progress") :
+          course.prerequisites_missing && course.prerequisites_missing.length ?
+            chip("Locked") :
           button("Enroll · " + money(fee),
             'data-ui="course-enroll" data-school="' + esc(school.id) +
             '" data-index="' + index + '"' + disabled(blocked), "secondary");
+        const capstoneNote = course.prerequisites_missing &&
+          course.prerequisites_missing.length ?
+          '<small>Complete the other ' + course.prerequisites_missing.length +
+          ' courses to unlock</small>' : '';
         return '<div class="university-course"><div><strong>' +
-          esc(course.name) + '</strong><small>' + course.days +
-          ' days · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
-          ' · Tuition ' + money(fee) + '</small></div>' + action + '</div>';
+          esc(course.name) + '</strong><small>' +
+          (course.active ? 'In progress' : course.days + ' days') +
+          ' · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
+          '</small>' + capstoneNote + '</div>' + action + '</div>';
       }).join('');
       return '<details class="university-school" data-university="' +
         esc(school.id) + '"' +
@@ -241,12 +257,13 @@ export function createCityViews(ctx) {
         school.completed + ' of ' + school.total + ' courses completed</small></span>' +
         '<span class="university-expand" aria-hidden="true">⌄</span></summary>' +
         '<div class="university-school-body">' +
-        '<p class="small">Graduation: 1 merit' +
-        (school.capstone_perk ? ' · +' + school.capstone_perk.bonus +
-          ' ' + esc(pretty(school.capstone_perk.stat)) : '') +
-        (school.martial_perk ? ' · +' + school.martial_perk.bonus +
-          ' ' + esc(pretty(school.martial_perk.stat)) : '') +
-        '</p>' +
+        ((school.capstone_perk || school.martial_perk) ?
+          '<p class="small">Graduation bonus' +
+          (school.capstone_perk ? ': +' + school.capstone_perk.bonus +
+            ' ' + esc(pretty(school.capstone_perk.stat)) : '') +
+          (school.martial_perk ? (school.capstone_perk ? ' · +' : ': +') +
+            school.martial_perk.bonus + ' ' +
+            esc(pretty(school.martial_perk.stat)) : '') + '</p>' : '') +
         courses + '</div></details>';
     }).join('');
     return heading("", "University", "") + studying +

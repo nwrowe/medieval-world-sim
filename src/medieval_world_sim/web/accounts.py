@@ -58,8 +58,8 @@ def _password_hash(password: str, salt: bytes) -> bytes:
 
 def validate_registration(username: str, password: str, display_name: str) -> tuple[str, str]:
     if (not isinstance(username, str) or not re.fullmatch(
-            r"[A-Za-z][A-Za-z0-9_]{2,23}", username)):
-        raise ActionError("Username must be 3–24 letters, digits or underscores")
+            r"[A-Za-z0-9_]{3,24}", username)):
+        raise ActionError("Username must contain 3–24 ASCII letters, numbers or underscores only")
     if (not isinstance(display_name, str) or not re.fullmatch(
             r"[A-Za-z][A-Za-z '’-]{1,27}", display_name.strip())):
         raise ActionError("Character name must be 2–28 letters or spaces")
