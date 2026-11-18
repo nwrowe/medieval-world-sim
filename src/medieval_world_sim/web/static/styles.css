@@ -287,7 +287,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .account-nav .nav-button:disabled,
 .mobile-nav .nav-button:disabled { opacity:.35; color:#85918b; background:#d9dfd9; cursor:not-allowed; pointer-events:none; }
 .account-nav .nav-button:disabled { background:#283b33; color:#86948a; }
-.profile-shortcut:disabled, .chat-game-refresh:disabled { opacity:.35; cursor:not-allowed; }
+.settings-shortcut:disabled, .chat-game-refresh:disabled { opacity:.35; cursor:not-allowed; }
 .sidebar-foot { margin-top:28px; border-top:1px solid #cdd7cb; color:#819184; font-size:11px; line-height:1.5; padding:15px 12px; }
 .main-column { min-width:0; }
 .page { max-width:1200px; margin:0 auto; padding:27px clamp(17px,3vw,40px) 70px; }
@@ -319,6 +319,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .profile-hero strong { font-size:22px; color:#e8c780; }
 .profile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .profile-magic-panel { margin-top:18px; }
+.equipment-storage-panel { margin-top:18px; }
 .character-row { display:flex; justify-content:space-between; border-bottom:1px solid #e3e4d9; padding:9px 0; gap:10px; font-size:12px; }
 .character-row span { color:#637266; }
 .character-row strong { color:#284535; font-size:12px; text-align:right; }
@@ -923,16 +924,18 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .travel-confirm-actions {display:flex; flex-wrap:wrap; gap:10px; margin-top:24px;}
 .travel-confirm-actions .button {flex:1 1 145px; min-height:45px;}
 
-/* Account controls: the public profile shortcut sits directly above Sign out. */
+/* The hamburger opens Settings; Sign out remains below it. */
 .account-utility {display:flex;flex-direction:column;align-items:stretch;gap:5px}
-.profile-shortcut {
+.settings-shortcut {
   display:flex;align-items:center;justify-content:center;gap:6px;
   border:1px solid rgba(223,235,218,.35);background:transparent;
   border-radius:8px;padding:7px 9px;color:#f4e6c9;cursor:pointer;
-  font-size:10px;white-space:nowrap;
+  font-size:10px;white-space:nowrap;min-height:32px;
 }
-.profile-shortcut svg {width:15px;height:15px;flex:0 0 15px;stroke:currentColor}
-.profile-shortcut:hover,.profile-shortcut:focus-visible {background:#3b5647;color:#fff3d5}
+.settings-shortcut svg {width:20px;height:20px;flex:0 0 20px;}
+.settings-shortcut:hover,.settings-shortcut:focus-visible,.settings-shortcut.active {
+  background:#3b5647;color:#fff3d5;
+}
 @media(max-width:640px) {
   .account-utility {grid-column:1/-1;grid-row:4;display:flex;
     flex-direction:row;justify-content:flex-end;gap:6px}
@@ -1037,3 +1040,101 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 .terrain-atlas .survey-player { pointer-events: none; }
 .terrain-atlas .hex-step-target { stroke: #f8e7a3; stroke-width: 2.1; }
 .terrain-atlas .hex-step-target:focus { outline: none; stroke: #ffffff; stroke-width: 3; }
+
+/* Settings: browser-only appearance preference and future configuration space. */
+.settings-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:start;}
+.settings-grid .panel {min-height:168px;}
+.settings-grid .panel-head {margin-bottom:13px;}
+.settings-choices {display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;}
+.settings-choice {flex:1 1 100px;min-width:92px;}
+.settings-choice.active {border-color:#b08b47;background:#ebe0c4;color:#2e4437;}
+.settings-future {display:inline-block;border:1px dashed var(--line);border-radius:7px;
+  padding:8px 10px;font-size:11px;color:var(--muted);}
+.settings-info {display:flex;flex-wrap:wrap;justify-content:space-between;gap:9px;
+  padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;}
+.settings-info span {color:var(--muted);}
+.settings-info strong {font-size:12px;}
+@media(max-width:700px){.settings-grid {grid-template-columns:1fr;}}
+
+/* Dark appearance: retain natural map artwork and the branded topbar, but make
+   game surfaces, text and form controls legible without altering world state. */
+:root[data-theme="dark"] {
+  color-scheme:dark;
+  --deep:#11221c;
+  --forest:#2a5544;
+  --moss:#547b64;
+  --gold-dark:#d1b475;
+  --parchment:#14221c;
+  --paper:#22342b;
+  --ink:#e4eae0;
+  --muted:#aebcb0;
+  --line:#43594b;
+}
+:root[data-theme="dark"] body {background:var(--parchment);color:var(--ink);}
+:root[data-theme="dark"] .sidebar,
+:root[data-theme="dark"] .mobile-nav {background:#1e3128;border-color:var(--line);}
+:root[data-theme="dark"] .sidebar-place {border-color:var(--line);}
+:root[data-theme="dark"] .sidebar-place strong,
+:root[data-theme="dark"] .sidebar-label,
+:root[data-theme="dark"] .side-nav .nav-button,
+:root[data-theme="dark"] .mobile-nav .nav-button,
+:root[data-theme="dark"] .mobile-nav summary {color:#d9e5d7;}
+:root[data-theme="dark"] .side-nav .nav-button:hover,
+:root[data-theme="dark"] .mobile-nav .nav-button:hover {background:#2d4d3b;color:#f1e6c8;}
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] .mini-card,
+:root[data-theme="dark"] .resource-chip,
+:root[data-theme="dark"] .location-card,
+:root[data-theme="dark"] .search-panel,
+:root[data-theme="dark"] .search-results-panel,
+:root[data-theme="dark"] .magic-node,
+:root[data-theme="dark"] .home-spell,
+:root[data-theme="dark"] .spell-tier-block,
+:root[data-theme="dark"] .university-school,
+:root[data-theme="dark"] .university-progress,
+:root[data-theme="dark"] .map-hotlist,
+:root[data-theme="dark"] .trade-asset-details,
+:root[data-theme="dark"] .route-map {
+  background:var(--paper);color:var(--ink);border-color:var(--line);
+}
+:root[data-theme="dark"] .university-school>summary strong,
+:root[data-theme="dark"] .character-row strong,
+:root[data-theme="dark"] .spell-description h4,
+:root[data-theme="dark"] .home-spell-description strong,
+:root[data-theme="dark"] .route-map strong,
+:root[data-theme="dark"] .magic-context strong {color:#e5ede3;}
+:root[data-theme="dark"] .university-school>summary:hover,
+:root[data-theme="dark"] .spell-tier-heading,
+:root[data-theme="dark"] .location-icon {background:#2c4638;color:#e2e9dd;}
+:root[data-theme="dark"] .character-row,
+:root[data-theme="dark"] .equipment-slot,
+:root[data-theme="dark"] .equipment-item,
+:root[data-theme="dark"] .activity li,
+:root[data-theme="dark"] .university-course,
+:root[data-theme="dark"] .university-school-body,
+:root[data-theme="dark"] .spell-row {border-color:var(--line);}
+:root[data-theme="dark"] .character-row span,
+:root[data-theme="dark"] .location-card p,
+:root[data-theme="dark"] .equipment-item p,
+:root[data-theme="dark"] .university-course small,
+:root[data-theme="dark"] .university-school>summary small,
+:root[data-theme="dark"] .university-progress small,
+:root[data-theme="dark"] .home-spell-description small {color:#b7c5b8;}
+:root[data-theme="dark"] .field,
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]),
+:root[data-theme="dark"] select,
+:root[data-theme="dark"] textarea {
+  background:#192c24;color:#eef2e9;border-color:#657869;
+}
+:root[data-theme="dark"] .button.secondary,
+:root[data-theme="dark"] .button.ghost {background:#31503f;color:#f3ebd6;border-color:#647d69;}
+:root[data-theme="dark"] .button.secondary:hover:not(:disabled),
+:root[data-theme="dark"] .button.ghost:hover:not(:disabled) {background:#3d604b;}
+:root[data-theme="dark"] .settings-choice.active {background:#655536;color:#fff0c9;border-color:#d6b371;}
+:root[data-theme="dark"] .chat-dock {background:#263a2d;border-color:#596852;color:#e7e9db;}
+:root[data-theme="dark"] .chat-history,.settings-info {border-color:var(--line);}
+:root[data-theme="dark"] .chat-post {border-color:var(--line);}
+:root[data-theme="dark"] .chat-post strong {color:#e3e9d8;}
+:root[data-theme="dark"] .chat-preview-notice {background:#334536;color:#e1e3d5;border-color:#536350;}
+:root[data-theme="dark"] .chat-compose,.chat-channels {border-color:#536350;}
+:root[data-theme="dark"] .pill {background:#2d493a;border-color:#5c7261;color:#f0e5c8;}

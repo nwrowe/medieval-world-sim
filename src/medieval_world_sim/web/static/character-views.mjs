@@ -216,9 +216,10 @@ export function createCharacterViews(ctx) {
       '<div class="profile-grid">' +
       panel("Equipped Gear", "", equipmentMannequin(owned, equipped) + slotRows) +
       panel("Owned Equipment", "Only carried equipment counts against your road cargo limit.", gearRows) +
-      '</div>' +
+      '</div><div class="equipment-storage-panel">' +
       panel("Stored Equipment", "Unlimited in Crownreach and other settlements; retrieve it in the same city.", storedGear +
-        (otherStores ? '<p class="small">Other city armories: ' + otherStores + '</p>' : ''));
+        (otherStores ? '<p class="small">Other city armories: ' + otherStores + '</p>' : '')) +
+      '</div>';
   }
   function renderArmory() {
     const state = ctx.getState();

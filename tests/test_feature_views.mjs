@@ -199,6 +199,7 @@ for (const name of ["renderInventory", "renderCharacter", "renderEquipment", "re
 }
 assert.match(character.renderInventory(), /Inventory/);
 assert.match(character.renderEquipment(), /Equipped Gear/);
+assert.match(character.renderEquipment(), /equipment-storage-panel/);
 state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };
 assert.match(character.renderInventory(), /3 carried/);
 const world = createWorldViews({
