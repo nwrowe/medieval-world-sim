@@ -4,6 +4,7 @@ import { createCityViews } from "/city-views.mjs";
 import { createWorldViews } from "/world-views.mjs";
 import { groupCombatChronicle } from "/chronicle-views.mjs";
 import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
+import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
 
 /* Oathmere — dependency-free responsive game client.
    Rendering is a read-only projection of server-authoritative world state.
@@ -45,6 +46,26 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
   let lineageCatalog = [];
   let tab = "character";
   const pageHistory = [];
+  const THEME_KEY = "oathmere.appearance.theme";
+  let themePreference = "system";
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (["system", "light", "dark"].includes(saved)) themePreference = saved;
+  } catch { /* Private browsing can disable local storage. */ }
+  function applyTheme() {
+    const systemDark = window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.dataset.theme =
+      themePreference === "dark" ||
+      (themePreference === "system" && systemDark) ? "dark" : "light";
+  }
+  applyTheme();
+  if (window.matchMedia) {
+    const query = window.matchMedia("(prefers-color-scheme: dark)");
+    if (query.addEventListener) query.addEventListener("change", () => {
+      if (themePreference === "system") applyTheme();
+    });
+  }
   function combatNavigationLocked() {
     return Boolean(state && state.duel && state.duel.attack_started);
   }
@@ -162,15 +183,12 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       String(value % 60).padStart(2, "0");
   }
   function timerSeconds(simSeconds) {
-    const total = Math.max(0, Number(simSeconds) || 0);
     const secondsPerMinute = state && state.dev_travel_seconds ? 1 : 60;
-    const scaled = total * secondsPerMinute / 60;
-    if (!secureWorldClock || !state || state.next_world_tick_seconds == null)
-      return scaled;
-    // A development minute is one real second in fast travel mode.
-    const partial = secondsPerMinute - Number(state.next_world_tick_seconds);
-    return Math.max(0, scaled - partial -
-      Math.max(0, (Date.now() - clockSyncedAt) / 1000));
+    // Both the badge and the tooltip must use wall-clock seconds, including
+    // accelerated play-testing where one game minute equals one real second.
+    return scaledTimerSeconds(simSeconds, secondsPerMinute,
+      secureWorldClock && state ? state.next_world_tick_seconds : null,
+      (Date.now() - clockSyncedAt) / 1000);
   }
   function timerAttrs(label, simSeconds) {
     const seconds = timerSeconds(simSeconds);
@@ -186,7 +204,10 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       const seconds = Number(item.dataset.timerEnd) > 0 ?
         (Number(item.dataset.timerEnd) - Date.now()) / 1000 :
         Number(item.dataset.timerFixed);
-      item.dataset.hoverText = item.dataset.timerLabel + fullCountdown(seconds);
+      const remaining = fullCountdown(seconds);
+      item.dataset.hoverText = item.dataset.timerLabel + remaining;
+      const readout = item.querySelector("[data-timer-display]");
+      if (readout) readout.textContent = remaining;
       if (item.hasAttribute("data-university-countdown")) {
         item.textContent = fullCountdown(seconds) + " remaining";
       }
@@ -559,12 +580,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
       '" max="' + maximum + '" aria-label="' + esc(label) + '"></progress></div>';
   }
-  function cooldownClock(minutes) {
-    const total = Math.max(0, Number(minutes) || 0);
-    return String(Math.floor(total / 60)).padStart(2, "0") + ":" +
-      String(total % 60).padStart(2, "0");
-  }
-  function cooldownIcon(name) {
+   function cooldownIcon(name) {
     const config = {
       job: { symbol: "▣", label: "Job" },
       food: { symbol: "♨", label: "Food" },
@@ -575,11 +591,12 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
     const max = data ? data.max_minutes : 1440;
     if (remaining <= 0) return "";
     const tip = config.label + " cooldown: ";
+    const time = fullCountdown(timerSeconds(remaining * 60));
     return '<div class="cooldown-chip ' + (remaining >= max ? 'at-cap' : '') +
-      '"' + timerAttrs(tip, remaining * 60) +
-      ' tabindex="0" aria-label="' + esc(tip + fullCountdown(timerSeconds(remaining * 60))) +
-      '"><span aria-hidden="true">' + config.symbol + '</span><strong>' +
-      cooldownClock(remaining) + '</strong></div>';
+      '" data-activity-key="cooldown-' + name + '"' + timerAttrs(tip, remaining * 60) +
+      ' tabindex="0" aria-label="' + esc(tip + time) +
+      '"><span aria-hidden="true">' + config.symbol + '</span><strong data-timer-display>' +
+      time + '</strong></div>';
   }
   function activityIcons() {
     if (!state || !state.started) return "";
@@ -589,30 +606,26 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       t.recipient === state.actor_id).length : 0;
     const trade = incoming ?
       '<button class="cooldown-chip activity-clickable activity-trade" type="button" ' +
-      'data-ui="activity-trade" title="' + incoming + ' incoming trade offer(s)" ' +
+      'data-activity-key="trade" data-ui="activity-trade" title="' + incoming + ' incoming trade offer(s)" ' +
       'aria-label="' + incoming + ' incoming trade offer(s)">' +
       '<span aria-hidden="true">⇄</span><strong>' + incoming + ' trade' +
       (incoming === 1 ? '' : 's') + '</strong></button>' : "";
     const merits = state.merits || {};
-    const claimable = (merits.achievements || []).filter(
-      feat => feat.eligible && !feat.claimed).length;
-    const affordable = (merits.upgrades || []).filter(
-      perk => !perk.owned && perk.cost <= (merits.balance || 0)).length;
-    const meritAlert = claimable || (merits.balance || 0) > 0 ?
+    // Claiming transfers points from eligible achievements to balance:
+    // it must not make the notification count go down and back up.
+    const available = totalUnspentMerits(merits);
+    const meritAlert = available > 0 ?
       '<button class="cooldown-chip activity-clickable" type="button" ' +
-      'data-ui="activity-merits" title="' +
-      esc(claimable + ' unclaimed achievement(s), ' + affordable +
-        ' affordable merit improvement(s)') + '" aria-label="' +
-      esc('Merits available: ' + claimable + ' unclaimed, ' + affordable +
-        ' affordable improvements') + '">' +
+      'data-activity-key="merits" data-ui="activity-merits" title="' +
+      esc(available + ' unspent merit point(s), claimed or unclaimed') +
+      '" aria-label="' + esc(available + ' merits available to spend') + '">' +
       '<span aria-hidden="true">✶</span><strong>' +
-      (claimable ? claimable + ' claim' + (claimable === 1 ? '' : 's') :
-        (merits.balance || 0) + ' merits') +
+      available + ' merit' + (available === 1 ? '' : 's') +
       '</strong></button>' : "";
     const tripMinutes = p.destination && Number.isFinite(p.arrival_minute) ?
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
-      '<button class="cooldown-chip activity-clickable" type="button" data-ui="activity-travel" ' +
+      '<button class="cooldown-chip activity-clickable" type="button" data-activity-key="travel" data-ui="activity-travel" ' +
       timerAttrs("Traveling to " + (p.hex_target ? "hex (" + p.hex_target.join(",") + ")" : pretty(p.destination)) + " · ", tripMinutes * 60) + ' ' +
       'aria-label="' + esc("Traveling to " + (p.hex_target ? "hex " + p.hex_target.join(", ") : pretty(p.destination))) + '">' +
       '<span aria-hidden="true">♞</span><strong>' + esc(state.dev_travel_seconds ? tripMinutes + "s" : simDuration(tripMinutes)) +
@@ -626,7 +639,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       const label = "University: " + (school ? school.name : pretty(current.school)) +
         (course ? " · " + course.name : "") + " · ";
       university = '<button class="cooldown-chip activity-clickable" type="button" ' +
-        'data-ui="activity-university"' +
+        'data-activity-key="university" data-ui="activity-university"' +
         timerAttrs(label, current.remaining_minutes * 60) + ' aria-label="' +
         esc(label + fullCountdown(timerSeconds(current.remaining_minutes * 60))) +
         '"><span aria-hidden="true">✤</span><strong>' +
@@ -637,7 +650,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
       Number(p.defeated_until || 0) - Number(state.minute || 0));
     const hospital = hospitalMinutes > 0 ?
       '<button type="button" class="cooldown-chip activity-clickable activity-hospital" ' +
-      'data-ui="activity-hospital"' +
+      'data-activity-key="hospital" data-ui="activity-hospital"' +
       timerAttrs("Hospitalized · ", hospitalMinutes * 60) +
       ' aria-label="Hospitalized">' +
       '<span aria-hidden="true">✚</span><strong>' +
@@ -645,7 +658,7 @@ import { travelJustArrived, activeCourseEnded } from "/live-transitions.mjs";
     const defenderAlert = defendant && defendant.role === "defender" &&
       defendant.attack_started ?
       '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
-      'data-ui="activity-duel" title="' +
+      'data-activity-key="combat" data-ui="activity-duel" title="' +
       esc("Under attack by " + state.duel.opponent_name +
         " · your character automatically counterattacks. Open to watch or flee.") +
       '" aria-label="Under attack · open combat">' +
