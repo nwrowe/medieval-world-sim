@@ -12,7 +12,7 @@ collected there.
    already use terrain costs and reveal fog).
 2. At a wilderness hex, the **Wilderness** panel shows its physical terrain,
    locally available resources and stamina-based gathering buttons.
-3. `wilderness_gather` costs **3 stamina for one unit** or **5 for two**. Raw
+3. `wilderness_gather` costs **5 stamina for one unit**. Raw
    goods available on a hex are capped at 1–5 units based on its potential and
    replenish by 1–2 units per simulated day. Exhaustion is shared among players
    and is restored only by elapsed world time.

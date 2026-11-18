@@ -55,22 +55,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   let themePreference = "light";
   try {
     const saved = localStorage.getItem(THEME_KEY);
-    if (["system", "light", "dark"].includes(saved)) themePreference = saved;
+    if (["light", "dark"].includes(saved)) themePreference = saved;
   } catch { /* Private browsing can disable local storage. */ }
   function applyTheme() {
-    const systemDark = window.matchMedia &&
-      window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.dataset.theme =
-      themePreference === "dark" ||
-      (themePreference === "system" && systemDark) ? "dark" : "light";
+    document.documentElement.dataset.theme = themePreference;
   }
   applyTheme();
-  if (window.matchMedia) {
-    const query = window.matchMedia("(prefers-color-scheme: dark)");
-    if (query.addEventListener) query.addEventListener("change", () => {
-      if (themePreference === "system") applyTheme();
-    });
-  }
   function combatNavigationLocked() {
     return Boolean(state && state.duel && state.duel.attack_started);
   }
@@ -875,8 +865,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       characterRow,
     });
   function renderSettings() {
-    const appearance = ["system", "light", "dark"].map(value =>
-      button(value === "system" ? "System" : value === "light" ? "Light" : "Dark",
+    const appearance = ["light", "dark"].map(value =>
+      button(value === "light" ? "Light" : "Dark",
         'type="button" data-ui="settings-theme" data-value="' + value +
         '" aria-pressed="' + (themePreference === value) + '"',
         themePreference === value ? "secondary settings-choice active" :
@@ -890,7 +880,6 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     return heading("", "Settings", "") +
       '<div class="settings-grid">' +
       panel("Appearance", "Saved locally in this browser",
-        '<p class="small">Choose your display theme. System follows your device preference.</p>' +
         '<div class="settings-choices" role="group" aria-label="Color theme">' +
         appearance + '</div>') +
       panel("Email & notifications", "Not yet connected",
@@ -1520,7 +1509,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         break;
       case "settings-theme": {
         const value = element.dataset.value;
-        if (!["system", "light", "dark"].includes(value)) break;
+        if (!["light", "dark"].includes(value)) break;
         themePreference = value;
         try { localStorage.setItem(THEME_KEY, value); }
         catch { /* A blocked preference store must not prevent theme use. */ }

@@ -96,13 +96,13 @@ class WildernessEngineTests(unittest.TestCase):
         self.assertGreaterEqual(cap, 2)
         initial = w.actors["scout"].stamina
         result = w.execute("scout", "wilderness_gather",
-                           {"item": item, "quantity": 2}, "gather-1")
-        self.assertEqual(result["quantity"], 2)
+                           {"item": item, "quantity": 1}, "gather-1")
+        self.assertEqual(result["quantity"], 1)
         self.assertEqual(w.actors["scout"].stamina, initial - 5)
         self.assertEqual(w.wilderness.view("rival")["resources"][
             next(i for i, r in enumerate(w.wilderness.view("rival")["resources"])
-                 if r["item"] == item)]["available"], cap - 2)
-        for i in range(cap - 2):
+                 if r["item"] == item)]["available"], cap - 1)
+        for i in range(cap - 1):
             w.execute("rival", "wilderness_gather",
                       {"item": item, "quantity": 1}, f"gather-rival-{i}")
         with self.assertRaisesRegex(ActionError, "exhausted"):
@@ -156,6 +156,7 @@ class WildernessEngineTests(unittest.TestCase):
             ("wilderness_gather", {"item": 123, "quantity": 1}),
             ("wilderness_gather", {"item": "herbs", "quantity": True}),
             ("wilderness_gather", {"item": "herbs", "quantity": 100}),
+            ("wilderness_gather", {"item": "herbs", "quantity": 2}),
         ]
         for i, (action, params) in enumerate(bad):
             with self.subTest(i=i), self.assertRaises(ActionError):

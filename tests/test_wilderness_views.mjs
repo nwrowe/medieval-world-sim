@@ -7,7 +7,7 @@ const world = {
   wilderness:{
     x:4,y:5,biome:"forest",geology:"metamorphic",
     elevation_m:410,river:false,stamina:17,
-    gather_cost:{"1":3,"2":5},
+    gather_cost:{"1":5},
     resources:[{item:"timber",potential:90,available:5},
       {item:"herbs",potential:75,available:0}],
     sites:[{id:"site-007",name:"Forgotten Shrine",kind:"forest_shrine",
@@ -35,13 +35,14 @@ const ctx={
 const views=createWildernessViews(ctx);
 assert.match(views.renderWilderness(),/forest/i);
 assert.match(views.renderWilderness(),/Local potential: 90/);
-assert.match(views.renderWilderness(),/Gather 1 · 3 stamina/);
+assert.match(views.renderWilderness(),/Gather · 5 stamina/);
+assert.doesNotMatch(views.renderWilderness(),/Gather 2|These resources come from|stamina available|No special site on this hex/);
 assert.match(views.renderWilderness(),/Forgotten Shrine/);
 assert.match(views.renderWilderness(),/Go around · free/);
 assert.match(views.renderWilderness(),/Survey from safety/);
 assert.match(views.renderWilderness(),/data-wilderness="investigate"/);
-views.handleWildernessClick({dataset:{wilderness:"gather",item:"timber",quantity:"2"}});
-assert.deepEqual(fired.pop(),{name:"wilderness_gather",params:{item:"timber",quantity:2}});
+views.handleWildernessClick({dataset:{wilderness:"gather",item:"timber",quantity:"1"}});
+assert.deepEqual(fired.pop(),{name:"wilderness_gather",params:{item:"timber",quantity:1}});
 views.handleWildernessClick({dataset:{wilderness:"investigate",
   siteId:"site-007",approach:"delve"}});
 assert.deepEqual(fired.pop(),{name:"investigate_site",

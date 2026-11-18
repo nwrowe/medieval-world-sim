@@ -12,7 +12,7 @@ import hmac
 
 from ..errors import ActionError
 
-MAX_HARVEST = 2
+MAX_HARVEST = 1
 SITE_APPROACHES = {
     # Public costs and descriptive labels; skill and difficulty are calculated
     # authoritatively per player/site, never accepted from the client.
@@ -66,9 +66,9 @@ class WildernessSystem:
     def gather(self, actor_id: str, item: str, quantity: int) -> dict:
         actor, x, y, tile = self._here(actor_id)
         self.world._positive(quantity, "quantity")
-        if type(item) is not str or quantity > MAX_HARVEST or item not in tile.resources:
+        if type(item) is not str or quantity != MAX_HARVEST or item not in tile.resources:
             raise ActionError("Cannot harvest that resource at this location")
-        cost = 1 + 2 * quantity
+        cost = 5
         if actor.stamina < cost:
             raise ActionError("Not enough stamina to gather")
         available = self._available(tile, item)
@@ -186,5 +186,5 @@ class WildernessSystem:
         return {"x": x, "y": y, "biome": tile.biome,
                 "geology": tile.geology, "elevation_m": tile.elevation_m,
                 "river": tile.river, "stamina": actor.stamina,
-                "gather_cost": {"1": 3, "2": 5},
+                "gather_cost": {"1": 5},
                 "resources": stocks, "sites": sites}

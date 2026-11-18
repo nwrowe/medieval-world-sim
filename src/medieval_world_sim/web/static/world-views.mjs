@@ -219,7 +219,6 @@ export function createWorldViews(ctx) {
     const secureWorldClock = ctx.getSecureWorldClock();
     const p = state.player;
     const traveling = Boolean(p.destination);
-    const inWilderness = Boolean(state.world_map && state.world_map.in_wilderness);
     const defeated = p.hp <= 0 || p.defeated_until != null;
     const remaining = traveling ? Math.max(1, p.arrival_minute - state.minute) : 0;
     const journey = traveling ?
@@ -234,9 +233,6 @@ export function createWorldViews(ctx) {
         'character has recovered before traveling.</div>' : "";
     return heading("", "Map", "") + worldMap() +
       discoveredCityHotlist() +
-      (inWilderness && !traveling ?
-        '<div class="callout"><strong>Wilderness</strong>' +
-        'Return to a settlement for commerce, crafting and city services.</div>' : '') +
       (p.cargo > p.cargo_limit ?
         '<div class="callout"><strong>Travel cargo exceeded</strong>Carrying ' +
         p.cargo + ' of ' + p.cargo_limit +
@@ -527,9 +523,7 @@ export function createWorldViews(ctx) {
         '<p>+' + h.training_bonus_pct + '% local training XP · ' +
         (h.active_vehicle ? esc(pretty(h.active_vehicle)) + ' ready' : "Traveling on foot") +
         '</p></div>' :
-        '<div class="callout mb-20"><strong>Invest in your future</strong>' +
-        'Your first home unlocks a permanent local training bonus as you upgrade it. ' +
-        'It also gives you somewhere to build transport facilities.</div>') +
+        '') +
       '<div class="stack">' +
       panel("Property tiers", "Home upgrades pay only the price difference.",
         '<div class="house-tiers">' + homes + '</div>') +
