@@ -25,7 +25,10 @@ PROGRESSION_EVENTS = {"level_up", "merit_claimed", "merit_upgrade"}
 ECONOMY_EVENTS = {"regional_bought", "regional_sold", "gathered",
                   "goods_stored", "goods_retrieved", "city_contract_completed",
                   "offer_posted", "offer_filled", "offer_canceled", "city_sale",
-                  "company_founded", "hired", "shift_completed", "job_offered",
+                  "company_founded", "company_funded", "company_withdrawn",
+                  "company_stocked", "company_unstocked",
+                  "company_gear_stocked", "company_gear_withdrawn",
+                  "hired", "shift_completed", "job_offered",
                   "wage_changed", "worker_left", "perks_changed",
                   "facility_upgraded", "training_paid", "perk_awarded"}
 

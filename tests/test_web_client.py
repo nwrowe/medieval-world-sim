@@ -123,7 +123,7 @@ class BrowserEntrypointTests(unittest.TestCase):
             files("medieval_world_sim.web").joinpath("static", module).read_text(
                 encoding="utf-8")
             for module in ("world-views.mjs", "community-views.mjs", "city-views.mjs",
-                           "character-views.mjs")
+                           "character-views.mjs", "economy-views.mjs")
         )
         for name in re.findall(r": (render[A-Za-z0-9_]+)", table.group(1)):
             self.assertRegex(source + views, rf"function {name}\s*\(")
@@ -358,7 +358,7 @@ class WebHTTPTests(unittest.TestCase):
             self.assertEqual(status, 200)
             headers = {"X-Game-Token": "secret-local-code"}
             status, data, _ = api(port, "POST", "/api/action",
-                                  {"action": "found_company", "params": {}, "id": "rogue"},
+                                  {"action": "hire", "params": {}, "id": "rogue"},
                                   headers=headers)
             self.assertEqual(status, 400)
             self.assertIn("not available", data["error"])
