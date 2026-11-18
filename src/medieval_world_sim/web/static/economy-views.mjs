@@ -51,7 +51,7 @@ export function createEconomyViews(ctx) {
         '<label>New gold wage' + input("wage-gold", worker.wage.gold) + '</label>' +
         '<label>Goods wage' + choose("wage-item",
           '<option value="">None</option>' +
-          options((econ.goods || []).map(x => ({id:x,name:pretty(x)}))) + '</label>' +
+          options((econ.goods || []).map(x => ({id:x,name:pretty(x)})))) + '</label>' +
         '<label>Goods quantity' + input("wage-quantity", 0) + '</label>' +
         doButton("job-wage", "Set wage", 'data-worker="' + esc(worker.id) + '"') +
         '</div></div>').join("") || '<p class="small">No employees yet.</p>';
