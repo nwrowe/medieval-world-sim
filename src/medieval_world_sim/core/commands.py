@@ -19,7 +19,6 @@ class CommandSpec:
 
 
 _BOTH: Final = frozenset({"single", "multi"})
-_SINGLE: Final = frozenset({"single"})
 _MULTI: Final = frozenset({"multi"})
 
 COMMAND_SPECS: Final[Mapping[str, CommandSpec]] = MappingProxyType({

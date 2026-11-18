@@ -531,10 +531,6 @@ class WorldEngine:
         return self.combat.attack(attacker_id, defender_id)
 
     @atomic_action
-    def pvp_strike(self, attacker_id: str, defender_id: str) -> dict:
-        return self.combat.pvp_strike(attacker_id, defender_id)
-
-    @atomic_action
     def start_duel(self, attacker_id: str, defender_id: str) -> dict:
         return self.duel_system.start(attacker_id, defender_id)
 
