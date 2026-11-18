@@ -1,9 +1,7 @@
-"""Durable SQLite schema evolution and replay of the shared multiplayer world.
+"""Single current-format SQLite journal and deterministic world recovery.
 
-This module owns the original command journal schema and historical replay.
-The asset ledger and checkpoint modules own their additional tables and
-recovery verification. New mechanics must retain versioned replay metadata.
-No credentials, HTTP transport or client-generated world-time mutations here.
+Old development databases are rejected, not silently migrated. Checkpoints,
+durable receipts and the asset ledger remain authoritative for safe restarts.
 """
 from __future__ import annotations
 
@@ -15,19 +13,33 @@ import time
 
 from ..core.commands import MULTIPLAYER_ACTIONS
 from ..catalog import GEOGRAPHY_FINGERPRINT
-from .session import ADVANCE_LIMIT, LEGACY_START_CITY, START_CITY
+from .session import ADVANCE_LIMIT, START_CITY
 from . import ledger, checkpoint, npc_runtime
 
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
 
 
-# Preserve the existing action allowlist for replay; newly forbidden actions
-# must remain readable through an explicit historical compatibility rule.
+# The same command allowlist applies to writes and current-format replay.
 MULTI_ACTIONS = MULTIPLAYER_ACTIONS
+BASELINE_REVISION = b"1"
 
 
 def create_schema(game: MultiplayerGame) -> None:
+    # Refuse pre-baseline databases before making changes to their schema.
+    existing = game.db.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='world_journal'"
+    ).fetchone()
+    if existing:
+        meta = game.db.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='world_meta'"
+        ).fetchone()
+        revision = (game.db.execute(
+            "SELECT value FROM world_meta WHERE name='baseline_revision'").fetchone()
+                    if meta else None)
+        if revision is None or revision[0] != BASELINE_REVISION:
+            raise ValueError("Pre-baseline multiplayer data is unsupported; "
+                             "start a new empty database file")
     game.db.executescript("""
         CREATE TABLE IF NOT EXISTS registration_invites(
             digest BLOB PRIMARY KEY,
@@ -63,9 +75,15 @@ def create_schema(game: MultiplayerGame) -> None:
             payload TEXT NOT NULL,
             request_id TEXT,
             result_json TEXT,
+            recorded_at TEXT,
+            flee_success INTEGER CHECK(flee_success IN (0,1)),
+            server_clock INTEGER CHECK(server_clock IN (0,1)),
             UNIQUE(actor_id, request_id)
         );
     """)
+    game.db.execute(
+        "INSERT OR IGNORE INTO world_meta(name,value) VALUES('baseline_revision',?)",
+        (BASELINE_REVISION,))
     # Worlds are intentionally fresh. Never replay an account journal against
     # a silently changed terrain/road/resource snapshot: that can invalidate
     # positions, inventories and player discoveries.
@@ -102,29 +120,7 @@ def create_schema(game: MultiplayerGame) -> None:
         game.db.execute(
             "INSERT INTO world_meta(name,value) VALUES('travel_clock_mode', ?)",
             (speed,))
-    # Previous multi-account databases lack an event wall-clock column.
-    # Add it without rewriting or inventing timestamps for older rows.
-    columns = {column[1] for column in game.db.execute(
-        "PRAGMA table_info(world_journal)")}
-    if "recorded_at" not in columns:
-        game.db.execute("ALTER TABLE world_journal ADD COLUMN recorded_at TEXT")
-    if "flee_success" not in columns:
-        game.db.execute("ALTER TABLE world_journal ADD COLUMN flee_success INTEGER")
-    if "secure_roll" not in columns:
-        game.db.execute("ALTER TABLE world_journal ADD COLUMN secure_roll INTEGER")
-    if "server_clock" not in columns:
-        game.db.execute("ALTER TABLE world_journal ADD COLUMN server_clock INTEGER")
-    if "xp_version" not in columns:
-        # Historic magic training must replay without retroactive level XP.
-        game.db.execute("ALTER TABLE world_journal "
-                        "ADD COLUMN xp_version INTEGER NOT NULL DEFAULT 1")
-    if "regen_version" not in columns:
-        # Existing advances replay with the original health regen rule.
-        game.db.execute("ALTER TABLE world_journal "
-                        "ADD COLUMN regen_version INTEGER NOT NULL DEFAULT 1")
-    # Keep RNG secret out of public API responses and source-controlled seed.
-    # Existing journals replay old results with their historical RNG; only
-    # newly committed actions opt in to the keyed outcome algorithm.
+    # RNG secrets are never returned to clients or committed to source.
     game.db.execute(
         "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
         (secrets.token_bytes(32),))
@@ -161,12 +157,10 @@ def load_world(game: MultiplayerGame) -> None:
     registered = set(game.names)
     rows = game.db.execute(
         "SELECT seq, kind, actor_id, action, payload, request_id, recorded_at, "
-        "flee_success, secure_roll, server_clock, regen_version, xp_version "
+        "flee_success, server_clock "
         "FROM world_journal WHERE seq>? ORDER BY seq", (restored_seq,)).fetchall()
     for (seq, kind, actor_id, action, payload, request_id, recorded_at,
-         flee_success, secure_roll, server_clock, regen_version, xp_version) in rows:
-        if xp_version not in (1, 2, 3, 4, 5, 6, 7, 8):
-            raise ValueError("Invalid recorded experience ruleset")
+         flee_success, server_clock) in rows:
         params = json.loads(payload)
         prior_events = len(game.world.events)
         if kind == "join":
@@ -177,8 +171,8 @@ def load_world(game: MultiplayerGame) -> None:
                 (actor_id,)).fetchone()
             if account is None:
                 raise ValueError("Registered actor has no account")
-            city = params.get("city", LEGACY_START_CITY)
-            if city not in (LEGACY_START_CITY, START_CITY):
+            city = params.get("city")
+            if city != START_CITY:
                 raise ValueError("Invalid registered starting city")
             game._join_actor(actor_id, city, params.get("lineage"))
             game.names[actor_id] = account[0]
@@ -189,49 +183,25 @@ def load_world(game: MultiplayerGame) -> None:
             if action not in MULTI_ACTIONS:
                 raise ValueError("Forbidden journal command")
             if action == "flee_duel":
-                if flee_success is None:
-                    game.world._legacy_flee_rules = True
-                elif flee_success not in (0, 1):
-                    raise ValueError("Invalid saved flee coin flip")
-                else:
-                    game.world._flee_success = bool(flee_success)
-            if secure_roll not in (None, 0, 1):
-                raise ValueError("Invalid recorded RNG policy")
-            game.world._private_rng_key = game._rng_key if secure_roll == 1 else None
-            game.world._legacy_magic_leveling_rules = xp_version == 1
-            game.world._legacy_magic_training_rules = xp_version < 3
-            game.world._legacy_magic_practice_cooldown = xp_version == 3
-            game.world._legacy_spell_mastery_rules = xp_version < 5
-            game.world._legacy_magic_unlock_rules = xp_version < 6
-            game.world._legacy_master_course_rules = (
-                action == "enroll_course_choice" and xp_version < 7)
-            game.world._legacy_terrain_routing = (
-                action == "explore_hex" and xp_version < 8)
+                if flee_success not in (0, 1):
+                    raise ValueError("Missing saved flee coin flip")
+                game.world._flee_success = bool(flee_success)
+            elif flee_success is not None:
+                raise ValueError("Unexpected saved flee roll")
+            game.world._private_rng_key = (
+                game._rng_key if action in ("practice_magic", "race_horse") else None)
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))
             finally:
-                game.world._legacy_flee_rules = False
                 game.world._flee_success = None
                 game.world._private_rng_key = None
-                game.world._legacy_magic_leveling_rules = False
-                game.world._legacy_magic_training_rules = False
-                game.world._legacy_magic_practice_cooldown = False
-                game.world._legacy_spell_mastery_rules = False
-                game.world._legacy_magic_unlock_rules = False
-                game.world._legacy_master_course_rules = False
-                game.world._legacy_terrain_routing = False
         elif kind == "advance":
             minutes = params.get("minutes")
             if (type(minutes) is not int or not 1 <= minutes <= ADVANCE_LIMIT
-                    or server_clock not in (None, 0, 1)
-                    or regen_version not in (1, 2, 3, 4)):
+                    or server_clock not in (None, 0, 1)):
                 raise ValueError("Invalid journal time advancement")
-            game.world._health_regen_version = regen_version
-            try:
-                game.world.advance(minutes)
-            finally:
-                game.world._health_regen_version = 4
+            game.world.advance(minutes)
             npc_runtime.replay(game, seq)
         else:
             raise ValueError("Invalid journal kind")
