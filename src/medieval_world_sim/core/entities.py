@@ -260,6 +260,11 @@ class Company:
     sale_price: int = 0
     hiring: bool = False
     applicants: set[str] = field(default_factory=set)
+    # Role/expiration metadata is additive: older saves retain their payroll.
+    employee_positions: dict[str, str] = field(default_factory=dict)
+    offer_positions: dict[str, str] = field(default_factory=dict)
+    offer_expires: dict[str, int] = field(default_factory=dict)
+    applicant_positions: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
