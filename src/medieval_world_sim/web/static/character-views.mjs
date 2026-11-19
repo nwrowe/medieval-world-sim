@@ -2,7 +2,7 @@
  * All mutations remain in the authenticated server and app.js action handlers.
  */
 export function createCharacterViews(ctx) {
-  const { esc, pretty, clock, money, button, disabled, isBusy, heading,
+  const { esc, pretty, money, button, disabled, isBusy, heading,
     panel, characterRow } = ctx;
 
   function renderInventory() {
@@ -90,12 +90,11 @@ export function createCharacterViews(ctx) {
       panel("Character State", "",
         characterRow("Name", state.name) +
         characterRow("Level", p.level) +
-        characterRow("Lineage", lineage ? lineage.name : "Unchosen") +
         characterRow("Experience toward next level", p.level_xp + " / " + xpNext) +
         characterRow("Health", p.hp + " / " + p.max_hp) +
         characterRow("Stamina", p.stamina + " / " + p.max_stamina) +
         characterRow("Mana", p.mana + " / " + p.max_mana) +
-        characterRow("World age (shared)", clock(state.minute))) +
+        characterRow("Age", p.age_days + " Oathmere days")) +
       panel("Combat Attributes", "",
         characterRow("Strength", p.strength) +
         characterRow("Defense", p.defense) +
@@ -107,7 +106,7 @@ export function createCharacterViews(ctx) {
         characterRow("Completed shifts", w.shifts) +
         (career || '<p class="small">No occupational experience yet.</p>')) +
       panel("Lineage & Trait", "",
-        characterRow("Birthright", lineage ? lineage.name : "Unchosen") +
+        characterRow("Lineage", lineage ? lineage.name : "Unchosen") +
         characterRow("Unique trait", lineage ? lineage.trait : "None") +
         characterRow("Trait status", p.lineage_trait_unlocked ? "Unlocked" :
           "Unlocks at level 3") +
