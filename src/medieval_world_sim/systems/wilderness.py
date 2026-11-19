@@ -66,21 +66,17 @@ class WildernessSystem:
     def gather(self, actor_id: str, item: str, quantity: int) -> dict:
         actor, x, y, tile = self._here(actor_id)
         self.world._positive(quantity, "quantity")
-        legacy = getattr(self.world, "_replay_legacy_wilderness", False)
-        if (type(item) is not str or
-                quantity not in ((1, 2) if legacy else (MAX_HARVEST,)) or
-                item not in tile.resources):
+        if (type(item) is not str or quantity != MAX_HARVEST
+                or item not in tile.resources):
             raise ActionError("Cannot harvest that resource at this location")
-        # Previous committed playtest gathers used 3/5 stamina for 1/2 units.
-        # Only trusted save/journal replay may invoke those historical costs.
-        cost = (1 + 2 * quantity) if legacy else 5
+        cost = 5
         if actor.stamina < cost:
             raise ActionError("Not enough stamina to gather")
         available = self._available(tile, item)
         if available < quantity:
             raise ActionError("This deposit is exhausted; let it recover")
-        if not legacy and (sum(actor.inventory.values()) + len(actor.gear_ids)
-                           + quantity > self.world.housing_system.travel_cargo_limit(actor)):
+        if (sum(actor.inventory.values()) + len(actor.gear_ids) + quantity
+                > self.world.housing_system.travel_cargo_limit(actor)):
             raise ActionError("Carrying capacity reached; discard items before gathering")
         # Only committed successful commands consume stamina and stock.
         actor.stamina -= cost
@@ -129,10 +125,9 @@ class WildernessSystem:
         label, cost, _, _, _, reward = SITE_APPROACHES[approach]
         if actor.stamina < cost:
             raise ActionError("Not enough stamina to investigate")
-        old = getattr(self.world, "_replay_legacy_site_reward", False)
         cargo = sum(actor.inventory.values()) + len(actor.gear_ids)
         capacity = self.world.housing_system.travel_cargo_limit(actor)
-        if not old and cargo >= capacity:
+        if cargo >= capacity:
             raise ActionError("Carrying capacity reached; discard items before investigating")
         # Server-only key in multiplayer prevents client prediction. The same
         # stored key and committed action replay yield exactly the same roll.
@@ -153,7 +148,7 @@ class WildernessSystem:
             not success and approach == "delve") else 0
         actor.stamina -= cost
         actor.hp -= damage
-        if quantity and not old:
+        if quantity:
             # Discovery rewards cannot strand players above travel capacity.
             room = max(0, self.world.housing_system.travel_cargo_limit(actor) -
                        sum(actor.inventory.values()) - len(actor.gear_ids))

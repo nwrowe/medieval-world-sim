@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from ..catalog import CAPITAL
 from ..combat import MAX_STAMINA
+from ..content.magic_tree import STARTING_MANA
 
 @dataclass
 class Vitals:
@@ -39,8 +40,8 @@ class WorkStats:
 @dataclass
 class MagicState:
     # Magical ability and progression are distinct from combat and work stats.
-    mana: int = 10
-    max_mana: int = 10
+    mana: int = STARTING_MANA
+    max_mana: int = STARTING_MANA
     school_xp: dict[str, int] = field(default_factory=dict)
     unlocked: set[str] = field(default_factory=lambda: {"arcane_fundamentals"})
     insight: int = 0

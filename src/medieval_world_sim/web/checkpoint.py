@@ -33,7 +33,7 @@ from ..systems.trades import TradeAssets, TradeProposal
 if TYPE_CHECKING:
     from .multiplayer import MultiplayerGame
 
-CHECKPOINT_VERSION = 3
+CHECKPOINT_VERSION = 4
 CHECKPOINT_INTERVAL = 50
 MAX_BYTES = 32 * 1024 * 1024
 MAX_DEPTH = 70
@@ -93,15 +93,9 @@ def _decode(value, depth=0):
             raise ValueError("Unknown checkpoint class")
         expected = {f.name for f in fields(cls)}
         present = set(value["values"])
-        # These additive empty defaults let a current-baseline journal and its
-        # verified older checkpoint continue without retaining old game rules.
-        added = {"wilderness_stock", "site_attempts", "tavern_last_room",
-                 "tavern_room_until", "tavern_mead", "active_contracts",
-                 "contract_last_started", "contract_escrow_gold"} if cls is WorldState else set()
-        if cls is Company:
-            added = {"product", "display_name", "sale_price", "hiring", "applicants"}
-        if present - expected or expected - present - added:
-            raise ValueError("Checkpoint class schema has changed")
+        if present != expected:
+            raise ValueError("Checkpoint class schema has changed; "
+                             "start a fresh world with a new --multiplayer-db path")
         return cls(**{name: _decode(node, depth + 1)
                       for name, node in value["values"].items()})
     if tag in ("list", "tuple", "set", "dict") and set(value) == {"tag", "items"}:
@@ -207,7 +201,8 @@ def restore_latest(game: MultiplayerGame) -> int:
         return 0
     seq, version, payload, digest = row
     if version != CHECKPOINT_VERSION or type(payload) is not str:
-        raise ValueError("Unsupported world checkpoint version")
+        raise ValueError("Unsupported world checkpoint version; "
+                          "start a fresh world with a new --multiplayer-db path")
     if len(payload.encode("utf-8")) > MAX_BYTES:
         raise ValueError("World checkpoint exceeds size limit")
     if hashlib.sha256(payload.encode("utf-8")).hexdigest() != digest:

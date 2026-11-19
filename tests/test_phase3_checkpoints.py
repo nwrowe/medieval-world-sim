@@ -121,6 +121,17 @@ class DurableCheckpointTests(TestCase):
         self.game.world.assert_invariants()
         ledger.verify(self.game)
 
+    def test_old_database_baseline_is_rejected_before_checkpoint_decode(self):
+        alice = self.player("Alice")
+        self.game.advance(alice, 1, "tick")
+        self.game.create_checkpoint()
+        self.game.db.execute(
+            "UPDATE world_meta SET value=? WHERE name='baseline_revision'", (b"1",))
+        self.game.close()
+        with self.assertRaisesRegex(ValueError, "new --multiplayer-db path"):
+            MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
+        self.game = None
+
     def test_corrupted_checkpoint_fails_closed(self):
         alice = self.player("Alice")
         self.game.advance(alice, 1, "tick")

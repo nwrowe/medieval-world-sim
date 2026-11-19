@@ -10,7 +10,7 @@ from medieval_world_sim.content.magic_tree import (
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.systems.magic import earned_mana_capacity
-from medieval_world_sim.web.session import GameSession, PLAYER_ID
+from medieval_world_sim.web.session import GameSession, PLAYER_ID, SaveError
 from medieval_world_sim.web.multiplayer import MultiplayerGame
 
 
@@ -54,36 +54,31 @@ class ManaGrowthTests(unittest.TestCase):
             20)
         w.assert_invariants()
 
-    def test_singleplayer_new_and_old_save_replay(self):
+    def test_singleplayer_fresh_save_starts_with_current_mana_and_stamina(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "single.json"
             game = GameSession(path)
             game.create("Mage Scout")
-            self.assertEqual(game.world.actors[PLAYER_ID].magic.max_mana, 10)
-            self.assertEqual(GameSession(path).world.actors[PLAYER_ID].magic.max_mana, 10)
-
-            # Model a save written before this update: no start_mana key,
-            # character and NPCs began with 100. Preserve the old journal.
-            game.start_mana = 100
-            for actor in game.world.actors.values():
-                actor.magic.max_mana = 100
-                actor.magic.mana = 100
-            game.action("unlock_magic",
-                        {"node_id": "restoration.soothe_wounds"}, "unlock-before")
-            for i in range(2):
-                game.action("practice_magic",
-                            {"node_id": "restoration.soothe_wounds"}, f"practice-before-{i}")
-            old_snapshot = game.snapshot()
-            document = json.loads(path.read_text())
-            document.pop("start_mana")
-            path.write_text(json.dumps(document))
+            initial = game.world.actors[PLAYER_ID]
+            self.assertEqual((initial.magic.mana, initial.magic.max_mana), (10, 10))
+            self.assertEqual((initial.stamina, initial.max_stamina), (100, 100))
+            self.assertNotIn("start_mana", json.loads(path.read_text()))
             restored = GameSession(path)
-            self.assertEqual(restored.world.actors[PLAYER_ID].magic.max_mana, 100)
-            self.assertEqual(restored.snapshot()["player"]["mana"],
-                             old_snapshot["player"]["mana"])
-            self.assertEqual(restored.world.actors[PLAYER_ID].magic.school_xp,
-                             game.world.actors[PLAYER_ID].magic.school_xp)
+            actor = restored.world.actors[PLAYER_ID]
+            self.assertEqual((actor.magic.mana, actor.magic.max_mana), (10, 10))
+            self.assertEqual((actor.stamina, actor.max_stamina), (100, 100))
             restored.world.assert_invariants()
+
+    def test_singleplayer_rejects_obsolete_save_versions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "old-single.json"
+            game = GameSession(path)
+            game.create("Mage Scout")
+            document = json.loads(path.read_text())
+            document["version"] -= 1
+            path.write_text(json.dumps(document))
+            with self.assertRaisesRegex(SaveError, "Unknown save format"):
+                GameSession(path)
 
     def test_multiplayer_new_accounts_recover_at_ten(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -104,37 +99,25 @@ class ManaGrowthTests(unittest.TestCase):
             finally:
                 replay.close()
 
-    def test_multiplayer_old_join_payload_replays_at_original_capacity(self):
+    def test_multiplayer_rejects_obsolete_mana_join_metadata(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "old-multi.sqlite"
             game = MultiplayerGame(path, require_invites=False,
                                    dev_fast_forward=True, npc_enabled=False)
             try:
-                actor_id = game.register("oldmage", "correct horse battery staple",
-                                         "Old Mage")
+                game.register("oldmage", "correct horse battery staple", "Old Mage")
                 row = game.db.execute(
                     "SELECT seq,payload FROM world_journal WHERE kind='join'"
                 ).fetchone()
                 payload = json.loads(row[1])
-                payload.pop("start_mana")
+                payload["start_mana"] = 100
                 game.db.execute("UPDATE world_journal SET payload=? WHERE seq=?",
                                 (json.dumps(payload), row[0]))
-                # Emulate the corresponding pre-change live state.
-                for actor in game.world.actors.values():
-                    actor.magic.max_mana = 100
-                    actor.magic.mana = 100
             finally:
                 game.close()
-            replay = MultiplayerGame(path, require_invites=False,
-                                     dev_fast_forward=True, npc_enabled=False)
-            try:
-                self.assertEqual(replay.world.actors[actor_id].magic.max_mana, 100)
-                self.assertTrue(all(
-                    a.magic.max_mana == 100
-                    for a in replay.world.actors.values() if a.kind == "npc"))
-                replay.world.assert_invariants()
-            finally:
-                replay.close()
+            with self.assertRaisesRegex(ValueError, "Unsupported registration journal"):
+                MultiplayerGame(path, require_invites=False,
+                                dev_fast_forward=True, npc_enabled=False)
 
 
 if __name__ == "__main__":

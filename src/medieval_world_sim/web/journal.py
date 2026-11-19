@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 # The same command allowlist applies to writes and current-format replay.
 MULTI_ACTIONS = MULTIPLAYER_ACTIONS
-BASELINE_REVISION = b"1"
+BASELINE_REVISION = b"2"
 
 
 def create_schema(game: MultiplayerGame) -> None:
@@ -38,8 +38,8 @@ def create_schema(game: MultiplayerGame) -> None:
             "SELECT value FROM world_meta WHERE name='baseline_revision'").fetchone()
                     if meta else None)
         if revision is None or revision[0] != BASELINE_REVISION:
-            raise ValueError("Pre-baseline multiplayer data is unsupported; "
-                             "start a new empty database file")
+            raise ValueError("This multiplayer database uses an older game schema. "
+                             "Start a fresh world with a new --multiplayer-db path")
     game.db.executescript("""
         CREATE TABLE IF NOT EXISTS registration_invites(
             digest BLOB PRIMARY KEY,
@@ -112,33 +112,9 @@ def create_schema(game: MultiplayerGame) -> None:
         raise ValueError("Travel clock mode changed for this saved realm. "
                          "Use a separate database for --dev-seconds-travel.")
     if saved_speed is None:
-        prior_actions = game.db.execute(
-            "SELECT COUNT(*) FROM world_journal").fetchone()[0]
-        if prior_actions and game.dev_travel_seconds:
-            raise ValueError("Cannot enable seconds travel on a database "
-                             "with previously recorded normal journeys")
         game.db.execute(
             "INSERT INTO world_meta(name,value) VALUES('travel_clock_mode', ?)",
             (speed,))
-    # Existing journal rows were committed under the previous gathering
-    # price. Record the last old sequence once, at schema initialization.
-    # Fresh databases use zero; all subsequently appended actions use rule 2.
-    old_seq = game.db.execute(
-        "SELECT COALESCE(MAX(seq),0) FROM world_journal").fetchone()[0]
-    game.db.execute(
-        "INSERT OR IGNORE INTO world_meta(name,value) VALUES('gather_rule_legacy_end',?)",
-        (str(old_seq).encode(),))
-    game._legacy_gather_end = int(game.db.execute(
-        "SELECT value FROM world_meta WHERE name='gather_rule_legacy_end'"
-    ).fetchone()[0])
-    # Preserve original site rewards on existing journal rows, even if
-    # an old reward exceeded the player's carrying limit.
-    game.db.execute(
-        "INSERT OR IGNORE INTO world_meta(name,value) VALUES('site_reward_legacy_end',?)",
-        (str(old_seq).encode(),))
-    game._legacy_site_reward_end = int(game.db.execute(
-        "SELECT value FROM world_meta WHERE name='site_reward_legacy_end'"
-    ).fetchone()[0])
     # RNG secrets are never returned to clients or committed to source.
     game.db.execute(
         "INSERT OR IGNORE INTO world_meta(name,value) VALUES('rng_key', ?)",
@@ -167,13 +143,7 @@ def create_schema(game: MultiplayerGame) -> None:
 
 
 def load_world(game: MultiplayerGame) -> None:
-    # Older join records lack start_mana; replay their original initial
-    # capacity, including NPCs, without changing new registrations.
-    join_payloads = game.db.execute(
-        "SELECT payload FROM world_journal WHERE kind='join'").fetchall()
-    old_mana = any("start_mana" not in json.loads(row[0])
-                   for row in join_payloads)
-    game.world = game._seed_world(old_mana=old_mana)
+    game.world = game._seed_world()
     game.names = {}
     game.event_times = {}
     # A checkpoint restores the owned world and account projection; replay
@@ -199,8 +169,9 @@ def load_world(game: MultiplayerGame) -> None:
             city = params.get("city")
             if city != START_CITY:
                 raise ValueError("Invalid registered starting city")
-            game._join_actor(actor_id, city, params.get("lineage"),
-                             params.get("start_mana", 100))
+            if set(params) != {"city", "lineage"}:
+                raise ValueError("Unsupported registration journal format")
+            game._join_actor(actor_id, city, params["lineage"])
             game.names[actor_id] = account[0]
             registered.add(actor_id)
         elif actor_id not in registered:
@@ -216,16 +187,10 @@ def load_world(game: MultiplayerGame) -> None:
                 raise ValueError("Unexpected saved flee roll")
             game.world._private_rng_key = (
                 game._rng_key if action in ("practice_magic", "race_horse", "investigate_site") else None)
-            game.world._replay_legacy_wilderness = (
-                action == "wilderness_gather" and seq <= game._legacy_gather_end)
-            game.world._replay_legacy_site_reward = (
-                action == "investigate_site" and seq <= game._legacy_site_reward_end)
             try:
                 game.world.execute(actor_id, action, params, game._engine_id(
                     actor_id, request_id))
             finally:
-                game.world._replay_legacy_wilderness = False
-                game.world._replay_legacy_site_reward = False
                 game.world._flee_success = None
                 game.world._private_rng_key = None
         elif kind == "advance":

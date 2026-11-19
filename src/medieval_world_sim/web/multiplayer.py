@@ -164,7 +164,7 @@ class MultiplayerGame:
         """Create and migrate the local SQLite journal schema."""
         journal.create_schema(self)
 
-    def _seed_world(self, *, old_mana: bool = False):
+    def _seed_world(self):
         rng = random.Random(42)
         names = list(NPC_NAMES)
         rng.shuffle(names)
@@ -176,21 +176,13 @@ class MultiplayerGame:
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
                 self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
         world = WorldEngine(actors, seed=42, dev_travel_seconds=self.dev_travel_seconds)
-        if old_mana:
-            for actor in world.actors.values():
-                actor.magic.max_mana = 100
-                actor.magic.mana = 100
         return world
 
     def _join_actor(self, actor_id: str, city: str = START_CITY,
-                    lineage: str | None = None, start_mana: int = 10):
+                    lineage: str | None = None):
         if actor_id in self.world.actors:
             raise ValueError("Duplicate player registration in world")
-        if type(start_mana) is not int or start_mana not in (10, 100):
-            raise ValueError("Invalid starting mana baseline")
         actor = Actor(actor_id, "human", city=city, gold=INITIAL_GOLD)
-        actor.magic.max_mana = start_mana
-        actor.magic.mana = start_mana
         actor.discovered_cities.add(city)
         point = self.world.geography_settlements[city]
         reveal(self.world, actor, (point.x, point.y))
