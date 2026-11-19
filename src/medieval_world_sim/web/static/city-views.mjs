@@ -30,20 +30,31 @@ export function createCityViews(ctx) {
         contract.has_material &&
         p.stamina >= contract.stamina && p.mana >= contract.mana;
       const costs = [contract.stamina ? contract.stamina + ' stamina' : null,
-        contract.mana ? contract.mana + ' mana' : null,
-        contract.material ? '1 ' + pretty(contract.material) : null].filter(Boolean);
+        contract.mana ? contract.mana + ' mana' : null].filter(Boolean);
+      const itemRequired = contract.material === "herbs" ? "1 bunch of herbs" :
+        "1 " + pretty(contract.material);
+      const explanation = !contract.can_pay ?
+        'The city cannot currently fund this offer.' :
+        state.active_contract ? 'Finish your current assignment first.' :
+        contract.cooldown_remaining ?
+          'Available in ' + dur(contract.cooldown_remaining) + '.' :
+        !contract.has_material ?
+          'You need ' + itemRequired + ' to initiate this contract (consumed when you start).' :
+        p.mana < contract.mana ?
+          'You need ' + contract.mana + ' mana to initiate this contract (you have ' +
+          p.mana + ').' :
+        p.stamina < contract.stamina ?
+          'You need ' + contract.stamina + ' stamina to initiate this contract (you have ' +
+          p.stamina + ').' : '';
       return '<div class="contract-card"><div><h3>' + esc(contract.title) + '</h3>' +
         '<p>' + esc(contract.description) + '</p>' +
         '<div class="contract-terms"><span>+' + contract.reward + ' gold</span>' +
         '<span>' + esc(costs.length ? costs.join(' · ') : 'No item cost') + '</span>' +
-        '<span>' + esc(dur(contract.duration_minutes)) + ' shift</span>' +
-        '<span>24h repeat cooldown</span></div>' +
-        (!contract.can_pay ? '<p class="small">The city cannot currently fund this offer.</p>' :
-         !contract.has_material ? '<p class="small">You need ' + esc(pretty(contract.material)) + '.</p>' :
-         state.active_contract ?
-           '<p class="small">Finish your current assignment first.</p>' :
-         contract.cooldown_remaining ?
-           '<p class="small">Available in ' + esc(dur(contract.cooldown_remaining)) + '.</p>' : '') +
+        '<span>' + esc(dur(contract.duration_minutes)) + ' shift</span></div>' +
+        (explanation ? '<p class="small">' + esc(explanation) + '</p>' : '') +
+        (contract.material && contract.has_material && !explanation ?
+          '<p class="small">' + esc(itemRequired) +
+          ' will be consumed when you start this contract.</p>' : '') +
         '</div>' +
         button("Start shift", 'data-ui="contract" data-contract="' +
           esc(contract.id) + '"' + disabled(!can), "secondary") + '</div>';
@@ -231,27 +242,33 @@ export function createCityViews(ctx) {
         '<time class="university-countdown" role="timer" aria-live="off" ' +
         'data-university-countdown="true" ' + ctx.timerAttrs('', remaining * 60) +
         '>' + esc(ctx.timerText(remaining * 60)) + ' remaining</time>' +
-        '<progress value="' + elapsed + '" max="' + total +
+        '<progress class="university-progress-meter" value="' + elapsed +
+        '" max="' + total + '" data-total-minutes="' + total +
         '" aria-label="' + esc(name) + ' course progress"></progress>' +
-        '<small>' + Math.floor(elapsed * 100 / total) + '% complete</small>' +
+        '<small class="university-progress-percent">' +
+        Math.floor(elapsed * 100 / total) + '% complete</small>' +
         '</section>';
     })() : '';
     const tiles = hall.schools.map(school => {
+      const schoolActive = Boolean(studies && studies.school === school.id);
       const courses = school.courses.map((course, index) => {
+        const activeCourse = schoolActive && studies.index === index;
         const fee = Number(course.tuition);
         const blocked = pending || isBusy() || state.player.gold < fee || !course.available;
         const action = course.completed ? chip("Completed") :
-          course.active ? chip("In progress") :
+          activeCourse ? chip("In progress") :
           button("Enroll · " + money(fee),
             'data-ui="course-enroll" data-school="' + esc(school.id) +
             '" data-index="' + index + '"' + disabled(blocked), "secondary");
-        return '<div class="university-course"><div><strong>' +
+        return '<div class="university-course' +
+          (activeCourse ? ' is-active' : '') + '"><div><strong>' +
           esc(course.name) + '</strong><small>' +
-          (course.active ? 'In progress' : course.days + ' days') +
+          (activeCourse ? 'In progress' : course.days + ' days') +
           ' · +' + course.stat_bonus + ' ' + esc(pretty(school.stat)) +
           '</small></div>' + action + '</div>';
       }).join('');
-      return '<details class="university-school" data-university="' +
+      return '<details class="university-school' +
+        (schoolActive ? ' is-active' : '') + '" data-university="' +
         esc(school.id) + '"' +
         (expandedUniversitySchool === school.id ? ' open' : '') +
         '><summary><span><strong>' +
