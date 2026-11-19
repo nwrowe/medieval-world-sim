@@ -94,7 +94,8 @@ export function createCharacterViews(ctx) {
         characterRow("Health", p.hp + " / " + p.max_hp) +
         characterRow("Stamina", p.stamina + " / " + p.max_stamina) +
         characterRow("Mana", p.mana + " / " + p.max_mana) +
-        characterRow("Age", p.age_days + " Oathmere days")) +
+        characterRow("Age", p.age_days + (p.age_days === 1 ?
+          " Oathmere day" : " Oathmere days"))) +
       panel("Combat Attributes", "",
         characterRow("Strength", p.strength) +
         characterRow("Defense", p.defense) +
