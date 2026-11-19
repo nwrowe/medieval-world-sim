@@ -452,7 +452,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       'This development server runs on your own computer.</p>' +
       '<form id="accountLoginForm" class="stack">' +
       '<label for="loginUsername">Email Address</label>' +
-      '<input id="loginUsername" class="field" type="email" autocomplete="email" ' +
+      '<input id="loginUsername" class="field" type="text" inputmode="email" autocomplete="username" ' +
       'maxlength="254" required>' +
       '<label for="loginPassword">Password</label>' +
       '<input id="loginPassword" class="field" type="password" ' +
