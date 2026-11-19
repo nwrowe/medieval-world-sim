@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 
 from ..systems.cooldowns import remaining
 from .projection import activity_projection
+from .economy_projection import incoming_job_offers
 
 MAX_ACTIVITY_CACHE = 32
 
@@ -120,6 +121,8 @@ def social_view(game: MultiplayerGame, actor_id: str,
     return {
         "actor_id": actor_id, "revision": game._revision,
         "chat": chat, "trades": trades, "minute": game.world.minute,
+        "employment_offers": incoming_job_offers(game.world, actor_id, game.names),
+        "active_contract": game.world.city_contracts.active(actor_id),
         "next_world_tick_seconds": game._next_world_tick_seconds(),
         "users": projection["users"], "events": projection["events"],
         "duel": projection["duel"], "last_duel": projection["last_duel"],
