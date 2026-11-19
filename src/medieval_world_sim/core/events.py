@@ -42,6 +42,7 @@ EVENT_FIELDS = {
         "chance", "item", "quantity", "stamina_spent", "damage"
     ],
     "company_hiring_changed": ["actor_id", "company_id", "hiring"],
+    "job_declined": ["company_id", "worker_id"],
     "company_applied": ["actor_id", "company_id"],
     "company_application_withdrawn": ["actor_id", "company_id"],
     "company_listed": ["actor_id", "company_id", "price"],
