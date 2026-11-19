@@ -987,7 +987,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     createEconomyViews({
       getState: () => state,
       getCompanySection: () => companySection,
-      esc, pretty, money, button, disabled, isBusy, heading, panel, timerAttrs, fullCountdown,
+      esc, pretty, money, button, disabled, isBusy, heading, panel, timerAttrs, fullCountdown, timerSeconds,
     });
   const { handleEconomyClick } = createEconomyActions({
     getRoot: () => root, getState: () => state, action, notify,
