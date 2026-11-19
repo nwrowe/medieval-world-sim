@@ -257,13 +257,13 @@ const categorizedArmory = createCharacterViews({
   ...helpers, getState: () => state, getArmoryCategory: () => category
 });
 assert.match(categorizedArmory.renderArmory(), /Armor & Shields/);
-assert.match(categorizedArmory.renderArmory(), /Leather Helm/);
-assert.doesNotMatch(categorizedArmory.renderArmory(), /Iron Sword/);
+assert.match(categorizedArmory.renderArmory(), /leather_helm/);
+assert.doesNotMatch(categorizedArmory.renderArmory(), /iron_sword/);
 category = "weapons";
-assert.match(categorizedArmory.renderArmory(), /Iron Sword/);
-assert.doesNotMatch(categorizedArmory.renderArmory(), /Leather Helm/);
+assert.match(categorizedArmory.renderArmory(), /iron_sword/);
+assert.doesNotMatch(categorizedArmory.renderArmory(), /leather_helm/);
 category = "tools";
-assert.match(categorizedArmory.renderArmory(), /Pickaxe/);
+assert.match(categorizedArmory.renderArmory(), /pickaxe/);
 state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };
 assert.match(character.renderInventory(), /3 carried/);
 assert.match(character.renderInventory(), /data-ui="discard"/);
