@@ -122,7 +122,9 @@ def economy_projection(world, actor_id: str, names: dict[str, str]) -> dict:
                 "applicants": [{
                     "id": member, "name": names.get(member, member),
                     "position_id": company.applicant_positions.get(member, ""),
-                    "position": next((p["title"] for p in slots if p["id"] == company.applicant_positions.get(member)), "Any open position")}
+                    "position": next((p["title"] for p in slots if p["id"] == company.applicant_positions.get(member)), "Any open position"),
+                    "eligible_positions": [p["id"] for p in vacant
+                        if qualified(world.actors[member], p)]}
                     for member in sorted(company.applicants)],
             })
         if actor_id in company.employees:
