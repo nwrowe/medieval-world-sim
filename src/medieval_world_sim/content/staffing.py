@@ -51,7 +51,7 @@ def positions(company) -> list[dict]:
     for slot in range(caps[career_stage(company)]):
         tier = next(i for i, cap in enumerate(caps) if slot < cap)
         title, primary, secondary = careers[slot % len(careers)]
-        requirements = {primary: 5 + 3 * tier, secondary: 5 + 2 * tier}
+        requirements = {primary: 8 + 4 * tier, secondary: 4 + 2 * tier}
         result.append({
             "id": str(slot), "title": title + (" " + str(slot // len(careers) + 1) if slot >= len(careers) else ""),
             "tier": tier + 1, "requirements": requirements,
