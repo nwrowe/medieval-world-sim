@@ -132,8 +132,7 @@ def register(game: MultiplayerGame, username: str, password: str, display_name: 
         game.db.execute(
             "INSERT INTO world_journal(kind, actor_id, payload, recorded_at) "
             "VALUES('join', ?, ?, ?)",
-            (actor_id, encode_json({"city": START_CITY, "lineage": lineage,
-                                    "start_mana": 10}),
+            (actor_id, encode_json({"city": START_CITY, "lineage": lineage}),
              datetime.now(timezone.utc).isoformat()))
         return actor_id
     try:
