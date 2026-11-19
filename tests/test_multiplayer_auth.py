@@ -85,6 +85,22 @@ class MultiAccountPersistenceTests(unittest.TestCase):
                             for row in self.game.snapshot(bob)["events"]))
         self.assertEqual(self.game.world.total_gold, self.game.world.initial_gold)
 
+    def test_player_age_uses_own_registration_minute_and_survives_restart(self):
+        _, _, alice = self.register("alice", "Alice River")
+        self.assertEqual(self.game.snapshot(alice)["player"]["age_days"], 0)
+        self.game.advance(alice, 1440, "age-first")
+        self.game.advance(alice, 1440, "age-second")
+        _, _, bob = self.register("bob", "Bryn Stone")
+        self.assertEqual(self.game.snapshot(alice)["player"]["age_days"], 2)
+        self.assertEqual(self.game.snapshot(bob)["player"]["age_days"], 0)
+        self.game.advance(alice, 1440, "age-third")
+        self.assertEqual(self.game.snapshot(alice)["player"]["age_days"], 3)
+        self.assertEqual(self.game.snapshot(bob)["player"]["age_days"], 1)
+        self.game.close()
+        self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)
+        self.assertEqual(self.game.snapshot(alice)["player"]["age_days"], 3)
+        self.assertEqual(self.game.snapshot(bob)["player"]["age_days"], 1)
+
     def test_login_passwords_expiry_logout_and_duplicate_account_rejected(self):
         token, csrf, alice = self.register("Alice", "Alice River")
         self.assertEqual(self.game.identity(token).actor_id, alice)

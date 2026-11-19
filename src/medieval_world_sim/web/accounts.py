@@ -57,9 +57,22 @@ def _password_hash(password: str, salt: bytes) -> bytes:
 
 
 def validate_registration(username: str, password: str, display_name: str) -> tuple[str, str]:
-    if (not isinstance(username, str) or not re.fullmatch(
-            r"[A-Za-z0-9_]{3,24}", username)):
-        raise ActionError("Username must contain 3–24 ASCII letters, numbers or underscores only")
+    if not isinstance(username, str):
+        raise ActionError("Enter a valid email address")
+    if "@" in username:
+        local, _, domain = username.partition("@")
+        labels = domain.split(".")
+        if (len(username) > 254 or not 1 <= len(local) <= 64
+                or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._%+\-]*", local)
+                or ".." in local or local.endswith(".")
+                or len(labels) < 2
+                or any(not re.fullmatch(
+                    r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+                    for label in labels)):
+            raise ActionError("Enter a valid email address")
+    elif not re.fullmatch(r"[A-Za-z0-9_]{3,24}", username):
+        # Older development clients still use short internal login names.
+        raise ActionError("Enter a valid email address or development username")
     if (not isinstance(display_name, str) or not re.fullmatch(
             r"[A-Za-z][A-Za-z '’-]{1,27}", display_name.strip())):
         raise ActionError("Character name must be 2–28 letters or spaces")
@@ -111,10 +124,11 @@ def register(game: MultiplayerGame, username: str, password: str, display_name: 
         try:
             game.db.execute(
                 "INSERT INTO accounts(actor_id, username, display_name, salt, "
-                "password_hash, created_at) VALUES(?,?,?,?,?,?)",
-                (actor_id, username, display_name, salt, hashed, int(time.time())))
+                "password_hash, created_at, birth_minute) VALUES(?,?,?,?,?,?,?)",
+                (actor_id, username, display_name, salt, hashed,
+                 int(time.time()), game.world.minute))
         except sqlite3.IntegrityError:
-            raise ActionError("Username or character name is already taken") from None
+            raise ActionError("Email address or character name is already taken") from None
         game._join_actor(actor_id, START_CITY, lineage)
         game.names[actor_id] = display_name
         if game.require_invites:
@@ -145,7 +159,7 @@ def register(game: MultiplayerGame, username: str, password: str, display_name: 
 def login(game: MultiplayerGame, username: str, password: str) -> tuple[str, str]:
     # Uniform error for missing usernames and bad passwords.
     if (not isinstance(username, str) or not isinstance(password, str)
-            or len(username) > 24 or len(password) > 128):
+            or len(username) > 254 or len(password) > 128):
         raise AuthError("Invalid username or password")
     normalized = username.lower()
     with game._lock:

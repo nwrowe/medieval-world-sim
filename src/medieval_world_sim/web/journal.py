@@ -53,6 +53,7 @@ def create_schema(game: MultiplayerGame) -> None:
             salt BLOB NOT NULL,
             password_hash BLOB NOT NULL,
             created_at INTEGER NOT NULL,
+            birth_minute INTEGER NOT NULL DEFAULT 0 CHECK(birth_minute >= 0),
             failed_logins INTEGER NOT NULL DEFAULT 0,
             blocked_until INTEGER NOT NULL DEFAULT 0
         );
@@ -81,6 +82,12 @@ def create_schema(game: MultiplayerGame) -> None:
             UNIQUE(actor_id, request_id)
         );
     """)
+    # Add the player-birth clock to active fresh-format realms without
+    # changing deterministic world checkpoints or discarding accounts.
+    if "birth_minute" not in {
+            row[1] for row in game.db.execute("PRAGMA table_info(accounts)")}:
+        game.db.execute(
+            "ALTER TABLE accounts ADD COLUMN birth_minute INTEGER NOT NULL DEFAULT 0")
     game.db.execute(
         "INSERT OR IGNORE INTO world_meta(name,value) VALUES('baseline_revision',?)",
         (BASELINE_REVISION,))

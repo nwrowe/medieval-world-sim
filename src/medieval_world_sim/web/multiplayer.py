@@ -525,9 +525,13 @@ class MultiplayerGame:
         with self._lock:
             if actor_id not in self.names:
                 raise AuthError("Unknown account")
+            birth = self.db.execute(
+                "SELECT birth_minute FROM accounts WHERE actor_id=?",
+                (actor_id,)).fetchone()
             result = world_snapshot(self.world, actor_id, self.names[actor_id],
                                     self.npc_names, self.names,
-                                    self.event_times, True)
+                                    self.event_times, True,
+                                    birth_minute=birth[0])
             result["actor_id"] = actor_id
             social = self._social_view(actor_id, result)
             result["chat"] = social["chat"]
