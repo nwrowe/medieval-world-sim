@@ -61,13 +61,18 @@ export function createEconomyActions(ctx) {
           break;
         }
         case "company-apply":
-        case "company-withdraw-application":
-          fire(name === "company-apply" ? "company_apply" :
-            "company_withdraw_application", {
-            company_id: companyId
-          }, name === "company-apply" ? "Application submitted" :
-            "Application withdrawn");
+        case "company-withdraw-application": {
+          const row = element.closest("[data-company-search]");
+          if (name === "company-apply") {
+            fire("company_apply_role", {
+              company_id: companyId, position_id: value(row, "apply-position")
+            }, "Application submitted");
+          } else {
+            fire("company_withdraw_application", { company_id: companyId },
+              "Application withdrawn");
+          }
           break;
+        }
         case "company-list-for-sale":
           fire("company_list_for_sale", {
             company_id: companyId, price: whole(company, "sale-price", 1)
@@ -126,32 +131,47 @@ export function createEconomyActions(ctx) {
               name === "company-stock-gear" ? "personal-gear" : "company-gear", 1),
           }, "Company equipment updated");
           break;
-        case "job-offer":
-          fire("offer_job", {
-            company_id: companyId,
-            worker_id: value(company, "worker-id"),
-            gold: whole(company, "offer-gold"),
-            item: value(company, "offer-item"),
-            quantity: whole(company, "offer-quantity", 0, 10000),
-          }, "Employment offer sent");
+        case "job-offer": {
+          const typed = value(company, "worker-name").trim();
+          const candidate = (ctx.getState().economy?.candidates || [])
+            .find(c => c.name.toLowerCase() === typed.toLowerCase() ||
+                       c.id.toLowerCase() === typed.toLowerCase());
+          if (!candidate) throw Error("Enter an existing player's name");
+          fire("offer_job_position", {
+            company_id: companyId, worker_id: candidate.id,
+            gold: whole(company, "offer-gold", 1),
+            position_id: value(company, "offer-position"),
+          }, "Employment letter sent");
           break;
+        }
+        case "company-accept-applicant": {
+          const row = element.closest("[data-econ-applicant]");
+          fire("company_accept_applicant", {
+            company_id: companyId, worker_id: element.dataset.worker,
+            position_id: value(row, "applicant-position"),
+            gold: whole(row, "applicant-gold", 1),
+          }, "Employment letter sent to applicant");
+          break;
+        }
         case "job-wage": {
           const row = element.closest("[data-econ-staff]");
           fire("change_job_wage", {
             company_id: companyId, worker_id: element.dataset.worker,
-            gold: whole(row, "wage-gold"),
-            item: value(row, "wage-item"),
-            quantity: whole(row, "wage-quantity", 0, 10000),
+            gold: whole(row, "wage-gold", 1),
+            item: "", quantity: 0,
           }, "Employment wages updated");
           break;
         }
         case "job-accept":
+        case "job-decline":
         case "job-leave":
         case "job-shift":
           fire(name === "job-accept" ? "accept_job" :
+            name === "job-decline" ? "decline_job" :
             name === "job-leave" ? "leave_job" : "shift", {
             company_id: companyId,
           }, name === "job-accept" ? "Employment accepted" :
+            name === "job-decline" ? "Offer declined" :
             name === "job-leave" ? "Employment ended" : "Shift completed and wages paid");
           break;
         case "company-perks":
