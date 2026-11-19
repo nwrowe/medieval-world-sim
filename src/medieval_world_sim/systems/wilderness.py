@@ -76,7 +76,7 @@ class WildernessSystem:
         if available < quantity:
             raise ActionError("This deposit is exhausted; let it recover")
         if (sum(actor.inventory.values()) + len(actor.gear_ids) + quantity
-                > self.world.housing_system.travel_cargo_limit(actor):
+                > self.world.housing_system.travel_cargo_limit(actor)):
             raise ActionError("Carrying capacity reached; discard items before gathering")
         # Only committed successful commands consume stamina and stock.
         actor.stamina -= cost
