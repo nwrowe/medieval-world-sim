@@ -201,7 +201,8 @@ from ..content.lineages import LINEAGES, active_trait
 
 def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
                    npc_names: dict[str, str], human_names: dict[str, str],
-                   event_times: dict[int, str], multiplayer: bool) -> dict:
+                   event_times: dict[int, str], multiplayer: bool,
+                   birth_minute: int = 0) -> dict:
     """Present one player's authorized view from a shared or single-player world.
 
     Never serialize another player's inventory, gold, work/battle stats or
@@ -377,6 +378,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "gold": actor.gold, "hp": actor.hp, "max_hp": actor.max_hp,
             "stamina": actor.stamina, "max_stamina": actor.max_stamina,
             "hunger": actor.vitals.hunger, "level": actor.level,
+            "age_days": max(0, (now - birth_minute) // 1440),
             "combat_xp": actor.combat_xp,
             "level_xp": actor.level_xp,
             "strength": actor.strength, "defense": actor.defense,
