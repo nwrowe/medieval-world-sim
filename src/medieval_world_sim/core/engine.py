@@ -449,6 +449,10 @@ class WorldEngine:
         return self.companies_system.withdraw_application(actor_id, company_id)
 
     @atomic_action
+    def company_apply_role(self, actor_id: str, company_id: str, position_id: str) -> None:
+        return self.companies_system.apply_role(actor_id, company_id, position_id)
+
+    @atomic_action
     def company_list_for_sale(self, actor_id: str, company_id: str, price: int) -> None:
         return self.companies_system.list_for_sale(actor_id, company_id, price)
 
@@ -499,6 +503,18 @@ class WorldEngine:
                                                gold, item, quantity)
 
     @atomic_action
+    def offer_job_position(self, actor_id: str, company_id: str, worker_id: str,
+                           gold: int, position_id: str) -> None:
+        return self.companies_system.offer_job_position(actor_id, company_id,
+                                                        worker_id, gold, position_id)
+
+    @atomic_action
+    def company_accept_applicant(self, actor_id: str, company_id: str,
+                                 worker_id: str, gold: int, position_id: str) -> None:
+        return self.companies_system.accept_applicant(actor_id, company_id,
+                                                      worker_id, gold, position_id)
+
+    @atomic_action
     def change_job_wage(self, actor_id: str, company_id: str, worker_id: str,
                         gold: int, item: str, quantity: int) -> None:
         return self.companies_system.change_job_wage(actor_id, company_id, worker_id,
@@ -511,6 +527,10 @@ class WorldEngine:
     @atomic_action
     def accept_job(self, worker_id: str, company_id: str) -> None:
         return self.companies_system.accept_job(worker_id, company_id)
+
+    @atomic_action
+    def decline_job(self, worker_id: str, company_id: str) -> None:
+        return self.companies_system.decline_job(worker_id, company_id)
 
     @atomic_action
     def set_wage(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
