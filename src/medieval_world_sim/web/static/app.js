@@ -425,13 +425,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     catch { /* The button still opens the city interface. */ }
   }
   function lineagePromptPage() {
-    const fresh = pendingIntroduction();
     return '<div class="entry"><div class="entry-card lineage-entry">' +
       '<div class="entry-seal">✦</div><h1>Choose your lineage</h1>' +
-      '<p>' + (fresh ?
-        'Before entering Oathmere, choose the lineage that will shape your character.' :
-        'This existing character predates lineages. Choose once to gain a birthright; your possessions and adventures are preserved.') +
-      '</p><form id="lineageChoiceForm">' + lineagePicker() +
+      '<p>Before entering Oathmere, choose the lineage that will shape your character.</p>' +
+      '<form id="lineageChoiceForm">' + lineagePicker() +
       '<button class="button full gold" type="submit">Confirm lineage</button></form>' +
       '</div></div>';
   }
@@ -521,15 +518,15 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   function newCharacterPage() {
     return '<div class="entry"><div class="entry-card lineage-entry">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Welcome, traveler</div>' +
-      '<h1>Your story begins in Crownreach.</h1>' +
-      '<p>Enter the royal capital as an unknown traveler. Choose your ancestry, ' +
-      'then chart the roads beyond its walls.</p>' +
+      '<h1>Your story begins in Oathmere.</h1>' +
+      '<p>Enter an unfamiliar world as an unknown traveler. Choose your lineage, ' +
+      'then discover where the roads lead.</p>' +
       '<form id="newGameForm"><label for="heroName">Character name</label>' +
       '<input class="field" id="heroName" maxlength="28" autocomplete="off" placeholder="Choose your character name" required>' +
       lineagePicker() +
       '<button class="button full gold" type="submit"' + disabled(pending) +
       '>Begin your adventure</button></form>' +
-      '<p class="small">Begin in Crownreach with 240 gold. Unexplored cities are hidden on your map.</p>' +
+      '<p class="small">Begin with 240 gold. Unexplored places remain hidden on your map.</p>' +
       '</div></div>';
   }
   function refreshVital(old, label, value, maximum, kind, next) {
@@ -1397,7 +1394,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       event.preventDefault();
       const name = document.getElementById("heroName").value.trim();
       const lineage = new FormData(event.target).get("lineage");
-      if (name && lineage) await send("/api/new", { name, lineage }, "Welcome to Crownreach!");
+      if (name && lineage) await send("/api/new", { name, lineage }, "Welcome to Oathmere!");
     } else if (event.target.id === "lineageChoiceForm") {
       event.preventDefault();
       const lineage = new FormData(event.target).get("lineage");
