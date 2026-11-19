@@ -236,9 +236,7 @@ class CompanySystem:
         if company is None or company.owner_id != owner_id:
             raise ActionError("Only the owner may offer employment")
         worker = self.world._actor(worker_id)
-        if (worker.kind != "human" or worker_id == owner_id or
-                worker_id in company.employees or
-                active_offer(company, worker_id, self.world.minute)):
+        if (worker.kind != "human" or worker_id in company.employees):
             raise ActionError("Worker is unavailable for an offer")
         self._validate_wage(wage)
         vacancy = next((p for p in openings(company, self.world.minute)
