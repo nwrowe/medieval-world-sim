@@ -49,7 +49,7 @@ export function createCityViews(ctx) {
       return '<div class="contract-card"><div><h3>' + esc(contract.title) + '</h3>' +
         '<p>' + esc(contract.description) + '</p>' +
         '<div class="contract-terms"><span>+' + contract.reward + ' gold</span>' +
-        '<span>' + esc(costs.length ? costs.join(' · ') : 'No item cost') + '</span>' +
+        (costs.length ? '<span>Start: ' + esc(costs.join(' · ')) + '</span>' : '') +
         '<span>' + esc(dur(contract.duration_minutes)) + ' shift</span></div>' +
         (explanation ? '<p class="small">' + esc(explanation) + '</p>' : '') +
         (contract.material && contract.has_material && !explanation ?
