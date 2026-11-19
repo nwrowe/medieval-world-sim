@@ -2,7 +2,7 @@
  * Pure presentation. It never authenticates, transfers assets or changes state.
  */
 export function createEconomyViews(ctx) {
-  const { esc, pretty, money, button, disabled, heading, panel, isBusy, timerAttrs, fullCountdown } = ctx;
+  const { esc, pretty, money, button, disabled, heading, panel, isBusy, timerAttrs, fullCountdown, timerSeconds } = ctx;
   const options = (items, value = "id", label = "name") => items.map(item =>
     '<option value="' + esc(item[value]) + '">' + esc(item[label] || pretty(item[value])) +
     '</option>').join("");
@@ -21,7 +21,7 @@ export function createEconomyViews(ctx) {
     .map(([key,min]) => pretty(key) + " ≥ " + min).join(" · ");
   const countdown = minutes => minutes == null ? "Legacy offer" :
     '<span class="offer-countdown"' + timerAttrs("Expires in ", minutes * 60) +
-    '><span data-timer-display>' + fullCountdown(minutes * 60) + '</span></span>';
+    '><span data-timer-display>' + fullCountdown(timerSeconds(minutes * 60)) + '</span></span>';
   const tags = (values) => Object.entries(values || {}).filter(([, n]) => n > 0)
     .map(([key, amount]) => esc(pretty(key)) + ' ×' + amount).join(" · ") || "None";
 
