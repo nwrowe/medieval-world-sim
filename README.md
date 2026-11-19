@@ -154,9 +154,10 @@ See [Architecture](docs/ARCHITECTURE.md) for module boundaries and transaction t
 ### Fresh-start baseline (November 2026)
 
 Development-era saves are deliberately **not** migrated. The current JSON
-save format is version 3 and the SQLite multiplayer journal requires a fresh
-`baseline_revision` marker. Use a **new save path** or **new SQLite database
-path** for a clean playtest. Old files are rejected, not erased: move them to
+save format is version 4, and the SQLite multiplayer journal requires
+`baseline_revision` 2 (checkpoint version 4). Use a **new save path** or **new SQLite database
+path** for a clean playtest (for example, `multi-quick3.sqlite3` instead
+of `multi-quick2.sqlite3`). Old files are rejected, not erased: move them to
 a backup directory or keep them separately rather than deleting them
 automatically. Current-format restarts still preserve player progress, receipts,
 item/gold ownership, and deterministic game-clock replay.
