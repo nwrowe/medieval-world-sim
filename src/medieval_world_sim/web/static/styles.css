@@ -812,8 +812,8 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 
 /* Stable, live-updating hover labels. Updating data-hover-text does not
    dismiss an already-visible tooltip, unlike the native title attribute. */
-.vital[data-hover-text], .cooldown-chip[data-hover-text] { position:relative; }
-.vital[data-hover-text]::after, .cooldown-chip[data-hover-text]::after {
+.vital[data-hover-text], .cooldown-chip[data-hover-text], .settings-shortcut[data-hover-text] { position:relative; }
+.vital[data-hover-text]::after, .cooldown-chip[data-hover-text]::after, .settings-shortcut[data-hover-text]::after {
   content:attr(data-hover-text);
   position:absolute;
   left:50%;
@@ -838,7 +838,8 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   transition:opacity .12s ease;
 }
 .vital[data-hover-text]:is(:hover,:focus-visible)::after,
-.cooldown-chip[data-hover-text]:is(:hover,:focus-visible)::after {
+.cooldown-chip[data-hover-text]:is(:hover,:focus-visible)::after,
+.settings-shortcut[data-hover-text]:is(:hover,:focus-visible)::after {
   opacity:1;
   visibility:visible;
 }
@@ -1207,3 +1208,32 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 @media (max-width:620px) {
   .wilderness-row { align-items:flex-start; flex-direction:column; }
 }
+
+/* Career ladder, individual employment decisions and private letters. */
+.company-marketplace { margin-top:16px; }
+.economy-roster { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.economy-position { display:flex; flex-direction:column; gap:4px;
+  border:1px solid var(--line); border-radius:9px; padding:12px; min-width:0; }
+.economy-position strong {color:var(--ink);font-size:13px;}
+.economy-position span {font-size:12px;color:var(--muted);}
+.economy-position small {font-size:11px;color:var(--muted);}
+.economy-applicant-controls,.economy-offer-controls {grid-template-columns:repeat(3,minmax(0,1fr));}
+.economy-apply-choice {display:flex;flex-direction:column;gap:4px;max-width:320px;
+  color:var(--muted);font-size:12px;}
+.economy-apply-choice select {width:100%;}
+.economy-letter {border-top:1px solid var(--line);padding:17px 0;}
+.economy-letter:first-child {border-top:0;padding-top:0;}
+.economy-letter h3 {margin:0 0 8px;color:var(--ink);font-size:18px;}
+.economy-letter p {margin:7px 0;color:var(--ink);}
+.offer-countdown {font-variant-numeric:tabular-nums;color:var(--muted);}
+@media(max-width:720px) {
+  .economy-roster {grid-template-columns:1fr;}
+  .economy-applicant-controls,.economy-offer-controls {grid-template-columns:1fr;}
+}
+/* Dialogs use theme-aware foregrounds, including destructive confirmations. */
+:root[data-theme="dark"] .travel-confirm-card {
+  background:#22342b;border-color:#d0ac6a;color:#e4eae0;
+}
+:root[data-theme="dark"] .travel-confirm-card h2 {color:#f4e1b8;}
+:root[data-theme="dark"] .travel-confirm-card p {color:#dce6d8;}
+:root[data-theme="dark"] .travel-confirm-card p strong {color:#f3e5bb;}
