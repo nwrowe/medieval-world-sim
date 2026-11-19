@@ -43,6 +43,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     { id: "equipment", icon: "⚔", title: "Equipment" },
     { id: "world", icon: globeIcon, title: "Map" },
     { id: "chronicle", icon: "▤", title: "Chronicle" },
+    { id: "letters", icon: "✉", title: "Letters" },
     { id: "people", icon: "⌕", title: "Search" },
   ];
   let state = null;
@@ -208,6 +209,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       item.dataset.hoverText = item.dataset.timerLabel + remaining;
       const readout = item.querySelector("[data-timer-display]");
       if (readout) readout.textContent = remaining;
+      if (seconds <= 0 && item.dataset.activityKey === "civic-shift") {
+        item.remove();
+        if (state) state.active_contract = null;
+        continue;
+      }
       if (item.hasAttribute("data-university-countdown")) {
         item.textContent = fullCountdown(seconds) + " remaining";
       }
@@ -620,12 +626,20 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const available = totalUnspentMerits(merits);
     const meritAlert = available > 0 ?
       '<button class="cooldown-chip activity-clickable" type="button" ' +
-      'data-activity-key="merits" data-ui="activity-merits" title="' +
-      esc(available + ' unspent merit point(s), claimed or unclaimed') +
-      '" aria-label="' + esc(available + ' merits available to spend') + '">' +
+      'data-activity-key="merits" data-ui="activity-merits" data-hover-text="' +
+      esc(available + ' unspent merit' + (available === 1 ? '' : 's')) +
+      '" aria-label="' + esc(available + ' unspent merit' + (available === 1 ? '' : 's')) + '">' +
       '<span aria-hidden="true">✶</span><strong>' +
       available + ' merit' + (available === 1 ? '' : 's') +
       '</strong></button>' : "";
+    const lettersCount = (state.economy?.job_offers || []).length;
+    const letters = lettersCount ?
+      '<button class="cooldown-chip activity-clickable" type="button" ' +
+      'data-activity-key="letters" data-ui="activity-letters" ' +
+      'data-hover-text="' + lettersCount + ' employment letter' +
+      (lettersCount === 1 ? '' : 's') + '" aria-label="Employment letters">' +
+      '<span aria-hidden="true">✉</span><strong>' +
+      lettersCount + ' letter' + (lettersCount === 1 ? '' : 's') + '</strong></button>' : "";
     const tripMinutes = p.destination && Number.isFinite(p.arrival_minute) ?
       Math.max(0, p.arrival_minute - state.minute) : 0;
     const travel = p.destination ?
@@ -682,7 +696,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '><span aria-hidden="true">▣</span><strong data-timer-display>' +
       fullCountdown(timerSeconds(activeShift.remaining_minutes * 60)) +
       '</strong></button>' : "";
-    return items + room + shift + meritAlert + trade + travel + university + hospital + defenderAlert;
+    return items + room + shift + meritAlert + letters + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     const locked = combatNavigationLocked();
@@ -708,7 +722,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       world: () => renderWorld() + renderWilderness(),
       market: () => renderMarket() + renderStalls(),
       magic: renderMagic, home: renderHome,
-      companies: renderCompanies, job: renderEmployment,
+      companies: renderCompanies, job: renderEmployment, letters: renderLetters,
       inventory: renderInventory, training: renderTraining,
       character: renderCharacter, equipment: renderEquipment,
       chronicle: renderChronicle, mercenary: renderMercenaryJobs,
@@ -748,7 +762,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<button class="settings-shortcut' + (tab === "settings" ? " active" : "") +
       '" type="button" data-ui="settings-open"' +
       disabled(combatNavigationLocked()) +
-      ' aria-label="Open Settings" title="Settings" aria-current="' +
+      ' aria-label="Open Settings" data-hover-text="Settings" aria-current="' +
       (tab === "settings" ? "page" : "false") + '">' +
       '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
       'stroke-width="2" stroke-linecap="round">' +
@@ -969,11 +983,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   });
   // Economy page rendering and action dispatch own no networking or mutable
   // server state. The main coordinator only supplies its established callbacks.
-  const { renderCompanies, renderEmployment, renderStalls } =
+  const { renderCompanies, renderEmployment, renderStalls, renderLetters } =
     createEconomyViews({
       getState: () => state,
       getCompanySection: () => companySection,
-      esc, pretty, money, button, disabled, isBusy, heading, panel,
+      esc, pretty, money, button, disabled, isBusy, heading, panel, timerAttrs,
     });
   const { handleEconomyClick } = createEconomyActions({
     getRoot: () => root, getState: () => state, action, notify,
@@ -1076,6 +1090,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       state.activity_revision = update.revision;
       if ("chat" in update) state.chat = update.chat;
       if ("trades" in update) state.trades = update.trades;
+      if (Array.isArray(update.employment_offers) && state.economy)
+        state.economy.job_offers = update.employment_offers;
+      if ("active_contract" in update) state.active_contract = update.active_contract;
       if ("minute" in update) state.minute = update.minute;
       if ("next_world_tick_seconds" in update) {
         state.next_world_tick_seconds = update.next_world_tick_seconds;
@@ -1208,6 +1225,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       if (content) content.innerHTML = renderProfile();
     } else if (tab === "chronicle") {
       refreshChronicleList();
+    }
+    if (tab === "letters") {
+      const content = document.getElementById("main-content");
+      if (content) content.innerHTML = renderLetters();
     }
     if (tab === "trade") {
       const current = document.getElementById("trade-offers-list");
@@ -1756,6 +1777,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         tab = "duel"; render(); break;
       case "activity-hospital":
         tab = "character"; render(); break;
+      case "activity-letters":
+        navigateTo("letters");
+        render();
+        break;
       case "activity-merits":
         navigateTo("merits");
         render();
