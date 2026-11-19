@@ -296,6 +296,7 @@ def validate_world(world: WorldEngine) -> None:
                 record[0] > mead_day(world.minute)):
             raise AssertionError("Invalid tavern drink tally")
     from ..content.industry import INDUSTRY_PRODUCTS
+    from ..content.staffing import positions, occupancy, active_offer
     for company in world.companies.values():
         if (type(company.display_name) is not str or
                 type(company.sale_price) is not int or
@@ -310,6 +311,23 @@ def validate_world(world: WorldEngine) -> None:
             raise AssertionError("Invalid company product selection")
         if not 1 <= company.facility_level <= 5 or company.shifts_completed < 0:
             raise AssertionError("Invalid company quality state")
+        if (not set(company.employee_positions) <= set(company.employees)
+                or not set(company.offer_positions) <= set(company.job_offers)
+                or not set(company.offer_expires) <= set(company.job_offers)
+                or not set(company.applicant_positions) <= company.applicants
+                or any(type(t) is not int or t < 0
+                       for t in company.offer_expires.values())):
+            raise AssertionError("Invalid employment assignment metadata")
+        valid_slots = {p["id"] for p in positions(company)}
+        if (any(slot not in valid_slots for slot in company.employee_positions.values())
+                or any(slot not in valid_slots for slot in company.offer_positions.values())
+                or any(slot not in valid_slots for slot in company.applicant_positions.values())):
+            raise AssertionError("Unknown career slot")
+        occupied = occupancy(company, world.minute)
+        if any(active_offer(company, worker, world.minute) and
+               not any(value == ("offer", worker) for value in occupied.values())
+               for worker in company.job_offers if worker in company.offer_positions):
+            raise AssertionError("Competing employment offers for one position")
     for city in world.cities.values():
         if city.household_gold < 0 or city.population < 0:
             raise AssertionError("Invalid city household budget")

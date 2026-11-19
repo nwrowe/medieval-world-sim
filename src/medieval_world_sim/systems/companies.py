@@ -4,6 +4,7 @@ import re
 
 from ..catalog import CAPITAL, RECIPES, GOODS
 from ..content.industry import INDUSTRY_PRODUCTS, company_recipe
+from ..content.staffing import positions, openings, occupancy, qualified, active_offer, OFFER_MINUTES
 from ..equipment import GEAR, crafted_quality
 from ..core.entities import Company, Wage
 from ..errors import ActionError
@@ -64,13 +65,31 @@ class CompanySystem:
         self.world._emit("company_hiring_changed", owner_id, company_id, hiring)
 
     def apply(self, actor_id: str, company_id: str) -> None:
+        """Historical general application: choose the first eligible vacancy."""
+        actor = self.world._actor(actor_id)
+        company = self.world.companies.get(company_id)
+        if company is None:
+            raise ActionError("Unknown company")
+        choice = next((p for p in openings(company, self.world.minute)
+                       if qualified(actor, p)), None)
+        if choice is None:
+            raise ActionError("No eligible openings")
+        self.apply_role(actor_id, company_id, choice["id"])
+
+    def apply_role(self, actor_id: str, company_id: str, position_id: str) -> None:
         actor = self.world._actor(actor_id)
         company = self.world.companies.get(company_id) if type(company_id) is str else None
         if (company is None or not company.hiring or actor.kind != "human" or
                 actor_id == company.owner_id or actor_id in company.employees or
-                actor_id in company.job_offers or actor_id in company.applicants):
+                active_offer(company, actor_id, self.world.minute) or
+                actor_id in company.applicants):
             raise ActionError("No available application for this company")
+        vacancy = next((p for p in openings(company, self.world.minute)
+                        if p["id"] == position_id), None)
+        if vacancy is None or not qualified(actor, vacancy):
+            raise ActionError("Position is unavailable or work requirements are not met")
         company.applicants.add(actor_id)
+        company.applicant_positions[actor_id] = position_id
         self.world._emit("company_applied", actor_id, company_id)
 
     def withdraw_application(self, actor_id: str, company_id: str) -> None:
@@ -78,6 +97,7 @@ class CompanySystem:
         if company is None or actor_id not in company.applicants:
             raise ActionError("No application to withdraw")
         company.applicants.remove(actor_id)
+        company.applicant_positions.pop(actor_id, None)
         self.world._emit("company_application_withdrawn", actor_id, company_id)
 
     def list_for_sale(self, owner_id: str, company_id: str, price: int) -> None:
@@ -210,26 +230,79 @@ class CompanySystem:
         wage = Wage(gold, item or None, quantity)
         self.set_wage(owner_id, company_id, worker_id, wage)
 
-    def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
+    def _offer_position(self, owner_id: str, company_id: str, worker_id: str,
+                        wage: Wage, position_id: str | None = None) -> None:
         company = self.world.companies.get(company_id)
         if company is None or company.owner_id != owner_id:
             raise ActionError("Only the owner may offer employment")
-        self.world._actor(worker_id)
+        worker = self.world._actor(worker_id)
+        if worker_id in company.employees:
+            raise ActionError("Worker is unavailable for an offer")
         self._validate_wage(wage)
+        vacancy = next((p for p in openings(company, self.world.minute)
+                        if (position_id is None or p["id"] == position_id)
+                        and qualified(worker, p)), None)
+        if vacancy is None:
+            raise ActionError("No vacant position for this worker's work stats")
         company.job_offers[worker_id] = wage
-        self.world._emit("job_offered", company_id, worker_id, wage.gold, wage.item, wage.quantity)
+        company.offer_positions[worker_id] = vacancy["id"]
+        company.offer_expires[worker_id] = self.world.minute + OFFER_MINUTES
+        company.applicants.discard(worker_id)
+        company.applicant_positions.pop(worker_id, None)
+        self.world._emit("job_offered", company_id, worker_id, wage.gold,
+                         wage.item, wage.quantity)
+
+    def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
+        self._offer_position(owner_id, company_id, worker_id, wage)
+
+    def offer_job_position(self, owner_id: str, company_id: str, worker_id: str,
+                           gold: int, position_id: str) -> None:
+        self._owned_local(owner_id, company_id)
+        if type(gold) is not int or gold <= 0:
+            raise ActionError("Offer a positive gold wage")
+        if self.world._actor(worker_id).kind != "human":
+            raise ActionError("Player job offers require a human character")
+        self._offer_position(owner_id, company_id, worker_id, Wage(gold), position_id)
+
+    def accept_applicant(self, owner_id: str, company_id: str, worker_id: str,
+                         gold: int, position_id: str) -> None:
+        _, company = self._owned_local(owner_id, company_id)
+        if worker_id not in company.applicants:
+            raise ActionError("The player has no active application")
+        self.offer_job_position(owner_id, company_id, worker_id, gold, position_id)
 
     def accept_job(self, worker_id: str, company_id: str) -> None:
         worker = self.world._actor(worker_id)
         company = self.world.companies.get(company_id)
-        if company is None or worker_id not in company.job_offers:
-            raise ActionError("No pending employment offer")
+        if company is None or not active_offer(company, worker_id, self.world.minute):
+            raise ActionError("No active employment offer (it may have expired)")
+        if worker_id in company.employees:
+            raise ActionError("Already employed here")
         if self.world._at_city(worker) != company.city:
             raise ActionError("Go to the company's city to accept the job")
+        assigned = next((slot for slot, holder in occupancy(company, self.world.minute).items()
+                         if holder == ("offer", worker_id)), None)
+        position = next((p for p in positions(company) if p["id"] == assigned), None)
+        if position is None or not qualified(worker, position):
+            raise ActionError("Position unavailable or work requirements not met")
         wage = company.job_offers.pop(worker_id)
+        company.offer_positions.pop(worker_id, None)
+        company.offer_expires.pop(worker_id, None)
+        company.employee_positions[worker_id] = assigned
         company.employees[worker_id] = wage
         company.applicants.discard(worker_id)
+        company.applicant_positions.pop(worker_id, None)
         self.world._emit("hired", company_id, worker_id, wage.gold, wage.item, wage.quantity)
+
+    def decline_job(self, worker_id: str, company_id: str) -> None:
+        self.world._actor(worker_id)
+        company = self.world.companies.get(company_id)
+        if company is None or not active_offer(company, worker_id, self.world.minute):
+            raise ActionError("No active employment offer")
+        company.job_offers.pop(worker_id)
+        company.offer_positions.pop(worker_id, None)
+        company.offer_expires.pop(worker_id, None)
+        self.world._emit("job_declined", company_id, worker_id)
 
     def set_wage(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         company = self.world.companies.get(company_id)
@@ -247,6 +320,7 @@ class CompanySystem:
         if company is None or worker_id not in company.employees:
             raise ActionError("Not employed there")
         del company.employees[worker_id]
+        company.employee_positions.pop(worker_id, None)
         self.world._emit("worker_left", company_id, worker_id)
 
     def set_perks(self, owner_id: str, company_id: str, perks: tuple[str, ...]) -> None:
@@ -306,7 +380,14 @@ class CompanySystem:
         if not company or company.owner_id != owner.id:
             raise ActionError("Only an owner can hire")
         self._validate_wage(wage)
+        if worker.id in company.employees or active_offer(company, worker.id, self.world.minute):
+            raise ActionError("Worker already hired or has a pending offer")
+        slot = next((p for p in openings(company, self.world.minute)
+                     if qualified(worker, p)), None)
+        if slot is None:
+            raise ActionError("No eligible vacancy")
         company.employees[worker.id] = wage
+        company.employee_positions[worker.id] = slot["id"]
         self.world._emit("hired", company_id, worker_id, wage.gold, wage.item, wage.quantity)
 
     def set_product(self, owner_id: str, company_id: str, product: str) -> None:
@@ -383,12 +464,15 @@ class CompanySystem:
         )
         worker.work.shifts += 1
         if worker.work.shifts % 5 == 0:
-            if company.industry in ("apothecary", "tavern"):
-                worker.work.intelligence += 1
-            elif company.industry in ("steelworks", "armorer", "forge"):
-                worker.work.manual += 1
-            else:
-                worker.work.endurance += 1
+            occupied = occupancy(company, self.world.minute)
+            slot = next((s for s, occupant in occupied.items()
+                         if occupant == ("employee", worker_id)), None)
+            career = next((p for p in positions(company) if p["id"] == slot), None)
+            focus = career["focus"] if career else (
+                "intelligence" if company.industry in ("apothecary", "tavern")
+                else "manual" if company.industry in ("steelworks", "armorer", "forge")
+                else "endurance")
+            setattr(worker.work, focus, getattr(worker.work, focus) + 1)
         company.shifts_completed += 1
         # Independently award each stocked perk; nothing materializes for free.
         for perk, item in (("meal", "bread"), ("medical", "healing_potion")):

@@ -2,7 +2,7 @@
  * Pure presentation. It never authenticates, transfers assets or changes state.
  */
 export function createEconomyViews(ctx) {
-  const { esc, pretty, money, button, disabled, heading, panel, isBusy } = ctx;
+  const { esc, pretty, money, button, disabled, heading, panel, isBusy, timerAttrs, fullCountdown, timerSeconds } = ctx;
   const options = (items, value = "id", label = "name") => items.map(item =>
     '<option value="' + esc(item[value]) + '">' + esc(item[label] || pretty(item[value])) +
     '</option>').join("");
@@ -17,6 +17,11 @@ export function createEconomyViews(ctx) {
   const line = (label, value) =>
     '<div class="character-row"><span>' + esc(label) + '</span><strong>' +
     esc(value) + '</strong></div>';
+  const requirements = values => Object.entries(values || {})
+    .map(([key,min]) => pretty(key) + " ≥ " + min).join(" · ");
+  const countdown = minutes => minutes == null ? "Legacy offer" :
+    '<span class="offer-countdown"' + timerAttrs("Expires in ", minutes * 60) +
+    '><span data-timer-display>' + fullCountdown(timerSeconds(minutes * 60)) + '</span></span>';
   const tags = (values) => Object.entries(values || {}).filter(([, n]) => n > 0)
     .map(([key, amount]) => esc(pretty(key)) + ' ×' + amount).join(" · ") || "None";
 
@@ -74,6 +79,8 @@ export function createEconomyViews(ctx) {
             company.quality.stars + " stars") +
           line("Facility", "Level " + company.facility_level) +
           line("Completed shifts", company.shifts_completed) +
+          line("Career stage", company.career_stage + " / 5") +
+          line("Positions", company.employees.length + " filled / " + company.capacity) +
           line("Daily sales", company.daily_units_sold + " units · " +
             money(company.daily_revenue)) +
           line("Current product", pretty(company.product)) +
@@ -110,51 +117,71 @@ export function createEconomyViews(ctx) {
           doButton("company-take-gear", "Take gear",
             disabled(!canManage || !gear.length)) + '</div>';
       } else if (section === "staff") {
+        const vacant = (company.positions || []).filter(p => p.status === "open");
+        const roleChoices = vacant.map(p => '<option value="' + esc(p.id) +
+          '">' + esc(p.title) + ' · ' + esc(requirements(p.requirements)) +
+          '</option>').join("");
+        const roster = (company.positions || []).map(p =>
+          '<div class="economy-position"><strong>' + esc(p.title) + '</strong>' +
+          '<span>' + esc(p.worker || (p.status === "offered" ? "Offer pending" : "Open")) +
+          '</span><small>' + esc(requirements(p.requirements)) + '</small></div>').join("");
+        const applicants = (company.applicants || []).map(a => {
+          const eligible = vacant.filter(p => (a.eligible_positions || []).includes(p.id));
+          const choices = eligible.map(p => '<option value="' + esc(p.id) + '"' +
+            (p.id === a.position_id ? ' selected' : '') + '>' +
+            esc(p.title) + '</option>').join("");
+          return '<div class="economy-job" data-econ-applicant="' + esc(a.id) +
+            '"><strong>' + esc(a.name) + '</strong> · ' + esc(a.position) +
+            (eligible.length ? '<div class="economy-controls economy-applicant-controls">' +
+              '<label>Position' + choose("applicant-position", choices) + '</label>' +
+              '<label>Gold per shift' + input("applicant-gold", 3, 1) + '</label>' +
+              doButton("company-accept-applicant", "Accept", 'data-worker="' +
+                esc(a.id) + '"' + disabled(!canManage)) + '</div>' :
+              '<p class="small">No eligible vacancy currently available.</p>') +
+            '</div>';
+        }).join("") || '<p class="small">No applications.</p>';
+        const staff = (company.employees || []).map(w =>
+          '<div class="economy-staff" data-econ-staff="' + esc(w.id) + '">' +
+          '<strong>' + esc(w.name) + '</strong> · ' + esc(w.position) +
+          ' · ' + esc(money(w.wage.gold)) + ' per shift' +
+          '<div class="economy-controls economy-applicant-controls">' +
+          '<label>Gold per shift' + input("wage-gold", w.wage.gold, 1) + '</label>' +
+          doButton("job-wage", "Set wage", 'data-worker="' + esc(w.id) +
+            '"' + disabled(!canManage)) + '</div></div>').join("") ||
+          '<p class="small">No employees yet.</p>';
         const offers = (company.job_offers || []).map(o =>
-          esc(o.name) + " · " + esc(money(o.wage.gold))).join("; ") || "None";
-        const candidates = econ.candidates || [];
-        const staff = (company.employees || []).map(worker =>
-          '<div class="economy-staff" data-econ-staff="' + esc(worker.id) + '">' +
-          '<strong>' + esc(worker.name) + '</strong> · ' +
-          esc(money(worker.wage.gold)) + ' per shift' +
-          '<div class="economy-controls economy-four">' +
-          '<label>Gold wage' + input("wage-gold", worker.wage.gold) + '</label>' +
-          '<label>Goods wage' + choose("wage-item",
-            '<option value="">None</option>' +
-            options((econ.goods || []).map(x => ({id:x,name:pretty(x)})))) + '</label>' +
-          '<label>Goods quantity' + input("wage-quantity", 0) + '</label>' +
-          doButton("job-wage", "Set wage",
-            'data-worker="' + esc(worker.id) + '"' + disabled(!canManage)) +
-          '</div></div>').join("") || '<p class="small">No employees yet.</p>';
-        const applicants = (company.applicants || []).map(a => esc(a.name)).join(", ") || "None";
-        content = '<div class="economy-actions">' +
-          doButton("company-hiring",
-            company.hiring ? "Close applications" : "Accept applications",
+          '<div class="economy-job"><strong>' + esc(o.name) + '</strong> · ' +
+          esc(o.position) + ' · ' + esc(money(o.wage.gold)) +
+          ' per shift · ' + countdown(o.expires_in_minutes) + '</div>').join("") ||
+          '<p class="small">No pending offers.</p>';
+        const names = (econ.candidates || []).map(c =>
+          '<option value="' + esc(c.name) + '"></option>').join("");
+        content = '<p class="small">' + company.employees.length + ' employees · ' +
+          company.capacity + ' positions · ' + vacant.length + ' vacant</p>' +
+          '<h4>Career positions</h4><div class="economy-roster">' + roster + '</div>' +
+          '<div class="economy-actions">' +
+          doButton("company-hiring", company.hiring ? "Close hiring" : "Open hiring",
             disabled(!canManage)) + '</div>' +
-          '<p class="small">Applicants: ' + applicants +
-          ' · Pending offers: ' + esc(offers) + '</p>' +
-          '<div class="economy-controls economy-four">' +
-          '<label>Offer employment to' + choose("worker-id", options(candidates)) +
-          '</label>' +
-          '<label>Gold per shift' + input("offer-gold", 3) + '</label>' +
-          '<label>Goods wage' + choose("offer-item",
-            '<option value="">None</option>' +
-            options((econ.goods || []).map(x => ({id:x,name:pretty(x)})))) +
-          '</label>' +
-          '<label>Goods quantity' + input("offer-quantity", 0) + '</label>' +
+          '<h4>Applications</h4>' + applicants +
+          '<h4>Send job offer</h4><div class="economy-controls economy-offer-controls">' +
+          '<label>Player name<input class="field" data-econ-field="worker-name" ' +
+          'list="company-candidates-' + cid +
+          '" placeholder="Type a player name" autocomplete="off" maxlength="60">' +
+          '<datalist id="company-candidates-' + cid + '">' + names +
+          '</datalist></label>' +
+          '<label>Position' + choose("offer-position", roleChoices) + '</label>' +
+          '<label>Gold per shift' + input("offer-gold", 3, 1) + '</label>' +
           doButton("job-offer", "Send job offer",
-            disabled(!canManage || !candidates.length)) +
-          '</div><div class="economy-staff-list">' + staff + '</div>' +
-          '<div class="economy-controls economy-four">' +
+            disabled(!canManage || !vacant.length)) + '</div>' +
+          '<h4>Pending offers</h4>' + offers +
+          '<h4>Employees</h4>' + staff +
+          '<h4>Benefits & facilities</h4><div class="economy-controls economy-four">' +
           '<label><input type="checkbox" data-econ-perk="training"' +
-          (company.perks.includes("training") ? " checked" : "") +
-          '> Training</label>' +
+          (company.perks.includes("training") ? " checked" : "") + '> Training</label>' +
           '<label><input type="checkbox" data-econ-perk="meal"' +
-          (company.perks.includes("meal") ? " checked" : "") +
-          '> Meals from stock</label>' +
+          (company.perks.includes("meal") ? " checked" : "") + '> Meals from stock</label>' +
           '<label><input type="checkbox" data-econ-perk="medical"' +
-          (company.perks.includes("medical") ? " checked" : "") +
-          '> Medical supplies</label>' +
+          (company.perks.includes("medical") ? " checked" : "") + '> Medical supplies</label>' +
           doButton("company-perks", "Apply perks", disabled(!canManage)) +
           doButton("company-upgrade", "Upgrade facility",
             disabled(!canManage || company.facility_level >= 5)) + '</div>';
@@ -192,7 +219,7 @@ export function createEconomyViews(ctx) {
       '</div>').join("") || '<p class="small">No companies listed for sale.</p>';
     return heading("", "Companies", "") +
       (intro ? intro : "") + cards +
-      panel("Company marketplace", "", sales);
+      '<div class="company-marketplace">' + panel("Company marketplace", "", sales) + '</div>';
   }
 
   function renderEmployment() {
@@ -200,7 +227,7 @@ export function createEconomyViews(ctx) {
     const jobs = (econ.jobs || []).map(job =>
       '<div class="economy-job">' +
       '<strong>' + esc(job.company_name || job.company_id) + '</strong> · ' +
-      esc(pretty(job.industry)) + ' · ' + esc(money(job.wage.gold)) + " per shift" +
+      esc(job.position || pretty(job.industry)) + ' · ' + esc(money(job.wage.gold)) + " per shift" +
       (job.wage.item ? ' · ' + esc(pretty(job.wage.item)) +
         ' ×' + job.wage.quantity : '') +
       '<div class="economy-actions">' +
@@ -210,30 +237,29 @@ export function createEconomyViews(ctx) {
         esc(job.company_id) + '"') + '</div>' +
       (job.ready_minutes ? '<p class="small">Ready in ' +
         esc(job.ready_minutes) + ' game minutes</p>' : '') + '</div>').join("");
-    const offers = (econ.job_offers || []).map(offer =>
-      '<div class="economy-job"><strong>' +
-      esc(offer.company_name || offer.company_id) + '</strong> · ' +
-      esc(pretty(offer.industry)) + ' · ' + esc(money(offer.wage.gold)) +
-      ' per shift' +
-      '<div class="economy-actions">' + doButton("job-accept", "Accept offer",
-        'data-company="' + esc(offer.company_id) + '"' +
-        disabled(!offer.can_accept)) + '</div></div>').join("");
     const directory = (econ.directory || []).map(company => {
       const searchable = (company.name + " " + company.industry + " " +
         company.city).toLowerCase();
+      const eligible = (company.openings || []).filter(p => p.eligible);
       const application = company.applied ?
         doButton("company-withdraw-application", "Withdraw application",
           'data-company="' + esc(company.id) + '"') :
-        company.hiring ?
+        company.hiring && eligible.length ?
+        '<label class="economy-apply-choice">Position' +
+        choose("apply-position", eligible.map(p =>
+          '<option value="' + esc(p.id) + '">' + esc(p.title) +
+          ' · ' + esc(requirements(p.requirements)) + '</option>').join("")) +
+        '</label>' +
         doButton("company-apply", "Apply",
           'data-company="' + esc(company.id) + '"' +
           disabled(!company.can_apply)) :
-        '<span class="small">Not hiring</span>';
+        '<span class="small">' + (company.hiring ?
+          "No eligible openings" : "Not hiring") + '</span>';
       return '<div class="economy-job" data-company-search="' + esc(searchable) +
         '"><strong>' + esc(company.name) + '</strong> · ' +
         esc(pretty(company.industry)) + '<p class="small">' +
         esc(pretty(company.city)) + ' · ' + company.employees +
-        ' employees · ' + (company.hiring ? "Accepting applications" : "Not hiring") +
+        ' / ' + company.capacity + ' positions · ' + (company.hiring ? "Hiring" : "Not hiring") +
         '</p><div class="economy-actions">' + application + '</div></div>';
     }).join("") || '<p class="small">No active companies.</p>';
     const w = ctx.getState().player.work;
@@ -241,8 +267,6 @@ export function createEconomyViews(ctx) {
       panel("Work stats", "",
         line("Manual", w.manual) + line("Intelligence", w.intelligence) +
         line("Endurance", w.endurance) + line("Shifts completed", w.shifts)) +
-      panel("Employment offers", "", offers ||
-        '<p class="small">No pending offers.</p>') +
       panel("My jobs", "", jobs ||
         '<p class="small">No active company employment.</p>') +
       panel("Find a company", "",
@@ -251,6 +275,27 @@ export function createEconomyViews(ctx) {
         'placeholder="Name, city or trade" maxlength="80" autocomplete="off">' +
         '<div id="occupation-company-list">' + directory + '</div>') +
       '</div>';
+  }
+
+  function renderLetters() {
+    const offers = (ctx.getState().economy?.job_offers || []).map(o =>
+      '<article class="economy-letter">' +
+      '<h3>' + esc(o.position) + '</h3><p><strong>' + esc(o.company_name) +
+      '</strong> · From ' + esc(o.sender || "Company owner") +
+      ' · ' + esc(pretty(o.city)) + '</p>' +
+      '<p>Gold per shift: <strong>' + esc(money(o.wage.gold)) +
+      '</strong></p><p class="small">Required: ' +
+      esc(requirements(o.requirements)) + '</p>' +
+      '<p class="small">Expires in ' + countdown(o.expires_in_minutes) + '</p>' +
+      (!o.can_accept ? '<p class="small">Visit the company city and meet the requirements to accept.</p>' : '') +
+      '<div class="economy-actions">' +
+      doButton("job-accept", "Accept", 'data-company="' +
+        esc(o.company_id) + '"' + disabled(!o.can_accept)) +
+      doButton("job-decline", "Decline", 'data-company="' +
+        esc(o.company_id) + '"') + '</div></article>').join("") ||
+      '<p class="small">No pending offers. Formal employment offers appear here for 48 Oathmere hours.</p>';
+    return heading("", "Letters", "") + '<div class="stack">' +
+      panel("Employment letters", "Review and respond to your job offers.", offers) + '</div>';
   }
 
   function renderStalls() {
@@ -296,5 +341,5 @@ export function createEconomyViews(ctx) {
         '<p class="small">No player listings at this settlement yet.</p>'));
   }
 
-  return { renderCompanies, renderEmployment, renderStalls };
+  return { renderCompanies, renderEmployment, renderStalls, renderLetters };
 }
