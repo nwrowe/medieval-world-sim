@@ -1270,3 +1270,7 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 :root[data-theme="dark"] .search-suggestion:hover,
 :root[data-theme="dark"] .search-suggestion:focus-visible {background:#31513c;}
 :root[data-theme="dark"] .armory-tabs .button.active {background:#42634c;color:#f0f8eb;}
+
+/* Suggestions must float above search results rather than clip at the panel edge. */
+.search-results-panel {overflow:visible;}
+.search-results-panel .search-panel {position:relative;z-index:3;}
