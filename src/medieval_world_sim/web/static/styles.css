@@ -1237,3 +1237,36 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 :root[data-theme="dark"] .travel-confirm-card h2 {color:#f4e1b8;}
 :root[data-theme="dark"] .travel-confirm-card p {color:#dce6d8;}
 :root[data-theme="dark"] .travel-confirm-card p strong {color:#f3e5bb;}
+
+/* Playtest UI: readable active courses, live search matches and categorized armory. */
+.university-school.is-active {border-color:#4c8b63;background:#ebf4e8;
+  box-shadow:inset 0 0 0 1px #4c8b63;}
+.university-school.is-active>summary strong {color:#25613f;}
+.university-course.is-active {background:#e0f0db;border-left:3px solid #4b9162;
+  padding-left:10px;}
+.university-course.is-active strong {color:#1a6641;}
+.people-search-field {position:relative;flex:1 1 240px;min-width:0;max-width:400px;}
+.people-search-field .field {width:100%;max-width:none;}
+.search-suggestions {position:absolute;top:calc(100% + 3px);left:0;right:0;
+  z-index:25;max-height:260px;overflow:auto;background:var(--paper);
+  border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);}
+.search-suggestions[hidden] {display:none;}
+.search-suggestion {display:flex;align-items:center;justify-content:space-between;
+  gap:10px;width:100%;padding:10px 12px;border:0;border-bottom:1px solid var(--line);
+  background:transparent;color:var(--ink);text-align:left;cursor:pointer;}
+.search-suggestion:last-child {border-bottom:0;}
+.search-suggestion:hover,.search-suggestion:focus-visible {background:#e6f0e1;}
+.search-suggestion strong {font-size:12px;}
+.search-suggestion small {font-size:10px;color:var(--muted);}
+.armory-tabs {display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;}
+.armory-tabs .button {flex:0 0 auto;min-width:105px;}
+.armory-tabs .button.active {background:#dce9d8;border-color:#51775e;color:#244c36;}
+:root[data-theme="dark"] .university-school.is-active {background:#264b35;border-color:#80b68b;}
+:root[data-theme="dark"] .university-school.is-active>summary strong,
+:root[data-theme="dark"] .university-course.is-active strong {color:#b8eac2;}
+:root[data-theme="dark"] .university-course.is-active {background:#294d38;border-left-color:#88bd8c;}
+:root[data-theme="dark"] .search-suggestions {background:var(--paper);border-color:var(--line);}
+:root[data-theme="dark"] .search-suggestion {color:var(--ink);}
+:root[data-theme="dark"] .search-suggestion:hover,
+:root[data-theme="dark"] .search-suggestion:focus-visible {background:#31513c;}
+:root[data-theme="dark"] .armory-tabs .button.active {background:#42634c;color:#f0f8eb;}
