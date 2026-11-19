@@ -108,4 +108,17 @@ assert.doesNotMatch(indexSource, /The Five Cities/);
 assert.match(stylesSource, /\.profile-magic-panel \{ margin-top:18px/);
 assert.match(stylesSource, /\.chat-dock \{[^\n]+width:210px/);
 assert.match(stylesSource, /\.chat-game-refresh:first-child/);
+assert.match(appSource, /<label for="registerUsername">Email Address<\/label>/);
+assert.match(appSource, /<label for="loginUsername">Email Address<\/label>/);
+assert.match(appSource, /type="email" autocomplete="email"/);
+assert.match(appSource, /dropped into an unfamiliar location/);
+assert.doesNotMatch(appSource, /Your account is registered/);
+assert.doesNotMatch(appSource, /Level ' \+ spec\.trait_level \+ ' trait/);
+assert.doesNotMatch(appSource, /<legend>Choose your lineage<\/legend>/);
+const characterSource = readFileSync(
+  new URL("../src/medieval_world_sim/web/static/character-views.mjs", import.meta.url),
+  "utf8");
+assert.match(characterSource, /characterRow\("Age", p\.age_days/);
+assert.doesNotMatch(characterSource, /World age \(shared\)/);
+assert.doesNotMatch(characterSource, /characterRow\("Birthright"/);
 console.log("Browser page module smoke tests passed");
