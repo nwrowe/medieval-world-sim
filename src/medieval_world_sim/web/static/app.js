@@ -185,6 +185,16 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       String(Math.floor((value % 3600) / 60)).padStart(2, "0") + ":" +
       String(value % 60).padStart(2, "0");
   }
+  function compactWallTime(seconds) {
+    const count = Math.max(0, Math.ceil(Number(seconds) || 0));
+    if (count >= 86400) return Math.ceil(count / 86400) + "d";
+    if (count >= 3600) {
+      const hours = Math.floor(count / 3600);
+      const mins = Math.ceil((count % 3600) / 60);
+      return hours + "h" + (mins ? " " + mins + "m" : "");
+    }
+    return count >= 60 ? Math.ceil(count / 60) + "m" : count + "s";
+  }
   function timerEndMs(simSeconds) {
     if (!secureWorldClock || !state || state.next_world_tick_seconds == null)
       return 0;
@@ -216,6 +226,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       item.dataset.hoverText = item.dataset.timerLabel + remaining;
       const readout = item.querySelector("[data-timer-display]");
       if (readout) readout.textContent = remaining;
+      if (readout && item.dataset.activityKey === "university")
+        readout.textContent = compactWallTime(seconds);
       if (seconds <= 0 && item.dataset.activityKey === "civic-shift") {
         item.remove();
         if (state) state.active_contract = null;
@@ -678,7 +690,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         timerAttrs(label, current.remaining_minutes * 60) + ' aria-label="' +
         esc(label + fullCountdown(timerSeconds(current.remaining_minutes * 60))) +
         '"><span aria-hidden="true">✤</span><strong data-timer-display>' +
-        fullCountdown(timerSeconds(current.remaining_minutes * 60)) +
+        compactWallTime(timerSeconds(current.remaining_minutes * 60)) +
         '</strong></button>';
     }
     const defendant = state.duel;
@@ -1221,6 +1233,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     ]) {
       refreshVital(document.querySelector(".vital-" + kind),
                    label, value, maximum, kind, next);
+    }
+    // Re-anchor the University page to the same server clock as its badge
+    // without replacing the opened school details or its progress meter.
+    if (tab === "training") {
+      const timer = document.querySelector(".university-countdown");
+      const current = state.training_hall && state.training_hall.active;
+      if (timer && current) {
+        const simSeconds = current.remaining_minutes * 60;
+        const end = timerEndMs(simSeconds);
+        timer.dataset.timerEnd = String(end);
+        timer.dataset.timerFixed = end ? "" : String(Math.ceil(timerSeconds(simSeconds)));
+      }
     }
     const dock = document.querySelector(".chat-dock");
     if (dock) {
