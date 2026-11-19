@@ -30,7 +30,7 @@ class CareerTests(unittest.TestCase):
         self.assertEqual(capacity(company), 10)
         company.shifts_completed = 168
         self.assertEqual(capacity(company), 18)
-        self.assertEqual(positions(company)[-1]["requirements"]["manual"], 17)
+        self.assertEqual(positions(company)[-1]["requirements"]["manual"], 24)
         bakery, shop = self.world("bakery")
         shop.shifts_completed = 168
         self.assertEqual(capacity(shop), 15)
