@@ -216,7 +216,25 @@ export function createCharacterViews(ctx) {
     const state = ctx.getState();
     const p = state.player;
     const inCapital = p.city === "crownreach" && !p.destination;
-    const catalog = (state.equipment_catalog || []).map(item =>
+    const categories = [
+      { id: "weapons", label: "Weapons", slots: ["weapon", "secondary"] },
+      { id: "armor", label: "Armor & Shields",
+        slots: ["body", "helm", "gloves", "greaves", "boots", "offhand"] },
+      { id: "tools", label: "Tools", slots: ["tool"] },
+    ];
+    const selected = categories.find(group => group.id === (ctx.getArmoryCategory ?
+      ctx.getArmoryCategory() : "weapons")) ||
+      categories[0];
+    const goods = (state.equipment_catalog || []).filter(item =>
+      selected.slots.includes(item.slot));
+    const tabs = '<div class="armory-tabs" role="group" aria-label="Equipment category">' +
+      categories.map(group => button(group.label + ' · ' +
+        (state.equipment_catalog || []).filter(item => group.slots.includes(item.slot)).length,
+        'type="button" data-ui="armory-tab" data-category="' + group.id +
+        '" aria-pressed="' + (selected.id === group.id) + '"',
+        selected.id === group.id ? "secondary active" : "ghost")).join("") +
+      '</div>';
+    const catalog = goods.map(item =>
       '<div class="inventory-row"><span><strong>' + esc(pretty(item.kind)) +
       '</strong><small class="armory-spec">' + esc(pretty(item.slot)) +
       ' · Attack +' + item.attack + ' · Defense +' + item.defense +
@@ -225,10 +243,12 @@ export function createCharacterViews(ctx) {
       button("Buy · " + money(item.price),
         'data-ui="buy-starter" data-kind="' + esc(item.kind) + '"' +
         disabled(!inCapital || isBusy() || p.gold < item.price),
-        "s secondary") + '</div>').join('');
+        "s secondary") + '</div>').join("") ||
+        '<p class="small">No ' + esc(selected.label.toLowerCase()) +
+        ' are currently stocked.</p>';
     return heading("", "Armory & Blacksmith", "") +
       (inCapital ?
-        panel("Available Equipment", "", catalog) :
+        panel("Available Equipment", "", tabs + catalog) :
         panel("No armory here", "",
           '<p class="small">Starter equipment is currently sold only in Crownreach.</p>' +
           button("World Map", 'data-tab="world"', "secondary")));

@@ -66,13 +66,17 @@ export function createCommunityViews(ctx) {
             button('Armory', 'data-tab="armory"', "secondary") : '') +
           '</div>';
       }).join('');
-    const hint = searchScope === "players" ?
-      'To attack, be in the same city. Starting a duel costs no stamina; ' +
-      'each offensive swing costs stamina. Victory takes 5% ' +
-      'of the defeated character’s carried gold.' :
+    const hint = searchScope === "players" ? "" :
       'All known goods and equipment are listed. Buy and sell prices are live NPC merchant quotes ' +
       'when the merchant can currently trade; unavailable routes show no quote. ' +
       'Crafted goods have no guaranteed city merchant, and player-trade values are not yet tracked.';
+    const suggestions = searchScope === "players" && query ?
+      players.slice(0, 8).map(person =>
+        '<button type="button" class="search-suggestion" data-ui="profile-open" ' +
+        'data-character="' + esc(person.id) + '">' +
+        '<strong>' + esc(person.name) + '</strong><small>' +
+        (person.kind === "npc" ? "NPC adventurer" : "Player") +
+        ' · Level ' + person.level + '</small></button>').join("") : "";
     return heading("", "Search", "") +
       '<section class="panel search-results-panel">' +
       '<div class="search-panel">' +
@@ -82,14 +86,18 @@ export function createCommunityViews(ctx) {
         (searchScope === "players") + '"', searchScope === "players" ? "secondary" : "ghost") +
       button("Items", 'data-ui="search-type" data-scope="market" aria-pressed="' +
         (searchScope === "market") + '"', searchScope === "market" ? "secondary" : "ghost") +
-      '</div><div class="button-group"><input id="people-query" class="field" ' +
-      'type="search" maxlength="64" placeholder="' +
+      '</div><div class="button-group"><div class="people-search-field">' +
+      '<input id="people-query" class="field" type="search" maxlength="64" ' +
+      'autocomplete="off" aria-controls="people-suggestions" placeholder="' +
       (searchScope === "players" ? "Character name" : "Item name") +
       '" value="' + esc(peopleQuery) + '">' +
+      '<div id="people-suggestions" class="search-suggestions" ' +
+      'aria-label="Matching characters"' + (suggestions ? "" : " hidden") + '>' +
+      suggestions + '</div></div>' +
       button("Search", 'data-ui="find-people"', "secondary") +
       '</div></div><div class="search-matches">' +
       (rows || '<p class="empty">No matches.</p>') +
-      '<p class="small mt-13">' + esc(hint) + '</p>' +
+      (hint ? '<p class="small mt-13">' + esc(hint) + '</p>' : '') +
       '</div></section>';
   }
 
