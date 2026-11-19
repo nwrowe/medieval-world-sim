@@ -222,7 +222,8 @@ export function createCharacterViews(ctx) {
         slots: ["body", "helm", "gloves", "greaves", "boots", "offhand"] },
       { id: "tools", label: "Tools", slots: ["tool"] },
     ];
-    const selected = categories.find(group => group.id === ctx.getArmoryCategory()) ||
+    const selected = categories.find(group => group.id === (ctx.getArmoryCategory ?
+      ctx.getArmoryCategory() : "weapons")) ||
       categories[0];
     const goods = (state.equipment_catalog || []).filter(item =>
       selected.slots.includes(item.slot));
