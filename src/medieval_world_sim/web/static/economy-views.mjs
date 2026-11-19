@@ -227,7 +227,7 @@ export function createEconomyViews(ctx) {
     const jobs = (econ.jobs || []).map(job =>
       '<div class="economy-job">' +
       '<strong>' + esc(job.company_name || job.company_id) + '</strong> · ' +
-      esc(pretty(job.industry)) + ' · ' + esc(money(job.wage.gold)) + " per shift" +
+      esc(job.position || pretty(job.industry)) + ' · ' + esc(money(job.wage.gold)) + " per shift" +
       (job.wage.item ? ' · ' + esc(pretty(job.wage.item)) +
         ' ×' + job.wage.quantity : '') +
       '<div class="economy-actions">' +
@@ -237,30 +237,29 @@ export function createEconomyViews(ctx) {
         esc(job.company_id) + '"') + '</div>' +
       (job.ready_minutes ? '<p class="small">Ready in ' +
         esc(job.ready_minutes) + ' game minutes</p>' : '') + '</div>').join("");
-    const offers = (econ.job_offers || []).map(offer =>
-      '<div class="economy-job"><strong>' +
-      esc(offer.company_name || offer.company_id) + '</strong> · ' +
-      esc(pretty(offer.industry)) + ' · ' + esc(money(offer.wage.gold)) +
-      ' per shift' +
-      '<div class="economy-actions">' + doButton("job-accept", "Accept offer",
-        'data-company="' + esc(offer.company_id) + '"' +
-        disabled(!offer.can_accept)) + '</div></div>').join("");
     const directory = (econ.directory || []).map(company => {
       const searchable = (company.name + " " + company.industry + " " +
         company.city).toLowerCase();
+      const eligible = (company.openings || []).filter(p => p.eligible);
       const application = company.applied ?
         doButton("company-withdraw-application", "Withdraw application",
           'data-company="' + esc(company.id) + '"') :
-        company.hiring ?
+        company.hiring && eligible.length ?
+        '<label class="economy-apply-choice">Position' +
+        choose("apply-position", eligible.map(p =>
+          '<option value="' + esc(p.id) + '">' + esc(p.title) +
+          ' · ' + esc(requirements(p.requirements)) + '</option>').join("")) +
+        '</label>' +
         doButton("company-apply", "Apply",
           'data-company="' + esc(company.id) + '"' +
           disabled(!company.can_apply)) :
-        '<span class="small">Not hiring</span>';
+        '<span class="small">' + (company.hiring ?
+          "No eligible openings" : "Not hiring") + '</span>';
       return '<div class="economy-job" data-company-search="' + esc(searchable) +
         '"><strong>' + esc(company.name) + '</strong> · ' +
         esc(pretty(company.industry)) + '<p class="small">' +
         esc(pretty(company.city)) + ' · ' + company.employees +
-        ' employees · ' + (company.hiring ? "Accepting applications" : "Not hiring") +
+        ' / ' + company.capacity + ' positions · ' + (company.hiring ? "Hiring" : "Not hiring") +
         '</p><div class="economy-actions">' + application + '</div></div>';
     }).join("") || '<p class="small">No active companies.</p>';
     const w = ctx.getState().player.work;
@@ -268,8 +267,6 @@ export function createEconomyViews(ctx) {
       panel("Work stats", "",
         line("Manual", w.manual) + line("Intelligence", w.intelligence) +
         line("Endurance", w.endurance) + line("Shifts completed", w.shifts)) +
-      panel("Employment offers", "", offers ||
-        '<p class="small">No pending offers.</p>') +
       panel("My jobs", "", jobs ||
         '<p class="small">No active company employment.</p>') +
       panel("Find a company", "",
