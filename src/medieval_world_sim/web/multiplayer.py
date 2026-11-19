@@ -176,7 +176,7 @@ class MultiplayerGame:
                 actors.append(Actor(npc_id, "npc", city=city, gold=rng.randint(50, 250)))
                 self.npc_names[npc_id] = names.pop() if names else f"Wayfarer {len(self.npc_names) + 1}"
         world = WorldEngine(actors, seed=42, dev_travel_seconds=self.dev_travel_seconds)
-         return world
+        return world
 
     def _join_actor(self, actor_id: str, city: str = START_CITY,
                     lineage: str | None = None):
