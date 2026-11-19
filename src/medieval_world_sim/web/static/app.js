@@ -390,18 +390,17 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   }
 
   function lineagePicker() {
-    return '<fieldset class="lineage-fieldset"><legend>Choose your lineage</legend>' +
-      '<p class="lineage-intro">Your ancestry determines starting work aptitudes, ' +
-      'a modest combat advantage and a unique trait earned at level 3.</p>' +
+    return '<fieldset class="lineage-fieldset" aria-label="Lineage options">' +
       '<div class="lineage-grid">' + lineageCatalog.map(spec =>
         '<label class="lineage-option"><input type="radio" name="lineage" value="' +
         esc(spec.id) + '" required>' +
         '<span class="lineage-option-body"><strong>' + esc(spec.title) +
         '</strong><small>' + esc(spec.description) + '</small>' +
         '<span class="lineage-stats">Work: +' + spec.work[0] + ' Manual · +' +
-        spec.work[1] + ' Intellect · +' + spec.work[2] + ' Endurance' +
-        ' | Combat: +' + spec.attack + ' Attack / +' + spec.defense + ' Defense</span>' +
-        '<span class="lineage-trait">Level ' + spec.trait_level + ' trait — ' +
+        spec.work[1] + ' Intellect · +' + spec.work[2] + ' Endurance</span>' +
+        '<span class="lineage-stats">Combat: +' + spec.attack + ' Attack / +' +
+        spec.defense + ' Defense</span>' +
+        '<span class="lineage-trait">' +
         esc(spec.trait) + ': ' + esc(spec.trait_description) +
         '</span></span></label>').join('') + '</div></fieldset>';
   }
@@ -430,21 +429,20 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     return '<div class="entry"><div class="entry-card lineage-entry">' +
       '<div class="entry-seal">✦</div><h1>Choose your lineage</h1>' +
       '<p>' + (fresh ?
-        'Your account is registered. Before entering Oathmere, choose the lineage that will shape your character.' :
+        'Before entering Oathmere, choose the lineage that will shape your character.' :
         'This existing character predates lineages. Choose once to gain a birthright; your possessions and adventures are preserved.') +
       '</p><form id="lineageChoiceForm">' + lineagePicker() +
       '<button class="button full gold" type="submit">Confirm lineage</button></form>' +
-      (multiMode ? '<button class="logout-link" data-ui="account-logout" type="button">Sign out</button>' : '') +
       '</div></div>';
   }
   function introductionPage() {
     return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Your story begins</div>' +
       '<h1>Welcome to Oathmere</h1>' +
-      '<p>You are dropped into an unfamiliar city with a small amount of gold ' +
+      '<p>You are dropped into an unfamiliar location with a small amount of gold ' +
       'and only the clothes on your back. Nobody here knows your name or what ' +
-      'you might become. Beyond the city walls, five cities and countless ' +
-      'opportunities await.</p>' +
+      'you might become. Across Oathmere lie unfamiliar roads, hidden places, ' +
+      'and countless opportunities to shape your own story.</p>' +
       button("Enter Oathmere", 'data-ui="enter-oathmere"', "full gold") +
       '</div></div>';
   }
@@ -456,19 +454,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<p>Each player has a private login and a separate character. ' +
       'This development server runs on your own computer.</p>' +
       '<form id="accountLoginForm" class="stack">' +
-      '<label for="loginUsername">Username</label>' +
-      '<input id="loginUsername" class="field" autocomplete="username" ' +
-      'maxlength="24" required>' +
+      '<label for="loginUsername">Email Address</label>' +
+      '<input id="loginUsername" class="field" type="email" autocomplete="email" ' +
+      'maxlength="254" required>' +
       '<label for="loginPassword">Password</label>' +
       '<input id="loginPassword" class="field" type="password" ' +
       'autocomplete="current-password" required>' +
       '<button class="button full gold" type="submit">Sign in</button></form>' +
       '<details class="account-register"><summary>Create an account</summary>' +
       '<form id="accountRegisterForm" class="stack">' +
-      '<label for="registerUsername">Username</label>' +
-      '<input id="registerUsername" class="field" autocomplete="username" ' +
-      'minlength="3" maxlength="24" pattern="[A-Za-z0-9_]{3,24}" ' +
-      'title="3–24 letters, numbers or underscores only" required>' +
+      '<label for="registerUsername">Email Address</label>' +
+      '<input id="registerUsername" class="field" type="email" autocomplete="email" ' +
+      'maxlength="254" required>' +
       '<label for="registerCharacter">Character name</label>' +
       '<input id="registerCharacter" class="field" minlength="2" maxlength="28" required>' +
       (inviteRequired ?
