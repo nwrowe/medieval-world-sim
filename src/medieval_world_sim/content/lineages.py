@@ -23,7 +23,7 @@ class Lineage:
 
 
 LINEAGES = {
-    "human": Lineage("Human", "Adaptable citizens of the Five Cities.",
+    "human": Lineage("Human", "Adaptable citizens of Oathmere.",
                      (1, 1, 1), 0, 0, "Versatility",
                      "Earn +1 extra work experience on civic assignments."),
     "elf": Lineage("Elf", "Observant scholars with a natural affinity for magic.",
