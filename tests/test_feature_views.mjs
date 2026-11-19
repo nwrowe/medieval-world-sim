@@ -99,6 +99,17 @@ selected = "npc:test";
 assert.match(community.renderProfile(),
   /This is a computer-controlled adventurer\. Direct messaging and trade is disabled/);
 selected = "player:bob";
+state.users.push({
+  id: "npc:dara", name: "Dara Flint", kind: "npc", city: "crownreach",
+  hp: 24, max_hp: 24, level: 1, can_attack: true, recovering_minutes: 0
+});
+query = "dar";
+const liveSearch = community.renderPeople();
+assert.match(liveSearch, /id="people-suggestions"/);
+assert.match(liveSearch, /data-ui="profile-open" data-character="npc:dara"/);
+assert.match(liveSearch, /Dara Flint/);
+assert.doesNotMatch(liveSearch, /To attack, be in the same city/);
+query = "";
 assert.match(community.renderTrade(), /Propose a trade/);
 assert.match(community.renderDuel(), /No active duel/);
 query = "nonexistent";
@@ -127,6 +138,10 @@ const coursePage = city.renderTraining();
 assert.match(coursePage, /data-university-countdown/);
 assert.match(coursePage, /value="1440" max="5760"/);
 assert.match(coursePage, /25% complete/);
+assert.match(coursePage, /university-progress-meter/);
+assert.match(coursePage, /data-total-minutes="5760"/);
+assert.match(coursePage, /university-school is-active/);
+assert.match(coursePage, /university-course is-active/);
 assert.doesNotMatch(coursePage, /Graduation: 1 merit|Tuition 8g|simulated days remaining/);
 assert.match(coursePage, /Enroll · 12g/);
 state.training_hall.schools[0].courses.push({
@@ -189,6 +204,22 @@ for (const name of ["Warrior contracts", "Mage contracts", "Merchant contracts",
   "Contract warriors", "Contract mageguild", "Contract job"]) {
   assert.match(hired, new RegExp(name));
 }
+state = { ...state, player: { ...state.player, mana: 10 },
+  contracts: [{
+    id: "mage_copywork", title: "Copy warding sigils", venue: "mageguild",
+    description: "Copy glyphs", reward: 8, stamina: 0, mana: 12,
+    duration_minutes: 240, cooldown_remaining: 0,
+    cooldown_available: true, can_pay: true, has_material: true
+  }, {
+    id: "church_supplies", title: "Deliver herbs", venue: "church",
+    description: "Help healers", reward: 11, stamina: 0, mana: 0,
+    material: "herbs", duration_minutes: 120, cooldown_remaining: 0,
+    cooldown_available: true, can_pay: true, has_material: false
+  }] };
+const jobs = city.renderMercenaryJobs();
+assert.match(jobs, /You need 12 mana to initiate this contract \(you have 10\)/);
+assert.match(jobs, /You need 1 bunch of herbs to initiate this contract/);
+assert.doesNotMatch(jobs, /24h repeat cooldown|No item cost/);
 // Character pages include inventory, public character attributes, and gear UI.
 // They must use fresh state projections instead of caching player inventories.
 state = { ...state, name: "Alice", net_worth_estimate: 200,
@@ -213,6 +244,26 @@ assert.doesNotMatch(character.renderInventory(), /Equipment & vehicles|Your stor
 assert.doesNotMatch(character.renderInventory(), /Carrying .*Road limit|Crownreach offers unlimited goods storage/);
 assert.match(character.renderEquipment(), /Equipped Gear/);
 assert.match(character.renderEquipment(), /equipment-storage-panel/);
+state = { ...state, equipment_catalog: [
+  { kind: "iron_sword", slot: "weapon", attack: 4, defense: 0,
+    durability: 10, quality: 10, price: 25 },
+  { kind: "leather_helm", slot: "helm", attack: 0, defense: 3,
+    durability: 10, quality: 10, price: 15 },
+  { kind: "pickaxe", slot: "tool", attack: 0, defense: 0,
+    durability: 10, quality: 10, price: 12 }
+] };
+let category = "armor";
+const categorizedArmory = createCharacterViews({
+  ...helpers, getState: () => state, getArmoryCategory: () => category
+});
+assert.match(categorizedArmory.renderArmory(), /Armor & Shields/);
+assert.match(categorizedArmory.renderArmory(), /Leather Helm/);
+assert.doesNotMatch(categorizedArmory.renderArmory(), /Iron Sword/);
+category = "weapons";
+assert.match(categorizedArmory.renderArmory(), /Iron Sword/);
+assert.doesNotMatch(categorizedArmory.renderArmory(), /Leather Helm/);
+category = "tools";
+assert.match(categorizedArmory.renderArmory(), /Pickaxe/);
 state = { ...state, player: { ...state.player, inventory: { grain: 3 } } };
 assert.match(character.renderInventory(), /3 carried/);
 assert.match(character.renderInventory(), /data-ui="discard"/);
