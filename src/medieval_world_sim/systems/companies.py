@@ -236,7 +236,7 @@ class CompanySystem:
         if company is None or company.owner_id != owner_id:
             raise ActionError("Only the owner may offer employment")
         worker = self.world._actor(worker_id)
-        if (worker.kind != "human" or worker_id in company.employees):
+        if worker_id in company.employees:
             raise ActionError("Worker is unavailable for an offer")
         self._validate_wage(wage)
         vacancy = next((p for p in openings(company, self.world.minute)
@@ -260,6 +260,8 @@ class CompanySystem:
         self._owned_local(owner_id, company_id)
         if type(gold) is not int or gold <= 0:
             raise ActionError("Offer a positive gold wage")
+        if self.world._actor(worker_id).kind != "human":
+            raise ActionError("Player job offers require a human character")
         self._offer_position(owner_id, company_id, worker_id, Wage(gold), position_id)
 
     def accept_applicant(self, owner_id: str, company_id: str, worker_id: str,
