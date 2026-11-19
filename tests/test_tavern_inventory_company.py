@@ -165,14 +165,13 @@ class TavernTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.buy_tavern_mead("guest")
 
-    def test_old_checkpoint_defaults_new_tavern_fields(self):
+    def test_checkpoint_rejects_missing_tavern_fields(self):
         w = self.world()
         snap = _encode(w.state)
         for field in ("tavern_last_room", "tavern_room_until", "tavern_mead"):
             snap["values"].pop(field)
-        restored = _decode(snap)
-        self.assertEqual(restored.tavern_last_room, {})
-        self.assertEqual(restored.tavern_mead, {})
+        with self.assertRaisesRegex(ValueError, "Checkpoint class schema has changed"):
+            _decode(snap)
 
 
 class MultipleProductTests(unittest.TestCase):
@@ -242,13 +241,13 @@ class MultipleProductTests(unittest.TestCase):
         self.assertGreater(actor.cooldowns.potion, w.minute)
         w.assert_invariants()
 
-    def test_company_checkpoint_can_open_without_product_field(self):
+    def test_company_checkpoint_rejects_missing_product_field(self):
         w = self.world()
         w.found_company("owner", "oldforge", "forge", 100)
         encoded = _encode(w.companies["oldforge"])
         encoded["values"].pop("product")
-        restored = _decode(encoded)
-        self.assertEqual(restored.product, "")
+        with self.assertRaisesRegex(ValueError, "Checkpoint class schema has changed"):
+            _decode(encoded)
 
 
 class RestartTests(unittest.TestCase):
