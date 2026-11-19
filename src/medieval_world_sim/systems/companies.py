@@ -90,7 +90,7 @@ class CompanySystem:
             raise ActionError("Position is unavailable or work requirements are not met")
         company.applicants.add(actor_id)
         company.applicant_positions[actor_id] = position_id
-        self.world._emit("company_applied", actor_id, company_id, position_id)
+        self.world._emit("company_applied", actor_id, company_id)
 
     def withdraw_application(self, actor_id: str, company_id: str) -> None:
         company = self.world.companies.get(company_id) if type(company_id) is str else None
@@ -252,7 +252,7 @@ class CompanySystem:
         company.applicants.discard(worker_id)
         company.applicant_positions.pop(worker_id, None)
         self.world._emit("job_offered", company_id, worker_id, wage.gold,
-                         wage.item, wage.quantity, vacancy["id"])
+                         wage.item, wage.quantity)
 
     def propose_job(self, owner_id: str, company_id: str, worker_id: str, wage: Wage) -> None:
         self._offer_position(owner_id, company_id, worker_id, wage)
@@ -380,8 +380,8 @@ class CompanySystem:
         if not company or company.owner_id != owner.id:
             raise ActionError("Only an owner can hire")
         self._validate_wage(wage)
-        if worker.id in company.employees:
-            raise ActionError("Already hired")
+        if worker.id in company.employees or active_offer(company, worker.id, self.world.minute):
+            raise ActionError("Worker already hired or has a pending offer")
         slot = next((p for p in openings(company, self.world.minute)
                      if qualified(worker, p)), None)
         if slot is None:
