@@ -109,6 +109,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   let peopleQuery = "";
   let selectedCharacterId = null;
   let searchScope = "players";
+  let armoryCategory = "weapons";
   let chronicleCategory = "all";
   let chronicleQuery = "";
   let chronicleVisibleCount = 50;
@@ -184,18 +185,24 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       String(Math.floor((value % 3600) / 60)).padStart(2, "0") + ":" +
       String(value % 60).padStart(2, "0");
   }
+  function timerEndMs(simSeconds) {
+    if (!secureWorldClock || !state || state.next_world_tick_seconds == null)
+      return 0;
+    // Use one wall-clock deadline anchored to the authoritative snapshot.
+    // Never subtract elapsed time once here and again while rebuilding chips.
+    const secondsPerMinute = state.dev_travel_seconds ? 1 : 60;
+    return clockSyncedAt + 1000 * scaledTimerSeconds(
+      simSeconds, secondsPerMinute, state.next_world_tick_seconds, 0);
+  }
   function timerSeconds(simSeconds) {
+    const end = timerEndMs(simSeconds);
+    if (end) return Math.max(0, (end - Date.now()) / 1000);
     const secondsPerMinute = state && state.dev_travel_seconds ? 1 : 60;
-    // Both the badge and the tooltip must use wall-clock seconds, including
-    // accelerated play-testing where one game minute equals one real second.
-    return scaledTimerSeconds(simSeconds, secondsPerMinute,
-      secureWorldClock && state ? state.next_world_tick_seconds : null,
-      (Date.now() - clockSyncedAt) / 1000);
+    return scaledTimerSeconds(simSeconds, secondsPerMinute, null, 0);
   }
   function timerAttrs(label, simSeconds, seconds = timerSeconds(simSeconds)) {
     const text = label + fullCountdown(seconds);
-    const end = secureWorldClock && state && state.next_world_tick_seconds != null ?
-      Date.now() + seconds * 1000 : 0;
+    const end = timerEndMs(simSeconds);
     return ' data-hover-text="' + esc(text) + '" data-timer-label="' + esc(label) +
       '" data-timer-end="' + end + '" data-timer-fixed="' +
       (end ? "" : Math.ceil(seconds)) + '"';
@@ -215,7 +222,23 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         continue;
       }
       if (item.hasAttribute("data-university-countdown")) {
-        item.textContent = fullCountdown(seconds) + " remaining";
+        item.textContent = remaining + " remaining";
+        if (Number(item.dataset.timerEnd) > 0 && state) {
+          const panel = item.closest(".university-progress");
+          const meter = panel && panel.querySelector(".university-progress-meter");
+          const percent = panel && panel.querySelector(".university-progress-percent");
+          if (meter) {
+            const total = Number(meter.dataset.totalMinutes) || 0;
+            const scale = state.dev_travel_seconds ? 1 : 60;
+            if (total > 0) {
+              const elapsed = Math.max(0, Math.min(total,
+                total - Math.max(0, seconds) / scale));
+              meter.value = elapsed;
+              if (percent)
+                percent.textContent = Math.floor(elapsed * 100 / total) + "% complete";
+            }
+          }
+        }
       }
     }
   }
@@ -654,8 +677,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         'data-activity-key="university" data-ui="activity-university"' +
         timerAttrs(label, current.remaining_minutes * 60) + ' aria-label="' +
         esc(label + fullCountdown(timerSeconds(current.remaining_minutes * 60))) +
-        '"><span aria-hidden="true">✤</span><strong>' +
-        Math.ceil(current.remaining_minutes / 1440) + 'd</strong></button>';
+        '"><span aria-hidden="true">✤</span><strong data-timer-display>' +
+        fullCountdown(timerSeconds(current.remaining_minutes * 60)) +
+        '</strong></button>';
     }
     const defendant = state.duel;
     const hospitalMinutes = Math.max(0,
@@ -900,6 +924,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   const { renderInventory, renderCharacter, renderEquipment, renderArmory } =
     createCharacterViews({
       getState: () => state,
+      getArmoryCategory: () => armoryCategory,
       esc, pretty, clock, money, button, disabled, isBusy, heading, panel,
       characterRow,
     });
@@ -1165,6 +1190,24 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         readout.textContent = nextReadout.textContent;
     });
   }
+  function refreshPeopleSearch() {
+    // Only refresh the result/suggestion containers. The input DOM stays in
+    // place, so characters appear as you type without losing keyboard focus.
+    const results = document.querySelector(".search-matches");
+    const suggestions = document.getElementById("people-suggestions");
+    if (!results && !suggestions) return;
+    const temp = document.createElement("div");
+    temp.innerHTML = renderPeople();
+    const nextResults = temp.querySelector(".search-matches");
+    const nextSuggestions = temp.querySelector("#people-suggestions");
+    if (results && nextResults && results.innerHTML !== nextResults.innerHTML)
+      results.innerHTML = nextResults.innerHTML;
+    if (suggestions && nextSuggestions) {
+      if (suggestions.innerHTML !== nextSuggestions.innerHTML)
+        suggestions.innerHTML = nextSuggestions.innerHTML;
+      suggestions.hidden = nextSuggestions.hidden;
+    }
+  }
   function refreshLiveSurfaces() {
     if (!state || !state.started) return;
     const strip = document.querySelector(".activity-strip");
@@ -1205,15 +1248,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       if (content) content.innerHTML = renderDuel();
     }
     if (tab === "people") {
-      // Replace just the search results, preserving a search being typed.
-      const matches = document.querySelector(".search-matches");
-      if (matches) {
-        const temp = document.createElement("div");
-        temp.innerHTML = renderPeople();
-        const latest = temp.querySelector(".search-matches");
-        if (latest && matches.innerHTML !== latest.innerHTML)
-          matches.innerHTML = latest.innerHTML;
-      }
+      refreshPeopleSearch();
     } else if (tab === "profile") {
       const content = document.getElementById("main-content");
       if (content) content.innerHTML = renderProfile();
@@ -1499,6 +1534,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   root.addEventListener("input", event => {
     if (event.target.id === "guild-name") {
       event.target.setCustomValidity("");
+      return;
+    }
+    if (event.target.id === "people-query") {
+      peopleQuery = event.target.value;
+      refreshPeopleSearch();
       return;
     }
     if (event.target.id === "chronicle-query") {
@@ -1924,6 +1964,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         peopleQuery = document.getElementById("people-query").value.trim();
         searchScope = element.dataset.scope === "market" ? "market" : "players";
         render(); break;
+      case "armory-tab":
+        if (["weapons", "armor", "tools"].includes(element.dataset.category)) {
+          armoryCategory = element.dataset.category;
+          render();
+        }
+        break;
       case "trade-refresh":
         (async () => {
           try { state = await request("/api/state"); render(); }
