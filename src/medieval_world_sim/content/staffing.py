@@ -45,7 +45,7 @@ def capacity(company) -> int:
 
 def positions(company) -> list[dict]:
     """Stable slot IDs; promotions never reshuffle workers or live offers."""
-    careers = CAREERS[company.industry]
+    careers = CAREERS.get(company.industry, CAREERS["forge"])  # Legacy imported trades
     caps = LARGE_CAPS if company.industry in LARGE_TRADES else SMALL_CAPS
     result = []
     for slot in range(caps[career_stage(company)]):
