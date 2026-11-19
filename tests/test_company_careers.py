@@ -45,6 +45,7 @@ class CareerTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             w.company_apply_role("alice", company.id, "99")
         w.company_apply_role("alice", company.id, "0")
+        company = w.companies[company.id]  # Rollback of invalid action replaced world state.
         self.assertIn("alice", company.applicants)
         self.assertEqual(company.applicant_positions["alice"], "0")
         w.company_accept_applicant("owner", company.id, "alice", 4, "0")
@@ -55,6 +56,7 @@ class CareerTests(unittest.TestCase):
         self.assertEqual(company.employees["alice"].gold, 4)
         with self.assertRaises(ActionError):
             w.company_accept_applicant("owner", company.id, "bob", 4, "1")
+        company = w.companies[company.id]
         company.shifts_completed = 168
         with self.assertRaises(ActionError):
             w.offer_job_position("owner", company.id, "bob", 3, "17")
@@ -67,6 +69,7 @@ class CareerTests(unittest.TestCase):
         self.assertEqual(len(openings(company, w.minute)), 0)
         with self.assertRaises(ActionError):
             w.offer_job_position("owner", company.id, "dana", 3, "1")
+        company = w.companies[company.id]
         w.decline_job("bob", company.id)
         self.assertNotIn("bob", company.job_offers)
         w.offer_job_position("owner", company.id, "dana", 3, "1")
