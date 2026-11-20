@@ -31,6 +31,23 @@ class TimedCivicJobsTests(unittest.TestCase):
         w.assert_invariants()
 
 
+    def test_herb_delivery_consumes_ten_stamina_and_herbs_at_start(self):
+        world = WorldEngine([
+            Actor("courier", "human", city=CAPITAL, inventory={"herbs": 1})
+        ])
+        courier = world.actors["courier"]
+        starting_stamina, starting_gold = courier.stamina, courier.gold
+        started = world.start_city_contract("courier", "church_supplies")
+        self.assertEqual(started["duration_minutes"], 120)
+        self.assertEqual(courier.stamina, starting_stamina - 10)
+        self.assertEqual(courier.inventory.get("herbs"), 0)
+        self.assertEqual(courier.gold, starting_gold,
+                         "wages should not be paid until the shift ends")
+        world.advance(120)
+        self.assertEqual(courier.gold, starting_gold + 11)
+        world.assert_invariants()
+
+
 class CompanyTransfersTests(unittest.TestCase):
     def test_friendly_name_applications_sale_and_asset_return(self):
         w = WorldEngine([
