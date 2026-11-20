@@ -39,10 +39,9 @@ export function createCityViews(ctx) {
         contract.cooldown_remaining ?
           'Available in ' + dur(contract.cooldown_remaining) + '.' :
         !contract.has_material ?
-          'You need ' + itemRequired + ' to initiate this contract (consumed when you start).' :
+          'You need ' + itemRequired + ' to initiate this contract (consumed upon start).' :
         p.mana < contract.mana ?
-          'You need ' + contract.mana + ' mana to initiate this contract (you have ' +
-          p.mana + ').' :
+          'You need ' + contract.mana + ' mana to initiate this contract.' :
         p.stamina < contract.stamina ?
           'You need ' + contract.stamina + ' stamina to initiate this contract (you have ' +
           p.stamina + ').' : '';
@@ -54,7 +53,7 @@ export function createCityViews(ctx) {
         (explanation ? '<p class="small">' + esc(explanation) + '</p>' : '') +
         (contract.material && contract.has_material && !explanation ?
           '<p class="small">' + esc(itemRequired) +
-          ' will be consumed when you start this contract.</p>' : '') +
+          ' will be consumed upon start.</p>' : '') +
         '</div>' +
         button("Start shift", 'data-ui="contract" data-contract="' +
           esc(contract.id) + '"' + disabled(!can), "secondary") + '</div>';
