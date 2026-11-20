@@ -24,6 +24,9 @@ class CooldownTests(unittest.TestCase):
         w.cities[CAPITAL].merchant_stock["herbs"] = 0
         original_total = w.initial_gold
         for n in range(24):
+            # This isolates the job cooldown cap from the new stamina cost of
+            # delivering herbs; stamina costs are checked in the contract test.
+            w.actors["hero"].stamina = w.actors["hero"].max_stamina
             w.execute("hero", "complete_city_contract",
                       {"contract_id": "church_supplies"}, f"delivery-{n}")
         actor = w.actors["hero"]
@@ -38,6 +41,7 @@ class CooldownTests(unittest.TestCase):
         w.advance(60)
         # At minute 60 one slot of queued work is free, independently of
         # merchant stock and without inventing or transferring extra goods.
+        w.actors["hero"].stamina = w.actors["hero"].max_stamina
         w.complete_city_contract("hero", "church_supplies")
         self.assertEqual(w.actors["hero"].cooldowns.job - w.minute, 1440)
         self.assertEqual(w.total_gold, original_total)

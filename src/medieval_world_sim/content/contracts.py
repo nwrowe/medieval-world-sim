@@ -31,7 +31,7 @@ CONTRACTS = {
     "church_supplies": CityContract(
         "Deliver herbs to the infirmary", "church",
         "Bring one bunch of herbs for the healers' stores.",
-        reward=11, material="herbs", xp_kind="caregiving", duration_minutes=120),
+        reward=11, stamina=10, material="herbs", xp_kind="caregiving", duration_minutes=120),
     "labor_shift": CityContract(
         "Work a merchant loading shift", "job",
         "Spend an hour helping the city's carriers load and sort goods.",

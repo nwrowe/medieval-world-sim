@@ -212,12 +212,14 @@ state = { ...state, player: { ...state.player, mana: 10 },
     cooldown_available: true, can_pay: true, has_material: true
   }, {
     id: "church_supplies", title: "Deliver herbs", venue: "church",
-    description: "Help healers", reward: 11, stamina: 0, mana: 0,
+    description: "Help healers", reward: 11, stamina: 10, mana: 0,
     material: "herbs", duration_minutes: 120, cooldown_remaining: 0,
     cooldown_available: true, can_pay: true, has_material: false
   }] };
 const jobs = city.renderMercenaryJobs();
-assert.match(jobs, /You need 12 mana to initiate this contract \(you have 10\)/);
+assert.match(jobs, /You need 12 mana to initiate this contract\./);
+assert.doesNotMatch(jobs, /\(you have 10\)/);
+assert.match(jobs, /consumed upon start/);
 assert.match(jobs, /You need 1 bunch of herbs to initiate this contract/);
 assert.doesNotMatch(jobs, /24h repeat cooldown|No item cost/);
 // Character pages include inventory, public character attributes, and gear UI.
