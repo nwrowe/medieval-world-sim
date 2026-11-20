@@ -124,6 +124,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   let pending = false;
   let authNeeded = false;
   let offline = false;
+  let loadingWorld = false;
+  let probingServer = false;
   let selectedAttunements = new Set();
   let token = sessionStorage.getItem("medieval-world-token") || "";
   let multiMode = false;
@@ -298,6 +300,15 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     return "web:" + Date.now() + ":" + Math.random().toString(36).slice(2);
   }
 
+  function markServerDisconnected() {
+    if (offline) return;
+    offline = true;
+    // A disconnected client must not keep stale menus or controls visible.
+    stopLiveEvents();
+    stopPresence();
+    render();
+  }
+
   async function request(url, body) {
     const headers = multiMode ? {} : { "X-Game-Token": token };
     if (multiMode && body !== undefined &&
@@ -309,7 +320,13 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       headers["Content-Type"] = "application/json";
       options.body = JSON.stringify(body);
     }
-    const response = await fetch(url, options);
+    let response;
+    try {
+      response = await fetch(url, options);
+    } catch {
+      markServerDisconnected();
+      throw Error("The game server is unavailable");
+    }
     let data;
     try { data = await response.json(); } catch { throw Error("The server sent an invalid response"); }
     if ((url === "/api/state" && data.next_world_tick_seconds !== undefined) ||
@@ -319,11 +336,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     if (response.status === 401) authNeeded = true;
     if (!response.ok) throw Error(data.error || "Request failed");
     authNeeded = false;
-    offline = false;
     return data;
   }
 
-  async function load() {
+  async function load(preservePage = false) {
+    if (loadingWorld) return;
+    loadingWorld = true;
     try {
       const health = await request("/api/health");
       multiMode = health.mode === "multi-account-local";
@@ -342,17 +360,47 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         }
       }
       state = await request("/api/state");
-      tab = state.duel && state.duel.role !== "defender" ? "duel" : "character";
+      if (!preservePage)
+        tab = state.duel && state.duel.role !== "defender" ? "duel" : "character";
+      offline = false;
       syncAttunements();
       initializeReadMarkers();
       startLiveEvents();
       startPresence();
     } catch (error) {
-      offline = !authNeeded;
-      if (!authNeeded) notify(error.message, true);
+      if (!authNeeded) {
+        markServerDisconnected();
+        if (!preservePage) notify(error.message, true);
+      }
+    } finally {
+      loadingWorld = false;
+      render();
     }
-    render();
   }
+
+  async function checkServerConnection() {
+    // Check the live server rather than trusting the browser's "online" flag.
+    // One small request every five seconds detects shut-down servers even
+    // when a tab is idle and the last game screen is still in memory.
+    if (probingServer || loadingWorld || (!state && !offline && !authNeeded)) return;
+    probingServer = true;
+    const controller = new AbortController();
+    const limit = setTimeout(() => controller.abort(), 3500);
+    try {
+      const response = await fetch("/api/health", {
+        cache: "no-store", signal: controller.signal
+      });
+      if (!response.ok || (await response.json()).ok !== true)
+        throw Error("Server health check failed");
+      if (offline) await load(true);
+    } catch {
+      markServerDisconnected();
+    } finally {
+      clearTimeout(limit);
+      probingServer = false;
+    }
+  }
+
   function syncAttunements() {
     if (state && state.started) selectedAttunements = new Set(state.player.attuned_paths);
   }
@@ -588,10 +636,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     }
   }
   function offlinePage() {
-    return '<div class="entry"><div class="entry-card"><div class="entry-seal">⌁</div>' +
-      '<h1>World unavailable</h1><p>Could not reach the Python game server. ' +
-      'Make sure it is running, then try again.</p>' +
-      button("Reconnect", 'data-ui="reload"', "full") + '</div></div>';
+    return '<div class="entry" role="alert"><div class="entry-card">' +
+      '<div class="entry-seal">⌁</div><h1>Server disconnected</h1>' +
+      '<p>Oathmere cannot reach the game server. Gameplay is temporarily ' +
+      'unavailable. The client will reconnect automatically when the server ' +
+      'returns.</p>' +
+      button("Try reconnecting", 'data-ui="reload"', "full") + '</div></div>';
   }
 
   function meterStat(label, value, max, kind, simSeconds) {
@@ -1159,6 +1209,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     };
     stream.addEventListener("activity", receiveActivity);
     stream.addEventListener("activity-delta", receiveActivity);
+    stream.addEventListener("error", () => {
+      // A dropped stream may be a brief SSE failure rather than a server
+      // outage. Verify the health endpoint before blocking the client.
+      if (stream === liveEvents) checkServerConnection();
+    });
     // EventSource reconnects automatically and sends the session cookie.
     // This stream intentionally has no client-controlled actor identifier.
   }
@@ -1415,8 +1470,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     rememberChronicleExpansion(root);
     const previous = root.querySelector(".terrain-map-scroll");
     const oldScroll = previous ? [previous.scrollLeft, previous.scrollTop] : null;
-    if (authNeeded) root.innerHTML = authPage();
-    else if (offline) root.innerHTML = offlinePage();
+    if (offline) root.innerHTML = offlinePage();
+    else if (authNeeded) root.innerHTML = authPage();
     else if (state && !state.started) root.innerHTML = newCharacterPage();
     else if (state && state.started && !state.player.lineage_selected)
       root.innerHTML = lineagePromptPage();
@@ -1625,7 +1680,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       return;
     }
     const element = event.target.closest("button, [data-ui=\"explore-hex\"]");
-    if (!element || pending || element.disabled) return;
+    if (!element || pending || element.disabled ||
+        (offline && element.dataset.ui !== "reload")) return;
     if (element.dataset.tab) {
       navigateTo(element.dataset.tab);
       render();
@@ -2153,6 +2209,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     }
   });
   load();
+  setInterval(checkServerConnection, 5000);
+  window.addEventListener("online", checkServerConnection);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkServerConnection();
+  });
   setInterval(() => {
     updateEasternClock();
     updateHoverTimers();
