@@ -26,7 +26,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     { id: "home", icon: "⌂", title: "My Property" },
     { id: "magic", icon: "✧", title: "Magic" },
     { id: "guilds", icon: "⚑", title: "Guilds" },
-    { id: "merits", icon: "✶", title: "Merits" },
+    { id: "merits", icon: "✶", title: "Renown" },
     { id: "market", icon: "⚖", title: "Market" },
     { id: "companies", icon: "⚒", title: "Companies", onlyCity: "crownreach" },
     { id: "job", icon: "▣", title: "Occupation" },
@@ -722,10 +722,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const meritAlert = available > 0 ?
       '<button class="cooldown-chip activity-clickable" type="button" ' +
       'data-activity-key="merits" data-ui="activity-merits" data-hover-text="' +
-      esc(available + ' unspent merit' + (available === 1 ? '' : 's')) +
-      '" aria-label="' + esc(available + ' unspent merit' + (available === 1 ? '' : 's')) + '">' +
+      esc(available + ' Renown available') +
+      '" aria-label="' + esc(available + ' Renown available') + '">' +
       '<span aria-hidden="true">✶</span><strong>' +
-      available + ' merit' + (available === 1 ? '' : 's') +
+      available + ' Renown' +
       '</strong></button>' : "";
     const lettersCount = (state.economy?.job_offers || []).length;
     const letters = lettersCount ?
@@ -1883,7 +1883,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         break;
       }
       case "merit-claim":
-        action("claim_merit", { achievement: element.dataset.achievement }, "Merit earned"); break;
+        action("claim_merit", { achievement: element.dataset.achievement }, "Renown earned"); break;
       case "merit-buy":
         action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
