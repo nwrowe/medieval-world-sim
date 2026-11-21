@@ -127,7 +127,10 @@ assert.doesNotMatch(attackPreview,
   /Choose an opening attack|You can leave this screen|duel-preview-back/);
 const battleViews = createCommunityViews({
   ...helpers, getState: () => state, getDuelPreviewTarget: () => null,
-  getPending: () => false
+  getPending: () => false,
+  // Preserve the report's descriptive subtitle so recovery text is testable.
+  heading: (_kicker, title, subtitle = "") =>
+    "<h2>" + title + "</h2><p>" + subtitle + "</p>"
 });
 state = { ...state, duel: {
   role: "attacker", opponent_name: "Bob", opponent_hp: 16,
