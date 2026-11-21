@@ -1274,3 +1274,67 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 /* Suggestions must float above search results rather than clip at the panel edge. */
 .search-results-panel {overflow:visible;}
 .search-results-panel .search-panel {position:relative;z-index:3;}
+
+
+/* Character names are buttons, not underlined links. Keep a clear focus cue. */
+.character-name-link,
+.character-name-link:hover,
+.character-name-link:focus-visible {text-decoration:none;}
+.character-name-link:focus-visible {outline:2px solid #6f9d76;outline-offset:3px;border-radius:2px;}
+:root[data-theme="dark"] .character-name-link {color:#d0e9d4;}
+:root[data-theme="dark"] .character-name-link:hover,
+:root[data-theme="dark"] .character-name-link:focus-visible {color:#ffe8ac;}
+
+/* Auth and disconnected screens use an intentional dark palette, rather than
+   applying the global pale-text theme to a light parchment card. */
+.entry-card {color:#243a2d;}
+.password-input-wrap {position:relative;width:100%;}
+.password-input-wrap .field {width:100%;padding-right:51px;}
+.password-toggle {position:absolute;right:5px;top:4px;width:39px;height:39px;
+  display:grid;place-items:center;cursor:pointer;border:0;border-radius:8px;
+  background:transparent;color:#526d5d;}
+.password-toggle:hover,.password-toggle:focus-visible {color:#244d3b;background:#e3e9db;}
+.password-toggle:focus-visible {outline:2px solid #759b76;outline-offset:1px;}
+.password-eye-slash {display:none;}
+.password-visible .password-eye-slash {display:block;}
+.entry-card .stack .password-toggle {margin-top:0;}
+:root[data-theme="dark"] .entry-card {
+  background:#223b30;color:#f5f2e6;border:1px solid #56745e;
+}
+:root[data-theme="dark"] .entry-card h1 {color:#fff6dd;}
+:root[data-theme="dark"] .entry-card p {color:#d1dfd0;}
+:root[data-theme="dark"] .entry-card .eyebrow {color:#e7cd91;}
+:root[data-theme="dark"] .entry-card label {color:#f1ead9;}
+:root[data-theme="dark"] .entry-card .field {
+  background:#365442;color:#f8f8ef;border-color:#78927a;
+}
+:root[data-theme="dark"] .entry-card .field::placeholder {color:#d0dbc9;}
+:root[data-theme="dark"] .account-register {border-color:#6a866e;}
+:root[data-theme="dark"] .account-register>summary {color:#f6d797;}
+:root[data-theme="dark"] .account-register>summary:hover,
+:root[data-theme="dark"] .account-register>summary:focus-visible {color:#fff2c2;}
+:root[data-theme="dark"] .password-toggle {color:#e7efd9;}
+:root[data-theme="dark"] .password-toggle:hover,
+:root[data-theme="dark"] .password-toggle:focus-visible {
+  background:#4d7156;color:#fff8dd;
+}
+:root[data-theme="dark"] .entry-card input:-webkit-autofill {
+  -webkit-text-fill-color:#f8f8ef;
+  -webkit-box-shadow:0 0 0 1000px #365442 inset;
+}
+
+/* Denote active battle lockout without opaque grey blocks over menu entries. */
+:root[data-theme="dark"] .side-nav .nav-button:disabled,
+:root[data-theme="dark"] .account-nav .nav-button:disabled,
+:root[data-theme="dark"] .mobile-nav .nav-button:disabled {
+  background:transparent;color:#82998c;opacity:1;
+}
+:root[data-theme="dark"] .side-nav .nav-button:disabled .nav-icon,
+:root[data-theme="dark"] .mobile-nav .nav-button:disabled .nav-icon {opacity:.7;}
+
+/* Medieval merit summary stays full-width, options are two columns on desktop. */
+.merits-layout {display:grid;gap:18px;}
+.merits-columns {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px;align-items:start;}
+@media(max-width:760px) {.merits-columns {grid-template-columns:1fr;}}
+.combat-round-chronicle {margin-top:18px;}

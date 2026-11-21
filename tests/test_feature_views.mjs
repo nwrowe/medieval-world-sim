@@ -112,6 +112,47 @@ assert.doesNotMatch(liveSearch, /To attack, be in the same city/);
 query = "";
 assert.match(community.renderTrade(), /Propose a trade/);
 assert.match(community.renderDuel(), /No active duel/);
+const beforeCombat = state;
+state = { ...state, player: { ...state.player, mana: 8, max_mana: 10 },
+  combat_moves: [{ move: "strike", label: "Sword", stamina: 4, available: true }],
+  magic_stamina_cost: 0, guard_stamina_cost: 2 };
+const previewViews = createCommunityViews({
+  ...helpers, getState: () => state, getDuelPreviewTarget: () => "player:bob",
+  getPending: () => false
+});
+const attackPreview = previewViews.renderDuel();
+assert.match(attackPreview, /24 \/ 24 HP/);
+assert.match(attackPreview, /20 \/ 24 HP/);
+assert.doesNotMatch(attackPreview,
+  /Choose an opening attack|You can leave this screen|duel-preview-back/);
+const battleViews = createCommunityViews({
+  ...helpers, getState: () => state, getDuelPreviewTarget: () => null,
+  getPending: () => false,
+  // Preserve the report's descriptive subtitle so recovery text is testable.
+  heading: (_kicker, title, subtitle = "") =>
+    "<h2>" + title + "</h2><p>" + subtitle + "</p>"
+});
+state = { ...state, duel: {
+  role: "attacker", opponent_name: "Bob", opponent_hp: 16,
+  opponent_max_hp: 24, log: ["Alice strikes"], round: 1, max_rounds: 10
+} };
+const inCombat = battleViews.renderDuel();
+assert.match(inCombat, /24 \/ 24 HP · 8 \/ 10 mana/);
+assert.doesNotMatch(inCombat, /24 \/ 24 HP · [^<]*stamina/);
+assert.match(inCombat, /class="combat-round-chronicle"/);
+state = { ...state, duel: null, minute: 0,
+  player: { ...state.player, defeated_until: 5 },
+  last_duel: { outcome: "lost", gold: 3, rounds: 2,
+    xp: 1, opponent_id: "player:bob", log: ["Defeated"] } };
+const hospitalReport = battleViews.renderDuel();
+assert.match(hospitalReport, /Hospitalized/);
+assert.doesNotMatch(hospitalReport, /Return to Search/);
+state = { ...state, minute: 6 };
+const recoveredReport = battleViews.renderDuel();
+assert.match(recoveredReport, /Defeat/);
+assert.match(recoveredReport, /You have recovered/);
+assert.doesNotMatch(recoveredReport, /Hospitalized/);
+state = beforeCombat;
 query = "nonexistent";
 assert.doesNotMatch(community.renderPeople(), /profile-open.*Bob/);
 const cityNames = [
@@ -179,7 +220,15 @@ state = { ...state, guilds: {
   ...state.guilds, my_guild: null
 }};
 const meritPage = city.renderMerits();
-assert.match(meritPage, /Your merit ledger|First Steps/);
+assert.match(meritPage, /Your Renown ledger|First Steps/);
+assert.match(meritPage, /Buy · 2 Renown/);
+const claimedFixture = state.merits.achievements[0];
+state.merits.achievements[0] = { ...claimedFixture, claimed: false, eligible: true };
+assert.match(city.renderMerits(), /Claim Renown/);
+state.merits.achievements[0] = claimedFixture;
+assert.doesNotMatch(meritPage, /Your merit ledger|Claim merit|Buy · \d+ merits/);
+assert.match(meritPage, /class="merits-layout"/);
+assert.match(meritPage, /class="merits-columns"/);
 assert.doesNotMatch(meritPage, /<h2>Merits<\/h2>|Honor your milestones|Merits are earned once|\+1 merit/);
 assert.match(city.renderJob(), /Manual:57/);
 assert.match(city.renderJob(), /Occupation/);
@@ -242,6 +291,8 @@ for (const name of ["renderInventory", "renderCharacter", "renderEquipment", "re
 }
 assert.match(character.renderInventory(), /Inventory/);
 assert.match(character.renderInventory(), /Stored Goods/);
+assert.match(character.renderInventory(), /No carried goods<\/p>/);
+assert.doesNotMatch(character.renderInventory(), /Visit the market or gather resources/);
 assert.doesNotMatch(character.renderInventory(), /Equipment & vehicles|Your stored goods/);
 assert.doesNotMatch(character.renderInventory(), /Carrying .*Road limit|Crownreach offers unlimited goods storage/);
 assert.match(character.renderEquipment(), /Equipped Gear/);

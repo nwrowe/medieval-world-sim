@@ -260,30 +260,30 @@ export function createCommunityViews(ctx) {
       const target = (state.users || []).find(u => u.id === previewId);
       if (!target || !target.can_attack)
         return heading("", "Attack unavailable",
-          "The target has moved or is no longer available.") +
-          button("Back", 'data-ui="duel-preview-back"', "secondary");
+          "The target has moved or is no longer available.");
       const options = (state.combat_moves || []).filter(option =>
         ["strike", "fists", "dagger"].includes(option.move));
-      return heading("", "Attack · " + target.name,
-        "Choose an opening attack. No combat begins until your first swing.") +
+      return heading("", "Attack · " + target.name, "") +
         '<div class="combat-vitals">' +
-        panel(state.name, "Your health", progress(p.hp, p.max_hp)) +
-        panel(target.name, "Target health", progress(target.hp, target.max_hp)) +
+        panel(state.name, "Your health", progress(p.hp, p.max_hp) +
+          '<p>' + p.hp + ' / ' + p.max_hp + ' HP</p>') +
+        panel(target.name, "Target health", progress(target.hp, target.max_hp) +
+          '<p>' + target.hp + ' / ' + target.max_hp + ' HP</p>') +
         '</div>' +
-        panel("Opening attack", "You can leave this screen without starting combat.",
+        panel("Opening attack", "",
           '<div class="combat-actions">' +
           options.map(option => button(option.move === "strike" ? "Attack" : option.label,
             'data-ui="duel-engage" data-move="' + option.move + '"' +
             disabled(pending || !option.available),
             option.move === "strike" ? "gold" : "secondary")).join('') +
-          button("Back", 'data-ui="duel-preview-back"', "secondary") +
           '</div>');
     }
     if (!duel) {
       const result = state.last_duel;
       const title = result ? (
         result.outcome === "won" ? "Victory" :
-        result.outcome === "lost" ? "Hospitalized" :
+        result.outcome === "lost" ?
+          ((p.defeated_until || 0) > state.minute ? "Hospitalized" : "Defeat") :
         result.outcome === "draw" ? "Draw" :
         result.outcome === "opponent_fled" ? "Opponent retreated" : "Retreated"
       ) : "No active duel";
@@ -292,15 +292,16 @@ export function createCommunityViews(ctx) {
         'You claimed ' + money(result.gold) + ' from ' +
         (opponent ? opponent.name : "your opponent") + '.' :
         result.outcome === "lost" ? 'Your opponent took ' + money(result.gold) +
-        '. Recovery: ' + dur(Math.max(0, (p.defeated_until || 0) - state.minute)) + '.' :
+        '. ' + ((p.defeated_until || 0) > state.minute ?
+          'Recovery: ' + dur(p.defeated_until - state.minute) + '.' :
+          'You have recovered.') :
         result.outcome === "draw" ? 'Both fighters survived ten rounds. No loot or hospitalization.' :
         result.outcome === "opponent_fled" ? 'Your opponent withdrew. No loot or hospitalization.' :
         'You escaped without loot or hospitalization.') : 'Search for someone to fight.';
       const logs = result ? result.log.map(line => '<li>' + esc(line) + '</li>').join('') : '';
       return heading("", title, text) +
         panel("Battle report", result ? result.rounds + " rounds · " +
-          result.xp + " combat XP" : "", '<ol class="combat-log">' + logs + '</ol>' +
-          button("Return to Search", 'data-tab="people"', "secondary"));
+          result.xp + " combat XP" : "", '<ol class="combat-log">' + logs + '</ol>');
     }
     const defending = duel.role === "defender";
     const learned = state.magic_nodes.filter(n => n.unlocked && n.active && n.tier > 0);
@@ -318,7 +319,7 @@ export function createCommunityViews(ctx) {
     const logs = duel.log.length ?
       '<ol class="combat-log">' + duel.log.map(line => '<li>' + esc(line) +
       '</li>').join('') + '</ol>' :
-      '<p class="small">You have the initiative. Choose your opening move.</p>';
+      '<p class="small">No combat rounds recorded yet.</p>';
     return heading("", "Combat · " + duel.opponent_name,
       (defending ? "Defending automatically · " : "Choose your move · ") +
       "Round " + (duel.round + 1) +
@@ -326,8 +327,8 @@ export function createCommunityViews(ctx) {
       " · the encounter is saved after every round") +
       '<div class="combat-vitals">' +
       panel(state.name, "Your health", progress(p.hp, p.max_hp) +
-        '<p>' + p.hp + ' / ' + p.max_hp + ' HP · ' + p.stamina +
-        ' / ' + p.max_stamina + ' stamina · ' + p.mana + ' mana</p>') +
+        '<p>' + p.hp + ' / ' + p.max_hp + ' HP · ' + p.mana +
+        ' / ' + p.max_mana + ' mana</p>') +
       panel(duel.opponent_name, "Enemy health", progress(duel.opponent_hp, duel.opponent_max_hp) +
         '<p>' + duel.opponent_hp + ' / ' + duel.opponent_max_hp + ' HP</p>') +
       '</div>' +
@@ -355,7 +356,8 @@ export function createCommunityViews(ctx) {
         (casts || '<p class="small">Unlock spells on the Magic page to use them here.</p>') +
         '</div>' + (duel.pending_ward ? chip("Prepared ward: " +
           duel.pending_ward + " damage") : ""))) +
-      panel("Round-by-round chronicle", "", logs);
+      '<div class="combat-round-chronicle">' +
+      panel("Round-by-round chronicle", "", logs) + '</div>';
   }
 
   return { renderPeople, renderProfile, renderTrade, renderDuel };

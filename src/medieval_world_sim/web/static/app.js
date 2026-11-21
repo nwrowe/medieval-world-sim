@@ -26,7 +26,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     { id: "home", icon: "⌂", title: "My Property" },
     { id: "magic", icon: "✧", title: "Magic" },
     { id: "guilds", icon: "⚑", title: "Guilds" },
-    { id: "merits", icon: "✶", title: "Merits" },
+    { id: "merits", icon: "✶", title: "Renown" },
     { id: "market", icon: "⚖", title: "Market" },
     { id: "companies", icon: "⚒", title: "Companies", onlyCity: "crownreach" },
     { id: "job", icon: "▣", title: "Occupation" },
@@ -228,7 +228,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       item.dataset.hoverText = item.dataset.timerLabel + remaining;
       const readout = item.querySelector("[data-timer-display]");
       if (readout) readout.textContent = remaining;
-      if (readout && item.dataset.activityKey === "university")
+      if (readout && ["university", "hospital"].includes(item.dataset.activityKey))
         readout.textContent = compactWallTime(seconds);
       if (seconds <= 0 && item.dataset.activityKey === "civic-shift") {
         item.remove();
@@ -527,6 +527,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '</div></div>';
   }
 
+  function passwordToggle(target) {
+    return '<button type="button" class="password-toggle" data-ui="toggle-password" ' +
+      'data-password-for="' + target + '" aria-label="Show password" ' +
+      'title="Show password" aria-pressed="false">' +
+      '<svg viewBox="0 0 24 24" width="19" height="19" fill="none" ' +
+      'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
+      'stroke-linejoin="round" aria-hidden="true">' +
+      '<path d="M2.4 12s3.5-6 9.6-6 9.6 6 9.6 6-3.5 6-9.6 6-9.6-6z"/>' +
+      '<circle cx="12" cy="12" r="2.8"/>' +
+      '<path class="password-eye-slash" d="M3 3 21 21"/></svg></button>';
+  }
+
   function authPage() {
     if (multiMode) return '<div class="entry"><div class="entry-card">' +
       '<div class="entry-seal">✦</div><div class="eyebrow">Local multi-account world</div>' +
@@ -538,8 +550,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<input id="loginUsername" class="field" type="text" inputmode="email" autocomplete="username" ' +
       'maxlength="254" required>' +
       '<label for="loginPassword">Password</label>' +
+      '<div class="password-input-wrap">' +
       '<input id="loginPassword" class="field" type="password" ' +
       'autocomplete="current-password" required>' +
+      passwordToggle("loginPassword") + '</div>' +
       '<button class="button full gold" type="submit">Sign in</button></form>' +
       '<details class="account-register"><summary>Create an account</summary>' +
       '<form id="accountRegisterForm" class="stack">' +
@@ -553,8 +567,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<input id="registerInvite" class="field" autocomplete="off" ' +
       'placeholder="One-time code from game operator" required>' : "") +
       '<label for="registerPassword">Password (12 characters minimum)</label>' +
+      '<div class="password-input-wrap">' +
       '<input id="registerPassword" class="field" type="password" ' +
       'autocomplete="new-password" minlength="12" maxlength="128" required>' +
+      passwordToggle("registerPassword") + '</div>' +
       '<button class="button full" type="submit">Register account</button>' +
       '</form></details>' +
       '<p class="small">Development-only: local computer access. Do not expose this ' +
@@ -566,7 +582,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<p>This server requires the access code printed in its terminal. ' +
       'Only connect over your own trusted local network.</p>' +
       '<form id="accessForm"><label class="sr" for="access">Access code</label>' +
+      '<div class="password-input-wrap">' +
       '<input id="access" class="field" type="password" autocomplete="off" placeholder="Server access code" required>' +
+      passwordToggle("access") + '</div>' +
       '<button class="button full" type="submit">Enter world</button></form></div></div>';
   }
   async function accountSubmit(url, body) {
@@ -638,10 +656,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   function offlinePage() {
     return '<div class="entry" role="alert"><div class="entry-card">' +
       '<div class="entry-seal">⌁</div><h1>Server disconnected</h1>' +
-      '<p>Oathmere cannot reach the game server. Gameplay is temporarily ' +
-      'unavailable. The client will reconnect automatically when the server ' +
-      'returns.</p>' +
-      button("Try reconnecting", 'data-ui="reload"', "full") + '</div></div>';
+      '<p>Gameplay is temporarily unavailable. The client will reconnect ' +
+      'automatically when the server returns.</p></div></div>';
   }
 
   function meterStat(label, value, max, kind, simSeconds) {
@@ -706,10 +722,10 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const meritAlert = available > 0 ?
       '<button class="cooldown-chip activity-clickable" type="button" ' +
       'data-activity-key="merits" data-ui="activity-merits" data-hover-text="' +
-      esc(available + ' unspent merit' + (available === 1 ? '' : 's')) +
-      '" aria-label="' + esc(available + ' unspent merit' + (available === 1 ? '' : 's')) + '">' +
+      esc(available + ' Renown available') +
+      '" aria-label="' + esc(available + ' Renown available') + '">' +
       '<span aria-hidden="true">✶</span><strong>' +
-      available + ' merit' + (available === 1 ? '' : 's') +
+      available + ' Renown' +
       '</strong></button>' : "";
     const lettersCount = (state.economy?.job_offers || []).length;
     const letters = lettersCount ?
@@ -751,8 +767,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       'data-activity-key="hospital" data-ui="activity-hospital"' +
       timerAttrs("Hospitalized · ", hospitalMinutes * 60) +
       ' aria-label="Hospitalized">' +
-      '<span aria-hidden="true">✚</span><strong>' +
-      esc(simDuration(hospitalMinutes)) + '</strong></button>' : "";
+      '<span aria-hidden="true">✚</span><strong data-timer-display>' +
+      compactWallTime(timerSeconds(hospitalMinutes * 60)) +
+      '</strong></button>' : "";
     const defenderAlert = defendant && defendant.role === "defender" &&
       defendant.attack_started ?
       '<button class="cooldown-chip activity-clickable activity-combat" type="button" ' +
@@ -1866,7 +1883,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         break;
       }
       case "merit-claim":
-        action("claim_merit", { achievement: element.dataset.achievement }, "Merit earned"); break;
+        action("claim_merit", { achievement: element.dataset.achievement }, "Renown earned"); break;
       case "merit-buy":
         action("buy_merit_upgrade", { perk: element.dataset.perk }, "Permanent improvement unlocked"); break;
       case "church-heal":
@@ -1915,6 +1932,19 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       case "horse-race":
         action("race_horse", { breed: element.dataset.breed }, "Race completed"); break;
       case "reload": load(); break;
+      case "toggle-password": {
+        const id = element.dataset.passwordFor;
+        if (!["loginPassword", "registerPassword", "access"].includes(id)) break;
+        const input = document.getElementById(id);
+        if (!input) break;
+        const visible = input.type === "password";
+        input.type = visible ? "text" : "password";
+        element.setAttribute("aria-pressed", String(visible));
+        element.setAttribute("aria-label", visible ? "Hide password" : "Show password");
+        element.title = visible ? "Hide password" : "Show password";
+        element.classList.toggle("password-visible", visible);
+        break;
+      }
       case "explore-hex": {
         const x = Number(element.dataset.x), y = Number(element.dataset.y);
         if (isBusy() || !(state.world_map.steps || []).some(t =>
@@ -2073,10 +2103,6 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         render();
         break;
       }
-      case "duel-preview-back":
-        duelPreviewTarget = null;
-        navigateTo("people");
-        render(); break;
       case "duel-engage": {
         const target = duelPreviewTarget;
         if (!target || combatNavigationLocked()) break;
