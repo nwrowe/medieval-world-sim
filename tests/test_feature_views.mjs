@@ -220,7 +220,9 @@ state = { ...state, guilds: {
   ...state.guilds, my_guild: null
 }};
 const meritPage = city.renderMerits();
-assert.match(meritPage, /Your merit ledger|First Steps/);
+assert.match(meritPage, /Your Renown ledger|First Steps/);
+assert.match(meritPage, /Claim Renown/);
+assert.doesNotMatch(meritPage, /Your merit ledger|Claim merit|Buy · \d+ merits/);
 assert.match(meritPage, /class="merits-layout"/);
 assert.match(meritPage, /class="merits-columns"/);
 assert.doesNotMatch(meritPage, /<h2>Merits<\/h2>|Honor your milestones|Merits are earned once|\+1 merit/);
