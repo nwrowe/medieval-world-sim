@@ -199,13 +199,14 @@ export function createCityViews(ctx) {
           'data-ui="merit-buy" data-perk="' + esc(perk.id) + '"' +
           disabled(info.balance < perk.cost || isBusy()), 'secondary')) +
       '</div>').join('');
-    return '<div class="stack">' +
+    return '<div class="merits-layout">' +
       panel('Your merit ledger', '',
         '<div class="resource-list">' + chip('Available to spend: ' + (info.balance || 0)) +
         chip('Lifetime earned: ' + (info.total_earned || 0)) + '</div>') +
+      '<div class="merits-columns">' +
       panel('Achievements', 'Complete goals throughout Oathmere.', feats) +
       panel('Permanent improvements', '', upgrades) +
-      '</div>';
+      '</div></div>';
   }
   function renderCityHall() {
     return '<section class="story-panel"><h3>Quests</h3>' +
