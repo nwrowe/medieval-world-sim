@@ -221,7 +221,11 @@ state = { ...state, guilds: {
 }};
 const meritPage = city.renderMerits();
 assert.match(meritPage, /Your Renown ledger|First Steps/);
-assert.match(meritPage, /Claim Renown/);
+assert.match(meritPage, /Buy · 2 Renown/);
+const claimedFixture = state.merits.achievements[0];
+state.merits.achievements[0] = { ...claimedFixture, claimed: false, eligible: true };
+assert.match(city.renderMerits(), /Claim Renown/);
+state.merits.achievements[0] = claimedFixture;
 assert.doesNotMatch(meritPage, /Your merit ledger|Claim merit|Buy · \d+ merits/);
 assert.match(meritPage, /class="merits-layout"/);
 assert.match(meritPage, /class="merits-columns"/);
