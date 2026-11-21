@@ -76,7 +76,7 @@ class MeritSystem:
     def purchase(self, actor_id: str, perk: str) -> dict:
         self.world._actor(actor_id)
         if perk not in MERIT_UPGRADES:
-            raise ActionError("Unknown merit upgrade")
+            raise ActionError("Unknown Renown improvement")
         owned = self.world.state.merit_upgrades.setdefault(actor_id, set())
         if perk in owned:
             raise ActionError("Upgrade already purchased")
@@ -85,7 +85,7 @@ class MeritSystem:
         cost = MERIT_UPGRADES[perk]["cost"]
         balance = self.world.state.merit_balance.get(actor_id, 0)
         if balance < cost:
-            raise ActionError("Insufficient merit points")
+            raise ActionError("Insufficient Renown")
         self.world.state.merit_balance[actor_id] = balance - cost
         owned.add(perk)
         if perk in ("awareness_1", "awareness_2"):
