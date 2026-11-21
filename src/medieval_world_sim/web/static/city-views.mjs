@@ -187,7 +187,7 @@ export function createCityViews(ctx) {
       '<div class="equipment-item"><div><h3>' + esc(f.name) +
       '</h3><p>' + esc(f.description) + '</p></div>' +
       (f.claimed ? chip('Claimed') :
-        button(f.eligible ? 'Claim merit' : 'Locked',
+        button(f.eligible ? 'Claim Renown' : 'Locked',
           'data-ui="merit-claim" data-achievement="' + esc(f.id) + '"' +
           disabled(!f.eligible || isBusy()), f.eligible ? 'gold' : 'ghost')) +
       '</div>').join('');
@@ -195,12 +195,12 @@ export function createCityViews(ctx) {
       '<div class="equipment-item"><div><h3>' + esc(perk.name) +
       '</h3><p>' + esc(perk.description) + '</p></div>' +
       (perk.owned ? chip('Owned') :
-        button('Buy · ' + perk.cost + ' merits',
+        button('Buy · ' + perk.cost + ' Renown',
           'data-ui="merit-buy" data-perk="' + esc(perk.id) + '"' +
           disabled(info.balance < perk.cost || isBusy()), 'secondary')) +
       '</div>').join('');
     return '<div class="merits-layout">' +
-      panel('Your merit ledger', '',
+      panel('Your Renown ledger', '',
         '<div class="resource-list">' + chip('Available to spend: ' + (info.balance || 0)) +
         chip('Lifetime earned: ' + (info.total_earned || 0)) + '</div>') +
       '<div class="merits-columns">' +
