@@ -33,7 +33,7 @@ export function createCharacterViews(ctx) {
       button("Discard", 'data-ui="discard" data-item="' + esc(item) + '"' +
         disabled(isBusy() || !!p.destination), "s ghost") + '</div>';
     }).join("") ||
-      '<p class="empty">No carried goods yet. Visit the market or gather resources.</p>';
+      '<p class="empty">No carried goods</p>';
     const stashRows = stored.map(([item, qty]) =>
       '<div class="stash-row"><div><strong>' + esc(pretty(item)) +
       '</strong><p>' + qty + ' in this city</p></div>' +
