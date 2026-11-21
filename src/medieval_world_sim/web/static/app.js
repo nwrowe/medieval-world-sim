@@ -2103,10 +2103,6 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         render();
         break;
       }
-      case "duel-preview-back":
-        duelPreviewTarget = null;
-        navigateTo("people");
-        render(); break;
       case "duel-engage": {
         const target = duelPreviewTarget;
         if (!target || combatNavigationLocked()) break;
