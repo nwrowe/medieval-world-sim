@@ -33,6 +33,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     { id: "mercenary", icon: "⚔", title: "Mercenary Jobs" },
     { id: "church", icon: "✝", title: "Church" },
     { id: "armory", icon: "⚒", title: "Armory", onlyCity: "crownreach" },
+    { id: "harbor", icon: "⚓", title: "Harbor", onlyCity: "crownreach" },
     { id: "track", icon: "♞", title: "Track" },
     { id: "training", icon: "✤", title: "University" },
     { id: "tavern", icon: "♜", title: "Tavern" },
@@ -824,7 +825,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       character: renderCharacter, equipment: renderEquipment,
       chronicle: renderChronicle, mercenary: renderMercenaryJobs,
       tavern: renderTavern,
-      cityhall: renderCityHall,
+      cityhall: renderCityHall, harbor: renderHarbor,
       church: renderChurch, people: renderPeople, armory: renderArmory,
       duel: renderDuel, track: renderTrack,
       profile: renderProfile,
@@ -1063,7 +1064,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     return '<div class="character-row"><span>' + esc(label) +
       '</span><strong>' + esc(value) + '</strong></div>';
   }
-  const { renderMercenaryJobs, renderChurch, renderTrack,
+  const { renderMercenaryJobs, renderChurch, renderTrack, renderHarbor,
     renderGuilds, renderMerits, renderCityHall, renderJob, renderTraining, renderTavern } =
     createCityViews({
       getState: () => state,
