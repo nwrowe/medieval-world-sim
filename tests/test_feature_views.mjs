@@ -158,12 +158,19 @@ assert.doesNotMatch(community.renderPeople(), /profile-open.*Bob/);
 const cityNames = [
   "renderMercenaryJobs", "renderChurch", "renderTrack",
   "renderGuilds", "renderMerits", "renderCityHall", "renderJob",
-  "renderTraining", "renderTavern"
+  "renderTraining", "renderTavern", "renderHarbor"
 ];
 for (const name of cityNames) {
   assert.equal(typeof city[name], "function", name);
   assert.ok(city[name]().length > 35, name + " must render meaningful markup");
 }
+const harbor = city.renderHarbor();
+assert.match(harbor, /Crownreach waterfront/);
+assert.match(harbor, /Boats and fishing/);
+assert.match(harbor, /no voyages, fishing actions, or trades available/);
+state = { ...state, player: { ...state.player, city: "ironvale" } };
+assert.match(city.renderHarbor(), /Visit Crownreach to explore its harbor/);
+state = { ...state, player: { ...state.player, city: "crownreach" } };
 state = { ...state, training_hall: { active: {
   school: "rhetoric", index: 0, remaining_minutes: 4320, ends_at: 5760
 }, schools: [{
