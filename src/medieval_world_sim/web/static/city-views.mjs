@@ -208,6 +208,23 @@ export function createCityViews(ctx) {
       panel('Permanent improvements', '', upgrades) +
       '</div></div>';
   }
+  function renderHarbor() {
+    const state = ctx.getState();
+    const inCrownreach = state.player.city === "crownreach" &&
+      !state.player.destination && !state.world_map?.in_wilderness;
+    if (!inCrownreach) return heading("", "Harbor", "") +
+      panel("Crownreach Harbor", "",
+        '<p class="small">Visit Crownreach to explore its harbor.</p>');
+    return heading("", "Harbor", "") +
+      '<section class="story-panel harbor-scene">' +
+      '<div class="section-kicker">Crownreach waterfront</div>' +
+      '<h3>Beyond the city walls, the harbor awaits</h3>' +
+      '<p>Weathered piers stretch toward the open water. Boats and fishing ' +
+      'will have a home here in a future chapter of Oathmere.</p>' +
+      '<p class="small">The harbor is a placeholder for now. ' +
+      'There are no voyages, fishing actions, or trades available yet.</p>' +
+      '</section>';
+  }
   function renderCityHall() {
     return '<section class="story-panel"><h3>Quests</h3>' +
       '<p>New adventurers will begin with a guided introduction to Oathmere. ' +
@@ -319,6 +336,6 @@ export function createCityViews(ctx) {
       '</div>';
   }
 
-  return { renderMercenaryJobs, renderChurch, renderTrack,
+  return { renderMercenaryJobs, renderChurch, renderTrack, renderHarbor,
     renderGuilds, renderMerits, renderCityHall, renderJob, renderTraining, renderTavern };
 }
