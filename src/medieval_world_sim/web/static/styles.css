@@ -1338,3 +1338,23 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   gap:18px;align-items:start;}
 @media(max-width:760px) {.merits-columns {grid-template-columns:1fr;}}
 .combat-round-chronicle {margin-top:18px;}
+
+
+/* Echo the login screen's ambient lighting on ordinary game pages, softly.
+   Keep the effect behind the panels and side navigation for legibility. */
+.shell {
+  background:
+    radial-gradient(ellipse 900px 650px at 83% 8%,
+      rgba(194,164,101,.13),transparent 77%),
+    radial-gradient(ellipse 760px 690px at 11% 81%,
+      rgba(104,147,117,.085),transparent 78%);
+  background-attachment:fixed;
+}
+:root[data-theme="dark"] .shell {
+  background:
+    radial-gradient(ellipse 940px 680px at 83% 8%,
+      rgba(107,155,116,.14),transparent 77%),
+    radial-gradient(ellipse 750px 670px at 11% 81%,
+      rgba(173,137,85,.06),transparent 78%);
+  background-attachment:fixed;
+}
