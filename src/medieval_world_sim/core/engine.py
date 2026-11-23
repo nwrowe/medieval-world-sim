@@ -844,7 +844,8 @@ class WorldEngine:
                     raise ActionError("Action ID reused for a different command")
                 return existing[1]
             # Duplicate requests must return their receipt even after a duel begins.
-            if (principal_id in self.state.duels
+            if (any(principal_id in (d.attacker_id, d.defender_id, *d.assistants)
+                     for d in self.state.duels.values())
                     and action not in ("duel_turn", "flee_duel",
                                        "send_chat", "create_chat_room")):
                 raise ActionError("Finish your current duel first")
