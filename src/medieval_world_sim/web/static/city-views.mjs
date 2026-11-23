@@ -340,6 +340,15 @@ export function createCityViews(ctx) {
           '<p class="small">Honor measures the difficulty of successful hits. ' +
           'It guides later spoils decisions; practice matches award no ranked prizes.</p>');
     }
+    const history = (info.history || []).filter(entry =>
+      !war || entry.id !== war.id).map(entry =>
+      '<details class="war-rules"><summary>' + esc(entry.id) +
+      ' · ' + esc(entry.result) + ' · ' + entry.progress +
+      '% progress' + (entry.practice ? ' · Practice' : '') +
+      '</summary>' + [...entry.honor].sort((a,b) => b.score - a.score)
+        .map(line => '<div class="war-fighter"><span>' +
+          esc(display(line.id)) + '</span><strong>' + line.score +
+          ' Honor</strong></div>').join('') + '</details>').join('');
     return heading('', 'Guilds', '') +
       '<div class="stack">' + guildPanel + warContent +
       panel('Guild warfare', own.enlisted ? 'Registered for weekly matching' :
@@ -354,6 +363,8 @@ export function createCityViews(ctx) {
         '<p>Leaving a contested battlefield concedes a hit. ' +
         'Group attacks require another fighter to join an active duel. ' +
         'No automatic spoils distribution is enabled.</p></details>') +
+      (history ? panel('Completed wars', 'Past Honor ledgers for contribution review',
+        history) : '') +
       panel('Guild directory', 'Other banners', directory ||
         '<p class="small">No other guilds yet.</p>') + '</div>';
   }
