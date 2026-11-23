@@ -54,7 +54,7 @@ in single-player, existing time-advance actions can make turns progress
 faster. The local multiplayer `--dev-fast-forward` flag also allows accelerated
 clock experiments, but must **never** be enabled on a public server.
 
-Practice battles are deliberately shorter (90 realm minutes) and use
+Practice battles are deliberately shorter (180 realm minutes) and use
 ten NPC sparring opponents; they are not a statistically faithful model of
 the real 10–20 person wars. They exercise the production combat,
 authorization, routing, Honor and milestone rules.
