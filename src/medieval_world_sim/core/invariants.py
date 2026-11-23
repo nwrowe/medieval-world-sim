@@ -12,7 +12,7 @@ from ..content.lineages import LINEAGES
 from ..combat import MAX_STAMINA
 from ..core.entities import Actor
 from ..equipment import GEAR
-from ..systems.guilds import ROLES, MAX_GUILD_MEMBERS
+from ..systems.guilds import ROLES, MAX_GUILD_MEMBERS, RIGHTS
 from ..systems.merits import ACHIEVEMENTS, MERIT_UPGRADES
 from ..systems.chat import MAX_MESSAGES_SAVED, MAX_MESSAGE_LENGTH
 from ..systems.curriculum import SCHOOLS, CURRENT_SCHOOLS
@@ -144,11 +144,33 @@ def validate_world(world: WorldEngine) -> None:
                        for actor_id, role in guild.members.items())
                 or any(invitee not in world.actors for invitee in guild.invited)
                 or any(invitee in guild.members for invitee in guild.invited)
-                or guild.rating < 0 or guild.wins < 0 or guild.losses < 0):
+                or guild.rating < 0 or guild.wins < 0 or guild.losses < 0
+                or any(member not in guild.members or not granted <= set(RIGHTS)
+                       or not isinstance(granted, set)
+                       for member, granted in guild.rights.items())
+                or type(guild.enlisted) is not bool):
             raise AssertionError("Invalid guild state")
         membership.extend(guild.members)
     if len(membership) != len(set(membership)):
         raise AssertionError("Character has multiple guilds")
+    for war_id, war in world.state.wars.items():
+        both = set(war.roster_a) | set(war.roster_b)
+        if (war_id != war.id or war.guild_a == war.guild_b
+                or war.status not in ("notice", "live", "finished")
+                or not war.roster_a or not war.roster_b
+                or set(war.roster_a) & set(war.roster_b)
+                or not both <= world.actors.keys()
+                or not war.present <= both
+                or any(p not in both or type(t) is not int or t < 0
+                       for p, t in war.routed.items())
+                or any(p not in both or type(h) is not int or h < 0
+                       for p, h in war.honor.items())
+                or war.advantage not in (None, war.guild_a, war.guild_b)
+                or any(type(v) is not int or v < 0 for v in (
+                    war.pressure_a, war.pressure_b, war.progress_a, war.progress_b))
+                or any(t not in (war.guild_a, war.guild_b)
+                       for t in war.unlocks.keys() | war.used.keys())):
+            raise AssertionError("Invalid Banner Clash state")
     for actor_id, claimed in world.state.merit_claims.items():
         if (actor_id not in world.actors or not claimed <= ACHIEVEMENTS.keys()
                 or type(world.state.merit_balance.get(actor_id, 0)) is not int
