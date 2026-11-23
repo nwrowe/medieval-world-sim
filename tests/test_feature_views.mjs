@@ -152,6 +152,18 @@ const recoveredReport = battleViews.renderDuel();
 assert.match(recoveredReport, /Defeat/);
 assert.match(recoveredReport, /You have recovered/);
 assert.doesNotMatch(recoveredReport, /Hospitalized/);
+state = { ...state, duel: null, last_duel: {
+  outcome: "won", gold: 0, war_id: "practice:1", war_honor: 14,
+  rounds: 3, xp: 5, opponent_id: "player:bob", log: []
+} };
+assert.match(battleViews.renderDuel(), /War victory · \+14 Honor/);
+assert.doesNotMatch(battleViews.renderDuel(), /claimed 0g/);
+state = { ...state, guilds: { war: { my_routed: 11 } },
+  last_duel: { outcome: "lost", gold: 0, war_id: "practice:1",
+    war_honor: 0, rounds: 3, xp: 0,
+    opponent_id: "player:bob", log: [] } };
+assert.match(battleViews.renderDuel(), /Routed from Banner Clash/);
+assert.match(battleViews.renderDuel(), /Recovery: 11m/);
 state = beforeCombat;
 query = "nonexistent";
 assert.doesNotMatch(community.renderPeople(), /profile-open.*Bob/);
