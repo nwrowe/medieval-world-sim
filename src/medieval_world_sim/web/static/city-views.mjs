@@ -169,6 +169,7 @@ export function createCityViews(ctx) {
       const granted = own.rights?.[id] || [];
       const manage = own.role === 'leader' && id !== state.actor_id && id !== 'hero';
       const controls = manage ?
+        '<details class="war-member-permissions"><summary>Manage member rights</summary>' +
         '<div class="war-rights">' +
         ['invite', 'enlist', 'milestones', 'spoils'].map(right =>
           button((granted.includes(right) ? '✓ ' : '+ ') + right,
@@ -179,7 +180,7 @@ export function createCityViews(ctx) {
         button(role === 'officer' ? 'Remove officer' : 'Make officer',
           'data-ui="guild-role" data-member="' + esc(id) + '" data-role="' +
           (role === 'officer' ? 'member' : 'officer') + '"' + disabled(busy), 'ghost') +
-        '</div>' : (granted.length ? '<span class="small">' +
+        '</div></details>' : (granted.length ? '<span class="small">' +
           esc(granted.join(', ')) + '</span>' : '');
       return '<div class="war-roster-entry"><div><strong>' + esc(display(id)) +
         '</strong> ' + chip(role) + '</div>' + controls + '</div>';
@@ -358,7 +359,7 @@ export function createCityViews(ctx) {
           esc(display(line.id)) + '</span><strong>' + line.score +
           ' Honor</strong></div>').join('') + '</details>').join('');
     return heading('', 'Guilds', '') +
-      '<div class="stack">' + guildPanel + warContent +
+      '<div class="stack">' + warContent + guildPanel +
       panel('Guild warfare', own.enlisted ? 'Registered for weekly matching' :
         'Weekly matchmaking',
         availability + '<div class="button-group">' + enlist + practice +
