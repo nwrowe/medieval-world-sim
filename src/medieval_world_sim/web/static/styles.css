@@ -1358,3 +1358,40 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
       rgba(173,137,85,.06),transparent 78%);
   background-attachment:fixed;
 }
+
+
+/* Banner Clash: compact, readable war-room surfaces in both appearances. */
+.war-summary {border:1px solid var(--line);border-radius:12px;padding:16px;
+  background:var(--paper);margin-bottom:17px}
+.war-summary>p:last-child {margin-bottom:0}
+.war-score {display:grid;grid-template-columns:minmax(110px,1fr) minmax(110px,2fr) 44px;
+  gap:12px;align-items:center;margin-bottom:12px;font-size:13px}
+.war-score b {text-align:right;font-variant-numeric:tabular-nums}
+.war-progress {height:12px;border-radius:100px;background:var(--line);overflow:hidden}
+.war-progress span {height:100%;background:#6a9877;display:block;transition:width .3s}
+.war-progress.enemy span {background:#b88663}
+.war-columns {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;
+  align-items:start;margin:18px 0}
+.war-columns>div {min-width:0}
+.war-columns h4 {margin:0 0 12px}
+.war-roster-entry {padding:9px 0;border-bottom:1px solid var(--line);font-size:12px}
+.war-roster-entry>div:first-child {display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.war-rights {display:flex;flex-wrap:wrap;gap:4px;margin-top:7px}
+.war-rights .button {min-height:30px;padding:5px 9px;font-size:11px}
+.war-milestone,.war-fighter {display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px;min-width:0}
+.war-milestone>div,.war-fighter>div {min-width:0;overflow-wrap:anywhere}
+.war-milestone p {margin:4px 0 0}
+.war-fighter .button,.war-milestone .button {flex-shrink:0}
+.war-event {font-size:12px;padding:8px 0;border-bottom:1px solid var(--line);
+  overflow-wrap:anywhere}
+.war-rules {margin:13px 0 0;border-top:1px solid var(--line);padding-top:10px}
+.war-rules summary {cursor:pointer;font-weight:650}
+.war-rules p {margin:10px 0;font-size:12px;line-height:1.6}
+@media(max-width:690px) {
+  .war-columns {grid-template-columns:1fr}
+  .war-score {grid-template-columns:95px minmax(90px,1fr) 42px;gap:7px}
+}
+
+.war-member-permissions>summary {cursor:pointer;color:var(--muted);font-size:11px;margin-top:7px;}
+.war-member-permissions[open]>summary {margin-bottom:6px;}

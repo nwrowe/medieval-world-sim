@@ -231,6 +231,8 @@ class DuelState:
     pending_ward: int = 0
     xp_earned: int = 0
     log: list[str] = field(default_factory=list)
+    war_id: str | None = None
+    assistants: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -794,7 +794,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '><span aria-hidden="true">▣</span><strong data-timer-display>' +
       fullCountdown(timerSeconds(activeShift.remaining_minutes * 60)) +
       '</strong></button>' : "";
-    return items + room + shift + meritAlert + letters + trade + travel + university + hospital + defenderAlert;
+    const guildWar = state.guilds?.war;
+    const warActivity = guildWar && ['live', 'notice'].includes(guildWar.status) ?
+      '<button class="cooldown-chip activity-clickable" type="button" ' +
+      'data-activity-key="war" data-ui="activity-war" ' +
+      'data-hover-text="' + (guildWar.status === "live" ?
+        'Banner Clash active · open your guild warfront' :
+        'Banner Clash scheduled · prepare in Crownreach') +
+      '" aria-label="Open Banner Clash warfront">' +
+      '<span aria-hidden="true">⚑</span><strong>' +
+      (guildWar.status === "live" ? 'War live' : 'War scheduled') +
+      '</strong></button>' : "";
+    return items + room + shift + meritAlert + warActivity + letters + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     const locked = combatNavigationLocked();
@@ -1854,6 +1865,65 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         input.setCustomValidity("");
         action("found_guild", { name }, "Guild founded"); break;
       }
+      case "guild-join":
+        action("join_guild", { guild_id: element.dataset.guild }, "Joined guild");
+        break;
+      case "guild-invite": {
+        const selected = document.getElementById("guild-invite-target")?.value;
+        if (selected) action("invite_guild", {candidate_id: selected}, "Invitation sent");
+        break;
+      }
+      case "guild-role":
+        action("set_guild_role", {member_id: element.dataset.member,
+          role: element.dataset.role}, "Guild role updated");
+        break;
+      case "guild-right":
+        action("set_guild_right", {member_id: element.dataset.member,
+          right: element.dataset.right, enabled: element.dataset.enabled === "true"},
+          "Member permission updated");
+        break;
+      case "guild-enlist":
+        action("enlist_guild_war", {enabled: element.dataset.enabled === "true"},
+          "Weekly war enrollment updated");
+        break;
+      case "war-practice":
+        action("start_war_practice", {}, "Practice war started");
+        break;
+      case "war-join":
+        action("join_warfront", {}, "Entered Banner Clash warfront");
+        break;
+      case "war-leave":
+        requestConfirmation({
+          title: "Leave the battlefield?",
+          description: "Leaving while opponents can contest the field concedes one hit.",
+          button: "Leave battlefield", command: "leave_warfront",
+          params: {}, success: "Left warfront"
+        });
+        break;
+      case "war-attack":
+        tab = "duel";
+        action("engage_duel", {defender_id: element.dataset.target, move: "strike"},
+          "War attack");
+        break;
+      case "war-assist":
+        action("assist_war_attack", {attacker_id: element.dataset.attacker},
+          "Joined group attack");
+        break;
+      case "war-dressing":
+        action("use_field_dressing", {}, "Field dressing applied");
+        break;
+      case "war-restore":
+        action("cast_war_restoration", {target_id: element.dataset.target},
+          "Teammate restored");
+        break;
+      case "war-milestone":
+        requestConfirmation({
+          title: "Activate " + element.dataset.power.replaceAll("_", " ") + "?",
+          description: "Each war milestone ability can be used only once per war.",
+          button: "Activate ability", command: "activate_war_milestone",
+          params: {power: element.dataset.power}, success: "Milestone activated"
+        });
+        break;
       case "guild-leave":
         if (state.guilds?.my_guild) {
           const guild = state.guilds.my_guild;
@@ -1903,6 +1973,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       case "tavern-mead":
         if (!state?.tavern?.mead_available) break;
         action("buy_tavern_mead", {}, "Mead purchased"); break;
+      case "activity-war":
+        tab = "guilds"; render(); break;
       case "activity-trade":
         tab = "trade"; render(); break;
       case "activity-duel":

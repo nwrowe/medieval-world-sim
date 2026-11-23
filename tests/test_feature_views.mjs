@@ -152,6 +152,18 @@ const recoveredReport = battleViews.renderDuel();
 assert.match(recoveredReport, /Defeat/);
 assert.match(recoveredReport, /You have recovered/);
 assert.doesNotMatch(recoveredReport, /Hospitalized/);
+state = { ...state, duel: null, last_duel: {
+  outcome: "won", gold: 0, war_id: "practice:1", war_honor: 14,
+  rounds: 3, xp: 5, opponent_id: "player:bob", log: []
+} };
+assert.match(battleViews.renderDuel(), /War victory · \+14 Honor/);
+assert.doesNotMatch(battleViews.renderDuel(), /claimed 0g/);
+state = { ...state, guilds: { war: { my_routed: 11 } },
+  last_duel: { outcome: "lost", gold: 0, war_id: "practice:1",
+    war_honor: 0, rounds: 3, xp: 0,
+    opponent_id: "player:bob", log: [] } };
+assert.match(battleViews.renderDuel(), /Routed from Banner Clash/);
+assert.match(battleViews.renderDuel(), /Recovery: 11m/);
 state = beforeCombat;
 query = "nonexistent";
 assert.doesNotMatch(community.renderPeople(), /profile-open.*Bob/);
@@ -224,7 +236,36 @@ state = { ...state, guilds: {
 }};
 assert.match(city.renderGuilds(), /data-ui="guild-leave"/);
 state = { ...state, guilds: {
-  ...state.guilds, my_guild: null
+  ...state.guilds,
+  rules: {gain_hits: 10, break_hits: 7},
+  my_guild: {...state.guilds.my_guild,
+    my_rights: ["invite", "enlist", "milestones", "spoils"],
+    enlisted: false, rights: {}},
+  war: {
+    id:"practice:1", practice:true, status:"live",
+    mine:"guild:1", guild_a:"guild:1", guild_b:"practice:guild:1",
+    name_a:"Gray Dawn", name_b:"Ashen Company",
+    progress_a:25, progress_b:14, advantage:"guild:1",
+    pressure_a:0, pressure_b:2, remaining_minutes:60,
+    my_routed:0, my_dressings:2, dressing_cooldown:0,
+    restore_cooldown:0, present:true,
+    roster_a:[{id:"player:alice", name:"Alice", present:true,
+      routed_remaining:0, honor:20}],
+    roster_b:[{id:"npc:war:1", name:"Sparring Guard 1", present:true,
+      routed_remaining:0, honor:5}],
+    unlocks:{"guild:1":["field_hospital"]}, used:{"guild:1":[]},
+    assistable:[], recent:["Alice defeated Sparring Guard 1"]
+  }
+}};
+const warPage = city.renderGuilds();
+assert.match(warPage, /Banner Clash/);
+assert.match(warPage, /25%/);
+assert.match(warPage, /data-ui="war-milestone" data-power="field_hospital"/);
+assert.match(warPage, /data-ui="war-attack" data-target="npc:war:1"/);
+assert.match(warPage, /Honor ledger/);
+assert.doesNotMatch(warPage, /Ranked wars — framework|administration panel/);
+state = { ...state, guilds: {
+  ...state.guilds, my_guild: null, war:null
 }};
 const meritPage = city.renderMerits();
 assert.match(meritPage, /Your Renown ledger|First Steps/);

@@ -8,7 +8,7 @@ import unittest
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
 from medieval_world_sim.errors import ActionError
-from medieval_world_sim.systems.guilds import WarRules, WarRecord, reward_proposal
+from medieval_world_sim.systems.guilds import WarRules
 from medieval_world_sim.web.session import GameSession
 
 
@@ -35,6 +35,7 @@ class GuildMembershipTests(unittest.TestCase):
         with self.assertRaises(ActionError):
             world.invite_guild("second", "third")
         world.set_guild_role("leader", "second", "officer")
+        world.set_guild_right("leader", "second", "invite", True)
         world.invite_guild("second", "third")
         world.join_guild("third", founding["id"])
         self.assertEqual(len(world.guild_system.membership("third").members), 3)
@@ -45,17 +46,16 @@ class GuildMembershipTests(unittest.TestCase):
         world.leave_guild("third")
         world.assert_invariants()
 
-    def test_war_schema_is_explicitly_inert_and_rewards_are_proposals(self):
+    def test_live_war_rules_replaced_the_unused_framework(self):
         rules = WarRules()
-        self.assertEqual(rules.notice_minutes, 1440)
-        self.assertEqual(rules.duration_minutes, 1440)
-        self.assertTrue(rules.cumulative_score)
-        self.assertTrue(rules.isolate_outside_interference)
-        preview = reward_proposal(10, 40, True)
-        self.assertEqual(preview, {"participation": 10, "performance": 40, "victory": 20})
-        self.assertEqual(self.world.guild_system.view("leader")["war_enabled"], False)
+        self.assertEqual((rules.gain_hits, rules.break_hits), (10, 7))
+        self.assertEqual((rules.route_min, rules.route_max), (10, 15))
+        self.assertEqual(rules.control_minutes, 60)
+        self.assertEqual(rules.week_minutes, 10080)
+        view = self.world.guild_system.view("leader")
+        self.assertTrue(view["war_enabled"])
+        self.assertIsNone(view["war"])
         self.assertEqual(self.world.state.wars, {})
-        self.assertTrue(WarRecord("w", "a", "b", 1440, 2880, ("x",), ("y",), 500).target_score > 0)
 
 
 class MeritReplayTests(unittest.TestCase):

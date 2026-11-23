@@ -283,18 +283,26 @@ export function createCommunityViews(ctx) {
       const title = result ? (
         result.outcome === "won" ? "Victory" :
         result.outcome === "lost" ?
-          ((p.defeated_until || 0) > state.minute ? "Hospitalized" : "Defeat") :
+          (result.war_id ? "Routed" :
+            ((p.defeated_until || 0) > state.minute ? "Hospitalized" : "Defeat")) :
         result.outcome === "draw" ? "Draw" :
         result.outcome === "opponent_fled" ? "Opponent retreated" : "Retreated"
       ) : "No active duel";
       const opponent = result && (state.users || []).find(u => u.id === result.opponent_id);
       const text = result ? (result.outcome === "won" ?
-        'You claimed ' + money(result.gold) + ' from ' +
-        (opponent ? opponent.name : "your opponent") + '.' :
-        result.outcome === "lost" ? 'Your opponent took ' + money(result.gold) +
-        '. ' + ((p.defeated_until || 0) > state.minute ?
-          'Recovery: ' + dur(p.defeated_until - state.minute) + '.' :
-          'You have recovered.') :
+        (result.war_id ? 'War victory · +' + (result.war_honor || 0) +
+          ' Honor. Opponent routed.' :
+          'You claimed ' + money(result.gold) + ' from ' +
+          (opponent ? opponent.name : "your opponent") + '.') :
+        result.outcome === "lost" ?
+          (result.war_id ?
+            'Routed from Banner Clash. Recovery: ' +
+              dur(state.guilds?.war?.my_routed || 0) +
+              '. Open Guilds for healing and war progress.' :
+            'Your opponent took ' + money(result.gold) +
+            '. ' + ((p.defeated_until || 0) > state.minute ?
+              'Recovery: ' + dur(p.defeated_until - state.minute) + '.' :
+              'You have recovered.')) :
         result.outcome === "draw" ? 'Both fighters survived ten rounds. No loot or hospitalization.' :
         result.outcome === "opponent_fled" ? 'Your opponent withdrew. No loot or hospitalization.' :
         'You escaped without loot or hospitalization.') : 'Search for someone to fight.';

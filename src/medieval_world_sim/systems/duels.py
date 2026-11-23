@@ -20,24 +20,53 @@ class DuelSystem:
         attacker, defender = w._actor(attacker_id), w._actor(defender_id)
         if w._at_city(attacker) != w._at_city(defender):
             raise ActionError("Target must be in your city")
+        war_id = w.war_system.duel_context(attacker_id, defender_id)
         if attacker.kind != "human" or defender.kind not in ("human", "npc"):
             raise ActionError("Only player characters may initiate duels")
-        if any(attacker_id in (d.attacker_id, d.defender_id) or
-               defender_id in (d.attacker_id, d.defender_id)
+        if any(attacker_id in (d.attacker_id, d.defender_id, *d.assistants) or
+               defender_id in (d.attacker_id, d.defender_id, *d.assistants)
                for d in w.state.duels.values()):
             raise ActionError("A participant is already in combat")
         entrance_cost = 0  # Only an actual combat move spends stamina.
         ward = attacker.magic.ward_charge
         attacker.magic.ward_charge = 0
         w.state.last_duels.pop(attacker_id, None)
-        w.state.duels[attacker_id] = DuelState(attacker_id, defender_id, pending_ward=ward)
+        w.state.duels[attacker_id] = DuelState(
+            attacker_id, defender_id, pending_ward=ward, war_id=war_id)
         w._emit("duel_started", attacker_id, defender_id, entrance_cost)
         return {"opponent_id": defender_id, "stamina_spent": entrance_cost}
 
     def _finish(self, duel, winner, loser, outcome: str) -> dict:
         w = self.world
         gold = 0
-        if outcome in ("won", "lost"):
+        war_honor_attacker = 0
+        war_honor_defender = 0
+        if duel.war_id is not None:
+            if outcome in ("won", "lost", "fled", "opponent_fled"):
+                # A war loss routes a fighter; no ordinary hospital or gold theft.
+                actual_winner = (w.actors[duel.defender_id] if outcome == "fled"
+                                 else w.actors[duel.attacker_id] if outcome == "opponent_fled"
+                                 else winner)
+                actual_loser = (w.actors[duel.attacker_id] if outcome == "fled"
+                                else w.actors[duel.defender_id] if outcome == "opponent_fled"
+                                else loser)
+                war = w.state.wars[duel.war_id]
+                if war.status == "live":
+                    ledger = war.honor
+                    before = ledger.get(actual_winner.id, 0)
+                    w.war_system.hit(duel.war_id, actual_winner.id, actual_loser.id,
+                                     tuple(duel.assistants),
+                                     award_honor=outcome in ("won", "lost"))
+                    earned = ledger.get(actual_winner.id, 0) - before
+                    if actual_winner.id == duel.attacker_id:
+                        war_honor_attacker = earned
+                    else:
+                        war_honor_defender = earned
+                # A duel finishing after the war ends must still close safely,
+                # without ordinary gold theft or late Honor.
+                actual_loser.hp = actual_loser.max_hp
+                w._emit("duel_finished", actual_winner.id, actual_loser.id, 0, 0)
+        elif outcome in ("won", "lost"):
             loser.hp = 0
             loser.defeated_until = w.minute + DEFEAT_RECOVERY_MINUTES
             gold = loser.gold * 5 // 100
@@ -52,7 +81,8 @@ class DuelSystem:
                 attacker.hp = 0
         result = {"outcome": outcome, "opponent_id": duel.defender_id,
                   "gold": gold, "xp": xp, "rounds": duel.round, "log": list(duel.log),
-                  "role": "attacker"}
+                  "role": "attacker", "war_id": duel.war_id,
+                  "war_honor": war_honor_attacker}
         w.state.last_duels[duel.attacker_id] = result
         defender = w.actors[duel.defender_id]
         if defender.kind == "human":
@@ -62,6 +92,7 @@ class DuelSystem:
                 "outcome": reverse, "opponent_id": duel.attacker_id,
                 "gold": gold, "xp": 0, "rounds": duel.round,
                 "log": list(duel.log), "role": "defender",
+                "war_id": duel.war_id, "war_honor": war_honor_defender,
             }
         del w.state.duels[duel.attacker_id]
         return result
@@ -87,6 +118,10 @@ class DuelSystem:
                 raise ActionError(f"Not enough stamina for {label.lower()} attack")
             attacker.stamina -= stamina_spent
             damage = w.combat._strike(attacker, defender, slot or "unarmed")
+            if duel.war_id and duel.assistants and defender.hp > 0:
+                assist_damage = min(defender.hp, 2 * len(duel.assistants))
+                defender.hp -= assist_damage
+                damage += assist_damage
             description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
         elif move == "guard":
             if attacker.stamina < GUARD_STAMINA:
