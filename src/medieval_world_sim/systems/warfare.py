@@ -100,6 +100,7 @@ class WarSystem:
             npc_id = "npc:war:" + guild.id + ":" + str(i + 1)
             if npc_id not in self.world.actors:
                 bot = Actor(npc_id, "npc", city=WARFRONT, gold=0)
+                bot.discovered_cities.add(WARFRONT)
                 self.world.actors[npc_id] = bot
             else:
                 bot = self.world.actors[npc_id]
@@ -107,6 +108,7 @@ class WarSystem:
                 bot.destination = None
                 bot.defeated_until = None
                 bot.hp = bot.max_hp
+                bot.discovered_cities.add(WARFRONT)
             roster.append(npc_id)
         number = len(self.world.state.wars) + 1
         war = WarRecord("practice:" + str(number), guild.id,
