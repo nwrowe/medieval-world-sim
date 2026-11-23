@@ -794,7 +794,18 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '><span aria-hidden="true">▣</span><strong data-timer-display>' +
       fullCountdown(timerSeconds(activeShift.remaining_minutes * 60)) +
       '</strong></button>' : "";
-    return items + room + shift + meritAlert + letters + trade + travel + university + hospital + defenderAlert;
+    const guildWar = state.guilds?.war;
+    const warActivity = guildWar && ['live', 'notice'].includes(guildWar.status) ?
+      '<button class="cooldown-chip activity-clickable" type="button" ' +
+      'data-activity-key="war" data-ui="activity-war" ' +
+      'data-hover-text="' + (guildWar.status === "live" ?
+        'Banner Clash active · open your guild warfront' :
+        'Banner Clash scheduled · prepare in Crownreach') +
+      '" aria-label="Open Banner Clash warfront">' +
+      '<span aria-hidden="true">⚑</span><strong>' +
+      (guildWar.status === "live" ? 'War live' : 'War scheduled') +
+      '</strong></button>' : "";
+    return items + room + shift + meritAlert + warActivity + letters + trade + travel + university + hospital + defenderAlert;
   }
   function navButton(entry, className = "") {
     const locked = combatNavigationLocked();
@@ -1962,6 +1973,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       case "tavern-mead":
         if (!state?.tavern?.mead_available) break;
         action("buy_tavern_mead", {}, "Mead purchased"); break;
+      case "activity-war":
+        tab = "guilds"; render(); break;
       case "activity-trade":
         tab = "trade"; render(); break;
       case "activity-duel":
