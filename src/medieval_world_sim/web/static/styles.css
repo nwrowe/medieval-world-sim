@@ -1392,3 +1392,6 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
   .war-columns {grid-template-columns:1fr}
   .war-score {grid-template-columns:95px minmax(90px,1fr) 42px;gap:7px}
 }
+
+.war-member-permissions>summary {cursor:pointer;color:var(--muted);font-size:11px;margin-top:7px;}
+.war-member-permissions[open]>summary {margin-bottom:6px;}
