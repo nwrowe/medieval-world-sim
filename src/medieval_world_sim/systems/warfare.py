@@ -378,6 +378,24 @@ class WarSystem:
                         if _roll(war.id, minute, "success") % 100 < 55:
                             self.hit(war.id, bot, target, minute=minute)
 
+    def history(self, actor_id):
+        guild = self.world.guild_system.membership(actor_id)
+        if guild is None:
+            return []
+        recent = sorted((
+            war for war in self.world.state.wars.values()
+            if guild.id in (war.guild_a, war.guild_b) and war.status == "finished"
+        ), key=lambda war: (war.scheduled_minute, war.id), reverse=True)[:5]
+        return [{
+            "id": war.id, "practice": war.practice,
+            "result": ("Victory" if war.winner_id == guild.id
+                       else "Draw" if war.winner_id is None else "Defeat"),
+            "progress": (war.progress_a if war.guild_a == guild.id
+                         else war.progress_b) * 100 // CONTROL_TARGET,
+            "honor": [{"id": actor, "score": war.honor.get(actor, 0)}
+                      for actor in war.roster(guild.id)],
+        } for war in recent]
+
     def view(self, actor_id):
         guild = self.world.guild_system.membership(actor_id)
         if guild is None:
