@@ -366,7 +366,11 @@ class WarSystem:
                 if war.practice and minute >= war.next_bot_tick:
                     war.next_bot_tick = minute + 3
                     bots = [p for p in war.roster_b if self._eligible(war, p, minute)]
-                    humans = [p for p in war.roster_a if self._eligible(war, p, minute)]
+                    engaged = {p for duel in self.world.state.duels.values()
+                               for p in (duel.attacker_id, duel.defender_id)}
+                    humans = [p for p in war.roster_a
+                              if p not in engaged and self._eligible(war, p, minute)]
+                    bots = [p for p in bots if p not in engaged]
                     if bots and humans:
                         bot = bots[_roll(war.id, minute, "bot") % len(bots)]
                         target = humans[_roll(war.id, minute, "target") % len(humans)]
