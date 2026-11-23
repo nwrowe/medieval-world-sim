@@ -55,7 +55,8 @@ class DuelSystem:
                     ledger = war.honor
                     before = ledger.get(actual_winner.id, 0)
                     w.war_system.hit(duel.war_id, actual_winner.id, actual_loser.id,
-                                     tuple(duel.assistants))
+                                     tuple(duel.assistants),
+                                     award_honor=outcome in ("won", "lost"))
                     earned = ledger.get(actual_winner.id, 0) - before
                     if actual_winner.id == duel.attacker_id:
                         war_honor_attacker = earned
