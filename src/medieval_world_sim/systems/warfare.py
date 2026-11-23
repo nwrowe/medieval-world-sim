@@ -113,10 +113,10 @@ class WarSystem:
         number = len(self.world.state.wars) + 1
         war = WarRecord("practice:" + str(number), guild.id,
                         "practice:" + guild.id, self.world.minute,
-                        self.world.minute + 90, tuple(sorted(guild.members)),
+                        self.world.minute + 180, tuple(sorted(guild.members)),
                         tuple(roster), practice=True, status="live")
         war.present.update(roster)
-        war.next_bot_tick = self.world.minute + 3
+        war.next_bot_tick = self.world.minute + 6
         self.world.state.wars[war.id] = war
         self._log(war, "Practice clash started against the Ashen Company.")
         self.world._emit("war_practice_started", war.id, guild.id, actor_id)
@@ -365,7 +365,7 @@ class WarSystem:
                             self._finish(war)
                             continue
                 if war.practice and minute >= war.next_bot_tick:
-                    war.next_bot_tick = minute + 3
+                    war.next_bot_tick = minute + 6
                     bots = [p for p in war.roster_b if self._eligible(war, p, minute)]
                     engaged = {p for duel in self.world.state.duels.values()
                                for p in (duel.attacker_id, duel.defender_id)}
@@ -375,7 +375,7 @@ class WarSystem:
                     if bots and humans:
                         bot = bots[_roll(war.id, minute, "bot") % len(bots)]
                         target = humans[_roll(war.id, minute, "target") % len(humans)]
-                        if _roll(war.id, minute, "success") % 100 < 55:
+                        if _roll(war.id, minute, "success") % 100 < 35:
                             self.hit(war.id, bot, target, minute=minute)
 
     def history(self, actor_id):
