@@ -34,6 +34,7 @@ from ..systems.duels import DuelSystem
 from ..systems.spells import SpellSystem
 from ..systems.track import TrackSystem
 from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
+from ..systems.warfare import WarSystem
 from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
 from ..systems.chat import ChatSystem, MAX_MESSAGES_SAVED, MAX_MESSAGE_LENGTH
 from ..systems.trades import TradeSystem, TradeAssets
@@ -110,6 +111,7 @@ class WorldEngine:
         self.spell_system = SpellSystem(self)
         self.track_system = TrackSystem(self)
         self.guild_system = GuildSystem(self)
+        self.war_system = WarSystem(self)
         self.chat_system = ChatSystem(self)
         self.merit_system = MeritSystem(self)
         self.curriculum_system = CurriculumSystem(self)
@@ -312,6 +314,9 @@ class WorldEngine:
         duration, route = self.travel.plan_hex_journey(actor, (x, y))
         actor.destination = actor.city  # Maintains existing travel invariants.
         actor.arrival_minute = self.minute + duration
+        if actor_id in (w_actor for war in self.state.wars.values() if war.status == "live"
+                        for w_actor in war.present):
+            self.war_system.leave(actor_id, walking=True)
         actor.travel.departure_minute = self.minute
         actor.travel.route_hexes = route
         actor.travel.route_durations = tuple(
@@ -752,6 +757,43 @@ class WorldEngine:
     @atomic_action
     def leave_guild(self, actor_id: str) -> None:
         return self.guild_system.leave(actor_id)
+
+    @atomic_action
+    def set_guild_right(self, actor_id: str, member_id: str,
+                        right: str, enabled: bool) -> None:
+        return self.guild_system.set_right(actor_id, member_id, right, enabled)
+
+    @atomic_action
+    def enlist_guild_war(self, actor_id: str, enabled: bool) -> None:
+        return self.guild_system.enlist(actor_id, enabled)
+
+    @atomic_action
+    def start_war_practice(self, actor_id: str) -> dict:
+        return self.war_system.start_practice(actor_id)
+
+    @atomic_action
+    def join_warfront(self, actor_id: str) -> dict:
+        return self.war_system.join(actor_id)
+
+    @atomic_action
+    def leave_warfront(self, actor_id: str) -> dict:
+        return self.war_system.leave(actor_id)
+
+    @atomic_action
+    def assist_war_attack(self, actor_id: str, attacker_id: str) -> dict:
+        return self.war_system.assist(actor_id, attacker_id)
+
+    @atomic_action
+    def use_field_dressing(self, actor_id: str) -> dict:
+        return self.war_system.dressing(actor_id)
+
+    @atomic_action
+    def cast_war_restoration(self, actor_id: str, target_id: str) -> dict:
+        return self.war_system.restore(actor_id, target_id)
+
+    @atomic_action
+    def activate_war_milestone(self, actor_id: str, power: str) -> dict:
+        return self.war_system.milestone(actor_id, power)
 
     @atomic_action
     def send_chat(self, principal_id: str, kind: str, target: str, message: str) -> dict:
