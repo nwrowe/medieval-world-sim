@@ -133,52 +133,229 @@ export function createCityViews(ctx) {
   }
   function renderGuilds() {
     const state = ctx.getState();
-    const info = state.guilds || {}, own = info.my_guild, rules = info.rules || {};
+    const info = state.guilds || {}, own = info.my_guild;
+    const war = info.war, rules = info.rules || {};
+    const busy = isBusy();
+    const players = state.users || [];
+    const display = id => {
+      const found = players.find(p => p.id === id);
+      return found ? found.name : id === "hero" ? state.name : id;
+    };
+    const rights = own?.my_rights || [];
+    const can = right => rights.includes(right);
     const directory = (info.directory || []).map(g =>
-      '<div class="equipment-item"><div><h3>' + esc(g.name) +
-      '</h3><p>' + g.members + ' members</p></div></div>').join('');
-    let myGuild = '';
-    if (own) {
-      const roster = Object.entries(own.members).map(([id, role]) =>
-        '<div class="inventory-row"><span>' + esc(id === 'hero' ? state.name : id) +
-        '</span>' + chip(pretty(role)) + '</div>').join('');
-      myGuild = panel(own.name, 'Your ' + pretty(own.role) + ' role',
-        '<div class="resource-list">' +
-        chip('Rating ' + own.rating) + chip('Wins ' + own.wins) +
-        chip('Losses ' + own.losses) + '</div>' +
-        '<h4>Members</h4>' + roster +
-        '<p class="small">Invitations, officer appointments and membership ' +
-        'permissions exist in the engine. A multi-account server is required ' +
-        'to make guild recruitment useful across real players.</p>' +
-        button('Leave guild', 'data-ui="guild-leave"' + disabled(isBusy() ||
-        Object.keys(own.members).length > 1 && own.role === 'leader'), 'ghost'));
-    } else {
-      myGuild = panel('Found your guild',
-        'Choose a banner name and pay a one-time 100 gold charter fee.',
-        '<div class="button-group"><input class="field" id="guild-name" minlength="3" maxlength="40" ' +
-        'placeholder="Guild name (3–40 characters)" aria-label="Guild name" ' +
-        'aria-describedby="guild-name-help">' +
-        button('Found Guild · ' + money(info.founding_cost || 100),
-          'data-ui="guild-found"' + disabled(isBusy() ||
-          state.player.gold < (info.founding_cost || 100)), 'gold') +
-        '</div><p class="small" id="guild-name-help" role="status">' +
-        'Guild names must contain between 3 and 40 characters.</p>');
+      '<div class="equipment-item"><div><strong>' + esc(g.name) +
+      '</strong><p class="small">' + g.members + ' members</p></div></div>').join('');
+    const invites = (info.invitations || []).map(inv =>
+      '<div class="equipment-item"><span>Invitation: ' + esc(inv.name) + '</span>' +
+      button('Accept', 'data-ui="guild-join" data-guild="' + esc(inv.id) + '"' +
+        disabled(busy), 'gold') + '</div>').join('');
+    if (!own) {
+      return heading('', 'Guilds', '') + '<div class="stack">' +
+        (invites ? panel('Guild invitations', '', invites) : '') +
+        panel('Found a guild', 'Choose a name and pay a one-time 100 gold charter fee.',
+          '<div class="button-group"><input class="field" id="guild-name" ' +
+          'minlength="3" maxlength="40" placeholder="Guild name (3–40 characters)" ' +
+          'aria-label="Guild name">' +
+          button('Found Guild · ' + money(info.founding_cost || 100),
+            'data-ui="guild-found"' +
+            disabled(busy || state.player.gold < (info.founding_cost || 100)), 'gold') +
+          '</div>') +
+        panel('Guild Hall', 'Established banners', directory ||
+          '<p class="small">No guilds founded yet.</p>') + '</div>';
+    }
+
+    const roster = Object.entries(own.members).map(([id, role]) => {
+      const granted = own.rights?.[id] || [];
+      const manage = own.role === 'leader' && id !== state.actor_id && id !== 'hero';
+      const controls = manage ?
+        '<div class="war-rights">' +
+        ['invite', 'enlist', 'milestones', 'spoils'].map(right =>
+          button((granted.includes(right) ? '✓ ' : '+ ') + right,
+            'data-ui="guild-right" data-member="' + esc(id) +
+            '" data-right="' + right + '" data-enabled="' +
+            (!granted.includes(right)) + '"' + disabled(busy),
+            granted.includes(right) ? 'secondary' : 'ghost')).join('') +
+        button(role === 'officer' ? 'Remove officer' : 'Make officer',
+          'data-ui="guild-role" data-member="' + esc(id) + '" data-role="' +
+          (role === 'officer' ? 'member' : 'officer') + '"' + disabled(busy), 'ghost') +
+        '</div>' : (granted.length ? '<span class="small">' +
+          esc(granted.join(', ')) + '</span>' : '');
+      return '<div class="war-roster-entry"><div><strong>' + esc(display(id)) +
+        '</strong> ' + chip(role) + '</div>' + controls + '</div>';
+    }).join('');
+
+    const eligibleTargets = players.filter(p => p.kind === 'human' &&
+      !own.members[p.id] && p.id !== state.actor_id);
+    const recruitment = can('invite') ?
+      '<div class="button-group"><select class="field" id="guild-invite-target" ' +
+      'aria-label="Player to invite"><option value="">Choose player</option>' +
+      eligibleTargets.map(p => '<option value="' + esc(p.id) + '">' +
+        esc(p.name) + '</option>').join('') + '</select>' +
+      button('Invite', 'data-ui="guild-invite"' + disabled(busy), 'secondary') +
+      '</div>' : '';
+    const guildPanel = panel(own.name, 'Guild Hall',
+      '<div class="resource-list">' + chip('Rating ' + own.rating) +
+      chip('Wins ' + own.wins) + chip('Losses ' + own.losses) +
+      chip(Object.keys(own.members).length + '/20 members') + '</div>' +
+      '<h4>Members & rights</h4>' + roster + recruitment +
+      '<p class="small">Only the leader can grant individual management rights. ' +
+      'The milestones right allows that member to activate a war ability.</p>' +
+      button('Leave guild', 'data-ui="guild-leave"' +
+        disabled(busy || (own.role === 'leader' &&
+          Object.keys(own.members).length > 1)), 'ghost'));
+
+    const enlist = can('enlist') ?
+      button(own.enlisted ? 'Withdraw war registration' : 'Sign up for weekly war',
+        'data-ui="guild-enlist" data-enabled="' + (!own.enlisted) + '"' +
+        disabled(busy || (!own.enlisted && Object.keys(own.members).length < 10)
+          || war && ['notice','live'].includes(war.status)), 'gold') : '';
+    const availability = '<p class="small">Weekly matching · 10–20 guild members required. ' +
+      'Next matching in ' + esc(dur(Math.max(0, (info.next_match_minute || 0) -
+      state.minute))) + '. Matched guilds get 24 hours notice and fight at Crownreach.</p>';
+    const practice = own.role === 'leader' ?
+      button('Start solo practice vs Ashen Company', 'data-ui="war-practice"' +
+        disabled(busy || war && ['notice','live'].includes(war.status) ||
+          state.player.city !== 'crownreach' || state.player.destination),
+        'secondary') : '';
+
+    let warContent = '';
+    if (war) {
+      const mine = war.mine, other = mine === war.guild_a ? war.guild_b : war.guild_a;
+      const ownRoster = mine === war.guild_a ? war.roster_a : war.roster_b;
+      const enemyRoster = mine === war.guild_a ? war.roster_b : war.roster_a;
+      const myScore = mine === war.guild_a ? war.progress_a : war.progress_b;
+      const enemyScore = mine === war.guild_a ? war.progress_b : war.progress_a;
+      const myPressure = mine === war.guild_a ? war.pressure_a : war.pressure_b;
+      const enemyPressure = mine === war.guild_a ? war.pressure_b : war.pressure_a;
+      const myName = mine === war.guild_a ? war.name_a : war.name_b;
+      const enemyName = mine === war.guild_a ? war.name_b : war.name_a;
+      const pressureGoal = war.advantage === null ? rules.gain_hits : rules.break_hits;
+      const pressureCopy = war.advantage === null ?
+        'First to ' + rules.gain_hits + ' hits takes advantage' :
+        war.advantage === mine ? 'Defend: opponent needs ' + rules.break_hits +
+          ' hits to break your advantage' :
+          'Counterattack: ' + rules.break_hits + ' hits to break their advantage';
+      const powerNames = {
+        field_hospital: 'Field Hospital', war_horn: 'War Horn', final_rally: 'Final Rally'
+      };
+      const powerDescriptions = {
+        field_hospital: 'Reduce all routed teammates by 5 minutes',
+        war_horn: '+50% progress speed for 10 minutes while advantage holds',
+        final_rally: 'Restore every routed teammate'
+      };
+      const milestones = ['field_hospital', 'war_horn', 'final_rally'].map((power, index) => {
+        const unlocked = (war.unlocks?.[mine] || []).includes(power);
+        const used = (war.used?.[mine] || []).includes(power);
+        const ready = unlocked && !used && can('milestones') &&
+          war.status === 'live' &&
+          (power !== 'war_horn' || war.advantage === mine);
+        return '<div class="war-milestone"><div><strong>' + [25,50,75][index] +
+          '% · ' + powerNames[power] + '</strong><p class="small">' +
+          powerDescriptions[power] + '</p></div>' +
+          button(used ? 'Used' : !unlocked ? 'Locked' :
+                 !can('milestones') ? 'Leader right required' : 'Activate',
+            'data-ui="war-milestone" data-power="' + power + '"' +
+            disabled(busy || !ready), ready ? 'gold' : 'ghost') + '</div>';
+      }).join('');
+      const fighterRow = (f, enemy) => {
+        const routed = f.routed_remaining > 0;
+        const name = f.name === f.id ? display(f.id) : f.name;
+        const condition = routed ? 'Routed ' + dur(f.routed_remaining) :
+          !f.present ? 'Away' : 'Ready';
+        const attackable = enemy && war.status === 'live' && war.present &&
+          !war.my_routed && f.present && !routed;
+        const restore = !enemy && routed && war.present && !war.my_routed &&
+          war.status === 'live' && state.player.mana >= 5 &&
+          !war.restore_cooldown;
+        return '<div class="war-fighter"><div><strong>' + esc(name) + '</strong>' +
+          '<span class="small"> · ' + esc(condition) + ' · Honor ' + f.honor +
+          '</span></div>' + (attackable ?
+            button('Attack', 'data-ui="war-attack" data-target="' + esc(f.id) +
+              '"' + disabled(busy), 'secondary') : restore ?
+            button('Restore', 'data-ui="war-restore" data-target="' + esc(f.id) +
+              '"' + disabled(busy), 'ghost') : '') + '</div>';
+      };
+      const stage = war.status === 'live' ?
+        '<div class="war-summary">' +
+        '<div class="war-score"><strong>' + esc(myName) + '</strong>' +
+        '<div class="war-progress"><span style="width:' + myScore +
+        '%"></span></div><b>' + myScore + '%</b></div>' +
+        '<div class="war-score"><strong>' + esc(enemyName) + '</strong>' +
+        '<div class="war-progress enemy"><span style="width:' + enemyScore +
+        '%"></span></div><b>' + enemyScore + '%</b></div>' +
+        '<p><strong>' + (war.advantage === mine ? 'Your guild holds advantage' :
+          war.advantage === other ? esc(enemyName) + ' holds advantage' :
+          'Advantage contested') + '</strong> · ' +
+        esc(dur(war.remaining_minutes)) + ' remaining</p>' +
+        '<p class="small">' + pressureCopy + ' · Your hits ' + myPressure +
+        '/' + pressureGoal + ' · Their hits ' + enemyPressure + '/' + pressureGoal +
+        '</p></div>' : war.status === 'notice' ?
+        '<p>Battle starts in ' + esc(dur(Math.max(0, war.start_minute - state.minute))) +
+        '. Travel to Crownreach to prepare.</p>' :
+        '<p>War complete. Winner: ' +
+        esc(war.winner_id === mine ? myName : war.winner_id === other ?
+          enemyName : 'Draw') + '. Honor totals are final.</p>';
+      const joinLeave = war.status === 'live' ?
+        war.present ?
+          button('Leave battlefield', 'data-ui="war-leave"' +
+            disabled(busy), 'ghost') :
+          button('Enter warfront', 'data-ui="war-join"' +
+            disabled(busy || war.my_routed ||
+              state.player.city !== 'crownreach' ||
+              state.player.destination), 'gold') : '';
+      const treatment = war.status === 'live' && war.my_routed ?
+        '<p>Routed: ' + dur(war.my_routed) + ' remaining</p>' +
+        button('Use Field Dressing · ' + war.my_dressings + ' left',
+          'data-ui="war-dressing"' +
+          disabled(busy || !war.my_dressings || war.dressing_cooldown),
+          'secondary') : '';
+      const assist = war.status === 'live' && war.present ?
+        (war.assistable || []).map(id => button('Assist ' + display(id),
+          'data-ui="war-assist" data-attacker="' + esc(id) + '"' +
+          disabled(busy || war.my_routed), 'secondary')).join('') : '';
+      const chronicle = (war.recent || []).map(line =>
+        '<div class="war-event">' + esc(line) + '</div>').join('');
+      const honor = [...ownRoster, ...enemyRoster].sort(
+        (a,b) => b.honor - a.honor).slice(0,20).map(f =>
+        '<div class="war-fighter"><span>' + esc(f.name === f.id ?
+          display(f.id) : f.name) + '</span><strong>' + f.honor +
+          ' Honor</strong></div>').join('');
+      warContent = panel('Banner Clash · ' +
+          (war.practice ? 'Practice match' : 'Ranked match'),
+          war.status === 'live' ? 'Battlefront · Crownreach' :
+          war.status === 'notice' ? 'Preparing for battle' : 'Battle results',
+          stage + '<div class="button-group">' + joinLeave + treatment + assist +
+          '</div>' +
+          (war.status === 'live' ?
+            '<div class="war-columns"><div><h4>Opposing fighters</h4>' +
+            enemyRoster.map(f => fighterRow(f, true)).join('') +
+            '</div><div><h4>Your fighters</h4>' +
+            ownRoster.map(f => fighterRow(f, false)).join('') +
+            '</div></div>' +
+            '<h4>One-use milestone abilities</h4>' + milestones : '') +
+          '<div class="war-columns"><div><h4>Honor ledger</h4>' +
+          honor + '</div><div><h4>War Chronicle</h4>' +
+          chronicle + '</div></div>' +
+          '<p class="small">Honor measures the difficulty of successful hits. ' +
+          'It guides later spoils decisions; practice matches award no ranked prizes.</p>');
     }
     return heading('', 'Guilds', '') +
-      '<div class="stack">' + myGuild +
-      panel('The Guild Hall', 'Existing banners', directory ||
-        '<p class="small">No guilds have been founded yet.</p>') +
-      panel('Ranked wars — framework', 'The system is designed, but matchmaking and war attacks are not enabled.',
-        '<p>Two guilds will face a ' + (rules.notice_minutes / 60) +
-        '-hour preparation period followed by at most ' +
-        (rules.duration_minutes / 60) + ' hours of competition.</p>' +
-        '<div class="resource-list">' + chip('Cumulative War Score') +
-        chip('Roster lock') + chip('No outside interference') +
-        chip('Surrender available') + '</div>' +
-        '<p class="small">Score targets will scale with roster size. ' +
-        'Participation, performance, and victory each contribute to rewards. ' +
-        'The Elo-based matchmaker, fortifications and reward payments are future work.</p>') +
-      '</div>';
+      '<div class="stack">' + guildPanel + warContent +
+      panel('Guild warfare', own.enlisted ? 'Registered for weekly matching' :
+        'Weekly matchmaking',
+        availability + '<div class="button-group">' + enlist + practice +
+        '</div><details class="war-rules"><summary>Banner Clash rules</summary>' +
+        '<p>10 hits gain advantage; 7 opposing hits break it. ' +
+        'Control progress is permanent: 60 cumulative minutes wins. ' +
+        'Routed fighters recover in 10–15 minutes. ' +
+        'Milestones unlock at 25%, 50%, and 75%. ' +
+        'Wars end after 12 hours if neither guild reaches 100%.</p>' +
+        '<p>Leaving a contested battlefield concedes a hit. ' +
+        'Group attacks require another fighter to join an active duel. ' +
+        'No automatic spoils distribution is enabled.</p></details>') +
+      panel('Guild directory', 'Other banners', directory ||
+        '<p class="small">No other guilds yet.</p>') + '</div>';
   }
   function renderMerits() {
     const state = ctx.getState();
