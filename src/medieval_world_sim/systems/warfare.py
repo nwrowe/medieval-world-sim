@@ -144,7 +144,7 @@ class WarSystem:
             if walking:
                 return
             raise ActionError("You are not on the warfront")
-        if any(actor_id in (d.attacker_id, d.defender_id)
+        if any(actor_id in (d.attacker_id, d.defender_id, *d.assistants)
                for d in self.world.state.duels.values()):
             raise ActionError("Finish your duel before leaving")
         own = war.guild_of(actor_id)
@@ -203,7 +203,7 @@ class WarSystem:
             raise ActionError("No available friendly attack to assist")
         if self.world.actors[actor_id].stamina < 3:
             raise ActionError("Assisting costs 3 stamina")
-        if any(actor_id in (d.attacker_id, d.defender_id)
+        if any(actor_id in (d.attacker_id, d.defender_id, *d.assistants)
                for d in self.world.state.duels.values()):
             raise ActionError("Already fighting")
         self.world.actors[actor_id].stamina -= 3
@@ -381,7 +381,7 @@ class WarSystem:
                     war.next_bot_tick = minute + 6
                     bots = [p for p in war.roster_b if self._eligible(war, p, minute)]
                     engaged = {p for duel in self.world.state.duels.values()
-                               for p in (duel.attacker_id, duel.defender_id)}
+                               for p in (duel.attacker_id, duel.defender_id, *duel.assistants)}
                     humans = [p for p in war.roster_a
                               if p not in engaged and self._eligible(war, p, minute)]
                     bots = [p for p in bots if p not in engaged]
