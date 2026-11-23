@@ -22,6 +22,15 @@ The **generated-realm `WorldEngine`** is the active development target. The curr
 
 Run `python -m medieval_world_sim` to see the current regional manufacturing demonstration, or `python -m medieval_world_sim --scenario combat` to exercise combat. A seeded rules-based autonomous NPC experiment and a localhost multi-account development server are available. See [local setup](docs/MULTIPLAYER_LOCAL_DEVELOPMENT.md). Neither is an internet-ready hosted multiplayer service.
 
+## Guild warfare: Banner Clash
+
+The Guilds page now supports weekly opt-in Banner Clash matches, a Crownreach
+warfront, 10/7 pressure and advantage rules, routed combat recovery, three
+one-use milestone powers, and individual Honor contribution tracking.
+You can **start a solo practice clash against NPC sparring opponents** from
+the Guilds page without inviting other players. There is no admin war panel.
+See [Banner Clash rules and playtesting](docs/BANNER_CLASH.md).
+
 ## Original single-settlement baseline (retained experiment)
 
 This repository includes a **small, runnable, deterministic economy simulation** with farmers, woodcutters, miners, blacksmiths, and guards. It has fixed-price trading, a finite royal treasury, production, food consumption, daily summaries, and tests for core accounting invariants.
