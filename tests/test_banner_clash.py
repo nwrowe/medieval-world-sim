@@ -81,9 +81,12 @@ class BannerClashTests(unittest.TestCase):
         world.activate_war_milestone("a0", "field_hospital")
         with self.assertRaises(ActionError):
             world.activate_war_milestone("a0", "field_hospital")
+        # A rejected atomic action restores a state snapshot. Refresh references
+        # rather than asserting on a stale pre-rollback dataclass.
+        war = world.state.wars[war.id]
         for i in range(7):
             world.war_system.hit(war.id, f"b{i}", f"a{i}")
-        self.assertIsNone(war.advantage)
+        self.assertIsNone(world.state.wars[war.id].advantage)
         self.assertEqual(war.pressure_a, 0)
         self.assertEqual(war.pressure_b, 0)
         world.assert_invariants()
@@ -99,10 +102,11 @@ class BannerClashTests(unittest.TestCase):
         self.assertEqual(outcome["remaining"], 5)
         with self.assertRaises(ActionError):
             world.use_field_dressing("a0")
+        record = world.state.wars[record.id]
         record.routed["a0"] = world.minute
         result = world.leave_warfront("a0")
         self.assertTrue(result["contested"])
-        self.assertEqual(record.hits[record.guild_b], 1)
+        self.assertEqual(world.state.wars[record.id].hits[record.guild_b], 1)
         world.assert_invariants()
 
     def test_practice_duels_use_real_combat_without_gold_stealing(self):
