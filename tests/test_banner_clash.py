@@ -13,7 +13,7 @@ def paired_world():
     ] + [
         Actor(f"b{i}", "human", city="crownreach", gold=200)
         for i in range(10)
-    ])
+    ] + [Actor("outsider", "human", city="crownreach", gold=200)])
     ga = world.found_guild("a0", "Silver Stag")["id"]
     gb = world.found_guild("b0", "Blackthorn")["id"]
     for prefix, leader, guild in [("a", "a0", ga), ("b", "b0", gb)]:
@@ -28,6 +28,7 @@ class BannerClashTests(unittest.TestCase):
         world, ga, gb = paired_world()
         with self.assertRaises(ActionError):
             world.enlist_guild_war("a1", True)
+        world.invite_guild("a0", "outsider")
         world.enlist_guild_war("a0", True)
         world.enlist_guild_war("b0", True)
         # Matching is invoked at the weekly clock boundary, not by the browser.
@@ -39,6 +40,10 @@ class BannerClashTests(unittest.TestCase):
         self.assertEqual(set(war.roster_a), {f"a{i}" for i in range(10)})
         with self.assertRaises(ActionError):
             world.leave_guild("a1")
+        with self.assertRaises(ActionError):
+            world.join_guild("outsider", ga)
+        with self.assertRaises(ActionError):
+            world.invite_guild("a0", "outsider")
         self.assertFalse(world.state.guilds[ga].enlisted)
         self.assertFalse(world.state.guilds[gb].enlisted)
         world.assert_invariants()
