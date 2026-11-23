@@ -160,7 +160,7 @@ export function createCityViews(ctx) {
           button('Found Guild · ' + money(info.founding_cost || 100),
             'data-ui="guild-found"' +
             disabled(busy || state.player.gold < (info.founding_cost || 100)), 'gold') +
-          '</div>') +
+          '</div><p class="small">Guild names must contain between 3 and 40 characters.</p>') +
         panel('Guild Hall', 'Established banners', directory ||
           '<p class="small">No guilds founded yet.</p>') + '</div>';
     }
