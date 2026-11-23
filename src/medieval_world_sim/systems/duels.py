@@ -23,8 +23,8 @@ class DuelSystem:
         war_id = w.war_system.duel_context(attacker_id, defender_id)
         if attacker.kind != "human" or defender.kind not in ("human", "npc"):
             raise ActionError("Only player characters may initiate duels")
-        if any(attacker_id in (d.attacker_id, d.defender_id) or
-               defender_id in (d.attacker_id, d.defender_id)
+        if any(attacker_id in (d.attacker_id, d.defender_id, *d.assistants) or
+               defender_id in (d.attacker_id, d.defender_id, *d.assistants)
                for d in w.state.duels.values()):
             raise ActionError("A participant is already in combat")
         entrance_cost = 0  # Only an actual combat move spends stamina.
@@ -50,15 +50,19 @@ class DuelSystem:
                 actual_loser = (w.actors[duel.attacker_id] if outcome == "fled"
                                 else w.actors[duel.defender_id] if outcome == "opponent_fled"
                                 else loser)
-                ledger = w.state.wars[duel.war_id].honor
-                before = ledger.get(actual_winner.id, 0)
-                w.war_system.hit(duel.war_id, actual_winner.id, actual_loser.id,
-                                 tuple(duel.assistants))
-                earned = ledger.get(actual_winner.id, 0) - before
-                if actual_winner.id == duel.attacker_id:
-                    war_honor_attacker = earned
-                else:
-                    war_honor_defender = earned
+                war = w.state.wars[duel.war_id]
+                if war.status == "live":
+                    ledger = war.honor
+                    before = ledger.get(actual_winner.id, 0)
+                    w.war_system.hit(duel.war_id, actual_winner.id, actual_loser.id,
+                                     tuple(duel.assistants))
+                    earned = ledger.get(actual_winner.id, 0) - before
+                    if actual_winner.id == duel.attacker_id:
+                        war_honor_attacker = earned
+                    else:
+                        war_honor_defender = earned
+                # A duel finishing after the war ends must still close safely,
+                # without ordinary gold theft or late Honor.
                 actual_loser.hp = actual_loser.max_hp
                 w._emit("duel_finished", actual_winner.id, actual_loser.id, 0, 0)
         elif outcome in ("won", "lost"):
