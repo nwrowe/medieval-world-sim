@@ -127,6 +127,8 @@ class GuildSystem:
             raise ActionError("Character already belongs to a guild")
         if len(guild.members) >= MAX_GUILD_MEMBERS:
             raise ActionError("Guild roster is full")
+        if self.world.war_system.pending_for(guild.id):
+            raise ActionError("Guild roster is locked during a war")
         guild.invited.add(candidate_id)
         self.world._emit("guild_invited", guild.id, actor_id, candidate_id)
 
@@ -139,6 +141,8 @@ class GuildSystem:
             raise ActionError("Character already belongs to a guild")
         if len(guild.members) >= MAX_GUILD_MEMBERS:
             raise ActionError("Guild roster is full")
+        if self.world.war_system.pending_for(guild.id):
+            raise ActionError("Guild roster is locked during a war")
         guild.invited.remove(actor_id)
         guild.members[actor_id] = "member"
         self.world._emit("guild_joined", guild.id, actor_id)
