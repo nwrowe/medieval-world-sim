@@ -214,4 +214,4 @@ class GuildSystem:
         "founding_cost": GUILD_FOUNDING_COST, "war_enabled": True,
         "rules": WarRules().__dict__.copy(),
         "next_match_minute": ((self.world.minute // 10080) + 1) * 10080,
-        "war": war}
+        "war": war, "history": self.world.war_system.history(actor_id)}
