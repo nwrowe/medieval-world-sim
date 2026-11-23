@@ -314,8 +314,16 @@ export function createCityViews(ctx) {
         (war.assistable || []).map(id => button('Assist ' + display(id),
           'data-ui="war-assist" data-attacker="' + esc(id) + '"' +
           disabled(busy || war.my_routed), 'secondary')).join('') : '';
-      const chronicle = (war.recent || []).map(line =>
-        '<div class="war-event">' + esc(line) + '</div>').join('');
+      const chronicleNames = [
+        ...ownRoster, ...enemyRoster
+      ].map(f => [f.id, f.name === f.id ? display(f.id) : f.name]);
+      chronicleNames.push([war.guild_a, war.name_a], [war.guild_b, war.name_b]);
+      chronicleNames.sort((a,b) => b[0].length - a[0].length);
+      const chronicle = (war.recent || []).map(line => {
+        const readable = chronicleNames.reduce(
+          (message, pair) => message.split(pair[0]).join(pair[1]), line);
+        return '<div class="war-event">' + esc(readable) + '</div>';
+      }).join('');
       const honor = [...ownRoster, ...enemyRoster].sort(
         (a,b) => b.honor - a.honor).slice(0,20).map(f =>
         '<div class="war-fighter"><span>' + esc(f.name === f.id ?
