@@ -167,12 +167,24 @@ class WarSystem:
         return {"left": True, "contested": bool(enemies)}
 
     def duel_context(self, attacker_id, defender_id):
+        """Keep sparring NPCs and active war fighters out of ordinary PvP.
+
+        Neither moving outside the field nor using a different attack route may
+        bypass routing, the frozen roster, or warfront participation.
+        """
         war = self.for_actor(attacker_id) or self.for_actor(defender_id)
         if not war:
+            if defender_id.startswith("npc:war:") or attacker_id.startswith("npc:war:"):
+                raise ActionError("Practice opponents may only fight inside an active practice clash")
             return None
-        if attacker_id in war.present or defender_id in war.present:
-            if (war.guild_of(attacker_id) is None or war.guild_of(defender_id) is None
-                    or war.guild_of(attacker_id) == war.guild_of(defender_id)
+        attacker_team, defender_team = war.guild_of(attacker_id), war.guild_of(defender_id)
+        in_field = attacker_id in war.present or defender_id in war.present
+        enemy_rosters = (attacker_team is not None and defender_team is not None
+                         and attacker_team != defender_team)
+        anyone_routed = (war.routed.get(attacker_id, 0) > self.world.minute
+                         or war.routed.get(defender_id, 0) > self.world.minute)
+        if in_field or enemy_rosters or anyone_routed:
+            if (not enemy_rosters
                     or not self._eligible(war, attacker_id, self.world.minute)
                     or not self._eligible(war, defender_id, self.world.minute)):
                 raise ActionError("Both opponents must be ready at opposing warfronts")
@@ -277,6 +289,7 @@ class WarSystem:
         war = self._require(actor_id)
         now = self.world.minute
         if (not self._eligible(war, actor_id, now)
+                or target_id not in war.present
                 or war.guild_of(target_id) != war.guild_of(actor_id)
                 or war.routed.get(target_id, 0) <= now):
             raise ActionError("Choose a routed ally at your warfront")
