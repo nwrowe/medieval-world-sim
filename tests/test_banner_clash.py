@@ -194,5 +194,84 @@ class BannerClashTests(unittest.TestCase):
         world.assert_invariants()
 
 
+    def test_active_routed_and_offfield_fighters_cannot_bypass_war(self):
+        world, ga, gb = paired_world()
+        world.enlist_guild_war("a0", True)
+        world.enlist_guild_war("b0", True)
+        world.war_system.match_week(10080)
+        war = next(iter(world.state.wars.values()))
+        world.minute = war.scheduled_minute
+        war.status = "live"
+        # Even while both players stay out of the warfront, ordinary PvP
+        # between opposing roster members must not bypass war routing.
+        with self.assertRaises(ActionError):
+            world.start_duel("a0", "b0")
+        war = world.state.wars[war.id]
+        war.present.update(("a0", "b0"))
+        war.routed["a0"] = world.minute + 12
+        with self.assertRaises(ActionError):
+            world.start_duel("a0", "b0")
+        with self.assertRaises(ActionError):
+            world.start_duel("b0", "a0")
+        world.assert_invariants()
+
+    def test_sparring_npcs_not_ordinary_pvp_targets(self):
+        world = WorldEngine([
+            Actor("hero", "human", city="crownreach", gold=200),
+            Actor("visitor", "human", city="crownreach", gold=200)])
+        world.found_guild("hero", "Practice Guard")
+        war_id = world.start_war_practice("hero")["war_id"]
+        bot = world.state.wars[war_id].roster_b[0]
+        with self.assertRaises(ActionError):
+            world.start_duel("visitor", bot)
+        world.war_system._finish(world.state.wars[war_id])
+        with self.assertRaises(ActionError):
+            world.start_duel("hero", bot)
+        world.assert_invariants()
+
+    def test_war_duel_finishes_after_war_ends_without_loot_or_late_honor(self):
+        world, ga, gb = paired_world()
+        world.enlist_guild_war("a0", True)
+        world.enlist_guild_war("b0", True)
+        world.war_system.match_week(10080)
+        war = next(iter(world.state.wars.values()))
+        world.minute = war.scheduled_minute
+        war.status = "live"
+        war.present.update(("a0", "b0"))
+        world.start_duel("a0", "b0")
+        world.war_system._finish(world.state.wars[war.id])
+        world.actors["b0"].hp = 1
+        total_gold = world.total_gold
+        result = world.duel_turn("a0", "strike", "")
+        self.assertEqual(result["outcome"], "won")
+        self.assertEqual(world.total_gold, total_gold)
+        self.assertEqual(world.actors["b0"].hp, world.actors["b0"].max_hp)
+        self.assertIsNone(world.actors["b0"].defeated_until)
+        self.assertEqual(world.state.wars[war.id].honor, {})
+        self.assertFalse(world.state.duels)
+        world.assert_invariants()
+
+    def test_group_assist_is_exclusive_and_magic_requires_warfront(self):
+        world, ga, gb = paired_world()
+        world.enlist_guild_war("a0", True)
+        world.enlist_guild_war("b0", True)
+        world.war_system.match_week(10080)
+        war = next(iter(world.state.wars.values()))
+        world.minute = war.scheduled_minute
+        war.status = "live"
+        war.present.update(("a0", "a1", "b0", "b1"))
+        world.start_duel("a0", "b0")
+        world.assist_war_attack("a1", "a0")
+        with self.assertRaises(ActionError):
+            world.start_duel("a1", "b1")
+        with self.assertRaises(ActionError):
+            world.leave_warfront("a1")
+        war = world.state.wars[war.id]
+        war.routed["a2"] = world.minute + 10
+        with self.assertRaises(ActionError):
+            world.cast_war_restoration("a1", "a2")
+        world.assert_invariants()
+
+
 if __name__ == "__main__":
     unittest.main()
