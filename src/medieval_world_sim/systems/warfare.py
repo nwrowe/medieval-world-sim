@@ -263,6 +263,9 @@ class WarSystem:
                     war.honor[helper] = war.honor.get(helper, 0) + max(1, honor // 3)
             self._log(war, winner_id + " defeated " + loser_id +
                       " (+" + str(honor) + " Honor)")
+        else:
+            self._log(war, loser_id + " withdrew from combat (" +
+                      team + " gains one qualifying hit, no Honor)")
         duration = self.rules.route_min + _roll(war.id, winner_id, loser_id,
                                                 war.hits[team]) % (
                                                     self.rules.route_max -
