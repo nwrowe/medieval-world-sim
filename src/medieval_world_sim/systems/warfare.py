@@ -154,6 +154,7 @@ class WarSystem:
             # Retreat while contested concedes one *team* hit, but never
             # fabricates an individual's Honor or combat victory.
             enemy_guild = war.guild_of(enemies[0])
+            war.hits[enemy_guild] = war.hits.get(enemy_guild, 0) + 1
             self._add_pressure(war, enemy_guild, self.world.minute)
             self._log(war, actor_id + " retreated under pressure (opponent +1 hit)")
         war.present.discard(actor_id)
