@@ -43,6 +43,46 @@ class BannerClashTests(unittest.TestCase):
         self.assertFalse(world.state.guilds[gb].enlisted)
         world.assert_invariants()
 
+    def test_weekly_match_fires_from_trusted_world_clock(self):
+        world, ga, gb = paired_world()
+        world.enlist_guild_war("a0", True)
+        world.enlist_guild_war("b0", True)
+        world.advance(10080)
+        war = next(iter(world.state.wars.values()))
+        self.assertEqual(war.scheduled_minute, 11520)
+        self.assertEqual(war.status, "notice")
+        world.advance(1440)
+        self.assertEqual(world.state.wars[war.id].status, "live")
+        world.assert_invariants()
+
+    def test_milestones_apply_to_all_routed_members_and_horn_is_single_use(self):
+        world, ga, gb = paired_world()
+        world.enlist_guild_war("a0", True)
+        world.enlist_guild_war("b0", True)
+        world.war_system.match_week(10080)
+        war = next(iter(world.state.wars.values()))
+        world.minute = war.scheduled_minute
+        war.status = "live"
+        war.present.update((*war.roster_a, *war.roster_b))
+        war.advantage = ga
+        war.unlocks[ga] = {"field_hospital", "war_horn", "final_rally"}
+        for i in range(5):
+            war.routed[f"a{i}"] = world.minute + 12
+        world.activate_war_milestone("a0", "field_hospital")
+        war = world.state.wars[war.id]
+        self.assertTrue(all(war.routed[f"a{i}"] == world.minute + 7
+                            for i in range(5)))
+        world.activate_war_milestone("a0", "war_horn")
+        war = world.state.wars[war.id]
+        self.assertEqual(war.horn_until, world.minute + 10)
+        world.activate_war_milestone("a0", "final_rally")
+        war = world.state.wars[war.id]
+        self.assertTrue(all(war.routed[f"a{i}"] == world.minute
+                            for i in range(5)))
+        with self.assertRaises(ActionError):
+            world.activate_war_milestone("a0", "final_rally")
+        world.assert_invariants()
+
     def test_permissions_leader_only_then_explicit_delegation(self):
         world, ga, _ = paired_world()
         with self.assertRaises(ActionError):
