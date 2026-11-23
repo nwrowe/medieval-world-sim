@@ -39,6 +39,8 @@ class DuelSystem:
     def _finish(self, duel, winner, loser, outcome: str) -> dict:
         w = self.world
         gold = 0
+        war_honor_attacker = 0
+        war_honor_defender = 0
         if duel.war_id is not None:
             if outcome in ("won", "lost", "fled", "opponent_fled"):
                 # A war loss routes a fighter; no ordinary hospital or gold theft.
@@ -48,8 +50,15 @@ class DuelSystem:
                 actual_loser = (w.actors[duel.attacker_id] if outcome == "fled"
                                 else w.actors[duel.defender_id] if outcome == "opponent_fled"
                                 else loser)
+                ledger = w.state.wars[duel.war_id].honor
+                before = ledger.get(actual_winner.id, 0)
                 w.war_system.hit(duel.war_id, actual_winner.id, actual_loser.id,
                                  tuple(duel.assistants))
+                earned = ledger.get(actual_winner.id, 0) - before
+                if actual_winner.id == duel.attacker_id:
+                    war_honor_attacker = earned
+                else:
+                    war_honor_defender = earned
                 actual_loser.hp = actual_loser.max_hp
                 w._emit("duel_finished", actual_winner.id, actual_loser.id, 0, 0)
         elif outcome in ("won", "lost"):
@@ -67,7 +76,8 @@ class DuelSystem:
                 attacker.hp = 0
         result = {"outcome": outcome, "opponent_id": duel.defender_id,
                   "gold": gold, "xp": xp, "rounds": duel.round, "log": list(duel.log),
-                  "role": "attacker"}
+                  "role": "attacker", "war_id": duel.war_id,
+                  "war_honor": war_honor_attacker}
         w.state.last_duels[duel.attacker_id] = result
         defender = w.actors[duel.defender_id]
         if defender.kind == "human":
@@ -77,6 +87,7 @@ class DuelSystem:
                 "outcome": reverse, "opponent_id": duel.attacker_id,
                 "gold": gold, "xp": 0, "rounds": duel.round,
                 "log": list(duel.log), "role": "defender",
+                "war_id": duel.war_id, "war_honor": war_honor_defender,
             }
         del w.state.duels[duel.attacker_id]
         return result
