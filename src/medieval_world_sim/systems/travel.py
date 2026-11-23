@@ -238,6 +238,9 @@ class TravelSystem:
             actor.magic.road_charm = 0
         if self.world.dev_travel_seconds:
             time = max(1, (time + 59) // 60)
+        if any(actor_id in war.present and war.status == "live"
+               for war in self.world.state.wars.values()):
+            self.world.war_system.leave(actor_id, walking=True)
         actor.travel.departure_minute = self.world.minute
         actor.travel.route_hexes = path
         actor.travel.route_durations = ()
@@ -330,5 +333,6 @@ class TravelSystem:
             if actor.defeated_until is not None and actor.defeated_until <= end:
                 actor.defeated_until = None
                 self.world._emit("recovered", actor.id)
+        self.world.war_system.settle(start_minute, end)
         self.world.assert_invariants()
 
