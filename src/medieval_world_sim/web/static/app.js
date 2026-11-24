@@ -898,7 +898,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<button class="settings-shortcut' + (tab === "settings" ? " active" : "") +
       '" type="button" data-ui="settings-open"' +
       disabled(combatNavigationLocked()) +
-      ' aria-label="Open Settings" data-hover-text="Settings" aria-current="' +
+      ' aria-label="Open Settings" aria-current="' +
       (tab === "settings" ? "page" : "false") + '">' +
       '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
       'stroke-width="2" stroke-linecap="round">' +
@@ -942,6 +942,37 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         ...(event.actions || []).map(action => action.text)].some(value =>
         String(value || "").toLowerCase().includes(query))));
   }
+  function chronicleTag(category) {
+    const name = chronicleCategories.includes(category) ? category : "Other";
+    return '<span class="chronicle-tag" data-category="' + esc(name) + '">' + esc(name) + '</span>';
+  }
+  function chronicleCopyButton(event) {
+    const line = e => '[' + eventTime(e) + '] ' + e.text;
+    const log = '[' + (event.category || 'Other') + '] ' + line(event) +
+      (event.actions || []).map(action => '\n' + line(action)).join('');
+    return '<button type="button" class="chronicle-copy" data-copy-log="' +
+      esc(encodeURIComponent(log)) + '" aria-label="Copy log" title="Copy log">' +
+      '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 5V4H6a2 2 0 0 0-2 2v10h1"/></svg></button>';
+  }
+  async function copyChronicleLog(encoded) {
+    try {
+      const log = decodeURIComponent(encoded);
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+        await navigator.clipboard.writeText(log);
+      } catch {
+        const field = document.createElement("textarea");
+        field.value = log;
+        field.style.cssText = "position:fixed;left:-9999px;top:0";
+        document.body.appendChild(field);
+        try {
+          field.select();
+          if (!document.execCommand("copy")) throw new Error("Copy failed");
+        } finally { field.remove(); }
+      }
+      notify("Log copied to clipboard");
+    } catch { notify("Could not copy log", true); }
+  }
   function chronicleItems(events) {
     const rows = groupCombatChronicle(events);
     return rows.length ? '<ul class="activity">' +
@@ -949,7 +980,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         '<li class="activity-encounter"><details data-encounter-id="' +
         esc(e.id) + '"' + (chronicleOpenEncounters.has(String(e.id)) ? ' open' : '') +
         '><summary><span class="encounter-title">' +
-        '<span><span class="chronicle-tag">Combat</span> ' + esc(e.text) +
+        '<span>' + chronicleTag("Combat") + ' ' + esc(e.text) +
         '</span><small class="encounter-disclosure"><span class="encounter-chevron" ' +
         'aria-hidden="true">▸</span> ' + e.actions.length + ' actions · ' +
         '<span class="when-closed">Click to expand</span>' +
@@ -957,13 +988,14 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         '<time title="Simulation elapsed: ' + esc(clock(e.minute)) +
         '">' + esc(eventTime(e)) + '</time></summary>' +
         '<ol class="encounter-rounds">' + e.actions.map(action =>
-          '<li><span>' + esc(action.text) + '</span><time>' +
-          esc(eventTime(action)) + '</time></li>').join("") +
-        '</ol></details></li>' :
-        '<li><span><span class="chronicle-tag">' +
-        esc(e.category || "Other") + '</span> ' + esc(e.text) +
-        '</span><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
-        '">' + esc(eventTime(e)) + '</time></li>').join("") +
+          '<li><span>' + esc(action.text) + '</span><span class="chronicle-meta"><time>' +
+          esc(eventTime(action)) + '</time>' + chronicleCopyButton(action) +
+          '</span></li>').join("") +
+        '</ol></details>' + chronicleCopyButton(e) + '</li>' :
+        '<li><span>' + chronicleTag(e.category) + ' ' + esc(e.text) +
+        '</span><span class="chronicle-meta"><time title="Simulation elapsed: ' + esc(clock(e.minute)) +
+        '">' + esc(eventTime(e)) + '</time>' + chronicleCopyButton(e) +
+        '</span></li>').join("") +
       '</ul>' : '<p class="empty">No matching Chronicle events.</p>';
   }
   function chronicleResults() {
@@ -1725,6 +1757,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     }
   });
   root.addEventListener("click", event => {
+    const copy = event.target.closest("[data-copy-log]");
+    if (copy) { event.preventDefault(); copyChronicleLog(copy.dataset.copyLog); return; }
     const summary = event.target.closest(".university-school > summary");
     if (summary) {
       const details = summary.parentElement;

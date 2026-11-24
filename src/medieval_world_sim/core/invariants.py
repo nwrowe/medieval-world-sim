@@ -13,7 +13,7 @@ from ..combat import MAX_STAMINA
 from ..core.entities import Actor
 from ..equipment import GEAR
 from ..systems.guilds import ROLES, MAX_GUILD_MEMBERS, RIGHTS
-from ..systems.merits import ACHIEVEMENTS, MERIT_UPGRADES
+from ..systems.merits import ACHIEVEMENTS, MERIT_UPGRADES, perk_level
 from ..systems.chat import MAX_MESSAGES_SAVED, MAX_MESSAGE_LENGTH
 from ..systems.curriculum import SCHOOLS, CURRENT_SCHOOLS
 from ..systems.regional_trade import MERCHANT_STOCK_CAP, MERCHANT_DAILY_LIMIT
@@ -179,6 +179,9 @@ def validate_world(world: WorldEngine) -> None:
         bought = world.state.merit_upgrades.get(actor_id, set())
         if not bought <= MERIT_UPGRADES.keys():
             raise AssertionError("Unknown merit perk")
+        if any(MERIT_UPGRADES[k]["level"] > perk_level(bought, MERIT_UPGRADES[k]["track"])
+               for k in bought):
+            raise AssertionError("Renown levels must be sequential")
         issued = sum(ACHIEVEMENTS[k].award for k in claimed)
         spent = sum(MERIT_UPGRADES[k]["cost"] for k in bought)
         if issued - spent != world.state.merit_balance.get(actor_id, 0):

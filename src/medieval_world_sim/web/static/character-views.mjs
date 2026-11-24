@@ -70,23 +70,20 @@ export function createCharacterViews(ctx) {
             '"' + disabled(!usable), "secondary") +
           '</div>';
       }).join('') + '</div>' :
-      '<p class="small">You have not learned any spells yet. Visit Magic to begin studying.</p>' +
-      button("Study magic", 'data-tab="magic"', "secondary");
-    return panel("Magic", "Train spells to 100/100 before casting; casting costs mana.", spells);
+      '<p class="small">You have not learned any spells yet</p>';
+    return panel("Magic", "", spells);
   }
 
   function renderCharacter() {
     const state = ctx.getState();
     const p = state.player, w = p.work;
     const xpNext = 10 * p.level * p.level;
-    const study = Object.entries(p.school_xp).map(([key, xp]) =>
-      characterRow(pretty(key) + " magic", xp + " XP")).join('');
     const career = Object.entries(w.experience).map(([key, xp]) =>
       characterRow(pretty(key), xp + " XP")).join('');
     const homeName = state.housing.tier ? pretty(state.housing.tier) +
       " · " + pretty(state.housing.city) : "No residence";
     const lineage = (state.lineage_options || []).find(x => x.id === p.lineage);
-    return '<div class="profile-grid">' +
+    return '<div class="profile-grid home-grid">' +
       panel("Character State", "",
         characterRow("Name", state.name) +
         characterRow("Level", p.level) +
@@ -95,7 +92,7 @@ export function createCharacterViews(ctx) {
         characterRow("Stamina", p.stamina + " / " + p.max_stamina) +
         characterRow("Mana", p.mana + " / " + p.max_mana) +
         characterRow("Age", p.age_days + (p.age_days === 1 ?
-          " Oathmere day" : " Oathmere days"))) +
+          " day" : " days"))) +
       panel("Combat Attributes", "",
         characterRow("Strength", p.strength) +
         characterRow("Defense", p.defense) +
@@ -116,9 +113,8 @@ export function createCharacterViews(ctx) {
         characterRow("Gold", money(p.gold)) +
         characterRow("Estimated net worth", money(state.net_worth_estimate)) +
         characterRow("Residence", homeName) +
-        characterRow("Insight", p.insight) +
-        (study || '<p class="small">No magical studies yet.</p>')) +
-      '</div><div class="profile-magic-panel">' + homeMagicPanel(state) + '</div>';
+        characterRow("Insight", p.insight)) +
+      homeMagicPanel(state) + '</div>';
   }
   function equipmentMannequin(owned, equipped) {
     const kind = slot => {

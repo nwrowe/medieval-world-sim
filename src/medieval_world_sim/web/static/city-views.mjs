@@ -396,14 +396,23 @@ export function createCityViews(ctx) {
           'data-ui="merit-claim" data-achievement="' + esc(f.id) + '"' +
           disabled(!f.eligible || isBusy()), f.eligible ? 'gold' : 'ghost')) +
       '</div>').join('');
-    const upgrades = (info.upgrades || []).map(perk =>
-      '<div class="equipment-item"><div><h3>' + esc(perk.name) +
-      '</h3><p>' + esc(perk.description) + '</p></div>' +
-      (perk.owned ? chip('Owned') :
-        button('Buy · ' + perk.cost + ' Renown',
-          'data-ui="merit-buy" data-perk="' + esc(perk.id) + '"' +
-          disabled(info.balance < perk.cost || isBusy()), 'secondary')) +
-      '</div>').join('');
+    const upgrades = (info.upgrades || []).map(perk => {
+      const level = perk.level || 0, max = perk.max_level || 5;
+      const complete = level >= max;
+      const pips = Array.from({length: max}, (_, i) =>
+        '<span class="renown-pip' + (i < level ? ' filled' : '') +
+        (i === level ? ' next' : '') + '" aria-hidden="true">' + (i + 1) + '</span>').join('');
+      return '<div class="renown-track"><div class="renown-track-heading"><h3>' +
+        esc(perk.name) + '</h3><strong>' + level + ' / ' + max + '</strong></div>' +
+        '<div class="renown-pips" role="img" aria-label="' + level + ' of ' + max + ' levels">' + pips + '</div>' +
+        '<p>' + esc(level ? perk.description : 'Not yet invested') + '</p>' +
+        (complete ? chip('Max level') : '<div class="renown-next"><span>' +
+          esc(perk.next_description) + '</span>' +
+          button('Buy · ' + perk.cost + ' Renown',
+            'data-ui="merit-buy" data-perk="' + esc(perk.next_id) + '"' +
+            disabled(info.balance < perk.cost || isBusy()), 'secondary') + '</div>') +
+        '</div>';
+    }).join('');
     return '<div class="merits-layout">' +
       panel('Your Renown ledger', '',
         '<div class="resource-list">' + chip('Available to spend: ' + (info.balance || 0)) +

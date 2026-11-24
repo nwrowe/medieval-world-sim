@@ -9,12 +9,13 @@ from . import entities
 from ..worldgen.hexgrid import hex_distance
 
 BASE_SIGHT = 2
-MAX_SIGHT = 4
+MAX_SIGHT = 7
 
 
 def sight_radius(world, actor: entities.Actor) -> int:
     upgrades = world.state.merit_upgrades.get(actor.id, set())
-    return BASE_SIGHT + int("awareness_1" in upgrades) + int("awareness_2" in upgrades)
+    from ..systems.merits import perk_level
+    return BASE_SIGHT + perk_level(upgrades, "awareness")
 
 
 def travel_progress_index(actor: entities.Actor, now: int) -> int:
