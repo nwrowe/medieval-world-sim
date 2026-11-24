@@ -1,5 +1,6 @@
 """Integration checks for fresh Banner Clash rules and solo playtesting."""
 import unittest
+from unittest.mock import patch
 
 from medieval_world_sim.core.engine import WorldEngine
 from medieval_world_sim.core.entities import Actor
@@ -242,7 +243,8 @@ class BannerClashTests(unittest.TestCase):
         world.war_system._finish(world.state.wars[war.id])
         world.actors["b0"].hp = 1
         total_gold = world.total_gold
-        result = world.duel_turn("a0", "strike", "")
+        with patch("medieval_world_sim.systems.combat.CombatSystem._duel_rolls", return_value=(50, 50, 100)):
+            result = world.duel_turn("a0", "strike", "")
         self.assertEqual(result["outcome"], "won")
         self.assertEqual(world.total_gold, total_gold)
         self.assertEqual(world.actors["b0"].hp, world.actors["b0"].max_hp)

@@ -17,6 +17,10 @@ PASSWORD = "correct horse battery staple"
 
 class EscapesAndPresence(unittest.TestCase):
     def setUp(self):
+        rolls = patch("medieval_world_sim.systems.combat.CombatSystem._duel_rolls",
+                      return_value=(50, 50, 100))
+        rolls.start()
+        self.addCleanup(rolls.stop)
         self.folder = tempfile.TemporaryDirectory()
         self.db = Path(self.folder.name) / "players.db"
         self.game = MultiplayerGame(self.db, require_invites=False, dev_fast_forward=True)

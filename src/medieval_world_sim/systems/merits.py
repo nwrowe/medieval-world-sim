@@ -2,6 +2,30 @@
 from dataclasses import dataclass
 from ..errors import ActionError
 from .curriculum import SCHOOLS
+from ..catalog import RAW_RESOURCES
+from ..content.housing import HOMES, FACILITIES, VEHICLES
+from ..equipment import suggested_value
+
+WEALTH_MILESTONES = (1_000, 5_000, 10_000, 25_000, 100_000, 500_000, 1_000_000)
+
+
+def net_worth_estimate(world, actor, resale_prices=None):
+    """One valuation shared by the character page and Renown eligibility."""
+    housing = actor.housing
+    if resale_prices is None:
+        resale_prices = {item: world.regional_quote(actor.city, item).player_sell_price
+                         for item in RAW_RESOURCES if actor.inventory.get(item, 0)}
+    worth = actor.gold + (HOMES[housing.tier].price if housing.tier else 0)
+    worth += sum(FACILITIES[k].price for k in housing.facilities)
+    worth += sum(VEHICLES[k].price for k in housing.vehicles)
+    worth += sum(n * resale_prices.get(item, 0) for item, n in actor.inventory.items())
+    for city, goods in actor.storage.items():
+        worth += sum(n * world.regional_quote(city, item).player_sell_price
+                     for item, n in goods.items() if n and item in RAW_RESOURCES)
+    worth += sum(suggested_value(world.gear[gid]) for gid in actor.gear_ids)
+    worth += sum(suggested_value(world.gear[gid])
+                 for ids in actor.stored_gear.values() for gid in ids)
+    return worth
 
 @dataclass(frozen=True)
 class Achievement:
@@ -22,6 +46,9 @@ ACHIEVEMENTS = {
     "explore_50": Achievement("Cartographer II", "Explore 50% of the world"),
     "explore_75": Achievement("Cartographer III", "Explore 75% of the world"),
     "explore_100": Achievement("Master Cartographer", "Explore 100% of the world"),
+    **{f"wealth_{threshold}": Achievement(
+        f"Fortune {index + 1}", f"Reach an estimated net worth of {threshold:,} gold")
+       for index, threshold in enumerate(WEALTH_MILESTONES)},
     **{"school:" + school: Achievement(
         name + " Scholar", "Complete all eight courses in " + name)
        for school, (name, _, _, _) in SCHOOLS.items()},
@@ -39,9 +66,13 @@ class MeritSystem:
     def __init__(self, world):
         self.world = world
 
-    def earned(self, actor_id: str, key: str) -> bool:
+    def earned(self, actor_id: str, key: str, net_worth=None) -> bool:
         actor = self.world._actor(actor_id)
         events = self.world.events
+        if key.startswith("wealth_"):
+            if net_worth is None:
+                net_worth = net_worth_estimate(self.world, actor)
+            return net_worth >= int(key.split("_", 1)[1])
         if key.startswith("school:"):
             return len(self.world.curriculum_system.completed_indices(actor_id, key[7:])) == 8
         if key.startswith("explore_"):
@@ -95,14 +126,16 @@ class MeritSystem:
         self.world._emit("merit_upgrade", actor_id, perk, cost)
         return {"perk": perk, "cost": cost}
 
-    def view(self, actor_id: str) -> dict:
+    def view(self, actor_id: str, net_worth=None) -> dict:
+        if net_worth is None:
+            net_worth = net_worth_estimate(self.world, self.world._actor(actor_id))
         claimed = self.world.state.merit_claims.get(actor_id, set())
         upgrades = self.world.state.merit_upgrades.get(actor_id, set())
         return {"balance": self.world.state.merit_balance.get(actor_id, 0),
                 "total_earned": sum(ACHIEVEMENTS[k].award for k in claimed),
                 "achievements": [{
                     "id": k, "name": spec.name, "description": spec.description,
-                    "claimed": k in claimed, "eligible": self.earned(actor_id, k),
+                    "claimed": k in claimed, "eligible": k in claimed or self.earned(actor_id, k, net_worth),
                     "award": spec.award} for k, spec in ACHIEVEMENTS.items()
                     ],
                 "upgrades": [{"id": key, **spec, "owned": key in upgrades}

@@ -9,6 +9,26 @@ from .combat import DEFEAT_RECOVERY_MINUTES, GUARD_STAMINA
 MAGIC_STAMINA_COST = 6
 MAX_PVP_ROUNDS = 10
 
+def _who(actor):
+    # Names are account metadata; project the marker into a display name later.
+    return "[[" + actor.id + "]]"
+
+
+def _attack_text(attacker, defender, weapon, damage, critical=False, blocked=0):
+    source, target = _who(attacker), _who(defender)
+    attack = {"fists": "punched", "dagger": "stabbed with a dagger",
+              "sword": "swung a sword", "axe": "swung an axe",
+              "bow": "shot an arrow"}.get(weapon.lower(), "attacked with " + weapon.lower())
+    if damage == 0:
+        if blocked:
+            return f"{target} blocked {source}'s attack ({blocked} damage absorbed)"
+        return f"{source} {attack} but missed {target}"
+    detail = f" ({blocked} blocked)" if blocked else ""
+    if critical:
+        return f"{source} {attack}, critically hitting {target} for {damage} damage{detail}"
+    return f"{source} {attack}, dealing {damage} damage to {target}{detail}"
+
+
 class DuelSystem:
     def __init__(self, world):
         self.world = world
@@ -117,12 +137,13 @@ class DuelSystem:
             if attacker.stamina < stamina_spent:
                 raise ActionError(f"Not enough stamina for {label.lower()} attack")
             attacker.stamina -= stamina_spent
-            damage = w.combat._strike(attacker, defender, slot or "unarmed")
-            if duel.war_id and duel.assistants and defender.hp > 0:
+            damage, critical = w.combat.duel_strike(attacker, defender, slot or "unarmed")
+            description = _attack_text(attacker, defender, label, damage, critical)
+            if damage and duel.war_id and duel.assistants and defender.hp > 0:
                 assist_damage = min(defender.hp, 2 * len(duel.assistants))
                 defender.hp -= assist_damage
                 damage += assist_damage
-            description = f"{label} attack costs {stamina_spent} stamina and deals {damage} damage"
+                description += f"; guildmates added {assist_damage} damage"
         elif move == "guard":
             if attacker.stamina < GUARD_STAMINA:
                 raise ActionError("Not enough stamina to guard")
@@ -130,7 +151,7 @@ class DuelSystem:
             stamina_spent = GUARD_STAMINA
             damage = 0
             protection = 6
-            description = f"You brace for the next attack ({stamina_spent} stamina)"
+            description = f"{_who(attacker)} braced for the next attack ({stamina_spent} stamina)"
         else:
             # Enchantment and divination create a physical strike too.
             # Charge the same main-weapon cost, in addition to their mana.
@@ -143,24 +164,29 @@ class DuelSystem:
                 raise ActionError("Not enough stamina to cast this combat spell")
             attacker.stamina -= stamina_spent
             damage, protection, description = w.spell_system.combat_cast(attacker, defender, node_id)
-            if stamina_spent:
-                description += f" ({stamina_spent} stamina)"
+            description = f"{_who(attacker)} cast {node_id.split('.')[-1].replace('_', ' ')}: {description} ({stamina_spent} stamina)"
         duel.round += 1
         if move in ("strike", "fists", "dagger") or (move == "cast" and damage > 0):
             duel.first_attack = True
         duel.xp_earned += max(1, damage // 4) if damage else 0
         retaliation = 0
+        response = ""
         if defender.hp:
             # Defensive reactions never consume stamina, even if armed. A
             # secondary dagger can serve as a fallback defensive weapon.
             defense_slot = "weapon" if defender.equipped.get("weapon") else (
                 "secondary" if defender.equipped.get("secondary") else "unarmed")
-            retaliation = w.combat._strike(defender, attacker, defense_slot)
+            gear_id = defender.equipped.get(defense_slot)
+            label = w.gear[gear_id].kind if gear_id is not None else "fists"
+            hp_before = attacker.hp
+            retaliation, counter_critical = w.combat.duel_strike(defender, attacker, defense_slot)
             blocked = min(retaliation, protection + duel.pending_ward)
-            attacker.hp = min(attacker.max_hp, attacker.hp + blocked)
             retaliation -= blocked
+            attacker.hp = max(0, hp_before - retaliation)
             duel.pending_ward = 0
-        duel.log.append(f"Round {duel.round}: {description}. Opponent dealt {retaliation} damage.")
+            response = _attack_text(defender, attacker, label, retaliation, counter_critical, blocked)
+        duel.log.append(f"Round {duel.round}: {description}." +
+                        (f" {response}." if response else ""))
         duel.log = duel.log[-12:]
         w._emit("duel_round", attacker_id, defender.id, duel.round, move, damage, retaliation)
         if defender.hp == 0:
@@ -201,7 +227,7 @@ class DuelSystem:
         w._emit("duel_flee_attempt", duel.attacker_id, duel.defender_id,
                 actor_id, duel.round, bool(roll))
         if roll:
-            duel.log.append(f"Round {duel.round}: {fleeing.id} escaped successfully.")
+            duel.log.append(f"Round {duel.round}: {_who(fleeing)} escaped successfully.")
             duel.log = duel.log[-12:]
             if attacker_fleeing:
                 w._emit("duel_fled", actor_id, defender.id)
@@ -214,10 +240,12 @@ class DuelSystem:
         # combatant takes an automatic, zero-stamina response.
         slot = ("weapon" if pursuer.equipped.get("weapon") else
                 "secondary" if pursuer.equipped.get("secondary") else "unarmed")
-        damage = w.combat._strike(pursuer, fleeing, slot)
+        gear_id = pursuer.equipped.get(slot)
+        label = w.gear[gear_id].kind if gear_id is not None else "fists"
+        damage, critical = w.combat.duel_strike(pursuer, fleeing, slot)
         duel.log.append(
-            f"Round {duel.round}: {fleeing.id} failed to escape; "
-            f"{pursuer.id} counterattacked for {damage} damage."
+            f"Round {duel.round}: {_who(fleeing)} failed to escape. "
+            + _attack_text(pursuer, fleeing, label, damage, critical) + "."
         )
         duel.log = duel.log[-12:]
         if fleeing.hp <= 0:

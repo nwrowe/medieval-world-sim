@@ -1395,3 +1395,26 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 
 .war-member-permissions>summary {cursor:pointer;color:var(--muted);font-size:11px;margin-top:7px;}
 .war-member-permissions[open]>summary {margin-bottom:6px;}
+
+/* Subdued category accents, consistent stroke glyphs. */
+.nav-button .nav-icon {color:#55765c;}
+.nav-button:is([data-tab="magic"],[data-tab="training"]) .nav-icon {color:#7764a0;}
+.nav-button:is([data-tab="guilds"],[data-tab="merits"],[data-tab="cityhall"],[data-tab="market"]) .nav-icon {color:#9a712d;}
+.nav-button:is([data-tab="mercenary"],[data-tab="armory"],[data-tab="equipment"]) .nav-icon {color:#9b5549;}
+.nav-button:is([data-tab="harbor"],[data-tab="world"],[data-tab="letters"]) .nav-icon {color:#39788e;}
+.account-nav .nav-button .nav-icon,
+:root[data-theme="dark"] .nav-button .nav-icon {color:#a5c9a8;}
+.account-nav .nav-button:is([data-tab="world"],[data-tab="letters"]) .nav-icon,
+:root[data-theme="dark"] .nav-button:is([data-tab="harbor"],[data-tab="world"],[data-tab="letters"]) .nav-icon {color:#91c5d8;}
+:root[data-theme="dark"] .nav-button:is([data-tab="magic"],[data-tab="training"]) .nav-icon {color:#c7b1ed;}
+:root[data-theme="dark"] .nav-button:is([data-tab="guilds"],[data-tab="merits"],[data-tab="cityhall"],[data-tab="market"]) .nav-icon {color:#e3c17c;}
+.account-nav .nav-button[data-tab="equipment"] .nav-icon,
+:root[data-theme="dark"] .nav-button:is([data-tab="mercenary"],[data-tab="armory"],[data-tab="equipment"]) .nav-icon {color:#e0a194;}
+.nav-button:disabled .nav-icon {opacity:.45 !important;}
+:root[data-theme="dark"] .school-tile {background:#22342b;border-color:#52675a;color:#e5ede3;cursor:pointer;}
+:root[data-theme="dark"] .school-tile-heading strong,
+:root[data-theme="dark"] .school-tile-metrics {color:#e0e9df;}
+:root[data-theme="dark"] .school-tile.selected {background:#304b3b;border-color:#9ebf9e;box-shadow:inset 0 0 0 1px #72977a;}
+:root[data-theme="dark"] .school-tile:hover,
+:root[data-theme="dark"] .school-tile:focus-visible {background:#365743;border-color:#d5e5b6;outline:2px solid #d5e5b6;outline-offset:2px;}
+.alert {z-index:1000;font-weight:600;}

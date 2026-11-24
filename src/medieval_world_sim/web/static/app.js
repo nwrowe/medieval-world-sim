@@ -21,6 +21,33 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" ' +
     'stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/>' +
     '<path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>';
+  const iconPaths = {
+    inventory: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 5v5m6-5v5M10 15h4"/>',
+    home: '<path d="m3 11 9-8 9 8M5 10v10h14V10M10 20v-6h4v6"/>',
+    magic: '<path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5Z"/>',
+    guilds: '<path d="M5 21V3m0 1h14l-4 5 4 5H5"/>',
+    merits: '<circle cx="12" cy="9" r="6"/><path d="m8 14-2 7 6-3 6 3-2-7"/>',
+    market: '<path d="M12 3v18M5 21h14M4 7h16M4 7l-3 7h6L4 7Zm16 0-3 7h6l-3-7Z"/>',
+    companies: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 7V4h8v3M3 12h18m-11 0v2h4v-2"/>',
+    job: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 9h6m-6 4h6m-6 4h4"/>',
+    mercenary: '<path d="m4 3 6 6m4 4 7 7M20 3 3 20M15 3h5v5M3 15v5h5M8 3H3v5m13 8 4 4"/>',
+    church: '<path d="M12 3v18M5 9h14"/>',
+    armory: '<path d="M12 3 20 6v6c0 4-4 7-8 9-4-2-8-5-8-9V6l8-3Z"/>',
+    harbor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14M8 10h8M3 14v2a9 5 0 0 0 18 0v-2M3 14l3 3m15-3-3 3"/>',
+    track: '<path d="M6 20h12M8 17h8l-1-4 3-4-4-5-5 2-3 6 4 1-2 4Z"/>',
+    training: '<path d="M3 5c4-1 7 0 9 3 2-3 5-4 9-3v14c-4-1-7 0-9 2-2-2-5-3-9-2V5Zm9 3v13"/>',
+    tavern: '<path d="M5 4h12v11a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V4Zm12 3h2a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2h-2M8 8v7m4-7v7"/>',
+    cityhall: '<path d="m3 9 9-6 9 6H3Zm2 2v8m5-8v8m4-8v8m5-8v8M3 21h18"/>',
+    character: '<circle cx="12" cy="7" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+    equipment: '<path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6l8-3Zm-3 9 2 2 4-5"/>',
+    chronicle: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6m-6 5h6m-6 5h4"/>',
+    letters: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+    people: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
+  };
+  function navGlyph(entry) {
+    return iconPaths[entry.id] ?
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + iconPaths[entry.id] + '</svg>' : entry.icon;
+  }
   const cityLinks = [
     { id: "inventory", icon: "◫", title: "Inventory" },
     { id: "home", icon: "⌂", title: "My Property" },
@@ -814,7 +841,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       (locked ? ' combat-nav-locked' : '') +
       '" data-tab="' + esc(entry.id) + '"' + disabled(locked) +
       ' aria-current="' + (tab === entry.id ? 'page' : 'false') + '">' +
-      '<span class="nav-icon" aria-hidden="true">' + entry.icon + '</span>' +
+      '<span class="nav-icon" aria-hidden="true">' + navGlyph(entry) + '</span>' +
       '<span>' + esc(entry.title) + '</span></button>';
   }
   function shell() {
@@ -2216,7 +2243,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       case "select-vehicle": action("select_vehicle",
         { vehicle: element.dataset.vehicle || null }, "Travel option changed"); break;
       case "buy-starter": action("buy_starter_gear",
-        { kind: element.dataset.kind }, "New equipment purchased"); break;
+        { kind: element.dataset.kind }, pretty(element.dataset.kind) + " purchased and added to your equipment."); break;
       case "equip": action("equip",
         { gear_id: Number(element.dataset.gearId) }, "Equipment updated"); break;
       case "unequip": action("unequip",
@@ -2230,7 +2257,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     // only during a visible active journey, not on every background tick.
     if (!state || !state.started ||
         (!state.player.destination && !mapTravelSettlePending) ||
-        tab !== "world" || pending || mapPollBusy || offline || authNeeded)
+        (tab !== "world" && !mapTravelSettlePending) || pending || mapPollBusy || offline || authNeeded)
       return;
     const now = Date.now();
     const cadence = state.dev_travel_seconds ? 950 : 2500;
@@ -2239,12 +2266,17 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     mapPollBusy = true;
     try {
       const latest = await request("/api/state");
-      if (!state || pending || tab !== "world" || !latest.started) return;
+      if (!state || pending || (tab !== "world" && !mapTravelSettlePending) || !latest.started) return;
       // Full state replacement is required here: the streamed activity delta
       // never includes private hex discovery, tile data, or trip position.
       if ((latest.activity_revision || 0) >= (state.activity_revision || 0)) {
         state = latest;
         mapTravelSettlePending = false;
+        // Arrival changes the sidebar's location and available services.
+        if (!latest.player.destination) {
+          render();
+          return;
+        }
         // Keep the persistent topbar DOM and hovered vital tooltip alive.
         // Only repaint the World panel and its scrollable map.
         refreshLiveSurfaces();

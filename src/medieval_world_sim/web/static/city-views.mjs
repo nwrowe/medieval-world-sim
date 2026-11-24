@@ -139,7 +139,8 @@ export function createCityViews(ctx) {
     const players = state.users || [];
     const display = id => {
       const found = players.find(p => p.id === id);
-      return found ? found.name : id === "hero" ? state.name : id;
+      return own?.member_names?.[id] || found?.name ||
+        (id === state.actor_id || id === "hero" ? state.name : "Unknown adventurer");
     };
     const rights = own?.my_rights || [];
     const can = right => rights.includes(right);
@@ -213,12 +214,19 @@ export function createCityViews(ctx) {
           || war && ['notice','live'].includes(war.status)), 'gold') : '';
     const availability = '<p class="small">Weekly matching · 10–20 guild members required. ' +
       'Next matching in ' + esc(dur(Math.max(0, (info.next_match_minute || 0) -
-      state.minute))) + '. Matched guilds get 24 hours notice and fight at Crownreach.</p>';
+      state.minute))) + '. Matched guilds get 24 hours notice and fight at the capital.</p>';
+    const capital = (state.cities || []).find(c => c.id === 'crownreach' && c.discovered !== false)?.name || 'the capital';
+    const atWarfront = state.player.city === 'crownreach' && !state.player.destination &&
+      !state.world_map?.in_wilderness;
+    const activeWar = war && ['notice','live'].includes(war.status);
     const practice = own.role === 'leader' ?
       button('Start solo practice vs Ashen Company', 'data-ui="war-practice"' +
-        disabled(busy || war && ['notice','live'].includes(war.status) ||
-          state.player.city !== 'crownreach' || state.player.destination),
-        'secondary') : '';
+        disabled(busy || activeWar || !atWarfront), 'secondary') +
+      (!atWarfront ? '<p class="small">Travel to ' + esc(capital) +
+        ' to start solo practice.</p>' + button('Open world map', 'data-tab="world"', 'ghost') :
+        activeWar ? '<p class="small">Finish the current clash before starting another.</p>' :
+        '<p class="small">Solo practice is available now. No other players are required.</p>') :
+      '<p class="small">Your guild leader can start a solo practice match.</p>';
 
     let warContent = '';
     if (war) {
@@ -332,7 +340,7 @@ export function createCityViews(ctx) {
           ' Honor</strong></div>').join('');
       warContent = panel('Banner Clash · ' +
           (war.practice ? 'Practice match' : 'Ranked match'),
-          war.status === 'live' ? 'Battlefront · Crownreach' :
+          war.status === 'live' ? 'Battlefront · ' + capital :
           war.status === 'notice' ? 'Preparing for battle' : 'Battle results',
           stage + '<div class="button-group">' + joinLeave + treatment + assist +
           '</div>' +
@@ -359,7 +367,7 @@ export function createCityViews(ctx) {
           esc(display(line.id)) + '</span><strong>' + line.score +
           ' Honor</strong></div>').join('') + '</details>').join('');
     return heading('', 'Guilds', '') +
-      '<div class="stack">' + warContent + guildPanel +
+      '<div class="stack">' + warContent +
       panel('Guild warfare', own.enlisted ? 'Registered for weekly matching' :
         'Weekly matchmaking',
         availability + '<div class="button-group">' + enlist + practice +
@@ -371,7 +379,7 @@ export function createCityViews(ctx) {
         'Wars end after 12 hours if neither guild reaches 100%.</p>' +
         '<p>Leaving a contested battlefield concedes a hit. ' +
         'Group attacks require another fighter to join an active duel. ' +
-        'No automatic spoils distribution is enabled.</p></details>') +
+        'No automatic spoils distribution is enabled.</p></details>') + guildPanel +
       (history ? panel('Completed wars', 'Past Honor ledgers for contribution review',
         history) : '') +
       panel('Guild directory', 'Other banners', directory ||
