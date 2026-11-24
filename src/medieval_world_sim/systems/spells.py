@@ -35,15 +35,18 @@ class SpellSystem:
             opponent.hp -= damage
             message = f"Elemental blast dealt {damage} damage"
         elif school == "enchantment":
-            damage = self.world.combat._strike(caster, opponent)
-            extra = min(opponent.hp, rank + 2)
+            damage, critical = self.world.combat.duel_strike(caster, opponent)
+            extra = min(opponent.hp, rank + 2) if damage else 0
             opponent.hp -= extra
             damage += extra
-            message = f"Runed strike dealt {damage} damage"
+            message = (f"Runed strike dealt {damage} damage" +
+                       (" (critical hit)" if critical else "")) if damage else "Runed strike missed"
         elif school == "divination":
-            damage = self.world.combat._strike(caster, opponent)
+            damage, critical = self.world.combat.duel_strike(caster, opponent)
             protection = 2 + 2 * rank
-            message = f"Foreseen strike dealt {damage}; anticipated retaliation"
+            message = (f"Foreseen strike dealt {damage} damage" +
+                       (" (critical hit)" if critical else "")) if damage else "Foreseen strike missed"
+            message += "; anticipated retaliation"
         elif school == "alchemy":
             damage = min(opponent.hp, 3 + 2 * rank)
             opponent.hp -= damage

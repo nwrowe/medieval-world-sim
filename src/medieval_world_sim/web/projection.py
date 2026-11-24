@@ -6,6 +6,8 @@ Never include another player's private economic or account state.
 from __future__ import annotations
 
 from dataclasses import asdict
+import re
+from ..systems.merits import net_worth_estimate
 
 from ..catalog import CAPITAL, CITIES, RAW_RESOURCES, GOODS, PROCESSED_RESOURCES, CONSUMABLES
 from ..core.engine import WorldEngine
@@ -29,10 +31,19 @@ def _named_duel_log(log: list[str], names: dict[str, str]) -> list[str]:
                       if isinstance(key, str) and key and value and key != value),
                      key=lambda pair: len(pair[0]), reverse=True)
     output = []
+    def display(marker):
+        actor_id = marker.group(1)
+        if actor_id.startswith("npc:war:"):
+            return "Sparring Guard " + actor_id.rsplit(":", 1)[-1]
+        return names.get(actor_id, "Unknown adventurer")
+
     for line in log:
-        shown = line
-        for actor_id, label in aliases:
-            shown = shown.replace(actor_id, label)
+        if "[[" in line:
+            shown = re.sub(r"\[\[([^\]]+)\]\]", display, line)
+        else:
+            shown = line
+            for actor_id, label in aliases:
+                shown = shown.replace(actor_id, label)
         output.append(shown)
     return output
 
@@ -301,25 +312,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "lowest_buy": buy_data, "highest_sell": sell_data,
             "market_value": None})
     resale_prices = {q["item"]: q["player_sell_price"] for q in quote_list}
-    property_value = (HOMES[housing.tier].price if housing.tier else 0)
-    facility_value = sum(FACILITIES[k].price for k in housing.facilities)
-    vehicle_value = sum(VEHICLES[k].price for k in housing.vehicles)
-    trade_goods_value = sum(
-        quantity * resale_prices.get(item, 0)
-        for item, quantity in actor.inventory.items()
-    )
-    # Ownership does not change when moving goods to local storage.
-    for storage_city, goods in actor.storage.items():
-        for item, quantity in goods.items():
-            if quantity and item in RAW_RESOURCES:
-                trade_goods_value += quantity * w.regional_quote(
-                    storage_city, item).player_sell_price
-    stored_equipment_value = sum(
-        suggested_value(w.gear[gid])
-        for ids in actor.stored_gear.values() for gid in ids)
-    net_worth = (actor.gold + property_value + facility_value + vehicle_value
-                 + trade_goods_value + sum(item["value"] for item in owned_gear)
-                 + stored_equipment_value)
+    net_worth = net_worth_estimate(w, actor, resale_prices)
     housing_data = {
         **asdict(housing),
         "facilities": list(housing.facilities),
@@ -369,7 +362,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "wilderness": w.wilderness.view(actor_id),
         "dev_travel_seconds": w.dev_travel_seconds,
         "guilds": guild_view,
-        "merits": w.merit_system.view(actor_id),
+        "merits": w.merit_system.view(actor_id, net_worth),
         "training_hall": w.curriculum_system.view(actor_id),
         "chat": w.chat_system.view(actor_id),
         "equipped": dict(actor.equipped),

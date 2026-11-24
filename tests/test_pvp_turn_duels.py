@@ -20,6 +20,10 @@ PASSWORD = "correct horse battery staple"
 
 class MultiplayerDuelTests(unittest.TestCase):
     def setUp(self):
+        rolls = patch("medieval_world_sim.systems.combat.CombatSystem._duel_rolls",
+                      return_value=(50, 50, 100))
+        rolls.start()
+        self.addCleanup(rolls.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "players.sqlite3"
         self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)

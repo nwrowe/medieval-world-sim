@@ -3,6 +3,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.session import GameSession
@@ -12,6 +13,10 @@ from medieval_world_sim.core.entities import Actor
 
 class WeaponStaminaTests(unittest.TestCase):
     def setUp(self):
+        rolls = patch("medieval_world_sim.systems.combat.CombatSystem._duel_rolls",
+                      return_value=(50, 50, 100))
+        rolls.start()
+        self.addCleanup(rolls.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "save.json"
         self.game = GameSession(self.path)

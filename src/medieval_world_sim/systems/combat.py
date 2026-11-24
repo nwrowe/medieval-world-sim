@@ -1,5 +1,6 @@
 """Stamina-based, open-world combat with unarmed attacks and progression."""
 from dataclasses import dataclass
+from hashlib import sha256
 from ..equipment import GEAR, effective_attack, effective_defense
 from ..errors import ActionError
 from .magic import grow_mana_capacity
@@ -93,7 +94,26 @@ class CombatSystem:
                 kind, DEFAULT_WEAPON_STAMINA)
         raise ActionError("Unknown melee attack")
 
-    def _strike(self, attacker, defender, weapon_slot: str = "weapon") -> int:
+    def _duel_rolls(self, attacker, defender) -> tuple[int, int, int]:
+        """Stable per-swing rolls, identical when the command journal replays."""
+        material = repr((self.world.seed, len(self.world.events), self.world.minute,
+                         attacker.id, defender.id)).encode("utf-8")
+        digest = sha256(material).digest()
+        return (int.from_bytes(digest[0:4], "big") % 100,
+                int.from_bytes(digest[4:8], "big") % 100,
+                80 + int.from_bytes(digest[8:12], "big") % 41)
+
+    def duel_strike(self, attacker, defender, weapon_slot: str = "weapon"):
+        """Return (damage, critical). A missed swing still costs offensive stamina."""
+        hit_roll, crit_roll, percent = self._duel_rolls(attacker, defender)
+        if hit_roll < 10:
+            return 0, False
+        critical = crit_roll < 10
+        return self._strike(attacker, defender, weapon_slot,
+                            damage_percent=percent, critical=critical), critical
+
+    def _strike(self, attacker, defender, weapon_slot: str = "weapon", *,
+                damage_percent: int = 100, critical: bool = False) -> int:
         weapon_id = attacker.equipped.get(weapon_slot)
         # Fists are always available; even an unarmed defender counterattacks.
         base_attack = effective_attack(self.world.gear[weapon_id]) if weapon_id is not None else 3
@@ -104,6 +124,9 @@ class CombatSystem:
             effective_defense(self.world.gear[g_id]) for g_id in armor_ids if g_id is not None
         )
         damage = max(1, base_attack + attacker.strength + attack_bonus - 1 - defense // 2)
+        damage = max(1, (damage * damage_percent + 50) // 100)
+        if critical:
+            damage = (3 * damage + 1) // 2
         defender.hp = max(0, defender.hp - damage)
         if weapon_id is not None:
             self._wear(attacker, weapon_id)

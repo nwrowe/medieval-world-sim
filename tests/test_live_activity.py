@@ -7,6 +7,7 @@ from importlib.resources import files
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from medieval_world_sim.errors import ActionError
 from medieval_world_sim.web.multiplayer import MultiplayerGame
@@ -39,6 +40,10 @@ def next_sse_activity(response):
 
 class PvPSkirmishTests(unittest.TestCase):
     def setUp(self):
+        rolls = patch("medieval_world_sim.systems.combat.CombatSystem._duel_rolls",
+                      return_value=(50, 50, 100))
+        rolls.start()
+        self.addCleanup(rolls.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.path = Path(self.temp.name) / "test.db"
         self.game = MultiplayerGame(self.path, require_invites=False, dev_fast_forward=True)

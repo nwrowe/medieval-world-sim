@@ -14,6 +14,10 @@ from medieval_world_sim.web.session import GameSession
 
 class DuelWebTests(unittest.TestCase):
     def setUp(self):
+        rolls = patch("medieval_world_sim.systems.combat.CombatSystem._duel_rolls",
+                      return_value=(50, 50, 100))
+        rolls.start()
+        self.addCleanup(rolls.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.path = Path(self.tmp.name) / "save.json"
         self.game = GameSession(self.path)
