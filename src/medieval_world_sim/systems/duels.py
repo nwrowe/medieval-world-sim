@@ -23,9 +23,10 @@ def _attack_text(attacker, defender, weapon, damage, critical=False, blocked=0):
         if blocked:
             return f"{target} blocked {source}'s attack ({blocked} damage absorbed)"
         return f"{source} {attack} but missed {target}"
-    adverb = " critically" if critical else ""
     detail = f" ({blocked} blocked)" if blocked else ""
-    return f"{source} {attack}, dealing{adverb} {damage} damage to {target}{detail}"
+    if critical:
+        return f"{source} {attack}, critically hitting {target} for {damage} damage{detail}"
+    return f"{source} {attack}, dealing {damage} damage to {target}{detail}"
 
 
 class DuelSystem:
@@ -177,10 +178,11 @@ class DuelSystem:
                 "secondary" if defender.equipped.get("secondary") else "unarmed")
             gear_id = defender.equipped.get(defense_slot)
             label = w.gear[gear_id].kind if gear_id is not None else "fists"
+            hp_before = attacker.hp
             retaliation, counter_critical = w.combat.duel_strike(defender, attacker, defense_slot)
             blocked = min(retaliation, protection + duel.pending_ward)
-            attacker.hp = min(attacker.max_hp, attacker.hp + blocked)
             retaliation -= blocked
+            attacker.hp = max(0, hp_before - retaliation)
             duel.pending_ward = 0
             response = _attack_text(defender, attacker, label, retaliation, counter_critical, blocked)
         duel.log.append(f"Round {duel.round}: {description}." +

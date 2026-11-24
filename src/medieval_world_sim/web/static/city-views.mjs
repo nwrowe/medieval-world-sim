@@ -214,8 +214,8 @@ export function createCityViews(ctx) {
           || war && ['notice','live'].includes(war.status)), 'gold') : '';
     const availability = '<p class="small">Weekly matching · 10–20 guild members required. ' +
       'Next matching in ' + esc(dur(Math.max(0, (info.next_match_minute || 0) -
-      state.minute))) + '. Matched guilds get 24 hours notice and fight at Crownreach.</p>';
-    const capital = (state.cities || []).find(c => c.id === 'crownreach')?.name || 'Crownreach';
+      state.minute))) + '. Matched guilds get 24 hours notice and fight at the capital.</p>';
+    const capital = (state.cities || []).find(c => c.id === 'crownreach' && c.discovered !== false)?.name || 'the capital';
     const atWarfront = state.player.city === 'crownreach' && !state.player.destination &&
       !state.world_map?.in_wilderness;
     const activeWar = war && ['notice','live'].includes(war.status);
@@ -340,7 +340,7 @@ export function createCityViews(ctx) {
           ' Honor</strong></div>').join('');
       warContent = panel('Banner Clash · ' +
           (war.practice ? 'Practice match' : 'Ranked match'),
-          war.status === 'live' ? 'Battlefront · Crownreach' :
+          war.status === 'live' ? 'Battlefront · ' + capital :
           war.status === 'notice' ? 'Preparing for battle' : 'Battle results',
           stage + '<div class="button-group">' + joinLeave + treatment + assist +
           '</div>' +

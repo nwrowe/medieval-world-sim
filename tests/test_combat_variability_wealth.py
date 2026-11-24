@@ -26,7 +26,7 @@ class CombatVariabilityTests(unittest.TestCase):
         log = _named_duel_log(w.state.duels["hero"].log,
                               {"hero": "Tadersalad", "rival": "Lucille"})[-1]
         self.assertIn("Tadersalad punched but missed Lucille", log)
-        self.assertIn("Lucille punched, dealing critically", log)
+        self.assertIn("Lucille punched, critically hitting Tadersalad", log)
         self.assertTrue(w.state.duels["hero"].first_attack)
 
     def test_variance_and_replay_rolls(self):
