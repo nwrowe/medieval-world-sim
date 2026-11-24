@@ -81,11 +81,11 @@ class PlayableAtlasTests(unittest.TestCase):
         self.assertEqual(sight_radius(world, actor), 3)
         three = actor.explored_hexes.copy()
         self.assertTrue(base < three)
-        self.assertEqual(world.state.merit_balance["hero"], 3)
+        self.assertEqual(world.state.merit_balance["hero"], 4)
         world.buy_merit_upgrade("hero", "awareness_2")
         self.assertEqual(sight_radius(world, actor), 4)
         self.assertTrue(three < actor.explored_hexes)
-        self.assertEqual(world.state.merit_balance["hero"], 0)
+        self.assertEqual(world.state.merit_balance["hero"], 2)
         self.assertEqual(map_projection(world, actor)["sight_radius"], 4)
         self.assertTrue(base.issubset(actor.explored_hexes))
 

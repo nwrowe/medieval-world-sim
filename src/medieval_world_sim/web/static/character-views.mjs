@@ -71,7 +71,7 @@ export function createCharacterViews(ctx) {
           '</div>';
       }).join('') + '</div>' :
       '<p class="small">You have not learned any spells yet</p>';
-    return panel("Magic", "", spells);
+    return panel("Magic", "", '<div class="home-magic-content' + (learned.length ? '' : ' is-empty') + '">' + spells + '</div>');
   }
 
   function renderCharacter() {

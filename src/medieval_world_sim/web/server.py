@@ -42,6 +42,7 @@ ASSETS = {
     "/character-views.mjs": ("character-views.mjs", "application/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/favicon.svg": ("favicon.svg", "image/svg+xml"),
+    "/kingdom-dusk.svg": ("kingdom-dusk.svg", "image/svg+xml"),
     "/world-map.svg": ("world-map.svg", "image/svg+xml"),
 }
 MAX_JSON_BYTES = 16 * 1024
