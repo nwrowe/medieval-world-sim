@@ -80,8 +80,8 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   let tab = "character";
   const pageHistory = [];
   const THEME_KEY = "oathmere.appearance.theme";
-  // Keep the established light appearance unless the user chooses otherwise.
-  let themePreference = "light";
+  // Dark Kingdom is the default for new browsers; explicit preferences survive.
+  let themePreference = "dark";
   try {
     const saved = localStorage.getItem(THEME_KEY);
     if (["light", "dark"].includes(saved)) themePreference = saved;
@@ -881,7 +881,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
-      '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
+      '<div class="brand"><div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><path d="M20 2 38 20 20 38 2 20Z" stroke="currentColor" stroke-width="1.6"/><path d="M20 8 23 17 32 20 23 23 20 32 17 23 8 20 17 17Z" fill="currentColor"/><path d="M20 3V37M3 20H37" stroke="currentColor" stroke-opacity=".5"/></svg></div><span>OATHMERE</span></div>' +
       '<div class="statbar" aria-label="Character vitals">' +
       meterStat("Life", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
       meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
@@ -915,7 +915,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<details class="mobile-nav"><summary>☷ &nbsp; Locations & services · ' +
       esc(place) + '</summary><nav aria-label="Mobile locations">' + sidebar +
       '</nav></details>' +
-      '<main class="page" id="main-content">' + view() +
+      '<main class="page" id="main-content">' +
+      (tab === "character" && !(state.duel && state.duel.role !== "defender") ?
+        '<div class="kingdom-banner" aria-hidden="true"><span class="kingdom-banner-caption">OATHMERE <span>◆</span> THE REALM AWAITS</span></div>' : "") + view() +
       '</main></div></div></div>';
   }
 
@@ -1080,7 +1082,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     });
   function renderSettings() {
     const appearance = ["light", "dark"].map(value =>
-      button(value === "light" ? "Light" : "Dark",
+      button(value === "light" ? "Classic Light" : "Dark Kingdom",
         'type="button" data-ui="settings-theme" data-value="' + value +
         '" aria-pressed="' + (themePreference === value) + '"',
         themePreference === value ? "secondary settings-choice active" :

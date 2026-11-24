@@ -380,6 +380,7 @@ class WebHTTPTests(unittest.TestCase):
                 ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/favicon.svg", b"<svg"),
+                ("/kingdom-dusk.svg", b"<svg"),
             ):
                 status, headers, body = request(port, "GET", path)
                 self.assertEqual(status, 200, path)
