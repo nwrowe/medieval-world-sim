@@ -41,6 +41,15 @@ ASSETS = {
     "/city-views.mjs": ("city-views.mjs", "application/javascript; charset=utf-8"),
     "/character-views.mjs": ("character-views.mjs", "application/javascript; charset=utf-8"),
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
+    "/immersive.css": ("immersive.css", "text/css; charset=utf-8"),
+    "/immersive-frame.svg": ("immersive-frame.svg", "image/svg+xml"),
+    "/immersive-hud.svg": ("immersive-hud.svg", "image/svg+xml"),
+    "/immersive-crest.svg": ("immersive-crest.svg", "image/svg+xml"),
+    "/immersive-crownreach.webp": ("immersive-crownreach.webp", "image/webp"),
+    "/immersive-stone.webp": ("immersive-stone.webp", "image/webp"),
+    "/immersive-column.webp": ("immersive-column.webp", "image/webp"),
+    "/immersive-banner.webp": ("immersive-banner.webp", "image/webp"),
+    "/immersive-floor.webp": ("immersive-floor.webp", "image/webp"),
     "/favicon.svg": ("favicon.svg", "image/svg+xml"),
     "/world-map.svg": ("world-map.svg", "image/svg+xml"),
 }
@@ -277,8 +286,12 @@ class GameHandler(BaseHTTPRequestHandler):
             self._multi_events()
         elif route in ASSETS:
             filename, mime = ASSETS[route]
-            payload = files("medieval_world_sim.web").joinpath(
-                "static", filename).read_bytes()
+            try:
+                payload = files("medieval_world_sim.web").joinpath(
+                    "static", filename).read_bytes()
+            except FileNotFoundError:
+                self._json(404, {"error": "Asset not installed"})
+                return
             self._write(200, payload, mime)
         else:
             self._json(404, {"error": "Not found"})
@@ -398,7 +411,11 @@ class GameHandler(BaseHTTPRequestHandler):
                 self._json(200, self.server.game.snapshot())
         elif route in ASSETS:
             filename, mime = ASSETS[route]
-            payload = files("medieval_world_sim.web").joinpath("static", filename).read_bytes()
+            try:
+                payload = files("medieval_world_sim.web").joinpath("static", filename).read_bytes()
+            except FileNotFoundError:
+                self._json(404, {"error": "Asset not installed"})
+                return
             self._write(200, payload, mime)
         else:
             self._json(404, {"error": "Not found"})

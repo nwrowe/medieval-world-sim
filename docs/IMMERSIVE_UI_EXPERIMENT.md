@@ -1,0 +1,8 @@
+# Immersive UI experiment
+
+This branch is intentionally isolated from main. No simulation or database behavior changes. Light and Dark remain the original appearance; choose **Immersive (experimental)** in Settings to opt in. Switching away preserves the ordinary theme. The optional raster art pack contains five local WebP assets, extracted into the repository root (src/medieval_world_sim/web/static). The server allowlists those exact paths and returns 404 if they are not installed; CSS has graceful fallbacks. The vector ornamental frame and crest are committed here. No remote network dependencies.
+
+Scope: Home, global header, sidebar, capital scene, responsive layout. The panorama appears only when the character is in Crownreach. All buttons, numbers and state remain live HTML. To abandon the experiment, select Dark or switch back to main; no history rewriting or database conversion required. Use a separate checkout and copy your save if you wish to isolate playtest progress. The untracked raster files can simply be deleted from the experimental checkout.
+
+## Polish pass 1
+Install artwork v2 over the previous local artwork files. It replaces the city panorama with a more muted oil-painting style and the pillar with a single alpha-faded sconce. The CSS no longer repeats the pillar or any stone background; the floor is a low-opacity, masked decoration anchored to the bottom of the content area. The header uses a locally served scalable forged-brass frame, real progress meters, custom jewel glyphs, coin icon, and grouped utility controls. Its measured height keeps the sticky sidebar below it when activity indicators wrap. These changes remain appearance-only and opt-in.
