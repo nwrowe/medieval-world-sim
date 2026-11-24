@@ -92,8 +92,9 @@ class WarSystem:
         if self.pending_for(guild.id):
             raise ActionError("Finish the current war before practicing")
         actor = self.world._actor(actor_id)
-        if actor.city != WARFRONT or actor.destination is not None:
-            raise ActionError("Start practice in Crownreach")
+        if (actor.city != WARFRONT or actor.destination is not None
+                or actor.wilderness_hex is not None):
+            raise ActionError("Start practice in the capital, not in the wilderness")
         # Reuse ten isolated training NPCs; they have no gold or accounts.
         roster = []
         for i in range(10):

@@ -338,6 +338,12 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
             "move": move, "label": "Primary: " + label if move == "strike" else label,
             "stamina": cost, "available": actor.stamina >= cost,
         })
+    guild_view = w.guild_system.view(actor_id)
+    if guild_view["my_guild"]:
+        guild_view["my_guild"]["member_names"] = {
+            member_id: ({**human_names, actor_id: name}).get(member_id, "Unknown adventurer")
+            for member_id in guild_view["my_guild"]["members"]
+        }
     return {
         "started": True, "name": name,
         "lineage_options": [
@@ -362,7 +368,7 @@ def world_snapshot(w: WorldEngine | None, actor_id: str, name: str,
         "world_map": map_projection(w, actor),
         "wilderness": w.wilderness.view(actor_id),
         "dev_travel_seconds": w.dev_travel_seconds,
-        "guilds": w.guild_system.view(actor_id),
+        "guilds": guild_view,
         "merits": w.merit_system.view(actor_id),
         "training_hall": w.curriculum_system.view(actor_id),
         "chat": w.chat_system.view(actor_id),

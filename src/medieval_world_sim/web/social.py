@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING
 
 from ..systems.cooldowns import remaining
-from .projection import activity_projection
+from .projection import activity_projection, _named_duel_log
 from .economy_projection import incoming_job_offers
 
 MAX_ACTIVITY_CACHE = 32
@@ -33,7 +33,11 @@ def cached_activity(game: MultiplayerGame, actor_id: str) -> dict:
             game.names, game.event_times, True)
         fresh = {
             "events": events, "duel": duel,
-            "last_duel": game.world.state.last_duels.get(actor_id),
+            "last_duel": (
+                {**game.world.state.last_duels[actor_id],
+                 "log": _named_duel_log(game.world.state.last_duels[actor_id]["log"],
+                                        {**game.npc_names, **game.names})}
+                if actor_id in game.world.state.last_duels else None),
             "users": users,
         }
         game._live_activity_cache[actor_id] = (game._journal_count, fresh)
