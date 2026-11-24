@@ -1,0 +1,5 @@
+# Immersive UI experiment
+
+This branch is intentionally isolated from main. No simulation or database behavior changes. Light and Dark remain the original appearance; choose **Immersive (experimental)** in Settings to opt in. Switching away preserves the ordinary theme. The optional raster art pack contains five local WebP assets, extracted into the repository root (src/medieval_world_sim/web/static). The server allowlists those exact paths and returns 404 if they are not installed; CSS has graceful fallbacks. The vector ornamental frame and crest are committed here. No remote network dependencies.
+
+Scope: Home, global header, sidebar, capital scene, responsive layout. The panorama appears only when the character is in Crownreach. All buttons, numbers and state remain live HTML. To abandon the experiment, select Dark or switch back to main; no history rewriting or database conversion required. Use a separate checkout and copy your save if you wish to isolate playtest progress. The untracked raster files can simply be deleted from the experimental checkout.

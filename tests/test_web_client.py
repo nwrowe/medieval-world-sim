@@ -379,6 +379,8 @@ class WebHTTPTests(unittest.TestCase):
                 ("/character-views.mjs", b"createCharacterViews"),
                 ("/world-map.svg", b"THE FIVE CITIES"),
                 ("/styles.css", b"@media (max-width:640px)"),
+                ("/immersive.css", b"data-appearance"),
+                ("/immersive-frame.svg", b"<svg"),
                 ("/favicon.svg", b"<svg"),
             ):
                 status, headers, body = request(port, "GET", path)

@@ -82,12 +82,16 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
   const THEME_KEY = "oathmere.appearance.theme";
   // Keep the established light appearance unless the user chooses otherwise.
   let themePreference = "light";
+  let immersiveEnabled = false;
+  const IMMERSIVE_KEY = "oathmere.experimental.immersive";
   try {
     const saved = localStorage.getItem(THEME_KEY);
     if (["light", "dark"].includes(saved)) themePreference = saved;
+    immersiveEnabled = localStorage.getItem(IMMERSIVE_KEY) === "1";
   } catch { /* Private browsing can disable local storage. */ }
   function applyTheme() {
-    document.documentElement.dataset.theme = themePreference;
+    document.documentElement.dataset.theme = immersiveEnabled ? "dark" : themePreference;
+    document.documentElement.dataset.appearance = immersiveEnabled ? "immersive" : "classic";
   }
   applyTheme();
   function combatNavigationLocked() {
@@ -874,10 +878,14 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const view = state.duel && state.duel.role !== "defender" ?
       renderDuel : (renderers[tab] || renderWorld);
     const remoteLinks = new Set(["inventory","magic","guilds","merits"]);
-    const sidebar = cityLinks.filter(t =>
+    const availableCityLinks = cityLinks.filter(t =>
       (!t.onlyCity || t.onlyCity === p.city) &&
       (!p.destination && !inWilderness || remoteLinks.has(t.id)))
-      .map(t => navButton(t)).join('');
+      ;
+    const sidebar = availableCityLinks.map(t => navButton(t)).join('');
+    const personalIds = ["character","world","inventory","equipment","magic","guilds","merits","chronicle"];
+    const personalLinks = personalIds.map(id => [...accountTabs,...availableCityLinks].find(t => t.id === id)).filter(Boolean);
+    const immersiveSidebar = '<nav class="immersive-personal" aria-label="Adventurer menu">' + personalLinks.map(t => navButton(t)).join("") + '</nav><div class="immersive-section-label">City services</div><nav class="side-nav" aria-label="City locations">' + availableCityLinks.filter(t => !personalIds.includes(t.id)).map(t => navButton(t)).join("") + '</nav>';
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
@@ -910,12 +918,14 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<aside class="sidebar" aria-label="Locations and services">' +
 
       '<div class="sidebar-place"><strong>' + esc(place) + '</strong></div>' +
-      '<nav class="side-nav" aria-label="City locations">' + sidebar + '</nav>' +
+      (immersiveEnabled ? immersiveSidebar : '<nav class="side-nav" aria-label="City locations">' + sidebar + '</nav>') +
       '</aside><div class="main-column">' +
       '<details class="mobile-nav"><summary>☷ &nbsp; Locations & services · ' +
       esc(place) + '</summary><nav aria-label="Mobile locations">' + sidebar +
       '</nav></details>' +
-      '<main class="page" id="main-content">' + view() +
+      '<main class="page" id="main-content">' +
+      (immersiveEnabled && tab === "character" && !(state.duel && state.duel.role !== "defender") ?
+        '<section class="immersive-scene' + (p.city === "crownreach" && !p.destination && !inWilderness ? ' is-crownreach' : '') + '"><div class="immersive-scene-copy"><span>' + esc(place) + '</span><h1>Home</h1><div class="immersive-rule" aria-hidden="true"></div></div></section>' : "") + view() +
       '</main></div></div></div>';
   }
 
@@ -1079,11 +1089,12 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       characterRow,
     });
   function renderSettings() {
-    const appearance = ["light", "dark"].map(value =>
-      button(value === "light" ? "Light" : "Dark",
+    const selectedAppearance = immersiveEnabled ? "immersive" : themePreference;
+    const appearance = ["light", "dark", "immersive"].map(value =>
+      button(value === "light" ? "Light" : value === "dark" ? "Dark" : "Immersive (experimental)",
         'type="button" data-ui="settings-theme" data-value="' + value +
-        '" aria-pressed="' + (themePreference === value) + '"',
-        themePreference === value ? "secondary settings-choice active" :
+        '" aria-pressed="' + (selectedAppearance === value) + '"',
+        selectedAppearance === value ? "secondary settings-choice active" :
           "secondary settings-choice")).join("");
     const accountNote = multiMode ?
       "Your password and account data remain in the local Oathmere server." :
@@ -1095,7 +1106,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '<div class="settings-grid">' +
       panel("Appearance", "Saved locally in this browser",
         '<div class="settings-choices" role="group" aria-label="Color theme">' +
-        appearance + '</div>') +
+        appearance + '</div><p class="small immersive-setting-note">The experimental appearance is optional and changes no gameplay. Install the local artwork pack for the full experience.</p>') +
       panel("Email & notifications", "Not yet connected",
         '<p class="small">Planned: verified email address, notification categories, ' +
         'delivery preferences and opt-out controls. No email is currently sent ' +
@@ -1814,9 +1825,13 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         break;
       case "settings-theme": {
         const value = element.dataset.value;
-        if (!["light", "dark"].includes(value)) break;
-        themePreference = value;
-        try { localStorage.setItem(THEME_KEY, value); }
+        if (!["light", "dark", "immersive"].includes(value)) break;
+        immersiveEnabled = value === "immersive";
+        if (!immersiveEnabled) themePreference = value;
+        try {
+          localStorage.setItem(THEME_KEY, themePreference);
+          localStorage.setItem(IMMERSIVE_KEY, immersiveEnabled ? "1" : "0");
+        }
         catch { /* A blocked preference store must not prevent theme use. */ }
         applyTheme();
         render();

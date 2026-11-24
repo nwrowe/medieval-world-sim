@@ -71,7 +71,7 @@ export function createCharacterViews(ctx) {
           '</div>';
       }).join('') + '</div>' :
       '<p class="small">You have not learned any spells yet</p>';
-    return panel("Magic", "", spells);
+    return panel("Magic", "", '<div class="immersive-magic' + (learned.length ? '' : ' is-empty') + '">' + spells + '</div>');
   }
 
   function renderCharacter() {
@@ -85,6 +85,7 @@ export function createCharacterViews(ctx) {
     const lineage = (state.lineage_options || []).find(x => x.id === p.lineage);
     return '<div class="profile-grid home-grid">' +
       panel("Character State", "",
+        '<div class="immersive-character-crest" aria-hidden="true"></div>' +
         characterRow("Name", state.name) +
         characterRow("Level", p.level) +
         characterRow("Experience toward next level", p.level_xp + " / " + xpNext) +
