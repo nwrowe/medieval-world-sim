@@ -6,6 +6,7 @@ from ..catalog import CITIES
 from ..combat import STAMINA_REGEN_MINUTES
 from ..content.magic_tree import MANA_REGEN_MINUTES
 from .tavern import bonus_ticks
+from .merits import roadcraft_minutes
 from ..errors import ActionError
 from ..core.exploration import reveal_travel_progress, reveal, current_hex, sight_radius
 from ..worldgen.hexgrid import hex_distance, neighbors
@@ -231,8 +232,7 @@ class TravelSystem:
         if load > capacity:
             raise ActionError(f"Travel cargo limit is {capacity} units; carrying {load}")
         time = self.world.housing_system.road_minutes(actor, time)
-        if "roadcraft" in self.world.state.merit_upgrades.get(actor_id, set()):
-            time = max(1, (time * 95 + 99) // 100)
+        time = roadcraft_minutes(time, self.world.state.merit_upgrades.get(actor_id, set()))
         if actor.magic.road_charm:
             time = max(1, (time * (100 - actor.magic.road_charm) + 99) // 100)
             actor.magic.road_charm = 0

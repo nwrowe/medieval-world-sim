@@ -35,7 +35,7 @@ from ..systems.spells import SpellSystem
 from ..systems.track import TrackSystem
 from ..systems.guilds import GuildSystem, ROLES, MAX_GUILD_MEMBERS
 from ..systems.warfare import WarSystem
-from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES
+from ..systems.merits import MeritSystem, ACHIEVEMENTS, MERIT_UPGRADES, roadcraft_minutes
 from ..systems.chat import ChatSystem, MAX_MESSAGES_SAVED, MAX_MESSAGE_LENGTH
 from ..systems.trades import TradeSystem, TradeAssets
 from ..systems.curriculum import CurriculumSystem, SCHOOLS, CURRENT_SCHOOLS
@@ -632,8 +632,7 @@ class WorldEngine:
         if not base:
             return 0
         minutes = self.housing_system.road_minutes(actor, base)
-        if "roadcraft" in self.state.merit_upgrades.get(actor_id, set()):
-            minutes = max(1, (minutes * 95 + 99) // 100)
+        minutes = roadcraft_minutes(minutes, self.state.merit_upgrades.get(actor_id, set()))
         if actor.magic.road_charm:
             minutes = max(1, (minutes * (100 - actor.magic.road_charm) + 99) // 100)
         return max(1, (minutes + 59) // 60) if self.dev_travel_seconds else minutes

@@ -1418,3 +1418,52 @@ h1, h2, h3, .brand, .hero-title { font-family: Georgia, "Times New Roman", serif
 :root[data-theme="dark"] .school-tile:hover,
 :root[data-theme="dark"] .school-tile:focus-visible {background:#365743;border-color:#d5e5b6;outline:2px solid #d5e5b6;outline-offset:2px;}
 .alert {z-index:1000;font-weight:600;}
+
+/* Home's six information panels occupy a balanced two-column grid. */
+.home-spell-list {grid-template-columns:1fr;}
+
+/* Chronicle: color-coded category pills and quiet, accessible copy icons. */
+.chronicle-tag {border-radius:999px;background:var(--tag-bg,#e8ece7);color:var(--tag-fg,#48544b);border-color:transparent;padding:2px 7px;}
+.chronicle-tag[data-category="Combat"] {--tag-bg:#f7d7d5;--tag-fg:#8b2926;}
+.chronicle-tag[data-category="Travel"] {--tag-bg:#d2e8f6;--tag-fg:#215c86;}
+.chronicle-tag[data-category="Progression"] {--tag-bg:#f7e7b9;--tag-fg:#735313;}
+.chronicle-tag[data-category="Magic"] {--tag-bg:#e8d9fa;--tag-fg:#6c378f;}
+.chronicle-tag[data-category="University"] {--tag-bg:#daddf7;--tag-fg:#404e99;}
+.chronicle-tag[data-category="Trade"] {--tag-bg:#d8edce;--tag-fg:#3d6b27;}
+.chronicle-tag[data-category="Economy"] {--tag-bg:#fae2bd;--tag-fg:#825019;}
+.chronicle-tag[data-category="Equipment"] {--tag-bg:#d9e0e7;--tag-fg:#465d70;}
+.chronicle-tag[data-category="Health"] {--tag-bg:#f6d7e5;--tag-fg:#943a63;}
+.chronicle-tag[data-category="Racing"] {--tag-bg:#f5d8bd;--tag-fg:#994822;}
+.chronicle-tag[data-category="Property"] {--tag-bg:#e8dfcf;--tag-fg:#76593a;}
+.chronicle-tag[data-category="Guild"] {--tag-bg:#cce9e3;--tag-fg:#226c61;}
+:root[data-theme="dark"] .chronicle-tag {background:var(--tag-fg,#48544b);color:var(--tag-bg,#e8ece7);}
+.activity-encounter summary,.activity-encounter .encounter-disclosure,
+.activity-encounter summary:hover .encounter-disclosure {color:#286ca8;}
+:root[data-theme="dark"] .activity-encounter summary,
+:root[data-theme="dark"] .activity-encounter .encounter-disclosure,
+:root[data-theme="dark"] .activity-encounter summary:hover .encounter-disclosure {color:#8dc5f5;}
+.activity-encounter summary:hover .encounter-title>span {text-decoration:underline;}
+.chronicle-meta {display:inline-flex;gap:7px;align-items:center;flex-shrink:0;}
+.chronicle-copy {display:inline-flex;align-items:center;justify-content:center;width:25px;height:23px;padding:0;border:0;border-radius:5px;background:transparent;color:var(--muted);opacity:.45;cursor:pointer;flex:none;}
+.chronicle-copy:hover,.chronicle-copy:focus-visible,.activity li:hover>.chronicle-copy,.activity li:hover>.chronicle-meta>.chronicle-copy {opacity:1;}
+.chronicle-copy:hover,.chronicle-copy:focus-visible {background:var(--line);color:inherit;}
+.activity-encounter {position:relative;}
+.activity-encounter summary {padding-right:32px;}
+.activity-encounter>.chronicle-copy {position:absolute;right:0;top:8px;}
+.chronicle-filters #chronicle-category {flex:0 1 125px;min-width:100px;max-width:135px;width:125px;}
+@media(max-width:640px) {.chronicle-filters #chronicle-category {flex:none;width:135px;max-width:100%;align-self:flex-start;}}
+@media(max-width:480px) {.activity li:not(.activity-encounter),.activity-encounter summary {flex-wrap:wrap;gap:5px;}.chronicle-meta {margin-left:auto;}}
+@media(hover:none) {.chronicle-copy {opacity:.85;}}
+
+/* Permanent Renown tracks, one purchase at a time. */
+.renown-track {padding:13px 0;border-bottom:1px solid var(--line);}
+.renown-track:last-child {border-bottom:0;}
+.renown-track-heading,.renown-next {display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.renown-track-heading h3 {margin:0;font-size:15px;}
+.renown-track-heading strong,.renown-track p,.renown-next span {font-size:12px;color:var(--muted);}
+.renown-track p {margin:8px 0;}
+.renown-pips {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;margin:10px 0;}
+.renown-pip {text-align:center;border:1px solid var(--line);border-radius:5px;padding:7px 0;color:var(--muted);font-weight:700;font-size:12px;}
+.renown-pip.filled {background:#527b5d;border-color:#527b5d;color:#fff;}
+.renown-pip.next {border-color:#b08b47;color:#8b681e;}
+:root[data-theme="dark"] .renown-pip.next {border-color:#d6b371;color:#e7c579;}

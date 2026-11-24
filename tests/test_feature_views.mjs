@@ -222,7 +222,8 @@ state = { ...state, merits: {
     description: "Create your character", award: 1,
     eligible: false, claimed: true }],
   upgrades: [{ id: "roadcraft", name: "Roadcraft", cost: 2,
-    description: "Shorter journeys", owned: false }]
+    level: 1, max_level: 5, next_id: "roadcraft_2",
+    description: "5% shorter road journeys", next_description: "10% shorter road journeys" }]
 } };
 const guildFounding = city.renderGuilds();
 assert.match(guildFounding, /minlength="3"/);
@@ -270,6 +271,8 @@ state = { ...state, guilds: {
 const meritPage = city.renderMerits();
 assert.match(meritPage, /Your Renown ledger|First Steps/);
 assert.match(meritPage, /Buy · 2 Renown/);
+assert.match(meritPage, /data-perk="roadcraft_2"/);
+assert.match(meritPage, /1 of 5 levels/);
 const claimedFixture = state.merits.achievements[0];
 state.merits.achievements[0] = { ...claimedFixture, claimed: false, eligible: true };
 assert.match(city.renderMerits(), /Claim Renown/);
@@ -458,6 +461,8 @@ state = { ...state, player: { ...state.player, mana: 100, hp: 18,
       school: "warding", active: false, castable: false, mana_cost: 10 }] };
 let homeMagic = character.renderCharacter();
 assert.match(homeMagic, /<h3>Magic<\/h3>/);
+assert.match(homeMagic, /profile-grid home-grid/);
+assert.doesNotMatch(homeMagic, /No magical studies|Study magic|Oathmere days|profile-magic-panel/);
 assert.match(homeMagic, /data-ui="field-cast" data-node="restoration.soothe_wounds"/);
 assert.match(homeMagic, /data-ui="field-cast" data-node="warding.shelter" disabled/);
 assert.doesNotMatch(world.renderMagic(), /data-ui="field-cast"/);

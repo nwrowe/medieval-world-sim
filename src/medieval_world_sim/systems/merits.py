@@ -53,14 +53,33 @@ ACHIEVEMENTS = {
         name + " Scholar", "Complete all eight courses in " + name)
        for school, (name, _, _, _) in SCHOOLS.items()},
 }
-MERIT_UPGRADES = {
-    "roadcraft": {"name": "Roadcraft", "cost": 2, "description": "5% shorter road journeys"},
-    "horsemanship": {"name": "Horsemanship", "cost": 2, "description": "+2 to your horse-race score"},
-    "awareness_1": {"name": "Awareness I", "cost": 2,
-                    "description": "See and permanently explore within 3 hexes instead of 2"},
-    "awareness_2": {"name": "Awareness II", "cost": 3,
-                    "description": "Increase sight and exploration radius to 4 hexes"},
+MAX_PERK_LEVEL = 5
+PERK_TRACKS = {
+    "horsemanship": ("Horsemanship", lambda level: f"+{2 * level} to your horse-race score"),
+    "awareness": ("Awareness", lambda level: f"See and explore within {2 + level} hexes"),
+    "roadcraft": ("Roadcraft", lambda level: f"{5 * level}% shorter road journeys"),
 }
+MERIT_UPGRADES = {
+    f"{track}_{level}": {
+        "name": name, "track": track, "level": level, "cost": level,
+        "description": describe(level),
+    }
+    for track, (name, describe) in PERK_TRACKS.items()
+    for level in range(1, MAX_PERK_LEVEL + 1)
+}
+
+
+def perk_level(owned, track):
+    """Return the contiguous purchased level, never skipping a prerequisite."""
+    level = 0
+    while level < MAX_PERK_LEVEL and f"{track}_{level + 1}" in owned:
+        level += 1
+    return level
+
+
+def roadcraft_minutes(minutes, owned):
+    return max(1, (minutes * (100 - 5 * perk_level(owned, "roadcraft")) + 99) // 100)
+
 
 class MeritSystem:
     def __init__(self, world):
@@ -111,15 +130,16 @@ class MeritSystem:
         owned = self.world.state.merit_upgrades.setdefault(actor_id, set())
         if perk in owned:
             raise ActionError("Upgrade already purchased")
-        if perk == "awareness_2" and "awareness_1" not in owned:
-            raise ActionError("Awareness II requires Awareness I")
-        cost = MERIT_UPGRADES[perk]["cost"]
+        spec = MERIT_UPGRADES[perk]
+        if spec["level"] != perk_level(owned, spec["track"]) + 1:
+            raise ActionError("Purchase the preceding Renown level first")
+        cost = spec["cost"]
         balance = self.world.state.merit_balance.get(actor_id, 0)
         if balance < cost:
             raise ActionError("Insufficient Renown")
         self.world.state.merit_balance[actor_id] = balance - cost
         owned.add(perk)
-        if perk in ("awareness_1", "awareness_2"):
+        if spec["track"] == "awareness":
             from ..core.exploration import current_hex, reveal
             reveal(self.world, self.world._actor(actor_id),
                    current_hex(self.world, self.world._actor(actor_id)))
@@ -138,5 +158,12 @@ class MeritSystem:
                     "claimed": k in claimed, "eligible": k in claimed or self.earned(actor_id, k, net_worth),
                     "award": spec.award} for k, spec in ACHIEVEMENTS.items()
                     ],
-                "upgrades": [{"id": key, **spec, "owned": key in upgrades}
-                             for key, spec in MERIT_UPGRADES.items()]}
+                "upgrades": [
+                    {"id": track, "name": name, "level": level,
+                     "max_level": MAX_PERK_LEVEL,
+                     "description": describe(level),
+                     "next_description": describe(level + 1) if level < MAX_PERK_LEVEL else None,
+                     "next_id": f"{track}_{level + 1}" if level < MAX_PERK_LEVEL else None,
+                     "cost": level + 1 if level < MAX_PERK_LEVEL else None}
+                    for track, (name, describe) in PERK_TRACKS.items()
+                    for level in [perk_level(upgrades, track)]]}
