@@ -692,6 +692,15 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       'automatically when the server returns.</p></div></div>';
   }
 
+  // Decorative HUD glyphs are only used by the opt-in artwork theme.
+  function immersiveVitalGlyph(kind) {
+    const shapes = {
+      health: '<path d="M16 27 5.4 16.5C-1 9.5 8 1.7 16 9c8-7.3 17 .5 10.6 7.5Z" fill="#d86c60" stroke="#ffe0b6" stroke-width="1.1"/><path d="M8 9c-2.8 1.6-3 4.5-.6 7" fill="none" stroke="#fff1de" stroke-width="2" stroke-linecap="round"/>',
+      stamina: '<path d="M19 2 5 19h9l-2 11 15-18H17Z" fill="#d5d57e" stroke="#f8ecbf" stroke-width="1.2" stroke-linejoin="round"/><path d="m18 6-9 11h7" fill="none" stroke="#fffbd4" stroke-width="1.3"/>',
+      mana: '<path d="M17 2C12 10 5 15 5 21a11 11 0 0 0 22 0c0-6-7-12-10-19Z" fill="#59a6d2" stroke="#d7f0ff" stroke-width="1.2"/><path d="M12 16c-4 5-2 9 3 10" fill="none" stroke="#e2f5ff" stroke-width="2" stroke-linecap="round"/>',
+    };
+    return '<svg viewBox="0 0 32 32" aria-hidden="true">' + shapes[kind] + '</svg>';
+  }
   function meterStat(label, value, max, kind, simSeconds) {
     const v = Number(value) || 0;
     const maximum = Math.max(1, Number(max) || 1);
@@ -706,11 +715,11 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
         (v >= maximum || simSeconds == null ? hint :
           hint + fullCountdown(timerSeconds(simSeconds)))) + '">' +
       '<div class="vital-caption"><span class="vital-icon" aria-hidden="true">' +
-      (kind === "health" ? "+" : kind === "stamina" ?
+      (immersiveEnabled ? immersiveVitalGlyph(kind) : kind === "health" ? "+" : kind === "stamina" ?
         '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
         'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
         '<path d="m13 2-9 12h8l-1 8 9-12h-8z"/></svg>' : "✦") +
-      '</span><strong>' +
+      '</span>' + (immersiveEnabled ? '<span class="immersive-vital-name">' + (kind === "health" ? "HP" : label) + '</span>' : '') + '<strong>' +
       v + '/' + maximum + '</strong></div>' +
       '<progress value="' + Math.max(0, Math.min(maximum, v)) +
       '" max="' + maximum + '" aria-label="' + esc(label) + '"></progress></div>';
@@ -889,7 +898,9 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
     const topLinks = accountTabs.map(t => navButton(t, "account-button")).join('');
     return '<div class="shell">' +
       '<header class="topbar"><div class="topbar-inner">' +
-      '<div class="brand"><div class="brand-mark">✦</div><span>OATHMERE</span></div>' +
+      '<div class="brand"><div class="brand-mark" aria-hidden="true">' +
+      (immersiveEnabled ? '<svg viewBox="0 0 40 40" fill="none"><path d="M20 2 38 20 20 38 2 20Z" stroke="currentColor" stroke-width="1.6"/><path d="M20 5 23 17 35 20 23 23 20 35 17 23 5 20 17 17Z" fill="currentColor"/><path d="M20 2V38M2 20H38" stroke="#fff0c0" stroke-opacity=".35"/></svg>' : '✦') +
+      '</div><span>OATHMERE</span></div>' +
       '<div class="statbar" aria-label="Character vitals">' +
       meterStat("Life", p.hp, p.max_hp, "health", p.health_next_sim_seconds) +
       meterStat("Stamina", p.stamina, p.max_stamina, "stamina", p.stamina_next_sim_seconds) +
@@ -1564,6 +1575,22 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       '</div></section></div>';
   }
   let lastMapHex = null;
+  let immersiveHeaderObserver = null;
+  function observeImmersiveHeader() {
+    if (immersiveHeaderObserver) {
+      immersiveHeaderObserver.disconnect();
+      immersiveHeaderObserver = null;
+    }
+    const header = immersiveEnabled && root.querySelector(".topbar");
+    if (!header) return;
+    const measure = () => document.documentElement.style.setProperty(
+      "--immersive-header-height", Math.ceil(header.getBoundingClientRect().height) + "px");
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      immersiveHeaderObserver = new ResizeObserver(measure);
+      immersiveHeaderObserver.observe(header);
+    }
+  }
   function render() {
     // Preserve native <details> expansion before a full shell replacement.
     rememberChronicleExpansion(root);
@@ -1582,6 +1609,7 @@ import { scaledTimerSeconds, totalUnspentMerits } from "/activity-state.mjs";
       guildLeaveConfirmation() + gameConfirmation();
     else root.innerHTML = '<main class="startup"><div class="loader-ring"></div>' +
       '<p>Opening the city gates…</p></main>';
+    observeImmersiveHeader();
     const map = root.querySelector(".terrain-map-scroll");
     if (map && state && state.world_map) {
       const hex = state.world_map.position.join(",");

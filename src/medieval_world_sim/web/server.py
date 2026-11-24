@@ -43,6 +43,7 @@ ASSETS = {
     "/styles.css": ("styles.css", "text/css; charset=utf-8"),
     "/immersive.css": ("immersive.css", "text/css; charset=utf-8"),
     "/immersive-frame.svg": ("immersive-frame.svg", "image/svg+xml"),
+    "/immersive-hud.svg": ("immersive-hud.svg", "image/svg+xml"),
     "/immersive-crest.svg": ("immersive-crest.svg", "image/svg+xml"),
     "/immersive-crownreach.webp": ("immersive-crownreach.webp", "image/webp"),
     "/immersive-stone.webp": ("immersive-stone.webp", "image/webp"),

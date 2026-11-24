@@ -381,6 +381,7 @@ class WebHTTPTests(unittest.TestCase):
                 ("/styles.css", b"@media (max-width:640px)"),
                 ("/immersive.css", b"data-appearance"),
                 ("/immersive-frame.svg", b"<svg"),
+                ("/immersive-hud.svg", b"<svg"),
                 ("/favicon.svg", b"<svg"),
             ):
                 status, headers, body = request(port, "GET", path)
